@@ -960,11 +960,11 @@ class CombatSystem {
     this.game.fx.push({ type: 'beam', x1, y1, x2, y2, color, dur, width, t: 0 });
   }
 
-  /* ---------- v1.12 全局技能：消耗能量释放（1 格 = energyPerCell 点） ---------- */
-  /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'freeze' 全场冰冻；能量不足返回 false */
+  /* ---------- v1.12 全局技能：消耗累计弹药释放（1 次 = chargePerUse 发） ---------- */
+  /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'refill' 所有塔补充弹药；累计弹药不足返回 false */
   castGlobal(which) {
     const g = this.game;
-    if (!g.run.spendEnergy(which)) return false;
+    if (!g.run.spendAmmo(which)) return false;
     const GS = CONFIG.GLOBAL_SKILL;
     if (which === 'shuffle') {
       // 全局洗牌：打乱当前三消棋盘所有方块（重新生成，无初始三消）
@@ -976,13 +976,20 @@ class CombatSystem {
       this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
       g.toast && g.toast('🔀 全局洗牌', '#ff8c42');
     } else {
-      // 全局冰冻：全场冻结（停止移动/攻击）
-      this.enemies().forEach((e) => { e.frozen = Math.max(e.frozen || 0, GS.freezeDur); });
-      if (this.enemies().length) {
-        this.fxFlash(375, 800, '#7ec8ff', 0.5);
-        this.fxRing(375, 800, '#7ec8ff', 300, 0.5, 8);
-      }
-      g.toast && g.toast(`❄ 全局冰冻 ${GS.freezeDur}s`, '#7ec8ff');
+      // 弹药补给：所有已解锁塔各 +refillAmmo（封顶 ammoMax）
+      let refilled = 0;
+      Object.keys(g.run.slotOrder).forEach((_, i) => {
+        const tk = g.run.slotOrder[i];
+        const tw = g.run.effects.tower(tk);
+        if (!tw || tw.level <= 0) return;
+        const before = tw.ammo;
+        tw.ammo = Math.min(before + GS.refillAmmo, GS.ammoMax);
+        refilled += tw.ammo - before;
+      });
+      this.fxFlash(375, 800, '#7ef0a3', 0.5);
+      this.fxRing(375, 800, '#7ef0a3', 300, 0.5, 8);
+      g.toast && g.toast(`🔋 弹药补给 +${GS.refillAmmo}`, '#7ef0a3');
+      if (refilled > 0) g.toast && g.toast(`全场补给 ${refilled} 发`, '#7ef0a3');
     }
     return true;
   }

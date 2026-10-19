@@ -145,20 +145,10 @@ class TowerBuild {
     }
 
     if (targeting && tgtCand) {
-      // 加权抽样：目标（技能卡或分支卡）占 targetWeight 份，抽取去重候选（按 name+branch 去重）
-      const weighted = [];
-      eligible.forEach((e) => {
-        const w = (e === tgtCand) ? CONFIG.EFFECT.targetWeight : 1;
-        for (let i = 0; i < w; i++) weighted.push(e);
-      });
-      shuffle(weighted, this.rng);
-      const seen = new Set();
-      const cands = [];
-      for (const e of weighted) {
-        const id = e.type + ':' + e.name + ':' + (e.branch || '');
-        if (!seen.has(id)) { seen.add(id); cands.push(e); }
-        if (cands.length >= CONFIG.EFFECT.pickSize) break;
-      }
+      // 模拟/自动路径：目标（技能卡或分支卡）强制入列并置首位，其余补足至 pickSize（保证“总是选目标”策略 100% 生效）
+      const rest = eligible.filter((e) => e !== tgtCand);
+      shuffle(rest, this.rng);
+      const cands = [tgtCand].concat(rest.slice(0, CONFIG.EFFECT.pickSize - 1));
       return this._targetFirst(cands, tgtCand);
     }
 

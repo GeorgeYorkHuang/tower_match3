@@ -336,18 +336,18 @@ class Renderer {
       }
       x += slotSize + slotGap;
     }
-    // v1.12 全局技能按钮：塔位区两侧（左=全局洗牌，右=全局冰冻）；能量存 3 格（每格 energyPerCell 点）
-    const btnW = 128, btnH = 94, btnY = TOWER_ROW_Y + 12, btnGapX = 10;
-    const perCell = Math.max(1, s.energyPerCell || 4);
-    const shuCells = Math.floor((s.shuffleEnergy || 0) / perCell);
-    const frzCells = Math.floor((s.freezeEnergy || 0) / perCell);
+    // v1.12.4 全局技能按钮：塔位区两侧（左=全局洗牌，右=弹药补给）；累计弹药每 chargePerUse 发 = 1 格，上限 3 格；按钮缩小 20%（128×94 → 102×75）
+    const btnW = 102, btnH = 75, btnY = TOWER_ROW_Y + 12, btnGapX = 8;
+    const perUse = Math.max(1, s.chargePerUse || 30);
+    const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
+    const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
     this.globalBtns = [
-      this._globalBtn(ctx, 'shuffle', '🔀', '全局洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
-      this._globalBtn(ctx, 'freeze', '❄', '全局冰冻', 750 - btnGapX - btnW, btnY, btnW, btnH, frzCells, '#7ec8ff'),
+      this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
+      this._globalBtn(ctx, 'refill', '🔋', '补给', 750 - btnGapX - btnW, btnY, btnW, btnH, refCells, '#7ef0a3'),
     ];
   }
 
-  /** 全局技能按钮绘制：图标 + 名称 + 3 格能量；返回命中矩形 {key,x,y,w,h} */
+  /** 全局技能按钮绘制：图标 + 名称 + 3 格能量；返回命中矩形 {key,x,y,w,h}（v1.12.4 缩小 20% 布局） */
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
@@ -355,12 +355,12 @@ class Renderer {
     ctx.fillStyle = ready ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.28)';
     ctx.strokeStyle = ready ? tint : 'rgba(255,255,255,0.18)';
     ctx.lineWidth = ready ? 2.5 : 1.5;
-    roundRect(ctx, bx, by, bw, bh, 10);
+    roundRect(ctx, bx, by, bw, bh, 8);
     ctx.fill(); ctx.stroke();
-    text(ctx, icon, bx + bw / 2, by + 30, 34, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
-    text(ctx, name, bx + bw / 2, by + 56, 17, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
+    text(ctx, icon, bx + bw / 2, by + 25, 27, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
+    text(ctx, name, bx + bw / 2, by + 46, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
     // 3 格能量圆点
-    const dotR = 7, dotY = by + bh - 16, gap = 26, x0 = bx + (bw - (gap * (maxCells - 1))) / 2;
+    const dotR = 6, dotY = by + bh - 12, gap = 21, x0 = bx + (bw - (gap * (maxCells - 1))) / 2;
     for (let i = 0; i < maxCells; i++) {
       const dx = x0 + i * gap;
       ctx.beginPath(); ctx.arc(dx, dotY, dotR, 0, Math.PI * 2);
@@ -590,22 +590,14 @@ class Renderer {
           };
           const pos = arcPos(f, p);
           const bx = pos.x, by = pos.y;
-          // 完整轨迹（淡辉底）
-          ctx.strokeStyle = f.color; ctx.lineWidth = 7.5; ctx.globalAlpha = 0.16;
-          ctx.beginPath();
-          for (let i = 0; i <= 20; i++) {
-            const tp = arcPos(f, i / 20);
-            ctx.lineTo(tp.x, tp.y);
-          }
-          ctx.stroke();
-          // v1.12.3 回旋镖不再绘制拖尾轨迹（保留淡弧线路线提示与镖头旋转）
+          // v1.12.4 完全去掉弧线轨迹（不画任何路线/拖尾，只保留镖头旋转飞行）
           // 镖头朝向：瞬时速度方向（数值差分）
           const step = 0.015;
           const pa = arcPos(f, Math.min(1, p + step));
           const pb = arcPos(f, Math.max(0, p - step));
           const ang = Math.atan2(pa.y - pb.y, pa.x - pb.x);
-          // 镖体自旋（v1.9：高速旋转，全程转 4 圈）
-          const spin = p * Math.PI * 8;
+          // 镖体自旋（v1.12.4：转速加倍，全程转 8 圈）
+          const spin = p * Math.PI * 16;
           // 巨镖（v1.10）：体积放大 1 + 0.30/级
           const lg = f.large || 0;
           const sc = 1 + 0.30 * lg;
@@ -1054,7 +1046,7 @@ class Renderer {
   /** 战斗主页：战场卡（约 1/4 屏高）+ 进入战斗（2/3 屏处）+ 4 个宝箱槽 */
   menuBattle(ctx, s, push) {
     // 战场卡：占屏幕约 1/4 高度（1626/4 ≈ 406）
-    const sx = 55, sy = 268, sw = 640, sh = 392;
+    const sx = 55, sy = 400, sw = 640, sh = 392;
     push('stage', { id: 'ruins' }, sx, sy, sw, sh);
     const sgrad = ctx.createLinearGradient(0, sy, 0, sy + sh);
     sgrad.addColorStop(0, '#1c3a2e'); sgrad.addColorStop(1, '#0e2018');
@@ -1067,28 +1059,26 @@ class Renderer {
     fillRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, 'rgba(46,204,113,0.10)');
     strokeRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, 'rgba(46,204,113,0.35)', 1);
     const rewards = [
-      ['💛 金币', '波次结算 + 击杀掉落'],
-      ['📦 宝箱', '每 5 波 Boss 掉落'],
-      ['💎 圣物', '每波精英怪概率掉落'],
+      ['💛 金币', ''],
+      ['📦 宝箱', ''],
+      ['💎 圣物', ''],
     ];
     rewards.forEach((r, i) => {
       text(ctx, r[0], sx + 70 + i * 200, sy + 226, 24, '#f7c948', 'left');
-      text(ctx, r[1], sx + 70 + i * 200, sy + 264, 17, '#8ea3b8', 'left');
+      // text(ctx, r[1], sx + 70 + i * 200, sy + 264, 17, '#8ea3b8', 'left');
     });
     text(ctx, '点击选择战场（目前仅此一种）', 375, sy + sh - 40, 19, '#5a8a72', 'center');
     // 进入战斗：屏幕 2/3 处（1626×2/3 ≈ 1084）
-    const ey = 1084, eh = 120;
+    const ey = 850, eh = 100;
     push('enter', null, 75, ey, 600, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, '#2ecc71'); bgrad.addColorStop(1, '#1f8c5f');
-    ctx.fillStyle = bgrad; roundRect(ctx, 75, ey, 600, eh, 22); ctx.fill();
-    strokeRoundRect(ctx, 75, ey, 600, eh, 22, 'rgba(255,255,255,0.4)', 2);
-    text(ctx, '⚔ 进入战斗', 375, ey + 66, 44, '#ffffff', 'center');
-    text(ctx, '每塔默认 3 技能 · 战斗中升级三选一', 375, ey + 104, 18, 'rgba(255,255,255,0.75)', 'center');
+    ctx.fillStyle = bgrad; roundRect(ctx, 100, ey, 550, eh, 22); ctx.fill();
+    strokeRoundRect(ctx, 100, ey, 550, eh, 22, 'rgba(255,255,255,0.4)', 2);
+    text(ctx, '⚔ 进入战斗', 375, ey + 55, 44, '#ffffff', 'center');
     // 4 个宝箱槽
-    text(ctx, '宝箱', 55, 1262, 28, '#ffffff', 'left');
     for (let i = 0; i < 4; i++) {
-      const bx = 40 + i * 170, by = 1290, bw = 160, bh = 140;
+      const bx = 40 + i * 170, by = 1050, bw = 160, bh = 140;
       push('chest', i, bx, by, bw, bh);
       const has = s.chests > i;
       const opening = s.chestOpening && i === 0;

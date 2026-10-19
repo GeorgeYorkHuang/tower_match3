@@ -14,8 +14,14 @@ function t(name, fn) {
   catch (e) { fail++; console.log(`  [FAIL] ${name}: ${e.message}`); }
 }
 
-function freshManager() {
-  const m = new EffectManager();
+/** 确定性 LCG 随机数（测试可复现，消除 flaky） */
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+function freshManager(seed = 1) {
+  const m = new EffectManager({ rng: seededRng(seed) });
   Object.keys(m.towers).forEach((k) => m.towers[k].unlock());
   return m;
 }
