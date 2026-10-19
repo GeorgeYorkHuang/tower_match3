@@ -1,0 +1,10 @@
+{
+  "deviceOrientation": "portrait",
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "tools" },
+      { "type": "regexp", "value": "^images/ui/wall_old.*\\.jpg$" },
+      { "type": "regexp", "value": "^images/ui/(action_area\\.jpg|action_area_plain\\.jpg|battle_bg\\.jpg|board_bg\\.jpg|board_bg_dark_2\\.jpg|tower_row\\.jpg|tower_row_dark_old_blue\\.jpg)$" }
+    ]
+  }
+}

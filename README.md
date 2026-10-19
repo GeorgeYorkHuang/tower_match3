@@ -1,0 +1,25 @@
+# 消消防线（微信小游戏）
+
+三消 × 塔防 × roguelike 小游戏。逻辑画布 750×1334 竖屏，CommonJS 模块。
+
+## 源码目录介绍
+
+```
+├── audio                                      // 音频资源
+├── images                                     // 图片资源
+├── js
+│   ├── config.js                              // 数值/布局/塔/特效配置
+│   ├── board.js                               // 三消棋盘（匹配/消除/下落/连锁）
+│   ├── run.js                                 // 单局：塔、特效、经济、结算
+│   ├── effects.js                             // 特效管理器（32 特效模板 × 分支）
+│   ├── game
+│   │   ├── main.js                            // 主控：状态机/帧循环/输入/存档/波次
+│   │   ├── render.js                          // 渲染（棋盘动画/塔位/敌人/弹层）
+│   │   └── ui.js                              // 绘制原语（圆角/文字/进度条/按钮）
+├── tools                                      // 测试与模拟脚本（node 运行）
+├── .eslintrc.js                               // 代码规范
+├── game.js                                    // 游戏逻辑主入口
+├── game.json                                  // 游戏运行时配置
+├── project.config.json                        // 项目配置
+└── project.private.config.json                // 项目个人配置
+```

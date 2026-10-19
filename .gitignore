@@ -1,0 +1,12 @@
+# Node
+node_modules/
+
+# 微信开发者工具个人本地配置（含开发者 openid/私密信息）
+project.private.config.json
+
+# 上传日志（每次上传覆盖，不入库）
+tools/upload_log.txt
+
+# 系统文件
+.DS_Store
+Thumbs.db

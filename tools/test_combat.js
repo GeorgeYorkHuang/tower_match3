@@ -1,0 +1,240 @@
+/**
+ * test_combat.js —— A1 真实战斗行为专项测试（mock game，纯 combat 逻辑）
+ * 验证技能不是「只加 DPS 乘区」，而是有真实行为：DoT / 冰冻 / 连锁 / 溅射 / 死亡爆炸 / 攻城状态
+ * 运行：node tools/test_combat.js
+ */
+const assert = require('assert');
+const CONFIG = require('../js/config.js');
+const { CombatSystem, initEnemyState } = require('../js/combat.js');
+
+/** 构造 mock game（塔技能可指定 level） */
+function mkGame(skills, slotOrder) {
+  const order = (slotOrder || []).slice();
+  Object.keys(skills || {}).forEach((k) => { if (!order.includes(k)) order.push(k); });
+  if (!order.length) order.push('fire');
+  const towers = {};
+  order.forEach((k) => {
+    const lvMap = skills[k] || {};
+    towers[k] = {
+      level: 1,
+      pool: CONFIG.EFFECT_POOLS[k].map((e) => ({ name: e.name, level: lvMap[e.name] || 0 })),
+      _chargeLayers: 0,
+    };
+  });
+  const game = {
+    run: {
+      slotOrder: order,
+      lineHp: CONFIG.LINE.hp,
+      effects: {
+        tower: (k) => towers[k] || null,
+        towerDps: (k) => (CONFIG.TOWERS[k] ? CONFIG.TOWERS[k].baseDps : 0),
+        synergyDone: [false, false, false],
+      },
+    },
+    ly: {
+      areaX: 25, areaY: 72, areaW: 700, areaH: 970, entryH: 68, wallY: 967,
+      slotY: 1079, slotSize: 48, slotGap: 12,
+    },
+    enemies: [],
+    fx: [],
+    playSfx() {},
+  };
+  return game;
+}
+
+/** 造一只敌人 */
+function mkEnemy(hp, x, y) {
+  return initEnemyState({ id: Math.random() * 1e6, x, y, hp, maxHp: hp, isBoss: false, speed: 20 });
+}
+
+let pass = 0, fail = 0;
+function t(name, fn) {
+  try { fn(); pass++; console.log(`  [PASS] ${name}`); }
+  catch (e) { fail++; console.log(`  [FAIL] ${name}: ${e.message}`); }
+}
+
+/* ---------- 用例 ---------- */
+
+t('火·点燃：命中附加灼烧 DoT 并持续掉血', () => {
+  const g = mkGame({ fire: { 点燃: 2 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  c.hit('fire', e, 100);
+  const dot = e.dots.find((d) => d.type === 'burn');
+  assert.ok(dot, '应有灼烧 DoT');
+  assert.ok(dot.dps > 0, 'DoT dps 应为正');
+  const hp0 = e.hp;
+  c.tickStatus(e, 0.6); // 一个 tick
+  assert.ok(e.hp < hp0, 'DoT 应持续掉血');
+});
+
+t('冰·冰冻：命中概率冻结（冻结后不能移动）', () => {
+  const g = mkGame({ ice: { 冰冻: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 必触发
+  try { c.hit('ice', e, 50); } finally { Math.random = orig; }
+  assert.ok(e.frozen > 0, '应进入冻结状态');
+  // 冻结移动检查：moveEnemy 逻辑（main）以 frozen>0 停移，此处验证状态被正确设置
+});
+
+t('冰·减速场：命中减速', () => {
+  const g = mkGame({ ice: { 减速场: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  c.hit('ice', e, 50);
+  assert.ok(e.slow && e.slow.mult < 1 && e.slow.ttl > 0, '应有减速状态');
+});
+
+t('电·连锁：命中后跳转第二目标', () => {
+  const g = mkGame({ electric: { 连锁: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 380, 806); g.enemies.push(e2);
+  c.hit('electric', e1, 100);
+  assert.ok(e2.hp < 1000, '第二目标应被连锁伤害');
+});
+
+t('电·麻痹：命中概率麻痹', () => {
+  const g = mkGame({ electric: { 麻痹: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0;
+  try { c.hit('electric', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.paralyzed > 0, '应进入麻痹状态');
+});
+
+t('火·溅射：命中波及邻近敌人', () => {
+  const g = mkGame({ fire: { 溅射: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 385, 815); g.enemies.push(e2); // 半径 55 内
+  c.hit('fire', e1, 100);
+  assert.ok(e2.hp < 1000, '邻近敌人应受溅射伤害');
+});
+
+t('毒·剧毒：中毒 DoT', () => {
+  const g = mkGame({ poison: { 剧毒: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  c.hit('poison', e, 80);
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.dps > 0, '应有中毒 DoT');
+});
+
+t('毒·腐蚀：受伤加深', () => {
+  const g = mkGame({ poison: { 腐蚀: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  c.hit('poison', e, 80);
+  assert.ok(e.corrode && e.corrode.mult > 1, '应有腐蚀增伤状态');
+  const hp0 = e.hp;
+  c.damage(e, 100, 'poison');
+  assert.ok(hp0 - e.hp > 100, '腐蚀后伤害应高于基础值');
+});
+
+t('回旋镖·双镖：双目标或合击', () => {
+  const g = mkGame({ boomerang: { 双镖: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 420, 840); g.enemies.push(e2);
+  c.hit('boomerang', e1, 100);
+  assert.ok(e2.hp < 1000, '第二镖应命中第二目标');
+});
+
+t('回旋镖·暴击：概率暴击（固定随机触发）', () => {
+  const g = mkGame({ boomerang: { 暴击: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0;
+  try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
+  assert.ok(1000 - e.hp > 100, '暴击应造成更高伤害');
+});
+
+t('炮·溅射：爆炸范围伤害', () => {
+  const g = mkGame({ cannon: { 溅射: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 820); g.enemies.push(e2);
+  c.hit('cannon', e1, 100);
+  assert.ok(e2.hp < 1000, '爆炸应波及邻近敌人');
+});
+
+t('死亡触发：燃爆（灼烧敌人死亡时爆炸波及邻近）', () => {
+  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
+  c.hit('fire', e1, 100); // 点燃+主伤害击杀 → 触发燃爆
+  assert.ok(e1.hp <= 0, '主目标应死亡');
+  assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
+});
+
+t('死亡触发：毒爆', () => {
+  const g = mkGame({ poison: { 毒爆: 1, 剧毒: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
+  c.hit('poison', e1, 100);
+  assert.ok(e1.hp <= 0, '主目标应死亡');
+  assert.ok(e2.hp < 1000, '毒爆应波及邻近敌人');
+});
+
+t('协同：燃爆×毒爆 → 双爆炸伤害加深', () => {
+  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 }, poison: { 毒爆: 1, 剧毒: 1 } }, ['fire', 'poison']);
+  g.run.effects.synergyDone[0] = true;
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 385, 810); g.enemies.push(e2);
+  c.hit('fire', e1, 100);
+  c.hit('poison', e1, 100); // 双爆触发
+  // 无断言数值，验证不抛异常且爆炸 fx 产生
+  assert.ok(g.fx.some((f) => f.type === 'boom'), '应产生爆炸特效');
+});
+
+t('全塔攻击调度：tickTower 按间隔发弹道并命中', () => {
+  const g = mkGame({ fire: { 点燃: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  // 推进 2s：fire atkInterval 0.9 → 至少 2 发弹道
+  for (let i = 0; i < 125; i++) c.update(1 / 60);
+  assert.ok(e.hp < 1000, '敌人应被真实攻击命中掉血');
+  assert.ok(g.fx.some((f) => f.type === 'shot'), '应有弹道特效');
+});
+
+t('回旋镖 sweep：椭圆大弧越过怪物后绕回，沿途扫过所有敌人（每敌单镖一次）', () => {
+  const g = mkGame({ boomerang: {} });
+  const c = new CombatSystem(g);
+  // 椭圆大弧弹道（起点=塔位，终点=远处）；敌人在轨迹采样点（p=0.15/0.45/0.70）上
+  const s0 = { key: 'boomerang', dmg: 100, t: 0, dur: 1.2, sx: 375, sy: 1100, tx: 375, ty: 400, sweep: true, hitIds: {} };
+  const p1 = c.sweepPos(s0, 0.15), p2 = c.sweepPos(s0, 0.45), p3 = c.sweepPos(s0, 0.70);
+  const e1 = mkEnemy(1000, p1.x, p1.y); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, p2.x, p2.y); g.enemies.push(e2);
+  const e3 = mkEnemy(1000, p3.x, p3.y); g.enemies.push(e3);
+  // 直接构造一枚 sweep 弹，推进 1.2s（dur）
+  c.shots.push(Object.assign({}, s0));
+  for (let i = 0; i < 90; i++) c.update(1 / 60);
+  // 椭圆轨迹经过 3 个采样位置：全部都应被扫到
+  assert.ok(e1.hp < 1000, '路径上敌人 1 应被扫中');
+  assert.ok(e2.hp < 1000, '路径上敌人 2 应被扫中');
+  assert.ok(e3.hp < 1000, '路径上敌人 3 应被扫中');
+  // 每敌只受一次（sweep 去重）：血量减少 ≤ 一次 100 伤害（无暴击等复合）
+  assert.ok(1000 - e1.hp <= 100, '单镖对同一敌人只结算一次');
+});
+
+t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', () => {
+  const g = mkGame({ boomerang: {} });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const dmg = c.shotDmg('boomerang'); // 22 × 1.3 = 28.6
+  let maxS = 0;
+  for (let i = 0; i < 300; i++) { // 推进 5s（dur 2.4s，应投两枚）
+    c.update(1 / 60);
+    maxS = Math.max(maxS, c.shots.filter((s) => s.sweep).length);
+  }
+  assert.strictEqual(maxS, 1, '任意时刻至多一枚回旋镖在飞（接到镖才能投下一个）');
+  assert.ok(e.hp < 1000 - dmg * 1.5, '接回后第二枚应继续造成伤害');
+});
+
+console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
+process.exit(fail ? 1 : 0);
