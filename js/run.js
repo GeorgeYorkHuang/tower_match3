@@ -143,11 +143,12 @@ class Run {
         this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
       }
     } else {
-      // 塔色：弹药 + 整体经验；弹药满 → 溢出均匀充能两个全局技能
+      // 塔色：弹药按形状供给（3消+3 / 4消+6 / 5消+10 / 6+(x块) 10+3(x-5)）+ 整体经验；弹药满 → 溢出均匀充能两个全局技能
+      const gain = this._ammoGain(shape, size);
       const before = t.ammo;
-      t.ammo = Math.min(before + size, GS.ammoMax);
+      t.ammo = Math.min(before + gain, GS.ammoMax);
       ammoGain = t.ammo - before;
-      const over = Math.max(0, before + size - GS.ammoMax);
+      const over = Math.max(0, before + gain - GS.ammoMax);
       if (over > 0) {
         const half = Math.floor(over / 2);
         shuffleGain = this._chargeEnergy('shuffle', half);
@@ -182,6 +183,13 @@ class Run {
       const tmp = remain[i]; remain[i] = remain[j]; remain[j] = tmp;
     }
     this._globalMap = { [remain[0]]: 'shuffle', [remain[1]]: 'freeze' };
+  }
+
+  /** 塔色消除弹药供给：3消 +3 / 4消 +6 / 5消（L5/直5）+10 / 5消以上(x块) 10+3(x-5) */
+  _ammoGain(shape, size) {
+    const fixed = CONFIG.GLOBAL_SKILL.ammoShape[shape];
+    if (fixed !== undefined) return fixed;
+    return 10 + 3 * (size - 5);   // '6+'（x 块，x≥6）
   }
 
   /** 形状充能点数：3连 +3 / 直4 +5 / 5 消及以上 块数×2 */

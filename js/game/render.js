@@ -598,15 +598,7 @@ class Renderer {
             ctx.lineTo(tp.x, tp.y);
           }
           ctx.stroke();
-          // 已飞过轨迹（亮段：从起点画到当前镖头）
-          ctx.strokeStyle = f.color; ctx.lineWidth = 4.5; ctx.globalAlpha = 0.6;
-          ctx.beginPath();
-          for (let i = 0; i <= 12; i++) {
-            const tp = arcPos(f, (p * i) / 12);
-            ctx.lineTo(tp.x, tp.y);
-          }
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+          // v1.12.3 回旋镖不再绘制拖尾轨迹（保留淡弧线路线提示与镖头旋转）
           // 镖头朝向：瞬时速度方向（数值差分）
           const step = 0.015;
           const pa = arcPos(f, Math.min(1, p + step));

@@ -66,6 +66,7 @@ module.exports = {
     energyMax: 12,              // 全局技能能量上限（点）
     energyPerCell: 4,           // 每格能量点数（12 点 = 3 格）
     chargeShape: { '3': 3, '4': 5 },  // 3连 +3、直4 +5；'L5'/'5'/'6+' = 块数 ×2
+    ammoShape: { '3': 3, '4': 6, '5': 10, 'L5': 10 }, // 塔色消除弹药：3消+3/4消+6/5消+10；6+(x块) = 10+3(x-5)
     shuffleSkill: { name: '全局洗牌', icon: '🔀', color: '#ff8c42' },  // 打乱棋盘所有方块
     freezeSkill: { name: '全局冰冻', icon: '❄', color: '#7ec8ff' },    // 全场冻结
     freezeDur: 3,               // 全局冰冻时长（秒，全场冻结停止移动/攻击）

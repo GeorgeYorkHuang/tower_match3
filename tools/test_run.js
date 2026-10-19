@@ -170,6 +170,13 @@ t('v1.12 弹药与全局能量结算', () => {
   assert.ok(run.spendEnergy('shuffle'), '能量 ≥1 格可释放');
   assert.strictEqual(run.shuffleEnergy, CONFIG.GLOBAL_SKILL.energyMax - CONFIG.GLOBAL_SKILL.energyPerCell, '释放消耗 1 格');
   assert.ok(!run.spendEnergy('shuffle') || run.shuffleEnergy >= CONFIG.GLOBAL_SKILL.energyPerCell, '能量不足不可释放');
+  // v1.12.3 形状弹药供给：3消+3 / 4消+6 / 5消+10 / 6+(x块) 10+3(x-5)（各自独立 run 避免上限截断）
+  const mk = (seed) => { const r = seededRun(6, seed); ['red', 'blue', 'green', 'yellow'].forEach((c) => r.applyMatch(c, '3', 3)); return r; };
+  assert.strictEqual(mk(1).applyMatch('red', '3', 3).ammoGain, 3, '3消 弹药 +3');
+  assert.strictEqual(mk(2).applyMatch('red', '4', 4).ammoGain, 6, '4消 弹药 +6');
+  assert.strictEqual(mk(3).applyMatch('red', '5', 5).ammoGain, 10, '5消 弹药 +10');
+  assert.strictEqual(mk(4).applyMatch('red', '6+', 6).ammoGain, 13, '6消 弹药 +13（10+3×(6-5)）');
+  assert.strictEqual(mk(5).applyMatch('red', '6+', 8).ammoGain, 19, '8消 弹药 +19（10+3×3）');
 });
 
 /* 9. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */
