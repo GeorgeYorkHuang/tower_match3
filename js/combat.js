@@ -961,20 +961,20 @@ class CombatSystem {
   }
 
   /* ---------- v1.12 全局技能：消耗能量释放（1 格 = energyPerCell 点） ---------- */
-  /** 释放全局技能：'damage' 全场 AOE / 'freeze' 全场冰冻；能量不足返回 false */
+  /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'freeze' 全场冰冻；能量不足返回 false */
   castGlobal(which) {
     const g = this.game;
     if (!g.run.spendEnergy(which)) return false;
     const GS = CONFIG.GLOBAL_SKILL;
-    if (which === 'damage') {
-      // 全局伤害：对全场所有敌人 = 全塔总 DPS × 倍率
-      const d = Math.round(this.totalDps() * GS.damageMult);
-      this.enemies().forEach((e) => { if (e.hp > 0) this.damage(e, d, 'global'); });
-      if (this.enemies().length) {
-        this.fxFlash(375, 800, '#ff8c42', 0.5);
-        this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
-      }
-      g.toast && g.toast(`⚡ 全局伤害 ${d}`, '#ff8c42');
+    if (which === 'shuffle') {
+      // 全局洗牌：打乱当前三消棋盘所有方块（重新生成，无初始三消）
+      const b = g.run.board;
+      if (b) b.grid = b.genBoard();
+      g.anim = null;                       // 清掉进行中交换/消除动画，避免与新棋盘渲染冲突
+      g.selected = null; g.pickCell = null;
+      this.fxFlash(375, 800, '#ff8c42', 0.5);
+      this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
+      g.toast && g.toast('🔀 全局洗牌', '#ff8c42');
     } else {
       // 全局冰冻：全场冻结（停止移动/攻击）
       this.enemies().forEach((e) => { e.frozen = Math.max(e.frozen || 0, GS.freezeDur); });

@@ -336,13 +336,13 @@ class Renderer {
       }
       x += slotSize + slotGap;
     }
-    // v1.12 全局技能按钮：塔位区两侧（左=全局伤害，右=全局冰冻）；能量存 3 格（每格 energyPerCell 点）
+    // v1.12 全局技能按钮：塔位区两侧（左=全局洗牌，右=全局冰冻）；能量存 3 格（每格 energyPerCell 点）
     const btnW = 128, btnH = 94, btnY = TOWER_ROW_Y + 12, btnGapX = 10;
     const perCell = Math.max(1, s.energyPerCell || 4);
-    const dmgCells = Math.floor((s.damageEnergy || 0) / perCell);
+    const shuCells = Math.floor((s.shuffleEnergy || 0) / perCell);
     const frzCells = Math.floor((s.freezeEnergy || 0) / perCell);
     this.globalBtns = [
-      this._globalBtn(ctx, 'damage', '⚡', '全局伤害', btnGapX, btnY, btnW, btnH, dmgCells, '#ff8c42'),
+      this._globalBtn(ctx, 'shuffle', '🔀', '全局洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
       this._globalBtn(ctx, 'freeze', '❄', '全局冰冻', 750 - btnGapX - btnW, btnY, btnW, btnH, frzCells, '#7ec8ff'),
     ];
   }
@@ -1340,6 +1340,11 @@ function drawTowerGlyph(ctx, key, x, y, size) {
     ctx.lineTo(cx, cy - r * 0.35);
     ctx.lineTo(cx - r * 0.4, cy + r * 0.15);
     ctx.closePath(); ctx.fill();
+  } else if (key === 'cannon') {
+    // 炮塔：圆底 + 朝上炮管
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(cx - r * 0.35, cy - r * 1.9, r * 0.7, r * 1.1);
+    ctx.beginPath(); ctx.arc(cx, cy - r * 1.9, r * 0.38, 0, Math.PI * 2); ctx.fill();
   } else {
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
   }

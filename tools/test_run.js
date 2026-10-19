@@ -41,34 +41,42 @@ t('expOfShape：3连6 / 直4 12 / L5 15 / 直5 20 / 6+ 30', () => {
   assert.strictEqual(expOfShape('6+', 7), 35); // 2×7×2.5
 });
 
-/* 2. 先消先得：前 4 色得塔，第 5 色（塔位满，未选中）→ 全局冰冻能量（v1.12 替代惩罚经验） */
-t('先消先得与未选中色全局能量', () => {
+/* 2. 先消先得：前 4 色得塔，第 5 色（塔位满，未选中）→ 动态剩余色充能全局技能（v1.12.1） */
+t('先消先得与剩余 2 色动态充能', () => {
   const run = seededRun(6, 1);
   run.applyMatch('red', '3', 3);
   run.applyMatch('blue', '3', 3);
   run.applyMatch('green', '3', 3);
   run.applyMatch('yellow', '3', 3);
   assert.strictEqual(Object.keys(run.effects.towers).filter((k) => run.effects.tower(k).level > 0).length, 4, '前 4 色应全部得塔');
-  // 塔位满后第 5 色（purple 回旋镖，未选中）→ 全局冰冻能量 + 半量经验（v1.12 替代原惩罚经验）
+  // 塔位满后第 5 色（purple 回旋镖，未选中）→ 剩余 2 色之一充能（3连 +3 点）+ 半量经验
   const expBefore = run.exp;
   const r = run.applyMatch('purple', '3', 3);
   assert.strictEqual(r.gotTower, false);
   assert.strictEqual(r.penalized, false);
-  assert.strictEqual(r.frzGain, 3, '未选中色消除 → 全局冰冻能量 +块数');
-  assert.strictEqual(run.freezeEnergy, 3, '全局冰冻能量应入账');
-  assert.strictEqual(run.exp - expBefore, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验（对齐原惩罚色）');
+  assert.strictEqual(r.shuffleGain + r.frzGain, 3, '未选中色消除 → 动态充能 3 点（3连 +3）');
+  assert.strictEqual(run.shuffleEnergy + run.freezeEnergy, 3, '全局能量应入账');
+  assert.strictEqual(run.exp - expBefore, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
 });
 
-/* 3. 橙=炮塔（P1 非塔色）：消除 → 全局伤害能量（v1.12：不再解锁炮塔） */
-t('橙=炮塔 P1：消除 → 全局伤害能量', () => {
+/* 3. 6 色均可成塔：橙先消 → 得炮塔；剩余色充能按形状（直4 +5 / 5消 ×2） */
+t('炮塔可入槽 + 形状充能公式', () => {
   const run = seededRun(6, 2);
-  run.applyMatch('red', '3', 3); // 得火塔
-  const r = run.applyMatch('orange', '4', 4); // 直4 → 全局伤害能量 +4
-  assert.strictEqual(r.gotTower, false);
-  assert.strictEqual(r.penalized, false);
-  assert.strictEqual(r.dmgGain, 4, '橙消除 → 全局伤害能量 +块数');
-  assert.strictEqual(run.damageEnergy, 4, '全局伤害能量应入账');
-  assert.strictEqual(r.tower, null);
+  const r1 = run.applyMatch('orange', '3', 3); // 先消橙 → 得炮塔（v1.12.1：cannon 不再固定非塔色）
+  assert.strictEqual(r1.gotTower, true, '橙可成为出战塔');
+  assert.strictEqual(r1.tower, 'cannon');
+  assert.strictEqual(run.slotOrder[0], 'cannon');
+  // 4 塔集齐（火冰毒电），橙已入槽 → 剩余 2 色 = purple + 未选中的 1 色
+  run.applyMatch('red', '3', 3); run.applyMatch('blue', '3', 3);
+  run.applyMatch('green', '3', 3); run.applyMatch('yellow', '3', 3);
+  const r2 = run.applyMatch('purple', '4', 4); // 直4
+  assert.strictEqual(r2.shuffleGain + r2.frzGain, 5, '直4 充 5 点');
+  const r3 = run.applyMatch('purple', '5', 5); // 直5 → 5×2=10，但同技能 5+10 封顶 12 → 实际入账 7
+  assert.strictEqual(r3.shuffleGain + r3.frzGain, 7, '直5 累计封顶 12 → 入账 7');
+  const r4 = run.applyMatch('yellow', '6+', 6); // 另一剩余色（yellow 未入槽）→ 6×2=12，此前已充 3 → 入账 9 封顶
+  assert.strictEqual(r4.shuffleGain + r4.frzGain, 9, '6+ 累计封顶 12 → 入账 9');
+  assert.strictEqual(run.shuffleEnergy, CONFIG.GLOBAL_SKILL.energyMax, '洗牌能量封顶 3 格');
+  assert.strictEqual(run.freezeEnergy, CONFIG.GLOBAL_SKILL.energyMax, '冰冻能量封顶 3 格');
 });
 
 /* 4. 波末：金币公式 + 战斗结算 */
@@ -116,9 +124,9 @@ t('v1.8 整体经验：消除入池、升级发放待选、DPS 按整体等级�
   run.applyMatch('blue', '3', 3);   // 得冰塔
   run.applyMatch('green', '3', 3);  // 得毒塔
   run.applyMatch('yellow', '3', 3); // 得电塔
-  // 塔位满后消除（未选中色）→ 全局冰冻能量 + 半量经验（v1.12 替代惩罚经验）
+  // 塔位满后消除（未选中色）→ 剩余色动态充能 + 半量经验（v1.12.1）
   const r = run.applyMatch('purple', '3', 3);
-  assert.ok(r.frzGain > 0 && run.freezeEnergy > 0, '未选中色消除 → 全局冰冻能量');
+  assert.ok(r.shuffleGain + r.frzGain > 0 && run.shuffleEnergy + run.freezeEnergy > 0, '未选中色消除 → 全局技能充能');
   assert.strictEqual(run.exp, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
   assert.strictEqual(run.expNeed(), 30, 'L0 升级需求应为 30');
   const beforeLv = run.expLevel;
@@ -145,19 +153,23 @@ t('v1.12 弹药与全局能量结算', () => {
   const r1 = run.applyMatch('red', '3', 3);
   assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo + 3, '塔色消除弹药 +块数');
   assert.strictEqual(r1.ammoGain, 3);
-  // 弹药满 → 溢出均匀充能两个全局技能（再消 3 次：2 次溢出，每次 over=3 → damage+1 / freeze+2）
-  for (let i = 0; i < 3; i++) run.applyMatch('red', '3', 3);
+  // 弹药满（50）→ 溢出均匀充能两个全局技能：r1 后 28 + 8×3 = 52 → 溢出 2 → 均分各 +1
+  for (let i = 0; i < 8; i++) run.applyMatch('red', '3', 3);
   assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.ammoMax, '弹药封顶 ammoMax');
-  assert.strictEqual(run.damageEnergy, 2, '溢出均分 → 全局伤害 +2');
-  assert.strictEqual(run.freezeEnergy, 4, '溢出均分 → 全局冰冻 +4');
-  // 非塔色充能封顶（damage 已有 2 点，8 次橙色消除 +24 → 封顶）
-  for (let i = 0; i < 8; i++) run.applyMatch('orange', '3', 3);
-  assert.strictEqual(run.damageEnergy, CONFIG.GLOBAL_SKILL.energyMax, '全局能量封顶 3 格');
+  assert.strictEqual(run.shuffleEnergy + run.freezeEnergy, 2, '溢出均分 2 点');
+  // 剩余色消除 → 形状充能 + 半量经验（动态分配 shuffle/freeze，断言总入账）
+  const expB = run.exp;
+  const r2 = run.applyMatch('purple', '4', 4);
+  assert.strictEqual(r2.shuffleGain + r2.frzGain, 5, '直4 充 5 点');
+  assert.strictEqual(run.exp - expB, Math.floor(12 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
+  // 两个剩余色（purple/orange）各自对应一个全局技能 → 分别消除，各自封顶 3 格
+  for (let i = 0; i < 10; i++) { run.applyMatch('purple', '6+', 6); run.applyMatch('orange', '6+', 6); }
+  assert.strictEqual(run.shuffleEnergy, CONFIG.GLOBAL_SKILL.energyMax, '洗牌能量封顶 3 格');
+  assert.strictEqual(run.freezeEnergy, CONFIG.GLOBAL_SKILL.energyMax, '冰冻能量封顶 3 格');
   // 消耗 1 格释放
-  assert.ok(run.spendEnergy('damage'), '能量 ≥1 格可释放');
-  assert.strictEqual(run.damageEnergy, CONFIG.GLOBAL_SKILL.energyMax - CONFIG.GLOBAL_SKILL.energyPerCell, '释放消耗 1 格');
-  assert.ok(run.spendEnergy('freeze'), 'freeze 满 1 格可释放');
-  assert.ok(!run.spendEnergy('freeze'), 'freeze 耗尽后不可再释放');
+  assert.ok(run.spendEnergy('shuffle'), '能量 ≥1 格可释放');
+  assert.strictEqual(run.shuffleEnergy, CONFIG.GLOBAL_SKILL.energyMax - CONFIG.GLOBAL_SKILL.energyPerCell, '释放消耗 1 格');
+  assert.ok(!run.spendEnergy('shuffle') || run.shuffleEnergy >= CONFIG.GLOBAL_SKILL.energyPerCell, '能量不足不可释放');
 });
 
 /* 9. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */

@@ -57,6 +57,8 @@ class Run {
     this.pendingPeak = 0;
     this.picks = 0;
     this.firstSynergyWave = null;
+    this.shuffleEnergy = 0; this.freezeEnergy = 0;  // v1.12 全局技能能量（点）
+    this._globalMap = null;            // 剩余 2 色的全局技能归属（4 塔确定后初始化）
     this._colors = Object.keys(CONFIG.COLOR_WEIGHT);
     this._weights = this._weightsFor();
     this._directSeq = ['red', 'green'];
@@ -111,20 +113,20 @@ class Run {
   /**
    * 结算一次消除（形状：'3' 三连 / '4' 直4 / 'L5' L形5 / '5' 直5 / '6+'）。
    * v1.12 三消奖励重做：
-   *   - 4 塔色（已获得塔）：弹药 +size（封顶 ammoMax）+ 整体经验；弹药满 → 溢出均匀充能两个全局技能
-   *   - 未获得且塔位未满：得塔（初始弹药 startAmmo）
-   *   - 非塔色（橙=炮塔 P1 → 全局伤害；未被选中的另一色 → 全局冰冻）：消除直接充能全局技能能量（替代原惩罚经验）
-   * @returns {tower, gotTower, penalized, exp, shape, ammoGain, dmgGain, frzGain}
+   *   - 塔色（已获得塔）：弹药 +size（封顶 ammoMax）+ 整体经验；弹药满 → 溢出均匀充能两个全局技能
+   *   - 未获得且塔位未满：得塔（初始弹药 startAmmo；6 色均可成塔）
+   *   - 塔位满后剩余 2 色（未选中）：动态分配两个全局技能充能色（不固定颜色）→ 按形状充能能量 + 半量经验
+   * 充能数值：3连 +3 / 直4 +5 / 5 消及以上 块数×2。
+   * @returns {tower, gotTower, penalized, exp, shape, ammoGain, shuffleGain, frzGain}
    */
   applyMatch(color, shape, size) {
     const exp = expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
-    let ammoGain = 0, dmgGain = 0, frzGain = 0;
-    if (!t || t.key === 'cannon') {
-      // 橙=炮塔 P1（永远非塔色）→ 全局伤害能量 + 半量经验（对齐原惩罚色口径，保住升级节奏）
-      dmgGain = this._chargeEnergy('damage', size);
+    let ammoGain = 0, shuffleGain = 0, frzGain = 0;
+    if (!t) {
+      // 兜底（6 色均有塔池，理论上不触发）
       this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
     } else if (t.level === 0) {
       const owned = Object.keys(this.effects.towers).filter((k) => this.effects.tower(k).level > 0).length;
@@ -133,19 +135,22 @@ class Run {
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
         ammoGain = GS.startAmmo;
       } else {
-        // 塔位满：该色未被选中 → 全局冰冻能量 + 半量经验（第 2 个全局技能源）
-        frzGain = this._chargeEnergy('freeze', size);
+        // 塔位满：该色未被选中 → 对应全局技能充能（剩余 2 色动态分配）+ 半量经验
+        const skill = this._globalSkillOf(color);
+        const pts = this._energyPoints(shape, size);
+        if (skill === 'shuffle') shuffleGain = this._chargeEnergy('shuffle', pts);
+        else if (skill === 'freeze') frzGain = this._chargeEnergy('freeze', pts);
         this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
       }
     } else {
-      // 4 塔色：弹药 + 整体经验；弹药满 → 溢出均匀充能两个全局技能
+      // 塔色：弹药 + 整体经验；弹药满 → 溢出均匀充能两个全局技能
       const before = t.ammo;
       t.ammo = Math.min(before + size, GS.ammoMax);
       ammoGain = t.ammo - before;
       const over = Math.max(0, before + size - GS.ammoMax);
       if (over > 0) {
         const half = Math.floor(over / 2);
-        dmgGain = this._chargeEnergy('damage', half);
+        shuffleGain = this._chargeEnergy('shuffle', half);
         frzGain = this._chargeEnergy('freeze', over - half);
       }
       this.gainExp(exp);
@@ -155,14 +160,42 @@ class Run {
     Object.keys(this.effects.towers).forEach((k) => {
       this.pendingPeak = Math.max(this.pendingPeak, this.effects.tower(k).pending);
     });
-    return { tower: target ? target.key : null, gotTower, penalized, exp, shape, ammoGain, dmgGain, frzGain };
+    return { tower: target ? target.key : null, gotTower, penalized, exp, shape, ammoGain, shuffleGain, frzGain };
+  }
+
+  /** 剩余 2 色的全局技能归属（本局随机分配，不固定颜色）；4 塔未满时返回 null */
+  _globalSkillOf(color) {
+    if (!this._globalMap) this._initGlobalMap();
+    return this._globalMap ? this._globalMap[color] : null;
+  }
+
+  /** 4 塔确定后：6 色中未选中 2 色 → 随机分配为「全局洗牌 / 全局冰冻」充能色 */
+  _initGlobalMap() {
+    const remain = Object.keys(CONFIG.COLORS).filter((c) => {
+      const tk = CONFIG.COLORS[c].tower;
+      return tk && !this.slotOrder.includes(tk);
+    });
+    if (remain.length < 2) { this._globalMap = {}; return; }
+    const rng = this.rng || Math.random;
+    for (let i = remain.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = remain[i]; remain[i] = remain[j]; remain[j] = tmp;
+    }
+    this._globalMap = { [remain[0]]: 'shuffle', [remain[1]]: 'freeze' };
+  }
+
+  /** 形状充能点数：3连 +3 / 直4 +5 / 5 消及以上 块数×2 */
+  _energyPoints(shape, size) {
+    const fixed = CONFIG.GLOBAL_SKILL.chargeShape[shape];
+    if (fixed !== undefined) return fixed;
+    return size * 2;
   }
 
   /** 全局技能能量充能（封顶 energyMax；返回实际入账点数） */
   _chargeEnergy(which, points) {
     if (!points || points <= 0) return 0;
     const GS = CONFIG.GLOBAL_SKILL;
-    const key = which === 'damage' ? 'damageEnergy' : 'freezeEnergy';
+    const key = which === 'shuffle' ? 'shuffleEnergy' : 'freezeEnergy';
     const before = this[key] || 0;
     this[key] = Math.min(before + points, GS.energyMax);
     return this[key] - before;
@@ -171,7 +204,7 @@ class Run {
   /** 消耗全局技能能量（释放 1 格；不足返回 false） */
   spendEnergy(which) {
     const GS = CONFIG.GLOBAL_SKILL;
-    const key = which === 'damage' ? 'damageEnergy' : 'freezeEnergy';
+    const key = which === 'shuffle' ? 'shuffleEnergy' : 'freezeEnergy';
     if ((this[key] || 0) < GS.energyPerCell) return false;
     this[key] -= GS.energyPerCell;
     return true;
@@ -257,7 +290,8 @@ class Run {
     this.slotOrder = [];
     this.exp = 0; this.expLevel = 0;   // v1.8：整体经验每局从 0 开始
     this._upCount = {};                // 均衡轮转计数同局清空
-    this.damageEnergy = 0; this.freezeEnergy = 0;  // v1.12 全局技能能量（点，每局清零）
+    this.shuffleEnergy = 0; this.freezeEnergy = 0;  // v1.12 全局技能能量（点，每局清零）
+    this._globalMap = null;            // 剩余 2 色的全局技能归属（4 塔确定后初始化）
   }
 
   /* ---------- 模拟一局（操作模型路径，对齐 python simulate_run） ---------- */
