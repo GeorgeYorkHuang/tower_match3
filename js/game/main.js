@@ -141,24 +141,15 @@ class GameMain {
     }
   }
 
-  /** 应用主界面配置进入战斗：塔参战 + 每塔默认 3 技能 Lv1 激活 + 圣物城墙血量（v1.4 无技能槽） */
+  /** 应用主界面配置进入战斗：塔参战 + 圣物城墙血量（v1.12：无默认技能，技能全部靠三选一获取） */
   enterBattle() {
     // 拥有塔参战（level≥1，塔位区可出战）
     this.run.slotOrder.forEach((k) => {
       const t = this.run.effects.tower(k);
       if (t && t.level === 0) t.level = 1;
     });
-    // 技能激活：每塔默认 3 技能（池前 3，Lv1）——升级靠「打怪经验 → 塔升级 → 战斗内三选一」
-    Object.keys(CONFIG.EFFECT_POOLS).forEach((k) => {
-      const t = this.run.effects.tower(k);
-      if (!t) return;
-      this.meta.freeSkills(k).forEach((name) => {
-        const ef = t.pool.find((e) => e.name === name);
-        if (!ef) return;
-        if (ef.level === 0 && !t.activeNames.includes(ef.name)) t.activeNames.push(ef.name);
-        ef.branches.A = Math.max(ef.branches.A || 0, 1); // v1.11：激活 = 分支 A Lv1
-      });
-    });
+    // v1.12：不再默认激活任何技能——塔无获取技能时技能列表为空，
+    // 所有技能通过「打怪经验 → 整体升级 → 三选一」获取（技能卡激活 / 分支卡续升）
     // 圣物·磐石印：城墙血量上限
     const b = this.meta.relicBonus();
     this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * b.wall));
@@ -511,9 +502,13 @@ class GameMain {
       const key = run.slotOrder[i];
       if (!key) { slots.push(null); continue; }
       const t = eff.tower(key);
-      const skills = t.pool.filter((ef) => ef.level > 0).map((ef) => {
+      // v1.11：详情仅展示经三选一获取/升级的技能（picked）；默认 3 技能不算"获取"，无 picked 时为空
+      const skills = t.pool.filter((ef) => t.picked.has(ef.name)).map((ef) => {
         const p = (CONFIG.EFFECT_POOLS[key] || []).find((q) => q.name === ef.name) || {};
-        return { name: ef.name, level: ef.level, desc: p.desc || '', b: p.b || '' };
+        return {
+          name: ef.name, level: ef.level, desc: p.desc || '',
+          branches: { A: ef.branches.A || 0, B: ef.branches.B || 0, C: ef.branches.C || 0 }, // v1.11 分支等级（实装状态）
+        };
       });
       slots.push({
         key,
@@ -590,7 +585,6 @@ class GameMain {
       towerName,
       towerUnlocks: m.towerUnlocks,
       relics,
-      freeSkills: (k) => m.freeSkills(k),
       chests: m.chests,
       chestOpenSec: CONFIG.RELIC.chestOpenSec,
       chestRemain,

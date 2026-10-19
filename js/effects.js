@@ -42,6 +42,7 @@ class TowerBuild {
       });
       return ef;
     });
+    this.picked = new Set();   // v1.11：经三选一获取/升级的技能名（详情弹层仅展示这些；默认技能不在此列）
     this.level = 0;          // 塔等级：0=未获得
     this.exp = 0;
     this.pending = 0;        // 待选次数（波末结算）
@@ -186,11 +187,13 @@ class TowerBuild {
       const br = ef.branch;
       if (!BRANCH_KEYS.includes(br)) return { ok: false };
       poolEf.branches[br] = Math.min(poolEf.branches[br] + 1, CONFIG.EFFECT.maxLevel);
+      host.picked.add(poolEf.name);   // 分支升级 = 三选一获取（详情展示）
       res.leveled = true;
     } else {
       // 技能卡：激活（防御：若已激活则按分支 A 升级）
       if (host._activated(poolEf)) {
         poolEf.branches.A = Math.min(poolEf.branches.A + 1, CONFIG.EFFECT.maxLevel);
+        host.picked.add(poolEf.name);
         res.leveled = true;
       } else {
         if (host.activeNames.length >= CONFIG.EFFECT.activeSlots && CONFIG.EFFECT.swapOnFull) {
@@ -200,10 +203,12 @@ class TowerBuild {
           host.activeNames.splice(host.activeNames.indexOf(victim), 1);
           const victimEf = host.pool.find((e) => e.name === victim);
           if (victimEf) { victimEf.branches.A = 0; victimEf.branches.B = 0; victimEf.branches.C = 0; }
+          host.picked.delete(victim);   // 被替换技能不再展示
           res.replaced = true;
         }
         poolEf.branches.A = Math.max(poolEf.branches.A, 1); // 激活默认分支 A Lv1
         if (!host.activeNames.includes(poolEf.name)) host.activeNames.push(poolEf.name);
+        host.picked.add(poolEf.name);
         res.activated = true;
       }
     }
@@ -246,6 +251,7 @@ class TowerBuild {
   resetRunBuild() {
     this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; });
     this.activeNames = [];
+    this.picked = new Set();
     this.pending = 0;
     this.exp = 0;
     this.firstPickDone = false;

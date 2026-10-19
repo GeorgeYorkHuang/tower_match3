@@ -263,12 +263,12 @@ class Renderer {
     // 分隔线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 214, w - 80, 2);
-    // 技能等级列表
-    text(ctx, '技能等级', x + 40, y + 246, 22, '#b8c2cc', 'left');
+    // 技能列表（v1.12：无默认技能；仅显示通过三选一获取的技能 + 分支等级）
+    text(ctx, '技能', x + 40, y + 246, 22, '#b8c2cc', 'left');
     let sy = y + 278;
     const skills = info.skills || [];
     if (!skills.length) {
-      text(ctx, '暂无技能，消除对应颜色方块获得', x + w / 2, sy + 30, 20, 'rgba(255,255,255,0.45)', 'center');
+      text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, sy + 30, 20, 'rgba(255,255,255,0.45)', 'center');
       sy += 120;
     } else {
       skills.forEach((sk) => {
@@ -276,10 +276,16 @@ class Renderer {
         const skDef = (CONFIG.EFFECT_POOLS[info.key] || []).find((q) => q.name === sk.name);
         if (skDef && skDef.icon) text(ctx, skDef.icon, x + 46, sy + 30, 30, '#ffffff');
         text(ctx, sk.name, x + 72, sy + 26, 24, '#ffffff');
-        fillRoundRect(ctx, x + 52, sy + 42, 60, 20, 6, sk.level >= 3 ? '#e74c3c' : '#3a6ea5');
-        text(ctx, `Lv.${sk.level}`, x + 82, sy + 52, 14, '#ffffff', 'center');
-        text(ctx, sk.desc || '', x + 186, sy + 30, 17, '#9fb2c3');
-        text(ctx, sk.b || '', x + 186, sy + 56, 17, '#7ea8d8');
+        // 三分支等级徽章（v1.11 分支模型：lv>0 金色亮显 = 已实装，0 = 未升）
+        const brs = sk.branches || { A: 0, B: 0, C: 0 };
+        let bx = x + 72;
+        ['A', 'B', 'C'].forEach((br) => {
+          const lv = brs[br] || 0;
+          const cw = 48;
+          fillRoundRect(ctx, bx, sy + 44, cw, 22, 6, lv > 0 ? '#f7c948' : '#2c3542');
+          text(ctx, `${br}${lv}`, bx + cw / 2, sy + 57, 15, lv > 0 ? '#5c4a00' : '#8ea3b8', 'center');
+          bx += cw + 8;
+        });
         sy += 88;
       });
     }
