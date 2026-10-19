@@ -798,10 +798,10 @@ class Renderer {
       const isTarget = i === 0 && ef.name === group.target;
       const upgrading = ef.level > 0;
       const cx = x + 28 + i * (cardW + gap);
-      // 卡片框：普通=塔色描边；升级=黄框；目标=绿框（保持状态语义）
+      // 卡片框：描边统一 = 所属塔色（v1.10 用户规范；升级/目标状态仅保留顶部细条区分）
       fillRoundRect(ctx, cx, topY, cardW, cardH, 16, '#232c38');
-      const edge = upgrading ? '#f7c948' : (isTarget ? '#27ae60' : tint);
-      strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, edge, upgrading || isTarget ? 3 : 2.5);
+      const edge = tint;
+      strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, edge, 2.5);
       // 顶部状态细条：塔色 / 黄 / 绿
       fillRoundRect(ctx, cx + 4, topY + 4, cardW - 8, 6, 3, upgrading ? '#f7c948' : (isTarget ? '#27ae60' : tint));
       if (isTarget && !upgrading) {
@@ -835,12 +835,12 @@ class Renderer {
       fillRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, 'rgba(255,255,255,0.6)', 1.5);
       text(ctx, `Lv${ef.level + 1}`, iconCx + ir + 1, iconCy - ir + 22, 18, upgrading ? '#1a1a1a' : '#ffffff', 'center');
-      // 中间：技能介绍（技能名 + 升级提示）
+      // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范）
       const nameY = topY + 224;
       if (upgrading) {
-        text(ctx, `Lv${ef.level} → ${ef.level + 1}`, cx + cardW / 2, nameY - 30, 18, '#f7c948', 'center');
+        text(ctx, `Lv${ef.level} → ${ef.level + 1}`, cx + cardW / 2, nameY - 32, 18, '#f7c948', 'center');
       }
-      text(ctx, ef.name, cx + cardW / 2, nameY, 30, '#ffffff', 'center');
+      text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
       // 下方：更详细的技能描述（换行居中）
       const desc = descOf(ef.name, ef.level, ef.fromTower);
       const lines = wrapLines(desc, 8);
