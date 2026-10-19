@@ -222,6 +222,30 @@ t('回旋镖 sweep：椭圆大弧越过怪物后绕回，沿途扫过所有敌�
   assert.ok(1000 - e1.hp <= 100, '单镖对同一敌人只结算一次');
 });
 
+t('回旋镖·多镖：每次多投 1 枚，单镖伤害下降（总数上升）', () => {
+  const g = mkGame({ boomerang: { 多镖: 1 } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const dmg = c.shotDmg('boomerang');
+  c.attackOnce('boomerang');
+  const sweeps = c.shots.filter((s) => s.sweep);
+  assert.strictEqual(sweeps.length, 2, '多镖 Lv1 应一次投出 2 枚回旋镖');
+  sweeps.forEach((s) => assert.ok(Math.abs(s.dmg - dmg * 0.85) < 0.01, '多镖单镖伤害应为基础 ×0.85'));
+  assert.ok(c.shots.every((s) => s.tx >= 0 && s.ty >= 0), '多镖各枚落点应有效');
+});
+
+t('回旋镖·巨镖：吸附半径放大，可扫中轨迹外侧敌人', () => {
+  const g = mkGame({ boomerang: { 巨镖: 1 } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const s0 = { key: 'boomerang', dmg: 100, t: 0, dur: 1.2, sx: 375, sy: 1100, tx: 375, ty: 400, sweep: true, hitIds: {}, large: 1 };
+  // 敌人放在轨迹采样点外侧 50px：基础半径 42 够不到，巨镖 42×1.3=54.6 可扫中
+  const pos = c.sweepPos(s0, 0.5);
+  const e = mkEnemy(1000, pos.x, pos.y + 50); g.enemies.push(e);
+  c.shots.push(s0);
+  for (let i = 0; i < 90; i++) c.update(1 / 60);
+  assert.ok(e.hp < 1000, '巨镖 Lv1 吸附半径应放大并扫中轨迹外侧敌人');
+});
+
 t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', () => {
   const g = mkGame({ boomerang: {} });
   const c = new CombatSystem(g);

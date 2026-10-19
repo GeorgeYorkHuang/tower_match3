@@ -412,16 +412,35 @@ class CombatSystem {
     g.playSfx('shot', 0.25);
     if (key === 'boomerang') {
       // 回旋镖 v1.7：弧线飞出再飞回（弧高加大），沿途扫过所有敌人（不锁定单体）；投出后标记等待接回
+      // v1.10：落点计算怪物前行提前量——镖飞行期间怪物继续向城墙行走，瞄准其预测位置而非当前位置；
+      //        多镖技能：每次多投 1 枚（单镖伤害下降）；巨镖技能：镖体/吸附半径放大
       this.bWait[key] = true;
       const fly = this.lv('boomerang', '飞距');
-      const dx = target.x - sx, dy = target.y - sy;
-      const dist = Math.hypot(dx, dy) || 1;
+      const multi = this.lv('boomerang', '多镖');
+      const large = this.lv('boomerang', '巨镖');
+      // 怪物只沿 +y 走向城墙（main.moveEnemy），预测位移 = speed × 减速系数 × 到达弧顶时间（dur×0.53）
+      const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
+      const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
+      const aimY = Math.min(target.y + target.speed * slowMult * dur * 0.53, wallY);
+      const n = 1 + multi;
+      const perDmg = dmg * (1 - 0.15 * multi);   // 多镖：单镖伤害下降，总数上升
       const maxD = CONFIG.TOWERS.boomerang.range * (1 + 0.30 * Math.max(0, fly - 1));
-      const k = Math.min(1, maxD / dist);
-      const ex = sx + dx * k, ey = sy + dy * k;
-      this.shots.push({ key, dmg, t: 0, dur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {} });
-      // 视觉弹道终点同步为截断点（逻辑与视觉飞距一致）
-      baseShot.tx = ex; baseShot.ty = ey;
+      // 移除通用视觉弹道（baseShot），按 n 枚重建（各带微偏角与巨镖放大）
+      const bidx = g.fx.indexOf(baseShot);
+      if (bidx >= 0) g.fx.splice(bidx, 1);
+      for (let i = 0; i < n; i++) {
+        const off = (n > 1) ? (i - (n - 1) / 2) * 0.07 : 0;   // 多镖扇形微偏角
+        const dx = target.x - sx, dy = aimY - sy;
+        const dist = Math.hypot(dx, dy) || 1;
+        const k = Math.min(1, maxD / dist);
+        const ex0 = sx + dx * k, ey0 = sy + dy * k;
+        const cos = Math.cos(off), sin = Math.sin(off);
+        const rx = ex0 - sx, ry = ey0 - sy;
+        const ex = sx + rx * cos - ry * sin;
+        const ey = sy + rx * sin + ry * cos;
+        this.shots.push({ key, dmg: perDmg, t: 0, dur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, large });
+        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur, key, large });
+      }
     } else {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
     }
@@ -465,7 +484,8 @@ class CombatSystem {
     const pos = this.sweepPos(s, p);
     const bx = pos.x, by = pos.y;
     const orbit = this.lv('boomerang', '范围回旋');
-    const r = 42 * (orbit > 0 ? 1 + 0.30 * (orbit - 1) : 1);
+    const large = s.large || 0;   // v1.10 巨镖：吸附半径放大
+    const r = 42 * (orbit > 0 ? 1 + 0.30 * (orbit - 1) : 1) * (1 + 0.30 * large);
     for (const e of g.enemies) {
       if (e.hp <= 0 || s.hitIds[e.id]) continue;
       if (Math.hypot(e.x - bx, e.y - by) <= r) {

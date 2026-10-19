@@ -565,27 +565,26 @@ class Renderer {
           const ang = Math.atan2(pa.y - pb.y, pa.x - pb.x);
           // 镖体自旋（v1.9：高速旋转，全程转 4 圈）
           const spin = p * Math.PI * 8;
+          // 巨镖（v1.10）：体积放大 1 + 0.30/级
+          const lg = f.large || 0;
+          const sc = 1 + 0.30 * lg;
           // 镖体圆盘（半透明底）
           ctx.save();
           ctx.translate(bx, by);
           ctx.rotate(ang + spin);
+          ctx.scale(sc, sc);
           ctx.globalAlpha = 0.28;
           ctx.fillStyle = f.color;
           ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
-          // 双翼回旋镖造型（重绘：前缘弧 + 两翼后掠 + 中轴凹陷）
-          ctx.fillStyle = f.color;
-          ctx.beginPath();
-          ctx.moveTo(42, 0);
-          ctx.quadraticCurveTo(16, -12, -16, -16);
-          ctx.quadraticCurveTo(-20, -2, -10, 0);
-          ctx.quadraticCurveTo(-20, 2, -16, 16);
-          ctx.quadraticCurveTo(16, 12, 42, 0);
-          ctx.closePath(); ctx.fill();
-          // 翼缘高光线
-          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 4.4;
-          ctx.beginPath(); ctx.moveTo(34, -2); ctx.quadraticCurveTo(10, -10, -14, -12); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(34, 2); ctx.quadraticCurveTo(10, 10, -14, 12); ctx.stroke();
+          // L 形回旋镖（v1.10 重绘：两臂夹角 120°）
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = f.color; ctx.lineWidth = 20;
+          ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(0, 0); ctx.lineTo(-20, 34.6); ctx.stroke();
+          // 高光线（内芯）
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(0, 0); ctx.lineTo(-15, 26); ctx.stroke();
+          ctx.lineCap = 'butt';
           ctx.restore();
           // 中心旋转闪光
           ctx.globalAlpha = 0.8;

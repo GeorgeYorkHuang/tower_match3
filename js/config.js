@@ -147,6 +147,8 @@ module.exports = {
       { name: '双镖',       icon: '🥏', color: '#c39bd3', desc: '同时投掷两枚回旋镖',        p0: false, a: '双镖伤害各 100%',     b: '双镖合击同一目标增伤 30%' },
       { name: '暴击',       icon: '🎯', color: '#d2b4de', desc: '折返段概率暴击',            p0: false, a: '暴击率 +15%',         b: '暴击伤害 +50%' },
       { name: '范围回旋',   icon: '🌀', color: '#a966c2', desc: '回旋镖吸附范围扩大',        p0: false, a: '吸附半径 +30%',       b: '命中附带小溅射' },
+      { name: '多镖',       icon: '🔱', color: '#b07cc6', desc: '每次多投掷 1 枚回旋镖，单镖伤害下降', p0: false, a: '镖数 +1 · 单镖伤害 -15%', b: '多镖伤害下降减半' },
+      { name: '巨镖',       icon: '💠', color: '#d2b4de', desc: '回旋镖体积扩大，吸附范围提升',        p0: false, a: '镖体 +30%',          b: '吸附半径 +30%' },
     ],
     cannon: [
       { name: '溅射',       icon: '💥', color: '#b5651d', desc: '炮弹爆炸范围溅射',          p0: true,  a: '爆炸半径 +30%',       b: '爆炸伤害 +40%' },
