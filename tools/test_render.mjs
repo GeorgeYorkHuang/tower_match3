@@ -160,6 +160,28 @@ t('三选一选择路径', () => {
   assert.ok(game.state === 'fighting' || game.state === 'picking');
 });
 
+/* 4.6 v1.12.1 回归：三选一全部选完 → 自动回到战斗进入下一波（修复“选完卡死”） */
+t('三选一选完 → 自动进入下一波（卡死回归）', () => {
+  game.newRun(true);
+  ['red', 'blue', 'green', 'yellow'].forEach((c) => game.run.applyMatch(c, '3', 3));
+  const t0 = game.run.effects.tower('fire');
+  t0.pending = 2;
+  game.waveClear = { wave: 1, waveGold: 60, pending: 0 };
+  game.state = 'waveclear';
+  game.waveClearNext();
+  assert.strictEqual(game.state, 'picking', '有待升级应先进入三选一');
+  let guard = 0;
+  while (game.state === 'picking' && guard++ < 20) {
+    const g0 = game.pickQueue[game.pickIndex];
+    const res = game.run.applyChoice(g0.tower, g0.candidates[0]);
+    assert.ok(res.ok, '选择应成功');
+    game.nextPick();
+  }
+  assert.strictEqual(game.state, 'fighting', '选完后应自动回战斗进下一波（修复：不再卡死）');
+  assert.ok(game.run.wave >= 2, '应进入下一波');
+  assert.strictEqual(game.run.effects.tower('fire').pending, 0, '升级待选应全部消费');
+});
+
 /* 长跑驱动：自动点击波次弹窗「继续」 */
 function driveLong(n, dt) {
   for (let i = 0; i < n; i++) {

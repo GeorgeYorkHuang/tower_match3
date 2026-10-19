@@ -49,7 +49,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.12.1';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.12.2';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -357,6 +357,7 @@ class GameMain {
     this.pickIndex = 0;
     if (this._postPick === 'waveclear') {
       this._postPick = null;
+      this.state = 'waveclear';   // v1.12.1 修复：先离开 picking 态，否则 waveClearNext→flushUpgrades 会误判“已在 picking”提前返回，卡死在空队列
       this.waveClearNext();
       return;
     }
@@ -406,9 +407,9 @@ class GameMain {
     // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）
     const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
     const gained = Math.round(base * (1 + 0.20 * b.exp));
-    const ups = this.run.gainExp(gained);
-    // 触发升级 → 进入升级三选一（战斗暂停）
-    if (ups > 0 && this.state === 'fighting') this.flushUpgrades();
+    this.run.gainExp(gained);
+    // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
+    // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
     // 精英怪：概率掉落圣物宝箱（寻宝罗盘加成）→ 战斗内三选一（暂停战斗弹层）
     if (e.type === 'elite') {
       const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest);
@@ -468,8 +469,7 @@ class GameMain {
       if (frzSum > 0) parts.push(`❄ +${frzSum}`);
       this.toast(`全局技能充能 ${parts.join(' ')}`, '#f7c948');
     }
-    // 升级检查（三消经验也可能升级）
-    if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades();
+    // v1.12.1：三消经验升级同样只积累待选，不战斗内弹三选一（波末统一结算）
   }
 
   /* ---------- 渲染 ---------- */
