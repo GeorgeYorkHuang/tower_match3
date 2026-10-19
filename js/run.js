@@ -45,7 +45,7 @@ class Run {
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
     this.board = new Board({ difficulty: this.difficulty });
     this.board.init();
-    this.effects = new EffectManager();
+    this.effects = new EffectManager({ rng: this.rng });
     this.effects.run = this;      // v1.8：整体经验 → 塔 DPS 按整体等级成长
     this.exp = 0;                 // v1.8：整体经验池（塔不再单独获取经验）
     this.expLevel = 0;            // 整体等级（经验条/等级圆显示；塔 DPS 成长依据）
@@ -110,33 +110,71 @@ class Run {
 
   /**
    * 结算一次消除（形状：'3' 三连 / '4' 直4 / 'L5' L形5 / '5' 直5 / '6+'）。
-   * 经验 = 块数 × 每块基础经验 × 形状倍率，全部进入整体经验池（v1.8）。
-   * 有塔色 → 经验；无塔色（未获得且塔位未满）→ 得塔；惩罚（橙/塔位满）→ 经验打五折。
-   * @returns {tower, gotTower, penalized, exp, shape}
+   * v1.12 三消奖励重做：
+   *   - 4 塔色（已获得塔）：弹药 +size（封顶 ammoMax）+ 整体经验；弹药满 → 溢出均匀充能两个全局技能
+   *   - 未获得且塔位未满：得塔（初始弹药 startAmmo）
+   *   - 非塔色（橙=炮塔 P1 → 全局伤害；未被选中的另一色 → 全局冰冻）：消除直接充能全局技能能量（替代原惩罚经验）
+   * @returns {tower, gotTower, penalized, exp, shape, ammoGain, dmgGain, frzGain}
    */
   applyMatch(color, shape, size) {
     const exp = expOfShape(shape, size);
+    const GS = CONFIG.GLOBAL_SKILL;
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
-    if (!t) {
-      // 惩罚色（橙=炮塔 P1 无塔）
-      this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO)); penalized = true;
+    let ammoGain = 0, dmgGain = 0, frzGain = 0;
+    if (!t || t.key === 'cannon') {
+      // 橙=炮塔 P1（永远非塔色）→ 全局伤害能量 + 半量经验（对齐原惩罚色口径，保住升级节奏）
+      dmgGain = this._chargeEnergy('damage', size);
+      this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
     } else if (t.level === 0) {
       const owned = Object.keys(this.effects.towers).filter((k) => this.effects.tower(k).level > 0).length;
       if (owned < CONFIG.TOWER_SLOTS) {
         t.unlock(); gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
+        ammoGain = GS.startAmmo;
       } else {
-        this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO)); penalized = true;
+        // 塔位满：该色未被选中 → 全局冰冻能量 + 半量经验（第 2 个全局技能源）
+        frzGain = this._chargeEnergy('freeze', size);
+        this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
       }
     } else {
-      this.gainExp(exp); target = t;
+      // 4 塔色：弹药 + 整体经验；弹药满 → 溢出均匀充能两个全局技能
+      const before = t.ammo;
+      t.ammo = Math.min(before + size, GS.ammoMax);
+      ammoGain = t.ammo - before;
+      const over = Math.max(0, before + size - GS.ammoMax);
+      if (over > 0) {
+        const half = Math.floor(over / 2);
+        dmgGain = this._chargeEnergy('damage', half);
+        frzGain = this._chargeEnergy('freeze', over - half);
+      }
+      this.gainExp(exp);
+      target = t;
     }
     // 更新待选峰值
     Object.keys(this.effects.towers).forEach((k) => {
       this.pendingPeak = Math.max(this.pendingPeak, this.effects.tower(k).pending);
     });
-    return { tower: target ? target.key : null, gotTower, penalized, exp, shape };
+    return { tower: target ? target.key : null, gotTower, penalized, exp, shape, ammoGain, dmgGain, frzGain };
+  }
+
+  /** 全局技能能量充能（封顶 energyMax；返回实际入账点数） */
+  _chargeEnergy(which, points) {
+    if (!points || points <= 0) return 0;
+    const GS = CONFIG.GLOBAL_SKILL;
+    const key = which === 'damage' ? 'damageEnergy' : 'freezeEnergy';
+    const before = this[key] || 0;
+    this[key] = Math.min(before + points, GS.energyMax);
+    return this[key] - before;
+  }
+
+  /** 消耗全局技能能量（释放 1 格；不足返回 false） */
+  spendEnergy(which) {
+    const GS = CONFIG.GLOBAL_SKILL;
+    const key = which === 'damage' ? 'damageEnergy' : 'freezeEnergy';
+    if ((this[key] || 0) < GS.energyPerCell) return false;
+    this[key] -= GS.energyPerCell;
+    return true;
   }
 
   /** 真实路径：棋盘交换 → 按连锁步逐组结算（每步单独成组，供逐级连锁动画逐级 toast） */
@@ -219,6 +257,7 @@ class Run {
     this.slotOrder = [];
     this.exp = 0; this.expLevel = 0;   // v1.8：整体经验每局从 0 开始
     this._upCount = {};                // 均衡轮转计数同局清空
+    this.damageEnergy = 0; this.freezeEnergy = 0;  // v1.12 全局技能能量（点，每局清零）
   }
 
   /* ---------- 模拟一局（操作模型路径，对齐 python simulate_run） ---------- */

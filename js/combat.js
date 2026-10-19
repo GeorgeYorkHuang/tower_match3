@@ -300,6 +300,8 @@ class CombatSystem {
     const g = this.game;
     const t = this.tower(key);
     if (!t || t.level === 0) return;
+    if (t.ammo <= 0) return; // v1.12 弹药：三消额外攻击同样消耗弹药（无弹药不触发）
+    t.ammo -= 1;
     const tgt = this.pickTarget(key);
     if (!tgt) return;
     const dmg = this.shotDmg(key);
@@ -379,12 +381,16 @@ class CombatSystem {
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
   attackOnce(key) {
     const g = this.game;
+    // v1.12 弹药：塔需弹药才能攻击（无弹药停火）
+    const ammoT = this.tower(key);
+    if (ammoT && ammoT.ammo <= 0) return;
     const target = this.pickTarget(key);
     if (!target) {
       // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
       if (key === 'boomerang') this.bWait[key] = false;
       return;
     }
+    if (ammoT) ammoT.ammo -= 1;
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
     const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
@@ -952,6 +958,33 @@ class CombatSystem {
   /** 两点连线（电连锁/电弧/毒链） */
   fxBeam(x1, y1, x2, y2, color, dur, width) {
     this.game.fx.push({ type: 'beam', x1, y1, x2, y2, color, dur, width, t: 0 });
+  }
+
+  /* ---------- v1.12 全局技能：消耗能量释放（1 格 = energyPerCell 点） ---------- */
+  /** 释放全局技能：'damage' 全场 AOE / 'freeze' 全场冰冻；能量不足返回 false */
+  castGlobal(which) {
+    const g = this.game;
+    if (!g.run.spendEnergy(which)) return false;
+    const GS = CONFIG.GLOBAL_SKILL;
+    if (which === 'damage') {
+      // 全局伤害：对全场所有敌人 = 全塔总 DPS × 倍率
+      const d = Math.round(this.totalDps() * GS.damageMult);
+      this.enemies().forEach((e) => { if (e.hp > 0) this.damage(e, d, 'global'); });
+      if (this.enemies().length) {
+        this.fxFlash(375, 800, '#ff8c42', 0.5);
+        this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
+      }
+      g.toast && g.toast(`⚡ 全局伤害 ${d}`, '#ff8c42');
+    } else {
+      // 全局冰冻：全场冻结（停止移动/攻击）
+      this.enemies().forEach((e) => { e.frozen = Math.max(e.frozen || 0, GS.freezeDur); });
+      if (this.enemies().length) {
+        this.fxFlash(375, 800, '#7ec8ff', 0.5);
+        this.fxRing(375, 800, '#7ec8ff', 300, 0.5, 8);
+      }
+      g.toast && g.toast(`❄ 全局冰冻 ${GS.freezeDur}s`, '#7ec8ff');
+    }
+    return true;
   }
 }
 

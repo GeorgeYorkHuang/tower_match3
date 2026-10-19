@@ -49,7 +49,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.11.0';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.12.0';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -440,17 +440,32 @@ class GameMain {
   onMatchBonus(ret) {
     if (!ret || !ret.settled) return;
     const b = this.meta.relicBonus();
+    let ammoSum = 0, dmgSum = 0, frzSum = 0, towerHit = '';
     ret.settled.forEach((s) => {
       // 圣物·经验珠：三消经验补差（基础经验已由 applyMatch 进整体池；补差也入整体池 v1.8）
       if (b.exp > 0 && s.tower) {
         const t = this.run.effects.tower(s.tower);
         if (t && t.level > 0) this.run.gainExp(Math.max(1, Math.round(s.exp * 0.20 * b.exp)));
       }
+      // v1.12 弹药/全局能量入账提示（汇总一次性 toast）
+      if (s.ammoGain > 0) { ammoSum += s.ammoGain; towerHit = s.tower || towerHit; }
+      if (s.dmgGain > 0) dmgSum += s.dmgGain;
+      if (s.frzGain > 0) frzSum += s.frzGain;
       // 三消触发塔额外攻击一次；多消形状触发不同攻击特效（combat.bonusStrike）
       if (s.tower && s.shape && !s.gotTower && !s.penalized && this.state === 'fighting') {
         this.combat.bonusStrike(s.tower, s.shape);
       }
     });
+    if (ammoSum > 0) {
+      const tn = CONFIG.COLORS[CONFIG.TOWERS[towerHit] ? CONFIG.TOWERS[towerHit].color : ''] || {};
+      this.toast(`🔫 弹药 +${ammoSum}（${tn.name || towerHit}）`, '#7ef0a3');
+    }
+    if (dmgSum > 0 || frzSum > 0) {
+      const parts = [];
+      if (dmgSum > 0) parts.push(`⚡ +${dmgSum}`);
+      if (frzSum > 0) parts.push(`❄ +${frzSum}`);
+      this.toast(`全局技能充能 ${parts.join(' ')}`, '#f7c948');
+    }
     // 升级检查（三消经验也可能升级）
     if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades();
   }
@@ -522,6 +537,7 @@ class GameMain {
         dps: t.level > 0 ? eff.towerDps(key) : 0,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
+        ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,            // v1.12 弹药（塔位条显示）
         skills,
       });
     }
@@ -546,6 +562,8 @@ class GameMain {
       exp: run.exp, expNeed: run.expNeed(), expLevel: run.expLevel,   // v1.8：出怪区整体经验条
       expRatio: run.expLevel > 0 ? Math.min(1, run.exp / run.expNeed()) : 0,
       battleRelics: this.battleRelics || [],   // v1.9：本局获得的圣物（经验条下方图标展示）
+      damageEnergy: run.damageEnergy, freezeEnergy: run.freezeEnergy,  // v1.12 全局技能能量（点）
+      energyPerCell: CONFIG.GLOBAL_SKILL.energyPerCell,
     };
   }
 
@@ -805,6 +823,16 @@ class GameMain {
       this.swapped = false;
       moved = false;
       this._touchStart = { x: p.x, y: p.y };
+      // 战斗中点全局技能按钮 → 释放技能（v1.12：左=全局伤害，右=全局冰冻）
+      if (this.state === 'fighting') {
+        const btns = this.renderer.globalBtns || [];
+        for (const b of btns) {
+          if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+            this.combat.castGlobal(b.key);
+            return;
+          }
+        }
+      }
       // 战斗中点塔位图标 → 查看技能/等级
       if (this.state === 'fighting') {
         const si = this.towerSlotAt(p);

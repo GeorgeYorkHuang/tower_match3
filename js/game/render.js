@@ -189,7 +189,7 @@ class Renderer {
     // 城墙（防线）
     this.wall(ctx, s.lineHp, s.lineMaxHp);
     // 塔位区
-    this.towerRow(ctx, s.towers);
+    this.towerRow(ctx, s);
     // 棋盘
     this.board(ctx, s.grid, s.selected, s.anim);
     // 底部功能键区（棋盘下方）
@@ -293,7 +293,8 @@ class Renderer {
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, '关闭', { bg: '#3a6ea5', fontSize: 26 });
   }
 
-  towerRow(ctx, towers) {
+  towerRow(ctx, s) {
+    const towers = s.towers;
     const { slotSize, slotGap, slotCount, slotY } = this.ly;
     // 塔位区背景图（石板放置地面）；加载失败回退浅色条
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
@@ -322,10 +323,52 @@ class Renderer {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.beginPath(); ctx.arc(x + 17, slotY + 17, 11, 0, Math.PI * 2); ctx.fill();
         text(ctx, 'i', x + 17, slotY + 21, 14, '#1a1a1a', 'center');
+        // v1.12 弹药条：图标下方（ammo/ammoMax），无弹药红色警示
+        const aY = iy + L.towerIcon.size - 4;
+        const aW = L.towerIcon.size - 8;
+        const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(ix + 4, aY, aW, 5);
+        ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
+        ctx.fillRect(ix + 4, aY, aW * aRatio, 5);
+        text(ctx, `${tw.ammo || 0}/${tw.ammoMax}`, x + slotSize / 2, aY + 14, 12, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
         // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
       }
       x += slotSize + slotGap;
     }
+    // v1.12 全局技能按钮：塔位区两侧（左=全局伤害，右=全局冰冻）；能量存 3 格（每格 energyPerCell 点）
+    const btnW = 128, btnH = 94, btnY = TOWER_ROW_Y + 12, btnGapX = 10;
+    const perCell = Math.max(1, s.energyPerCell || 4);
+    const dmgCells = Math.floor((s.damageEnergy || 0) / perCell);
+    const frzCells = Math.floor((s.freezeEnergy || 0) / perCell);
+    this.globalBtns = [
+      this._globalBtn(ctx, 'damage', '⚡', '全局伤害', btnGapX, btnY, btnW, btnH, dmgCells, '#ff8c42'),
+      this._globalBtn(ctx, 'freeze', '❄', '全局冰冻', 750 - btnGapX - btnW, btnY, btnW, btnH, frzCells, '#7ec8ff'),
+    ];
+  }
+
+  /** 全局技能按钮绘制：图标 + 名称 + 3 格能量；返回命中矩形 {key,x,y,w,h} */
+  _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
+    const maxCells = 3;
+    const ready = filled >= 1;
+    ctx.globalAlpha = ready ? 1 : 0.55;
+    ctx.fillStyle = ready ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.28)';
+    ctx.strokeStyle = ready ? tint : 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = ready ? 2.5 : 1.5;
+    roundRect(ctx, bx, by, bw, bh, 10);
+    ctx.fill(); ctx.stroke();
+    text(ctx, icon, bx + bw / 2, by + 30, 34, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
+    text(ctx, name, bx + bw / 2, by + 56, 17, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
+    // 3 格能量圆点
+    const dotR = 7, dotY = by + bh - 16, gap = 26, x0 = bx + (bw - (gap * (maxCells - 1))) / 2;
+    for (let i = 0; i < maxCells; i++) {
+      const dx = x0 + i * gap;
+      ctx.beginPath(); ctx.arc(dx, dotY, dotR, 0, Math.PI * 2);
+      if (i < filled) { ctx.fillStyle = tint; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.stroke(); }
+      else { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    return { key, x: bx, y: by, w: bw, h: bh };
   }
 
   board(ctx, grid, selected, anim) {

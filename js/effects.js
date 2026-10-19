@@ -43,6 +43,7 @@ class TowerBuild {
       return ef;
     });
     this.picked = new Set();   // v1.11：经三选一获取/升级的技能名（详情弹层仅展示这些；默认技能不在此列）
+    this.ammo = 0;             // v1.12 弹药：三消供弹，攻击消耗；上限 ammoMax，得塔时给 startAmmo
     this.level = 0;          // 塔等级：0=未获得
     this.exp = 0;
     this.pending = 0;        // 待选次数（波末结算）
@@ -67,9 +68,12 @@ class TowerBuild {
     }
   }
 
-  /** 解锁塔（先消先得，run 层调用） */
+  /** 解锁塔（先消先得，run 层调用）；得塔时补初始弹药 */
   unlock() {
-    if (this.level === 0) this.level = 1;
+    if (this.level === 0) {
+      this.level = 1;
+      this.ammo = CONFIG.GLOBAL_SKILL.startAmmo;
+    }
   }
 
   /** 特效满级？（派生 level 达到上限） */
@@ -127,14 +131,15 @@ class TowerBuild {
     const isTgtSkill = (e) => e.type === 'skill' && e.name === target;
     const isTgtBranch = (e) => e.type === 'branch' && e.name === target;
     const tgtSkill = eligible.find(isTgtSkill);
-    const tgtBranch = eligible.find(isTgtBranch);
-    const tgtCand = tgtSkill || tgtBranch;   // 目标候选：未激活→技能卡；已激活→首个未满分支卡
+    // 目标分支：等级最低的未满分支优先（自动路径均衡升级，避免死磕 A 分支）
+    const tgtBranch = eligible.filter(isTgtBranch).sort((a, b) => a.branchLv - b.branchLv)[0] || null;
+    const tgtCand = tgtSkill || tgtBranch;   // 目标候选：未激活→技能卡；已激活→未满分支卡
 
     // 首选保底：本 run 首次三选一候选必含标志特效（技能卡，未激活时）
     if (CONFIG.EFFECT.firstPickGuarantee && !this.firstPickDone && tgtSkill) {
       this.firstPickDone = true;
       const rest = eligible.filter((e) => e !== tgtSkill);
-      shuffle(rest);
+      shuffle(rest, this.rng);
       const cands = [tgtSkill].concat(rest.slice(0, CONFIG.EFFECT.pickSize - 1));
       return targeting ? this._targetFirst(cands, tgtSkill) : cands;
     }
@@ -146,7 +151,7 @@ class TowerBuild {
         const w = (e === tgtCand) ? CONFIG.EFFECT.targetWeight : 1;
         for (let i = 0; i < w; i++) weighted.push(e);
       });
-      shuffle(weighted);
+      shuffle(weighted, this.rng);
       const seen = new Set();
       const cands = [];
       for (const e of weighted) {
@@ -157,7 +162,7 @@ class TowerBuild {
       return this._targetFirst(cands, tgtCand);
     }
 
-    shuffle(eligible);
+    shuffle(eligible, this.rng);
     return eligible.slice(0, CONFIG.EFFECT.pickSize);
   }
 
@@ -254,6 +259,7 @@ class TowerBuild {
     this.picked = new Set();
     this.pending = 0;
     this.exp = 0;
+    this.ammo = 0;
     this.firstPickDone = false;
   }
 }
@@ -261,7 +267,9 @@ class TowerBuild {
 /* ---------- 多塔统筹 ---------- */
 
 class EffectManager {
-  constructor() {
+  constructor(opts) {
+    opts = opts || {};
+    this.rng = opts.rng || Math.random;  // 模拟路径注入 seeded rng（候选 shuffle 确定性）
     this.towers = {};
     // P0 可玩塔池：排除 p1 占位塔（如炮塔），其颜色转为惩罚色（对齐模拟脚本 TOWERS）
     Object.keys(CONFIG.TOWERS).forEach((key) => {
@@ -396,9 +404,10 @@ class EffectManager {
 }
 
 /* ---------- 工具 ---------- */
-function shuffle(arr) {
+function shuffle(arr, rng) {
+  const rand = rng || Math.random;
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rand() * (i + 1));
     const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
   }
   return arr;

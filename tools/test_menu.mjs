@@ -88,8 +88,8 @@ t('初始状态：主界面 menu + menuState 字段齐全（3 页签）', () => 
   });
   assert.strictEqual(st.tab, 'battle');
   assert.strictEqual(st.keys.length, 6, '6 座塔配置');
-  assert.strictEqual(st.freeSkills('fire').length, CONFIG.EFFECT.activeSlots, '每塔默认 3 技能');
-  assert.deepStrictEqual(st.freeSkills('fire'), ['点燃', '溅射', '连击'], '默认技能 = 池前 3');
+  // v1.11 起无默认技能（技能全部经三选一获取）：menuState 不再提供 freeSkills
+  assert.ok(!('freeSkills' in st), 'v1.11 起无默认技能，menuState 不含 freeSkills');
 });
 
 t('页签切换：底部大分页（战斗 → 商店 → 圣物，无配置页）', () => {
@@ -182,11 +182,9 @@ t('进入战斗：0 塔开局，最先消除的颜色解锁出战塔（跨局解
   assert.deepStrictEqual(game.run.slotOrder, ['fire'], '最先消除的颜色决定第一座塔');
   const eff = game.run.effects.tower('fire');
   assert.strictEqual(eff.level, 1, '解锁塔应参战 Lv1');
-  const s0 = eff.pool.find((e) => e.name === '点燃');
-  const s2 = eff.pool.find((e) => e.name === '连击');
-  assert.ok(s0 && s0.level === 1, '默认技能 点燃 应激活 Lv1');
-  assert.ok(s2 && s2.level === 1, '默认技能 连击 应激活 Lv1');
-  assert.strictEqual(eff.activeNames.length, CONFIG.EFFECT.activeSlots, '激活 3 个默认技能');
+  // v1.11 起无默认技能：解锁塔技能列表为空（详情空态），技能全部经三选一获取
+  assert.strictEqual(eff.activeNames.length, 0, 'v1.11 起无默认技能（activeNames 空）');
+  assert.strictEqual(eff.picked.size, 0, 'v1.11 起无默认技能（picked 空）');
   game.goMenu();
   assert.strictEqual(game.state, 'menu', '应能返回主界面');
 });

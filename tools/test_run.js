@@ -41,30 +41,34 @@ t('expOfShape：3连6 / 直4 12 / L5 15 / 直5 20 / 6+ 30', () => {
   assert.strictEqual(expOfShape('6+', 7), 35); // 2×7×2.5
 });
 
-/* 2. 先消先得：前 4 色得塔，第 5 色（塔位满）→ 惩罚经验（v1.8 入整体池） */
-t('先消先得与塔位满惩罚', () => {
+/* 2. 先消先得：前 4 色得塔，第 5 色（塔位满，未选中）→ 全局冰冻能量（v1.12 替代惩罚经验） */
+t('先消先得与未选中色全局能量', () => {
   const run = seededRun(6, 1);
   run.applyMatch('red', '3', 3);
   run.applyMatch('blue', '3', 3);
   run.applyMatch('green', '3', 3);
   run.applyMatch('yellow', '3', 3);
   assert.strictEqual(Object.keys(run.effects.towers).filter((k) => run.effects.tower(k).level > 0).length, 4, '前 4 色应全部得塔');
-  // 塔位满后第 5 色（purple 回旋镖）→ 惩罚经验（整体池）
+  // 塔位满后第 5 色（purple 回旋镖，未选中）→ 全局冰冻能量 + 半量经验（v1.12 替代原惩罚经验）
   const expBefore = run.exp;
   const r = run.applyMatch('purple', '3', 3);
   assert.strictEqual(r.gotTower, false);
-  assert.strictEqual(r.penalized, true);
-  assert.strictEqual(run.exp - expBefore, Math.floor(6 * CONFIG.PENALTY_RATIO), '惩罚经验应为 6×0.5=3');
+  assert.strictEqual(r.penalized, false);
+  assert.strictEqual(r.frzGain, 3, '未选中色消除 → 全局冰冻能量 +块数');
+  assert.strictEqual(run.freezeEnergy, 3, '全局冰冻能量应入账');
+  assert.strictEqual(run.exp - expBefore, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验（对齐原惩罚色）');
 });
 
-/* 3. 橙=炮塔（cannon 已实现）：消除直接获得炮塔，不再是无塔惩罚色 */
-t('橙=炮塔：消除直接获得炮塔（cannon 已实现）', () => {
+/* 3. 橙=炮塔（P1 非塔色）：消除 → 全局伤害能量（v1.12：不再解锁炮塔） */
+t('橙=炮塔 P1：消除 → 全局伤害能量', () => {
   const run = seededRun(6, 2);
   run.applyMatch('red', '3', 3); // 得火塔
-  const r = run.applyMatch('orange', '4', 4); // 直4 → 得炮塔
-  assert.strictEqual(r.gotTower, true);
+  const r = run.applyMatch('orange', '4', 4); // 直4 → 全局伤害能量 +4
+  assert.strictEqual(r.gotTower, false);
   assert.strictEqual(r.penalized, false);
-  assert.strictEqual(r.tower, 'cannon');
+  assert.strictEqual(r.dmgGain, 4, '橙消除 → 全局伤害能量 +块数');
+  assert.strictEqual(run.damageEnergy, 4, '全局伤害能量应入账');
+  assert.strictEqual(r.tower, null);
 });
 
 /* 4. 波末：金币公式 + 战斗结算 */
@@ -112,9 +116,10 @@ t('v1.8 整体经验：消除入池、升级发放待选、DPS 按整体等级�
   run.applyMatch('blue', '3', 3);   // 得冰塔
   run.applyMatch('green', '3', 3);  // 得毒塔
   run.applyMatch('yellow', '3', 3); // 得电塔
-  // 塔位满后消除 → 惩罚经验入整体池
+  // 塔位满后消除（未选中色）→ 全局冰冻能量 + 半量经验（v1.12 替代惩罚经验）
   const r = run.applyMatch('purple', '3', 3);
-  assert.ok(r.penalized && run.exp > 0, '塔位满消除 → 经验应进入整体池');
+  assert.ok(r.frzGain > 0 && run.freezeEnergy > 0, '未选中色消除 → 全局冰冻能量');
+  assert.strictEqual(run.exp, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
   assert.strictEqual(run.expNeed(), 30, 'L0 升级需求应为 30');
   const beforeLv = run.expLevel;
   const totalPending = () => ['fire', 'ice', 'poison', 'electric'].reduce((s, k) => s + run.effects.tower(k).pending, 0);
@@ -129,7 +134,33 @@ t('v1.8 整体经验：消除入池、升级发放待选、DPS 按整体等级�
   assert.ok(run.effects.towerDps('fire') > dps1, '整体等级提升 → 塔 DPS 应成长');
 });
 
-/* 8. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */
+/* 8. v1.12 弹药：塔色供弹 + 满溢出均分全局能量 + 能量封顶/消耗 */
+t('v1.12 弹药与全局能量结算', () => {
+  const run = seededRun(6, 7);
+  run.applyMatch('red', '3', 3); run.applyMatch('blue', '3', 3);
+  run.applyMatch('green', '3', 3); run.applyMatch('yellow', '3', 3);
+  const fire = run.effects.tower('fire');
+  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo, '得塔初始弹药 = startAmmo');
+  // 塔色消除 → 弹药 +块数
+  const r1 = run.applyMatch('red', '3', 3);
+  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo + 3, '塔色消除弹药 +块数');
+  assert.strictEqual(r1.ammoGain, 3);
+  // 弹药满 → 溢出均匀充能两个全局技能（再消 3 次：2 次溢出，每次 over=3 → damage+1 / freeze+2）
+  for (let i = 0; i < 3; i++) run.applyMatch('red', '3', 3);
+  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.ammoMax, '弹药封顶 ammoMax');
+  assert.strictEqual(run.damageEnergy, 2, '溢出均分 → 全局伤害 +2');
+  assert.strictEqual(run.freezeEnergy, 4, '溢出均分 → 全局冰冻 +4');
+  // 非塔色充能封顶（damage 已有 2 点，8 次橙色消除 +24 → 封顶）
+  for (let i = 0; i < 8; i++) run.applyMatch('orange', '3', 3);
+  assert.strictEqual(run.damageEnergy, CONFIG.GLOBAL_SKILL.energyMax, '全局能量封顶 3 格');
+  // 消耗 1 格释放
+  assert.ok(run.spendEnergy('damage'), '能量 ≥1 格可释放');
+  assert.strictEqual(run.damageEnergy, CONFIG.GLOBAL_SKILL.energyMax - CONFIG.GLOBAL_SKILL.energyPerCell, '释放消耗 1 格');
+  assert.ok(run.spendEnergy('freeze'), 'freeze 满 1 格可释放');
+  assert.ok(!run.spendEnergy('freeze'), 'freeze 耗尽后不可再释放');
+});
+
+/* 9. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */
 console.log(`\n会话模拟 ${SEEDS} 样本交叉验证：`);
 (function () {
   let syn15 = 0, econOk = 0, capOk = 0, pickEarly = 0, slotFull = 0;
@@ -155,9 +186,9 @@ console.log(`\n会话模拟 ${SEEDS} 样本交叉验证：`);
   console.log(`      首 run 破防波次中位       : ${mid(breakArr)}`);
   t('会话模拟阈值全 PASS', () => {
     assert.strictEqual(pickEarly, SEEDS, '构筑节奏 100%');
-    // 精英怪/Boss 加入后难度曲线略陡：协同达成率阈值 100% → ≥97%（5/300 容忍），
-    // 真机主流程已切换为「打怪经验→跨塔三选一」，模拟路径保留旧特效构筑仅作数值回归
-    assert.ok(syn15 >= SEEDS * 0.97, `协同 15 波 ≥97%（实际 ${(syn15 / SEEDS * 100).toFixed(1)}%）`);
+    // v1.12 非塔色不再给经验（改为全局技能能量）→ 整体升级节奏略降，协同达成率随之下降；
+    // 自动路径已均衡分支升级，阈值按 v1.12 口径 85%（实际约 91%，留随机余量）
+    assert.ok(syn15 >= SEEDS * 0.85, `协同 15 波 ≥85%（实际 ${(syn15 / SEEDS * 100).toFixed(1)}%）`);
     assert.strictEqual(econOk, SEEDS, '经济 ≤100k 100%');
     assert.strictEqual(capOk, SEEDS, '待选峰值 ≤5 100%');
   });

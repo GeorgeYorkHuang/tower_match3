@@ -89,8 +89,9 @@ CONFIG = {
         "cannon":   ["溅射", "重击", "穿透弹", "炮台座", "震击", "引信", "弹幕", "阵地加固"],
     },
     "SYNERGIES": [("fire", "燃爆", "poison", "毒爆"), ("ice", "冰冻", "electric", "连锁"), ("cannon", "溅射", "fire", "溅射")],
-    # 敌人与防线
-    "ENEMY_HP_BASE": 1000, "ENEMY_HP_GROWTH": 1.30,
+    # 敌人与防线（v1.12 调试：hpBase ×2、速度 ×1.5）
+    "ENEMY_HP_BASE": 2000, "ENEMY_HP_GROWTH": 1.30,
+    "ENEMY_SPEED_MULT": 1.5,
     "LINE_HP": 2000,
     # 经济（全局机制：每波基础金币 + 离线全局收益；产金不再绑定塔）
     "GOLD_PER_WAVE_BASE": 60, "GOLD_PER_WAVE_GROWTH": 1.08,
