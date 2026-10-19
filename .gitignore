@@ -7,6 +7,11 @@ project.private.config.json
 # 上传日志（每次上传覆盖，不入库）
 tools/upload_log.txt
 
+# 开发临时产物
+tools/_tmp_*
+tools/_e2.txt
+tools/_pick_preview.png
+
 # 系统文件
 .DS_Store
 Thumbs.db
