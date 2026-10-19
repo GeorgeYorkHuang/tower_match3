@@ -798,34 +798,34 @@ class Renderer {
       const isTarget = i === 0 && ef.name === group.target;
       const upgrading = ef.level > 0;
       const cx = x + 28 + i * (cardW + gap);
-      // 卡片框：描边统一 = 所属塔色（v1.10 用户规范；升级/目标状态仅保留顶部细条区分）
-      fillRoundRect(ctx, cx, topY, cardW, cardH, 16, '#232c38');
-      const edge = tint;
-      strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, edge, 2.5);
-      // 顶部状态细条：塔色 / 黄 / 绿
-      fillRoundRect(ctx, cx + 4, topY + 4, cardW - 8, 6, 3, upgrading ? '#f7c948' : (isTarget ? '#27ae60' : tint));
-      if (isTarget && !upgrading) {
-        fillRoundRect(ctx, cx + cardW - 64, topY + 10, 52, 24, 12, 'rgba(39,174,96,0.92)');
-        text(ctx, '目标', cx + cardW - 38, topY + 23, 16, '#ffffff', 'center');
-      }
-      // v1.9 框顶部标识来源塔：塔色圆点 + 塔名条（升级三选一候选可能来自其他塔）
+      // 来源塔（升级三选一候选可能来自不同塔）：每张卡按各自来源塔独立取色（v1.10.2）
       const fromKey = ef.fromTower || tk;
       const fromName = ef.fromTower
         ? (CONFIG.COLORS[CONFIG.TOWERS[fromKey] && CONFIG.TOWERS[fromKey].color] || {}).name || fromKey
         : tName;
       const fromTint = TOWER_TINT[fromKey] || tint;
+      // 卡片框：描边 = 该卡来源塔色（波末强化三卡同塔；升级三选一各自独立）
+      fillRoundRect(ctx, cx, topY, cardW, cardH, 16, '#232c38');
+      strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, fromTint, 2.5);
+      // 顶部状态细条：升级=金 / 目标=绿 / 普通=来源塔色
+      fillRoundRect(ctx, cx + 4, topY + 4, cardW - 8, 6, 3, upgrading ? '#f7c948' : (isTarget ? '#27ae60' : fromTint));
+      if (isTarget && !upgrading) {
+        fillRoundRect(ctx, cx + cardW - 64, topY + 10, 52, 24, 12, 'rgba(39,174,96,0.92)');
+        text(ctx, '目标', cx + cardW - 38, topY + 23, 16, '#ffffff', 'center');
+      }
+      // v1.9 框顶部标识来源塔：塔色圆点 + 塔名条
       fillRoundRect(ctx, cx + 4, topY + 14, cardW - 8, 28, 6, 'rgba(255,255,255,0.07)');
       ctx.beginPath(); ctx.arc(cx + cardW / 2 - 34, topY + 28, 6, 0, Math.PI * 2);
       ctx.fillStyle = fromTint; ctx.fill();
       text(ctx, fromName, cx + cardW / 2 + 2, topY + 33, 20, '#dbe4ee', 'center');
-      // 上 1/3：技能图标（大圆底 = 塔色渐变 + 光晕 + 等级角标）
+      // 上 1/3：技能图标（大圆底 = 来源塔色渐变 + 光晕 + 等级角标）
       const iconCx = cx + cardW / 2, iconCy = topY + 118, ir = 52;
       ctx.globalAlpha = 0.3;
       ctx.beginPath(); ctx.arc(iconCx, iconCy, ir + 13, 0, Math.PI * 2);
-      ctx.fillStyle = tint; ctx.fill();
+      ctx.fillStyle = fromTint; ctx.fill();
       ctx.globalAlpha = 1;
       const grad = ctx.createLinearGradient(iconCx - ir, iconCy - ir, iconCx + ir, iconCy + ir);
-      grad.addColorStop(0, lighten(tint, 1.35)); grad.addColorStop(1, tint);
+      grad.addColorStop(0, lighten(fromTint, 1.35)); grad.addColorStop(1, fromTint);
       ctx.beginPath(); ctx.arc(iconCx, iconCy, ir, 0, Math.PI * 2);
       ctx.fillStyle = grad; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
