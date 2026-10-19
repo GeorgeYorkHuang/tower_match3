@@ -1,26 +1,27 @@
 /**
  * effects.js —— 塔特效构筑与三选一逻辑（roguelike 核心，纯逻辑无渲染）
  * =====================================================================
- * 口径与 tools/sim_effects.py 完全对齐（机制 v6）：
- *   - 每塔特效池：全池 8 特效（CONFIG.EFFECT.poolP0=false；poolP0=true 时退化为前 5）
- *   - 特效等级：0=未激活；Lv1 激活入槽；Lv3 满级移出池
+ * 口径与 tools/sim_effects.py 对齐（机制 v7 / v1.11）：
+ *   - 每塔特效池：全池 8 特效（镖塔归一：砍「双镖」「范围回旋」）
+ *   - 特效结构：{ name, branches: { A, B, C } }，分支等级 0-3；
+ *     level 派生 = max(分支等级)（激活判定 + 战斗数值读取，兼容 combat.lv()）
  *   - 每塔 3 激活槽（activeSlots）；候选每次 3 个（pickSize）
+ *   - 三选一候选两级混池（用户 v1.11 设计）：
+ *       · 技能卡（未激活技能，type='skill'）——选中=激活（默认分支 A Lv1）
+ *       · 分支卡（已激活技能的未满分支，type='branch'）——选中=该分支 Lv+1
+ *     先选技能；技能激活后，后续升级才会出现分支（分支继续升级，封顶 3）
  *   - 首选保底：本 run 首次三选一候选必含标志特效（火=燃爆/毒=毒爆/冰=冰冻/电=连锁）
- *   - 目标加权：候选生成时目标特效权重 ×targetWeight（缓解槽满锁定）
- *   - 槽满可替换：抽到未激活特效且槽满 → 替换非目标特效（保留目标）
+ *   - 目标加权：targeting 时目标特效权重 ×targetWeight
+ *   - 槽满可替换：抽到未激活技能且槽满 → 替换非目标特效（保留目标）
  *   - 待选可攒：pending 上限 pendingCap（跨波），波末逐次结算
  *   - 协同组：燃爆×毒爆、冰冻×电连锁；达成后 DPS ×(1+synergyBonus)
  *   - DPS = baseDps×grow^(L-1) × Π(1+bonusPerLv×ef.level) × 协同乘区
- *
- * UI 流程（波末）：
- *   const queue = manager.settlePending();   // [{tower, candidates: [3]}]
- *   queue 逐组弹层，玩家从 candidates 选中 ef 后：
- *   manager.applyChoice(group.tower, ef);    // 消费该组、扣 pending
  */
 const CONFIG = require('./config.js');
 
 /* 标志特效（协同目标）映射：塔 key → 目标特效名 */
 const TARGET_OF = { fire: '燃爆', poison: '毒爆', ice: '冰冻', electric: '连锁', cannon: '溅射' };
+const BRANCH_KEYS = ['A', 'B', 'C'];
 
 /** 单塔特效构筑 */
 class TowerBuild {
@@ -33,7 +34,14 @@ class TowerBuild {
     // 特效池（全池 8 特效；poolP0=true 时退化为前 5）
     let names = (CONFIG.EFFECT_POOLS[key] || []).map((e) => e.name);
     if (CONFIG.EFFECT.poolP0) names = names.slice(0, CONFIG.EFFECT.p0PoolSize);
-    this.pool = names.map((name) => ({ name, level: 0 }));
+    this.pool = names.map((name) => {
+      const ef = { name, branches: { A: 0, B: 0, C: 0 } };
+      // 兼容层：level 派生 = 最高分支等级（combat.lv()/dps 直接读取）
+      Object.defineProperty(ef, 'level', {
+        get() { return Math.max(ef.branches.A, ef.branches.B, ef.branches.C); },
+      });
+      return ef;
+    });
     this.level = 0;          // 塔等级：0=未获得
     this.exp = 0;
     this.pending = 0;        // 待选次数（波末结算）
@@ -63,55 +71,89 @@ class TowerBuild {
     if (this.level === 0) this.level = 1;
   }
 
-  /** 特效满级？ */
+  /** 特效满级？（派生 level 达到上限） */
   _maxed(ef) { return ef.level >= CONFIG.EFFECT.maxLevel; }
 
-  /** 候选池：未满级特效（SWAP_ON_FULL 关时槽满仅剩已激活可升） */
-  _eligible() {
+  /** 该技能是否已激活（任一分支 > 0） */
+  _activated(ef) { return ef.level > 0; }
+
+  /** 技能配置（icon/color/desc/分支文案） */
+  cfgOf(name) { return (CONFIG.EFFECT_POOLS[this.key] || []).find((e) => e.name === name) || {}; }
+
+  /**
+   * 生成该塔的两级三选一候选（v1.11）：
+   *   · 未激活技能 → 技能卡（type='skill'；槽满且 SWAP_ON_FULL 关时不可选）
+   *   · 已激活技能 → 各未满分支一张分支卡（type='branch'，branch Lv < maxLevel）
+   * 返回 [{name, icon, color, desc, type, branch?, branchLv?, fromTower, level}]。
+   */
+  _choices() {
+    const cands = [];
     const slotsFull = this.activeNames.length >= CONFIG.EFFECT.activeSlots;
-    return this.pool.filter((ef) => {
-      if (this._maxed(ef)) return false;
-      if (CONFIG.EFFECT.swapOnFull) return true;
-      return !slotsFull || ef.level > 0;
+    this.pool.forEach((ef) => {
+      const cfg = this.cfgOf(ef.name);
+      if (!this._activated(ef)) {
+        if (CONFIG.EFFECT.swapOnFull || !slotsFull) {
+          cands.push({
+            name: ef.name, icon: cfg.icon, color: cfg.color, desc: cfg.desc || '',
+            type: 'skill', fromTower: this.key, level: 0,
+          });
+        }
+      } else {
+        BRANCH_KEYS.forEach((br) => {
+          if (ef.branches[br] < CONFIG.EFFECT.maxLevel) {
+            cands.push({
+              name: ef.name, icon: cfg.icon, color: cfg.color,
+              desc: cfg[br.toLowerCase()] || cfg.desc || '',
+              type: 'branch', branch: br, branchLv: ef.branches[br],
+              fromTower: this.key, level: ef.level,
+            });
+          }
+        });
+      }
     });
+    return cands;
   }
 
   /**
-   * 生成三选一候选，返回候选特效对象数组（长度 ≤ pickSize）。
-   * targeting=true（模拟/自动路径）：目标特效排首位（加权入池）；
+   * 生成三选一候选，返回候选对象数组（长度 ≤ pickSize）。
+   * targeting=true（模拟/自动路径）：目标特效（未激活技能卡）排首位；
    * targeting=false（UI 展示）：仅按规则生成，由玩家选择。
    */
   pickChoices(targeting) {
-    const eligible = this._eligible();
+    const eligible = this._choices();
     if (!eligible.length) return [];
     const target = TARGET_OF[this.key];
-    const hasTarget = target && eligible.some((e) => e.name === target);
+    const isTgtSkill = (e) => e.type === 'skill' && e.name === target;
+    const isTgtBranch = (e) => e.type === 'branch' && e.name === target;
+    const tgtSkill = eligible.find(isTgtSkill);
+    const tgtBranch = eligible.find(isTgtBranch);
+    const tgtCand = tgtSkill || tgtBranch;   // 目标候选：未激活→技能卡；已激活→首个未满分支卡
 
-    // 首选保底：本 run 首次三选一候选必含标志特效
-    if (CONFIG.EFFECT.firstPickGuarantee && !this.firstPickDone && hasTarget) {
+    // 首选保底：本 run 首次三选一候选必含标志特效（技能卡，未激活时）
+    if (CONFIG.EFFECT.firstPickGuarantee && !this.firstPickDone && tgtSkill) {
       this.firstPickDone = true;
-      const tgt = eligible.find((e) => e.name === target);
-      const rest = eligible.filter((e) => e !== tgt);
+      const rest = eligible.filter((e) => e !== tgtSkill);
       shuffle(rest);
-      const cands = [tgt].concat(rest.slice(0, CONFIG.EFFECT.pickSize - 1));
-      return targeting ? this._targetFirst(cands, tgt) : cands;
+      const cands = [tgtSkill].concat(rest.slice(0, CONFIG.EFFECT.pickSize - 1));
+      return targeting ? this._targetFirst(cands, tgtSkill) : cands;
     }
 
-    if (targeting && hasTarget) {
-      // 加权抽样：目标占 targetWeight 份，抽取去重候选
+    if (targeting && tgtCand) {
+      // 加权抽样：目标（技能卡或分支卡）占 targetWeight 份，抽取去重候选（按 name+branch 去重）
       const weighted = [];
       eligible.forEach((e) => {
-        const w = e.name === target ? CONFIG.EFFECT.targetWeight : 1;
+        const w = (e === tgtCand) ? CONFIG.EFFECT.targetWeight : 1;
         for (let i = 0; i < w; i++) weighted.push(e);
       });
       shuffle(weighted);
       const seen = new Set();
       const cands = [];
       for (const e of weighted) {
-        if (!seen.has(e.name)) { seen.add(e.name); cands.push(e); }
+        const id = e.type + ':' + e.name + ':' + (e.branch || '');
+        if (!seen.has(id)) { seen.add(id); cands.push(e); }
         if (cands.length >= CONFIG.EFFECT.pickSize) break;
       }
-      return this._targetFirst(cands, eligible.find((e) => e.name === target));
+      return this._targetFirst(cands, tgtCand);
     }
 
     shuffle(eligible);
@@ -127,8 +169,9 @@ class TowerBuild {
   /**
    * 应用一次选择（玩家从 pickChoices/upgradeChoices 结果中选中一项）。
    * 同塔候选（池内引用）作用于本塔；跨塔候选（upgradeChoices 带 fromTower）作用于来源塔。
-   * 未激活：占槽（槽满且 SWAP_ON_FULL → 替换非目标特效，保留目标）；
-   * 已激活：升级，封顶 maxLevel。返回 {ok, replaced, leveled}。
+   * 技能卡（未激活）：激活（默认分支 A Lv1；槽满且 SWAP_ON_FULL → 替换非目标特效）；
+   * 分支卡（已激活技能未满分支）：该分支 Lv+1（封顶 maxLevel）。
+   * 返回 {ok, activated, replaced, leveled}。
    */
   applyChoice(ef) {
     if (!ef) return { ok: false };
@@ -136,22 +179,33 @@ class TowerBuild {
     if (!host) return { ok: false };
     const poolEf = host.pool.find((e) => e.name === ef.name);
     if (!poolEf) return { ok: false };
-    const res = { ok: true, replaced: false, leveled: false };
-    if (poolEf.level === 0) {
-      if (host.activeNames.length >= CONFIG.EFFECT.activeSlots && CONFIG.EFFECT.swapOnFull) {
-        const target = TARGET_OF[host.key];
-        let victim = host.activeNames.find((n) => n !== target);
-        if (victim === undefined) victim = host.activeNames[0];
-        host.activeNames.splice(host.activeNames.indexOf(victim), 1);
-        const victimEf = host.pool.find((e) => e.name === victim);
-        if (victimEf) victimEf.level = 0;
-        res.replaced = true;
-      }
-      poolEf.level = 1;
-      host.activeNames.push(poolEf.name);
-    } else {
-      poolEf.level = Math.min(poolEf.level + 1, CONFIG.EFFECT.maxLevel);
+    const res = { ok: true, activated: false, replaced: false, leveled: false };
+    if (ef.type === 'branch') {
+      // 分支卡：仅对已激活技能生效，该分支 +1
+      if (!host._activated(poolEf)) return { ok: false };
+      const br = ef.branch;
+      if (!BRANCH_KEYS.includes(br)) return { ok: false };
+      poolEf.branches[br] = Math.min(poolEf.branches[br] + 1, CONFIG.EFFECT.maxLevel);
       res.leveled = true;
+    } else {
+      // 技能卡：激活（防御：若已激活则按分支 A 升级）
+      if (host._activated(poolEf)) {
+        poolEf.branches.A = Math.min(poolEf.branches.A + 1, CONFIG.EFFECT.maxLevel);
+        res.leveled = true;
+      } else {
+        if (host.activeNames.length >= CONFIG.EFFECT.activeSlots && CONFIG.EFFECT.swapOnFull) {
+          const target = TARGET_OF[host.key];
+          let victim = host.activeNames.find((n) => n !== target);
+          if (victim === undefined) victim = host.activeNames[0];
+          host.activeNames.splice(host.activeNames.indexOf(victim), 1);
+          const victimEf = host.pool.find((e) => e.name === victim);
+          if (victimEf) { victimEf.branches.A = 0; victimEf.branches.B = 0; victimEf.branches.C = 0; }
+          res.replaced = true;
+        }
+        poolEf.branches.A = Math.max(poolEf.branches.A, 1); // 激活默认分支 A Lv1
+        if (!host.activeNames.includes(poolEf.name)) host.activeNames.push(poolEf.name);
+        res.activated = true;
+      }
     }
     // 扣除触发升级塔（group.tower）的待升级次数
     this.pending = Math.max(0, this.pending - 1);
@@ -176,9 +230,21 @@ class TowerBuild {
     return !!ef && ef.level > 0;
   }
 
+  /** 技能分支等级（A/B/C；0=未升级） */
+  branchLv(name, br) {
+    const ef = this.pool.find((e) => e.name === name);
+    return ef && BRANCH_KEYS.includes(br) ? (ef.branches[br] || 0) : 0;
+  }
+
+  /** 技能总等级（最高分支等级；0=未激活） */
+  skillLv(name) {
+    const ef = this.pool.find((e) => e.name === name);
+    return ef ? ef.level : 0;
+  }
+
   /** run 间重置构筑（塔等级/金币跨 run 保留） */
   resetRunBuild() {
-    this.pool.forEach((ef) => { ef.level = 0; });
+    this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; });
     this.activeNames = [];
     this.pending = 0;
     this.exp = 0;
@@ -224,10 +290,10 @@ class EffectManager {
 
   /**
    * 波末结算（自动/模拟路径）：targeting=true，逐次生成候选并选目标特效，
-   * 直到全部 pending 清空。返回 {picks, replaced, leveled}。
+   * 直到全部 pending 清空。返回 {picks, activated, replaced, leveled}。
    */
   settleAuto() {
-    const detail = { picks: 0, replaced: 0, leveled: 0 };
+    const detail = { picks: 0, activated: 0, replaced: 0, leveled: 0 };
     Object.keys(this.towers).forEach((key) => {
       const t = this.towers[key];
       while (t.pending > 0) {
@@ -235,6 +301,7 @@ class EffectManager {
         if (!cands.length) { t.pending = 0; break; }
         const res = t.applyChoice(cands[0]);
         detail.picks++;
+        if (res.activated) detail.activated++;
         if (res.replaced) detail.replaced++;
         if (res.leveled) detail.leveled++;
       }
@@ -253,17 +320,16 @@ class EffectManager {
   }
 
   /**
-   * 升级三选一候选：跨塔随机——从所有已拥有塔（ownedKeys）的未满级技能中随机 pickSize 个。
-   * 返回 [{...ef, fromTower}]（展开对象；applyChoice 按 fromTower 定位真实池内引用升级）。
+   * 升级三选一候选（v1.11）：跨塔混池——从所有已拥有塔（ownedKeys）收集
+   * 未激活技能（技能卡）与已激活技能未满分支（分支卡），随机 pickSize 个。
+   * 返回候选对象数组（带 fromTower；applyChoice 按 fromTower 定位真实池）。
    */
   upgradeChoices(ownedKeys) {
     const cands = [];
     ownedKeys.forEach((k) => {
       const t = this.towers[k];
       if (!t || t.level === 0) return;
-      t.pool.forEach((ef) => {
-        if (ef.level < CONFIG.EFFECT.maxLevel) cands.push(Object.assign({}, ef, { fromTower: k }));
-      });
+      t._choices().forEach((e) => cands.push(e));
     });
     shuffle(cands);
     return cands.slice(0, CONFIG.EFFECT.pickSize);

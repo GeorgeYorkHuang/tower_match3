@@ -133,15 +133,6 @@ t('毒·腐蚀：受伤加深', () => {
   assert.ok(hp0 - e.hp > 100, '腐蚀后伤害应高于基础值');
 });
 
-t('回旋镖·双镖：双目标或合击', () => {
-  const g = mkGame({ boomerang: { 双镖: 1 } });
-  const c = new CombatSystem(g);
-  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
-  const e2 = mkEnemy(1000, 420, 840); g.enemies.push(e2);
-  c.hit('boomerang', e1, 100);
-  assert.ok(e2.hp < 1000, '第二镖应命中第二目标');
-});
-
 t('回旋镖·暴击：概率暴击（固定随机触发）', () => {
   const g = mkGame({ boomerang: { 暴击: 1 } });
   const c = new CombatSystem(g);

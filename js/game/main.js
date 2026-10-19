@@ -49,7 +49,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.1.0';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.11.0';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -156,7 +156,7 @@ class GameMain {
         const ef = t.pool.find((e) => e.name === name);
         if (!ef) return;
         if (ef.level === 0 && !t.activeNames.includes(ef.name)) t.activeNames.push(ef.name);
-        ef.level = Math.max(ef.level, 1);
+        ef.branches.A = Math.max(ef.branches.A || 0, 1); // v1.11：激活 = 分支 A Lv1
       });
     });
     // 圣物·磐石印：城墙血量上限
@@ -833,8 +833,10 @@ class GameMain {
           if (this.pickHits[i] && this.pickHits[i].hit(p.x, p.y)) {
             const res = this.run.applyChoice(group.tower, group.candidates[i]);
             if (res.ok) {
-              const nm = group.candidates[i].name;
-              this.toast(res.replaced ? `替换特效：${nm}` : `${nm} 强化`, '#7ef0a3');
+              const cd = group.candidates[i];
+              const nm = cd.name;
+              const actTxt = cd.type === 'branch' ? `${nm}·分支${cd.branch} 强化` : (res.activated ? `激活技能：${nm}` : `替换特效：${nm}`);
+              this.toast(actTxt, '#7ef0a3');
               this.nextPick();
             }
             return;

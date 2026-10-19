@@ -767,12 +767,13 @@ class Renderer {
       : group.tower.name;
     const tint = TOWER_TINT[tk] || '#3a6ea5';
     const pool = CONFIG.EFFECT_POOLS[tk] || [];
-    // 跨塔候选（升级三选一）：按候选 fromTower 查其来源塔的技能池
+    // 跨塔候选（升级三选一）：按候选 fromTower 查其来源塔的技能池（icon 兜底）
     const defOf = (name, fromTower) => {
       const p = CONFIG.EFFECT_POOLS[fromTower || tk] || [];
       return p.find((q) => q.name === name) || {};
     };
-    const descOf = (name, lv, fromTower) => (lv === 0 ? defOf(name, fromTower).desc : defOf(name, fromTower).a) || '';
+    // v1.11：候选自带两级描述（技能卡=基础 desc；分支卡=分支 a/b/c 文案）
+    const descOf = (ef) => ef.desc || defOf(ef.name, ef.fromTower).desc || '';
     // 顶部：仅保留待选胶囊居中（v1.9：去掉"塔升级"标题，升级候选为跨塔随机）
     const gt = group.target; // settlePending 提供标志特效名；升级三选一（buildUpgradeQueue）为 null
     const capW = 148, capH = 46;
@@ -795,8 +796,11 @@ class Renderer {
       return arr.length ? arr : [''];
     };
     group.candidates.forEach((ef, i) => {
-      const isTarget = i === 0 && ef.name === group.target;
-      const upgrading = ef.level > 0;
+      // v1.11 两级候选：技能卡（未激活，选中=激活）与分支卡（已激活技能分支，选中=分支 Lv+1）
+      const isBranch = ef.type === 'branch';
+      const isTarget = i === 0 && !isBranch && ef.name === group.target;
+      const upgrading = isBranch;
+      const targetLv = isBranch ? (ef.branchLv + 1) : 1;   // 选择后达到的等级
       const cx = x + 28 + i * (cardW + gap);
       // 来源塔（升级三选一候选可能来自不同塔）：每张卡按各自来源塔独立取色（v1.10.2）
       const fromKey = ef.fromTower || tk;
@@ -834,15 +838,17 @@ class Renderer {
       // 等级角标（选择后达到的等级）
       fillRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, 'rgba(255,255,255,0.6)', 1.5);
-      text(ctx, `Lv${ef.level + 1}`, iconCx + ir + 1, iconCy - ir + 22, 18, upgrading ? '#1a1a1a' : '#ffffff', 'center');
+      text(ctx, `Lv${targetLv}`, iconCx + ir + 1, iconCy - ir + 22, 18, upgrading ? '#1a1a1a' : '#ffffff', 'center');
       // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范）
       const nameY = topY + 224;
       if (upgrading) {
-        text(ctx, `Lv${ef.level} → ${ef.level + 1}`, cx + cardW / 2, nameY - 32, 18, '#f7c948', 'center');
+        text(ctx, `分支${ef.branch} · Lv${ef.branchLv} → ${ef.branchLv + 1}`, cx + cardW / 2, nameY - 32, 18, '#f7c948', 'center');
+      } else {
+        text(ctx, '新技能', cx + cardW / 2, nameY - 32, 18, '#8ea3b8', 'center');
       }
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
       // 下方：更详细的技能描述（换行居中）
-      const desc = descOf(ef.name, ef.level, ef.fromTower);
+      const desc = descOf(ef);
       const lines = wrapLines(desc, 8);
       lines.forEach((ln, li) => {
         text(ctx, ln, cx + cardW / 2, topY + 268 + li * 26, 19, '#c7d1dc', 'center');

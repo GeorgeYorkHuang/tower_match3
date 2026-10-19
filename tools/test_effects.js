@@ -71,15 +71,18 @@ t('槽满后新特效替换非目标特效（保留目标）', () => {
   assert.ok(fire.hasActive('灼烧层数'), '新特效已激活');
 });
 
-/* 5. 升级封顶 Lv3，满级移出候选池 */
+/* 5. 分支升级封顶 Lv3，三分支全满后移出候选池（v1.11：分支独立升级） */
 t('特效升级封顶 Lv3 并移出候选池', () => {
   const m = freshManager();
   const elec = m.tower('electric');
-  elec.pending = 10;
-  m.settleAuto(); // 自动路径持续选目标（连锁）升到 Lv3
+  elec.pending = 20;
+  m.settleAuto(); // 自动路径持续选目标（连锁）分支直到三分支全满
   const chain = elec.pool.find((e) => e.name === '连锁');
   assert.strictEqual(chain.level, CONFIG.EFFECT.maxLevel, '目标特效应升满');
-  // 满级后不再出现在候选
+  assert.strictEqual(chain.branches.A, CONFIG.EFFECT.maxLevel, '分支 A 应升满');
+  assert.strictEqual(chain.branches.B, CONFIG.EFFECT.maxLevel, '分支 B 应升满');
+  assert.strictEqual(chain.branches.C, CONFIG.EFFECT.maxLevel, '分支 C 应升满');
+  // 三分支全满后不再出现在候选
   elec.pending = 1;
   const q = m.settlePending();
   if (q.length) q[0].candidates.forEach((e) => assert.notStrictEqual(e.name, '连锁'));
@@ -148,6 +151,52 @@ t('技能池数量（全 8 特效）', () => {
   Object.keys(m.towers).forEach((k) => {
     const full = CONFIG.EFFECT_POOLS[k].length;
     assert.strictEqual(m.tower(k).pool.length, full, `${k} 应为 ${full} 特效`);
+  });
+});
+
+/* 11. v1.11 两级候选：未激活技能（技能卡）+ 已激活技能分支（分支卡） */
+t('v1.11 两级候选：技能卡 + 分支卡混池', () => {
+  const m = freshManager();
+  const fire = m.tower('fire');
+  fire.applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' }); // 激活：分支 A Lv1
+  const all = fire._choices();
+  const skills = all.filter((e) => e.type === 'skill');
+  const branches = all.filter((e) => e.type === 'branch');
+  assert.strictEqual(skills.length, 7, '未激活技能卡 = 池 8 - 已激活 1');
+  assert.strictEqual(branches.length, 3, '已激活技能三分支卡各 1');
+  branches.forEach((e) => {
+    assert.ok(['A', 'B', 'C'].includes(e.branch), '分支卡带分支标识');
+    assert.ok(e.branchLv >= 0 && e.branchLv < CONFIG.EFFECT.maxLevel, '分支等级在 0-2');
+  });
+});
+
+/* 12. v1.11 分支独立升级：分支卡只升对应分支 */
+t('v1.11 分支独立升级：只升对应分支', () => {
+  const m = freshManager();
+  const fire = m.tower('fire');
+  fire.applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' });
+  const ef = fire.pool.find((e) => e.name === '点燃');
+  const res = fire.applyChoice({ name: '点燃', type: 'branch', branch: 'B', branchLv: 0, fromTower: 'fire' });
+  assert.ok(res.ok && res.leveled, '分支卡应升级');
+  assert.strictEqual(ef.branches.A, 1, 'A 不变');
+  assert.strictEqual(ef.branches.B, 1, 'B +1');
+  assert.strictEqual(ef.branches.C, 0, 'C 不变');
+  assert.strictEqual(ef.level, 1, '派生 level = max(A,B,C)');
+});
+
+/* 13. v1.11 升级三选一跨塔混池：候选带来源塔，含两级类型 */
+t('v1.11 升级三选一跨塔混池', () => {
+  const m = freshManager();
+  m.tower('fire').applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' });
+  m.tower('ice').applyChoice({ name: '冰冻', type: 'skill', fromTower: 'ice' });
+  const all = [].concat(m.tower('fire')._choices(), m.tower('ice')._choices());
+  assert.ok(all.some((e) => e.fromTower === 'fire' && e.type === 'skill'), '应含火塔未激活技能卡');
+  assert.ok(all.some((e) => e.fromTower === 'ice' && e.type === 'branch'), '应含冰塔已激活技能分支卡');
+  m.tower('fire').pending = 1;
+  const q = m.buildUpgradeQueue(['fire', 'ice']);
+  assert.strictEqual(q.length, 1, '1 次待选 1 组');
+  q[0].candidates.forEach((e) => {
+    assert.ok(['fire', 'ice'].includes(e.fromTower), '候选带来源塔');
   });
 });
 

@@ -133,6 +133,22 @@ t('波末流转：波次弹窗 → 继续', () => {
   }
 });
 
+/* 4.5 v1.11 两级候选渲染：技能卡 + 分支卡 弹层无异常 */
+t('v1.11 两级候选渲染冒烟', () => {
+  const group = {
+    tower: 'fire',
+    candidates: [
+      { name: '点燃', type: 'branch', branch: 'A', branchLv: 1, fromTower: 'fire', desc: '灼烧时间 +50%', icon: '🔥', color: '#ff6b35' },
+      { name: '溅射', type: 'skill', fromTower: 'fire', desc: '命中溅射邻近敌人', icon: '💥', color: '#ff9f43' },
+      { name: '连击', type: 'branch', branch: 'C', branchLv: 0, fromTower: 'fire', desc: '连击保持：目标死亡时层数不清零', icon: '⚔️', color: '#e67e22' },
+    ],
+    target: null,
+  };
+  const hits = {};
+  game.renderer.pickLayer(ctx2d, group, 2, hits);
+  assert.strictEqual(Object.keys(hits).length, 3, '应生成 3 个按钮命中区');
+});
+
 /* 5. 三选一弹层选择（若处于 picking） */
 t('三选一选择路径', () => {
   if (game.state !== 'picking') { return; } // 未进入则跳过
