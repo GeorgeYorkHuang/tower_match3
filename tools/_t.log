@@ -1,0 +1,13 @@
+﻿[消消防线] 启动：canvas 375x667 scale 0.410
+  [PASS] 实例创建并注册帧循环
+[消消防线] 画布像素采样不可用： Cannot read properties of undefined (reading 'data')
+  [PASS] 战斗状态 400 帧：敌人陆续出现并移动
+  [PASS] 触摸交换路径无异常
+  [PASS] 有效交换→连锁动画推进到稳定结束
+  [PASS] 波末流转：波次弹窗 → 继续
+  [FAIL] v1.11 两级候选渲染冒烟: Cannot read properties of undefined (reading 'width')
+  [PASS] 三选一选择路径
+  [PASS] 三选一选完 → 自动进入下一波（卡死回归）
+  [PASS] 长跑 ~400s 无异常（跨波/破防）
+
+结果：8 通过 / 1 失败

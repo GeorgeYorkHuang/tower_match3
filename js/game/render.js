@@ -132,6 +132,13 @@ function layout() {
   };
 }
 
+/* 文本宽度估算：汉字≈1 字宽，其余≈0.55 字宽（不依赖 ctx.measureText，测试 mock 与真实环境通用） */
+function txtW(str, size) {
+  let w = 0;
+  for (let i = 0; i < str.length; i++) w += str.charCodeAt(i) > 255 ? size : size * 0.55;
+  return w;
+}
+
 class Renderer {
   constructor() {
     this.ly = layout();
@@ -258,9 +265,22 @@ class Renderer {
     }
   }
 
-  /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8） */
+  /** 分支名称：优先取 config 分支文案「名称：效果」冒号前；无名称（非火塔）取效果短语首词；兜底字母代号（v1.14） */
+  branchName(cfg, br) {
+    if (!cfg) return br;
+    const s = cfg[br.toLowerCase()] || '';
+    if (!s) return br;
+    let n = s.split(/[：:]/)[0];
+    if (n === s) {
+      n = s.split(' ')[0] || s;
+      if (n === s) n = s.slice(0, 4);
+    }
+    return n;
+  }
+
+  /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX） */
   towerInfoLayer(ctx, info, hits) {
-    const w = 560, hgt = 640, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
+    const w = 688, hgt = 720, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
     // 遮罩（点遮罩关闭）
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -276,30 +296,53 @@ class Renderer {
     // 分隔线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 214, w - 80, 2);
-    // 技能列表（v1.12：无默认技能；仅显示通过三选一获取的技能 + 分支等级）
+    // 技能标题
     text(ctx, '技能', x + 40, y + 246, 22, '#b8c2cc', 'left');
-    let sy = y + 278;
     const skills = info.skills || [];
     if (!skills.length) {
-      text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, sy + 30, 20, 'rgba(255,255,255,0.45)', 'center');
-      sy += 120;
+      text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 300, 20, 'rgba(255,255,255,0.45)', 'center');
     } else {
-      skills.forEach((sk) => {
-        fillRoundRect(ctx, x + 30, sy, w - 60, 78, 12, '#1d242e');
-        const skDef = (CONFIG.EFFECT_POOLS[info.key] || []).find((q) => q.name === sk.name);
-        if (skDef && skDef.icon) text(ctx, skDef.icon, x + 46, sy + 30, 30, '#ffffff');
-        text(ctx, sk.name, x + 72, sy + 26, 24, '#ffffff');
-        // 三分支等级徽章（v1.11 分支模型：lv>0 金色亮显 = 已实装，0 = 未升）
-        const brs = sk.branches || { A: 0, B: 0, C: 0 };
-        let bx = x + 72;
-        ['A', 'B', 'C'].forEach((br) => {
-          const lv = brs[br] || 0;
-          const cw = 48;
-          fillRoundRect(ctx, bx, sy + 44, cw, 22, 6, lv > 0 ? '#f7c948' : '#2c3542');
-          text(ctx, `${br}${lv}`, bx + cw / 2, sy + 57, 15, lv > 0 ? '#5c4a00' : '#8ea3b8', 'center');
-          bx += cw + 8;
+      // v1.14：3 张技能卡横向排列（宽 200 × 高 300），卡内：图标 → 技能名+Lv 徽章 → 三分支名称徽章横排
+      const cardW = 200, cardH = 300, gap = 20, cardTop = y + 278;
+      const pool = CONFIG.EFFECT_POOLS[info.key] || [];
+      const maxLv = 1 + ((CONFIG.EFFECT && CONFIG.EFFECT.maxLevel) || 3); // 分支满 3 级 → 技能 Lv4 = LvMAX
+      skills.forEach((sk, i) => {
+        const cx = x + 24 + i * (cardW + gap), cy = cardTop;
+        fillRoundRect(ctx, cx, cy, cardW, cardH, 12, '#1d242e');
+        strokeRoundRect(ctx, cx, cy, cardW, cardH, 12, 'rgba(255,255,255,0.14)', 1.5);
+        // 图标（圆底 = 塔色）
+        const skDef = pool.find((q) => q.name === sk.name) || {};
+        const icx = cx + cardW / 2, icy = cy + 56, ir = 26;
+        const grad = ctx.createLinearGradient(icx - ir, icy - ir, icx + ir, icy + ir);
+        grad.addColorStop(0, lighten(TOWER_TINT[info.key] || '#3a6ea5', 1.35));
+        grad.addColorStop(1, TOWER_TINT[info.key] || '#3a6ea5');
+        ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2); ctx.stroke();
+        text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 2, 22, '#ffffff', 'center');
+        // 技能名
+        text(ctx, sk.name, cx + cardW / 2, cy + 104, 22, '#ffffff', 'center');
+        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.14）
+        const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
+        const lv = 1 + maxBr;
+        const lvTxt = lv >= maxLv ? 'LvMAX' : `Lv${lv}`;
+        const lvSize = 15;
+        const lvW = txtW(lvTxt, lvSize) + 20;
+        const lvY = cy + 130;
+        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 24, 12, '#f7c948');
+        text(ctx, lvTxt, cx + cardW / 2, lvY + 13, lvSize, '#5c4a00', 'center');
+        // 三分支徽章横排（分支名 + 等级；v1.14 火塔用分支名称，其余塔效果短词）
+        const bw = 54, bh = 48, bY = cy + 178;
+        ['A', 'B', 'C'].forEach((br, bi) => {
+          const l = sk.branches[br] || 0;
+          const on = l > 0;
+          const bx = cx + 12 + bi * (bw + 4);
+          fillRoundRect(ctx, bx, bY, bw, bh, 8, on ? 'rgba(247,201,72,0.22)' : '#2c3542');
+          strokeRoundRect(ctx, bx, bY, bw, bh, 8, on ? '#f7c948' : 'rgba(255,255,255,0.12)', 1.5);
+          text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 17, 12, on ? '#f7c948' : '#8ea3b8', 'center');
+          text(ctx, `Lv${l}`, bx + bw / 2, bY + 35, 11, on ? '#f7c948' : '#6c7a88', 'center');
         });
-        sy += 88;
       });
     }
     // 关闭按钮
@@ -1032,11 +1075,22 @@ class Renderer {
       text(ctx, `Lv${targetLv}`, iconCx + ir + 1, iconCy - ir + 22, 18, upgrading ? '#1a1a1a' : '#ffffff', 'center');
       // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范）
       const nameY = topY + 224;
+      // v1.14 提示优化：分支卡 = 金色胶囊标签（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
+      const tSize = 17;
+      const tagTxt = upgrading
+        ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
+        : '新技能';
+      ctx.font = `bold ${tSize}px sans-serif`;
+      const tW = txtW(tagTxt, tSize) + 22;
+      const tX = cx + cardW / 2 - tW / 2, tY = nameY - 42;
       if (upgrading) {
-        text(ctx, `分支${ef.branch} · Lv${ef.branchLv} → ${ef.branchLv + 1}`, cx + cardW / 2, nameY - 32, 18, '#f7c948', 'center');
+        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(247,201,72,0.18)');
+        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#f7c948', 1.5);
       } else {
-        text(ctx, '新技能', cx + cardW / 2, nameY - 32, 18, '#8ea3b8', 'center');
+        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(142,163,184,0.16)');
+        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#8ea3b8', 1.5);
       }
+      text(ctx, tagTxt, cx + cardW / 2, tY + 16, tSize, upgrading ? '#f7c948' : '#8ea3b8', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
       // 下方：更详细的技能描述（换行居中）
       const desc = descOf(ef);

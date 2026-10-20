@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.13.14';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.13.15';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -786,7 +786,11 @@ class GameMain {
           if (res.ok) {
             const cd = group.candidates[i];
             const nm = cd.name;
-            const actTxt = cd.type === 'branch' ? `${nm}·分支${cd.branch} 强化` : (res.activated ? `激活技能：${nm}` : `替换特效：${nm}`);
+            // v1.14 提示优化：分支卡 toast 显示分支名 + 等级变化（如「燃爆·灼烧爆裂 Lv0→1」）
+            const cdCfg = (CONFIG.EFFECT_POOLS[cd.fromTower || group.tower] || []).find((q) => q.name === nm) || {};
+            const actTxt = cd.type === 'branch'
+              ? `${nm}·${this.renderer.branchName(cdCfg, cd.branch)} Lv${cd.branchLv}→${cd.branchLv + 1}`
+              : (res.activated ? `激活技能：${nm}` : `替换特效：${nm}`);
             this.toast(actTxt, '#7ef0a3');
             this.nextPick();
           }
