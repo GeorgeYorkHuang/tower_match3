@@ -32,7 +32,7 @@ const TOWER_ICON = { fire: '🔥', ice: '❄', poison: '☠', electric: '⚡', b
 
 /* 塔图鉴精简数据：定位一句话 + 招牌技能（与 config EFFECT_POOLS P0 技能对应） */
 const TOME_ROWS = [
-  { tint: '#e74c3c', name: '火塔',     desc: '直线火球 · 高伤单体灼烧',   skills: '点燃 · 溅射 · 连击' },
+  { tint: '#e74c3c', name: '火塔',     desc: '直线火球 · 灼烧爆破',         skills: '点燃 · 火柱 · 大火球' },
   { tint: '#5dade2', name: '冰塔',     desc: '冰锥减速 · 冻结控场',       skills: '减速场 · 冰冻 · 冰锥穿透' },
   { tint: '#52be80', name: '毒塔',     desc: '毒液持续伤害 · 扩散传染',   skills: '剧毒 · 扩散 · 毒爆' },
   { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 弹跳群伤',       skills: '连锁 · 麻痹 · 过载' },

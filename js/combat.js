@@ -5,7 +5,7 @@
  *   - 每座塔按自己的 atkInterval 独立攻击（真实节奏、真实目标、真实弹道）
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
- *       火：点燃 DoT / 溅射 / 连击 / 燃爆 / 灼烧层数 / 攻速爆发 / 射程 / 火雨
+ *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
  *       冰：减速 / 冰冻 / 冰锥穿透 / 寒潮 / 霜星 / 冻结率 / 低温全塔 / 永冻
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 弹跳 / 充能 / 电磁场
@@ -25,7 +25,6 @@ function initEnemyState(e) {
   e.paralyzed = 0;        // 麻痹剩余秒（不能攻击）
   e.slow = null;          // {mult, ttl} 减速
   e.corrode = null;       // {mult, ttl} 受伤加深
-  e.comboFire = null;     // {n, ttl} 火连击层数
   e.overload = null;      // {n, ttl} 电过载层数
   e.hitCount = 0;         // 累计命中次数（电充能）
   e.lastDmgKey = null;    // 最近一次伤害来源塔
@@ -56,6 +55,7 @@ class CombatSystem {
     this.atkTimers = {};
     this.kills = {};
     this.bWait = {};
+    this.groundDots = [];      // 火·火柱余烬：地面燃烧区域
   }
 
   /* ---------- 工具 ---------- */
@@ -66,6 +66,13 @@ class CombatSystem {
     const ef = b.pool.find((e) => e.name === name);
     return ef ? ef.level : 0;
   }
+  /** 分支等级（A/B/C）——分支独立成长（v1.13 火塔重构起：分支加成按各自分支等级） */
+  branchLv(key, name, br) {
+    const b = this.tower(key);
+    if (!b) return 0;
+    const ef = b.pool.find((e) => e.name === name);
+    return ef && ['A', 'B', 'C'].includes(br) ? (ef.branches[br] || 0) : 0;
+  }
   has(key, name) { return this.lv(key, name) > 0; }
   enemies() { return this.game.enemies; }
   ly() { return this.game.ly; }
@@ -74,8 +81,6 @@ class CombatSystem {
   interval(key) {
     const cfg = CONFIG.TOWERS[key];
     let iv = cfg.atkInterval;
-    // 火·攻速爆发 +25%/级
-    if (key === 'fire') iv /= (1 + 0.25 * this.lv('fire', '攻速爆发'));
     // 冰·低温全塔：全塔 +10%/级，冰塔额外 +15%/级
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
@@ -104,7 +109,8 @@ class CombatSystem {
   range(key) {
     const cfg = CONFIG.TOWERS[key];
     let r = cfg.range;
-    if (key === 'fire') r *= (1 + 0.30 * this.lv('fire', '射程'));
+    // 火·火焰鹰眼 A（延伸）：射程 +30%/级
+    if (key === 'fire') r *= (1 + 0.30 * this.branchLv('fire', '火焰鹰眼', 'A'));
     if (key === 'boomerang') r *= (1 + 0.30 * this.lv('boomerang', '飞距') + 0.30 * this.lv('boomerang', '范围回旋'));
     return r;
   }
@@ -153,6 +159,20 @@ class CombatSystem {
     }
     // 3. 敌人状态推进（DoT / 控制 / 层数衰减）
     g.enemies.forEach((e) => this.tickStatus(e, dt));
+    // 3.5 火·火柱余烬：地面燃烧区域持续伤害（每秒 dps×dt）
+    if (this.groundDots && this.groundDots.length) {
+      for (let i = this.groundDots.length - 1; i >= 0; i--) {
+        const gd = this.groundDots[i];
+        gd.ttl -= dt;
+        if (gd.ttl <= 0) { this.groundDots.splice(i, 1); continue; }
+        this.enemies().forEach((o) => {
+          if (o.hp > 0 && Math.hypot(o.x - gd.x, o.y - gd.y) <= gd.r) this.damage(o, gd.dps * dt, 'fire');
+        });
+        if (Math.random() < 0.3) {
+          this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#ff7043', 2, 20, 0.4, 60, 4);
+        }
+      }
+    }
     // 4. 塔攻击调度（每塔独立节奏）
     g.run.slotOrder.slice().forEach((key) => this.tickTower(key, dt));
     // 5. 周期技
@@ -169,11 +189,27 @@ class CombatSystem {
       for (let i = e.dots.length - 1; i >= 0; i--) {
         const d = e.dots[i];
         d.ttl -= dt;
-        if (d.ttl <= 0) { e.dots.splice(i, 1); continue; }
+        if (d.ttl <= 0) {
+          // 火·点燃 A 燎原：灼烧结束瞬间「余烬爆发」= 期间总灼烧伤害的 30%/级 立即结算
+          if (d.type === 'burn' && this.branchLv('fire', '点燃', 'A') > 0 && d.totalDealt > 0) {
+            this.damage(e, d.totalDealt * 0.30 * this.branchLv('fire', '点燃', 'A'), 'fire');
+            this.fxFlash(e.x, e.y, '#ff7043', 0.3);
+            this.fxRing(e.x, e.y, '#ff7043', 36, 0.3, 3);
+          }
+          e.dots.splice(i, 1); continue;
+        }
         d.tickT -= dt;
         if (d.tickT <= 0) {
-          d.tickT += 0.5 / boost.tick;
-          this.damage(e, d.dps * boost.dmg * (0.5 / boost.tick), d.src);
+          const tickI = d.tickI || 0.5;
+          d.tickT += tickI / boost.tick;
+          const dealt = d.dps * boost.dmg * (tickI / boost.tick);
+          this.damage(e, dealt, d.src);
+          d.totalDealt = (d.totalDealt || 0) + dealt;
+          // 火·燃爆 C 灼烧爆裂：灼烧每跳 15% 概率向外爆炸（40% 范围伤害）
+          const burstLv = this.branchLv('fire', '燃爆', 'C');
+          if (d.type === 'burn' && burstLv > 0 && Math.random() < 0.15 + 0.10 * (burstLv - 1)) {
+            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.4 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '燃爆', 'A') - 1)), 'fire');
+          }
           // 持续伤特效：灼烧=火焰粒子（上飘）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.5) {
             if (d.type === 'burn') {
@@ -190,7 +226,6 @@ class CombatSystem {
     if (e.paralyzed > 0) e.paralyzed -= dt;
     if (e.slow) { e.slow.ttl -= dt; if (e.slow.ttl <= 0) e.slow = null; }
     if (e.corrode) { e.corrode.ttl -= dt; if (e.corrode.ttl <= 0) e.corrode = null; }
-    if (e.comboFire) { e.comboFire.ttl -= dt; if (e.comboFire.ttl <= 0) e.comboFire = null; }
     if (e.overload) { e.overload.ttl -= dt; if (e.overload.ttl <= 0) e.overload = null; }
     // 瘟疫传染（毒·瘟疫）
     const plague = this.lv('poison', '瘟疫');
@@ -219,8 +254,9 @@ class CombatSystem {
     if (e.frozen > 0 && frz > 0) v *= (1 + 0.20 * frz);
     const perm = Math.max(0, this.lv('ice', '永冻') - 1);
     if (srcKey === 'ice' && e.frozen > 0 && perm > 0) v *= (1 + 0.40 * perm);
-    // 火·连击层数增伤（命中前结算）
-    if (srcKey === 'fire' && e.comboFire) v *= (1 + 0.10 * e.comboFire.n);
+    // 火·点燃 C 焚魂：被灼烧目标受到的伤害 +15%/级（全来源）
+    const vuln = this.branchLv('fire', '点燃', 'C');
+    if (vuln > 0 && this.hasDot(e, 'burn')) v *= (1 + 0.15 * vuln);
     // 电·过载层数增伤
     if (srcKey === 'electric' && e.overload) v *= (1 + 0.15 * e.overload.n);
     // 圣物·利刃符：全塔伤害 +8%/级
@@ -243,8 +279,12 @@ class CombatSystem {
     // 按所有激活塔触发死亡技能
     g.run.slotOrder.slice().forEach((key) => {
       if (key === 'fire' && this.has('fire', '燃爆') && this.hasDot(e, 'burn')) {
-        const l = this.lv('fire', '燃爆');
-        this.explode(e.x, e.y, 80 * (1 + 0.4 * (l - 1)), this.shotDmg('fire') * 1.2 * (1 + 0.5 * (l - 1)), 'fire');
+        // v1.13：基础 40% 概率引爆；A 威力 +50%/级、B 范围 +40%/级
+        if (Math.random() < 0.40) {
+          const aLv = this.branchLv('fire', '燃爆', 'A');
+          const bLv = this.branchLv('fire', '燃爆', 'B');
+          this.explode(e.x, e.y, 80 * (1 + 0.4 * Math.max(0, bLv - 1)), this.shotDmg('fire') * 1.2 * (1 + 0.5 * Math.max(0, aLv - 1)), 'fire');
+        }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
         const l = this.lv('poison', '毒爆');
@@ -362,18 +402,17 @@ class CombatSystem {
     }
   }
 
-  /** 选择攻击目标：默认射程内 y 最大（最靠城墙）；火·射程 b 分支优先最远敌人 */
+  /** 选择攻击目标：默认射程内 y 最大（最靠城墙） */
   pickTarget(key) {
     const r = this.range(key);
     const sy = this.ly().slotY + this.ly().slotSize / 2;
-    const preferFar = this.has('fire', '射程');
     let best = null;
     this.enemies().forEach((e) => {
       if (e.hp <= 0) return;
       const dist = Math.abs(sy - e.y);
       if (dist > r) return;
       if (!best) { best = e; return; }
-      if (preferFar ? (e.y < best.y) : (e.y > best.y)) best = e;
+      if (e.y > best.y) best = e;
     });
     return best;
   }
@@ -523,11 +562,6 @@ class CombatSystem {
 
     // 命中计数（电·充能/回收）
     e.hitCount++;
-    // 火·攻速爆发 b：命中回血 1%×lv
-    const speedLv = this.lv('fire', '攻速爆发');
-    if (key === 'fire' && speedLv > 0) {
-      g.run.lineHp = Math.min(CONFIG.LINE.hp, g.run.lineHp + CONFIG.LINE.hp * 0.01 * speedLv);
-    }
     // 回旋镖·攻速 b：命中回能（下次攻击提前）
     const bowSpeed = this.lv('boomerang', '攻速');
     if (key === 'boomerang' && bowSpeed > 0 && this.atkTimers.boomerang !== undefined) {
@@ -539,53 +573,89 @@ class CombatSystem {
     this.fxFlash(e.x, e.y, '#ffffff');
   }
 
-  /* ============ 火塔 ============ */
+  /* ============ 火塔（v1.13 重构：点燃/灼烧叠层/火柱/大火球/燃爆/多重火球/火焰鹰眼/火雨） ============ */
   hitFire(e, dmg) {
-    // 先挂点燃（保证击杀瞬间 DoT 已在，燃爆/灼烧层数可触发），再结算主伤害
+    const g = this.game;
+    // 火焰鹰眼：B 锐目伤害 +15%/级；C 两极反转——伤害随距离反比（最近 100% → 最远 40%，每级反转加大）
+    let mult = 1;
+    const hawkB = this.branchLv('fire', '火焰鹰眼', 'B');
+    if (hawkB > 0) mult *= (1 + 0.15 * hawkB);
+    const hawkC = this.branchLv('fire', '火焰鹰眼', 'C');
+    if (hawkC > 0) {
+      const sy = this.ly().slotY + this.ly().slotSize / 2;
+      const r = this.range('fire');
+      const dist = Math.min(r, Math.abs(sy - e.y));
+      const minMult = 0.40 - 0.10 * (hawkC - 1);   // Lv1 0.40 → Lv2 0.30 → Lv3 0.20
+      mult *= (minMult + (1 - minMult) * (1 - dist / r));
+    }
+    dmg *= mult;
+
+    // 先挂点燃（保证击杀瞬间 DoT 已在，燃爆/灼烧叠层可触发），再结算主伤害
     const ignite = this.lv('fire', '点燃');
     if (ignite > 0) this.applyBurn(e, dmg, 'fire');
-    // 主目标伤害（连击层数在 damage 内应用）
-    this.damage(e, dmg, 'fire');
-    // 连击：叠层
-    const combo = this.lv('fire', '连击');
-    if (combo > 0) {
-      const cap = 2 + 2 * (combo - 1);
-      if (!e.comboFire) e.comboFire = { n: 0, ttl: 2 };
-      e.comboFire.n = Math.min(cap, e.comboFire.n + 1);
-      e.comboFire.ttl = 2;
+    // 大火球：主目标 120%
+    const big = this.lv('fire', '大火球');
+    const mainMult = big > 0 ? 1.2 : 1;
+    // 多重火球：主目标 + 额外目标（增发 3→4→5 枚 / 凝火 +15%/枚 / 分击不同目标+25%点燃）
+    const multi = this.lv('fire', '多重火球');
+    if (multi > 0) {
+      const n = 2 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 额外
+      const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
+      const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
+      this.damage(e, perDmg, 'fire');                                // 主目标 1 枚
+      const cands = this.enemies().filter((o) => o.hp > 0 && o !== e)
+        .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
+      for (let i = 0; i < n - 1 && cands.length; i++) {
+        const o = cands[i];
+        this.damage(o, perDmg, 'fire');
+        this.fxBeam(e.x, e.y, o.x, o.y, '#ff7043', 0.25, 3);         // 分击连线视觉
+        if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
+      }
+      // 多重火球视觉：数道弹道火星
+      for (let i = 0; i < n; i++) this.fxParticle(e.x, e.y, '#ff9f43', 4, 36, 0.4, 150, 4);
+    } else {
+      this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
     }
-    // 溅射
-    const spl = this.lv('fire', '溅射');
-    if (spl > 0) {
-      const r = 55 * (1 + 0.3 * (spl - 1));
-      const sDmg = dmg * 0.5 * (1 + 0.4 * (spl - 1));
+    // 大火球：爆炸范围溅射（扩大 +40%/级、强化 +50%/级、引燃 50% 概率点燃）
+    if (big > 0) {
+      const r = 130 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '大火球', 'A') - 1));
+      const splDmg = dmg * 0.6 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '大火球', 'B') - 1));
+      const igniteProb = this.branchLv('fire', '大火球', 'C') > 0 ? 0.50 : 0;
       this.enemies().forEach((o) => {
         if (o === e || o.hp <= 0) return;
-        if (Math.hypot(o.x - e.x, o.y - e.y) <= r) this.damage(o, sDmg, 'fire');
+        if (Math.hypot(o.x - e.x, o.y - e.y) <= r) {
+          this.damage(o, splDmg, 'fire');
+          if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
+        }
       });
-      // 溅射视觉：橙色扩散环 + 火花
-      this.fxRing(e.x, e.y, '#ff7043', r, 0.35, 4);
-      this.fxParticle(e.x, e.y, '#ffab40', 8, r, 0.45, 150, 6);
+      // 大火球视觉：大爆炸环 + 火焰粒子
+      this.fxRing(e.x, e.y, '#ff7043', r, 0.4, 4);
+      this.fxParticle(e.x, e.y, '#ffab40', 10, r, 0.5, 160, 6);
+      this.fxFlash(e.x, e.y, '#ff9f43');
     }
   }
 
   applyBurn(e, dmg, src) {
-    const l = this.lv('fire', '点燃');
-    const stackLv = this.lv('fire', '灼烧层数');
-    const maxStack = 1 + 2 * Math.max(0, stackLv - 1);
+    const aLv = this.branchLv('fire', '点燃', 'A');       // 燎原：时间 + 余烬爆发
+    const bLv = this.branchLv('fire', '点燃', 'B');       // 炽热：伤害 + 跳伤间隔减半
+    const stackCap = this.branchLv('fire', '灼烧叠层', 'A');  // 叠层上限 +2/级
+    const deepLv = this.branchLv('fire', '灼烧叠层', 'C');    // 加深：每层伤害 +5%/级
+    const maxStack = 1 + 2 * stackCap;
     let dot = e.dots.find((d) => d.type === 'burn');
-    const dps = dmg * 0.20 * (1 + 0.5 * (l - 1));
-    const ttl = 3 * (1 + 0.5 * (l - 1));
+    const tickI = 0.5 / (1 + bLv);                        // 炽热：间隔减半（0.5 → 0.25s）
+    const dps = dmg * 0.20 * (1 + 0.5 * bLv) * (1 + 0.05 * deepLv);
+    const ttl = 3 * (1 + 0.5 * aLv);
     if (!dot) {
-      e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src });
+      e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI });
       dot = e.dots[e.dots.length - 1];
     } else {
       dot.stack = Math.min(dot.maxStack || maxStack, dot.stack + 1);
       dot.dps = dps * dot.stack;
       dot.ttl = ttl;
+      dot.tickI = tickI;
     }
-    // 灼烧层数满层 → 小爆炸
-    if (stackLv > 1 && dot.stack >= maxStack) {
+    // 灼烧叠层 B 满层 → 小爆炸
+    if (this.branchLv('fire', '灼烧叠层', 'B') > 0 && dot.stack >= maxStack) {
       dot.stack = 1;
       this.explode(e.x, e.y, 60, dmg * 0.6, 'fire');
     }
@@ -846,21 +916,56 @@ class CombatSystem {
   /* ---------- 周期技 ---------- */
   tickPeriodic(dt) {
     const g = this.game;
+    // 火·火柱：每 10 秒随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
+    const pillar = this.lv('fire', '火柱');
+    if (pillar > 0) {
+      this.timers.firePillar = (this.timers.firePillar || 0) + dt;
+      if (this.timers.firePillar >= 10) {
+        this.timers.firePillar = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const tgt = alive[Math.floor(Math.random() * alive.length)];
+          const pDmg = this.shotDmg('fire') * 1.5 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火柱', 'A') - 1));
+          const pR = 120 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '火柱', 'B') - 1));
+          this.explode(tgt.x, tgt.y, pR, pDmg, 'fire');
+          const emberLv = this.branchLv('fire', '火柱', 'C');
+          if (emberLv > 0) {
+            this.groundDots = this.groundDots || [];
+            this.groundDots.push({ x: tgt.x, y: tgt.y, r: pR, ttl: 3, dps: this.shotDmg('fire') * 0.30 * emberLv, key: 'fire' });
+          }
+          // 火柱视觉：冲天火焰柱 + 落点爆焰
+          this.fxParticle(tgt.x, tgt.y - 20, '#ff7043', 16, 90, 0.6, 220, 8);
+          this.fxFlash(tgt.x, tgt.y, '#ff9f43');
+          this.fxRing(tgt.x, tgt.y, '#ff7043', pR, 0.5, 4);
+        }
+      }
+    }
+    // 火·火雨：每 12 秒随机 3 个区域降下火焰段（每段 80% 伤害·半径140；A 密集段数+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
-      if (this.timers.fireRain >= 6 * (1 - 0.3 * (fireRain - 1))) {
+      if (this.timers.fireRain >= 12) {
         this.timers.fireRain = 0;
-        const dmg = this.shotDmg('fire') * 0.5 * (1 + 0.4 * (fireRain - 1));
-        this.enemies().forEach((e) => {
-          if (e.hp <= 0 || Math.random() < 0.7) return;
-          this.damage(e, dmg, 'fire');
-          this.applyBurn(e, dmg, 'fire');
-          // 火雨视觉：落点火焰柱粒子
-          this.fxParticle(e.x, e.y, '#ff7043', 10, 40, 0.5, 160, 6);
-          this.fxParticle(e.x, e.y, '#ffd24a', 6, 30, 0.4, 120, 4);
-          this.fxFlash(e.x, e.y, '#ff9f43');
-        });
+        const segs = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
+        const segDmg = this.shotDmg('fire') * 0.8 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
+        const segR = 140;
+        const igniteLv = this.branchLv('fire', '火雨', 'C');
+        const area = this.ly();
+        const minX = area.areaX, maxX = area.areaX + area.areaW;
+        const minY = area.areaY + area.entryH, maxY = area.wallY;
+        for (let i = 0; i < segs; i++) {
+          const px = minX + Math.random() * (maxX - minX);
+          const py = minY + Math.random() * (maxY - minY);
+          this.explode(px, py, segR, segDmg, 'fire');
+          if (igniteLv > 0) {
+            this.enemies().forEach((o) => {
+              if (o.hp > 0 && Math.hypot(o.x - px, o.y - py) <= segR && Math.random() < 0.50) this.applyBurn(o, segDmg, 'fire');
+            });
+          }
+          // 火雨视觉：落点火焰爆焰
+          this.fxParticle(px, py - 10, '#ff7043', 10, 50, 0.5, 180, 6);
+          this.fxParticle(px, py, '#ffd24a', 6, 30, 0.4, 120, 4);
+        }
       }
     }
     const coldWave = this.lv('ice', '寒潮');

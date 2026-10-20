@@ -81,14 +81,14 @@ CONFIG = {
     "SYNERGY_BONUS": 0.5,          # 协同达成后的乘区加成
     # 每塔 8 特效池（名即特效；协同目标以 GDD 旗舰组合为准）
     "EFFECT_POOLS": {
-        "fire":     ["点燃", "溅射", "连击", "燃爆", "灼烧层数", "攻速爆发", "射程", "火雨"],
+        "fire":     ["点燃", "灼烧叠层", "火柱", "大火球", "燃爆", "多重火球", "火焰鹰眼", "火雨"],
         "ice":      ["减速场", "冰冻", "冰锥穿透", "寒潮", "霜星", "冻结率", "低温全塔", "永冻"],
         "poison":   ["剧毒", "扩散", "毒爆", "腐蚀", "毒雾", "瘟疫", "致死", "毒性强化"],
         "electric": ["连锁", "麻痹", "过载", "电弧", "雷暴", "弹跳", "充能", "电磁场"],
         "boomerang": ["穿透", "折返增伤", "飞距", "攻速", "回收", "暴击", "多镖", "巨镖"],
         "cannon":   ["溅射", "重击", "穿透弹", "炮台座", "震击", "引信", "弹幕", "阵地加固"],
     },
-    "SYNERGIES": [("fire", "燃爆", "poison", "毒爆"), ("ice", "冰冻", "electric", "连锁"), ("cannon", "溅射", "fire", "溅射")],
+    "SYNERGIES": [("fire", "燃爆", "poison", "毒爆"), ("ice", "冰冻", "electric", "连锁"), ("cannon", "溅射", "fire", "大火球")],
     # 敌人与防线（v1.12 调试：hpBase ×2、速度 ×1.5）
     "ENEMY_HP_BASE": 2000, "ENEMY_HP_GROWTH": 1.30,
     "ENEMY_SPEED_MULT": 1.5,
@@ -218,7 +218,7 @@ class Tower:
 # ---------------------------------------------------------------------------
 def simulate_run(rng, towers, start_wave):
     towers_by_color = {t.color: t for t in towers}
-    synergy_done = {k: False for k in range(2)}
+    synergy_done = {k: False for k in range(len(CONFIG["SYNERGIES"]))}
     wave = start_wave
     gold_run = 0.0
     pending_peak = 0

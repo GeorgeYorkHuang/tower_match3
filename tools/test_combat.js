@@ -7,7 +7,7 @@ const assert = require('assert');
 const CONFIG = require('../js/config.js');
 const { CombatSystem, initEnemyState } = require('../js/combat.js');
 
-/** 构造 mock game（塔技能可指定 level） */
+/** 构造 mock game（塔技能可指定 level，或 {A,B,C} 分支等级） */
 function mkGame(skills, slotOrder) {
   const order = (slotOrder || []).slice();
   Object.keys(skills || {}).forEach((k) => { if (!order.includes(k)) order.push(k); });
@@ -17,7 +17,12 @@ function mkGame(skills, slotOrder) {
     const lvMap = skills[k] || {};
     towers[k] = {
       level: 1,
-      pool: CONFIG.EFFECT_POOLS[k].map((e) => ({ name: e.name, level: lvMap[e.name] || 0 })),
+      pool: CONFIG.EFFECT_POOLS[k].map((e) => {
+        const v = lvMap[e.name] || 0;
+        const isObj = typeof v === 'object';
+        const br = (b) => (isObj ? (v[b] || 0) : v);
+        return { name: e.name, level: isObj ? Math.max(br('A'), br('B'), br('C')) : v, branches: { A: br('A'), B: br('B'), C: br('C') } };
+      }),
       _chargeLayers: 0,
     };
   });
@@ -104,13 +109,72 @@ t('电·麻痹：命中概率麻痹', () => {
   assert.ok(e.paralyzed > 0, '应进入麻痹状态');
 });
 
-t('火·溅射：命中波及邻近敌人', () => {
-  const g = mkGame({ fire: { 溅射: 1 } });
+t('火·大火球：命中爆炸波及邻近敌人', () => {
+  const g = mkGame({ fire: { 大火球: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
-  const e2 = mkEnemy(1000, 385, 815); g.enemies.push(e2); // 半径 55 内
+  const e2 = mkEnemy(1000, 385, 815); g.enemies.push(e2); // 爆炸半径 130 内
   c.hit('fire', e1, 100);
-  assert.ok(e2.hp < 1000, '邻近敌人应受溅射伤害');
+  assert.ok(e2.hp < 1000, '邻近敌人应受爆炸伤害');
+});
+
+t('火·多重火球：一次攻击命中 3 个不同目标', () => {
+  const g = mkGame({ fire: { 多重火球: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(2000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(2000, 385, 806); g.enemies.push(e2);
+  const e3 = mkEnemy(2000, 360, 812); g.enemies.push(e3);
+  c.hit('fire', e1, 200);
+  assert.ok(e1.hp < 2000, '主目标应受一枚火球伤害');
+  assert.ok(e2.hp < 2000 && e3.hp < 2000, '额外两目标应各受一枚火球伤害');
+});
+
+t('火·火焰鹰眼两极反转：越近伤害越高', () => {
+  const g = mkGame({ fire: { 火焰鹰眼: { C: 2 } } });
+  const c = new CombatSystem(g);
+  const near = mkEnemy(10000, 370, 950); g.enemies.push(near);  // 距塔行 1079 → 129（近）
+  const far = mkEnemy(10000, 370, 820); g.enemies.push(far);    // 距塔行 1079 → 259（远）
+  const hpN0 = near.hp, hpF0 = far.hp;
+  c.hit('fire', near, 100);
+  c.hit('fire', far, 100);
+  const dNear = hpN0 - near.hp, dFar = hpF0 - far.hp;
+  assert.ok(dNear > 0 && dFar > 0, '两目标都应受伤害');
+  assert.ok(dNear > dFar, '距塔越近伤害越高（两极反转）');
+});
+
+t('火·火柱：周期技对随机敌人范围爆炸', () => {
+  const g = mkGame({ fire: { 火柱: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(2000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(2000, 380, 810); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0.01; // 随机选 e1
+  try { c.tickPeriodic(10); } finally { Math.random = orig; }
+  assert.ok(e1.hp < 2000, '火柱落点目标应受伤害');
+  assert.ok(e2.hp < 2000, '火柱范围应波及邻近敌人');
+});
+
+t('死亡触发：燃爆（灼烧敌人死亡时概率爆炸波及邻近）', () => {
+  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0; // 必触发（40% 基础概率）
+  try { c.hit('fire', e1, 100); } finally { Math.random = orig; }
+  assert.ok(e1.hp <= 0, '主目标应死亡');
+  assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
+});
+
+t('火·灼烧爆裂：灼烧每跳概率向外爆炸', () => {
+  const g = mkGame({ fire: { 点燃: 1, 燃爆: { C: 2 } } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(3000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(3000, 385, 815); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0; // 必触发（0.15+0.10×(C-1)）
+  try {
+    c.hit('fire', e1, 100);
+    c.tickStatus(e1, 0.6); // 触发一次跳伤
+  } finally { Math.random = orig; }
+  assert.ok(e2.hp < 3000, '灼烧跳伤爆炸应波及邻近敌人');
 });
 
 t('毒·剧毒：中毒 DoT', () => {
@@ -156,7 +220,8 @@ t('死亡触发：燃爆（灼烧敌人死亡时爆炸波及邻近）', () => {
   const c = new CombatSystem(g);
   const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
-  c.hit('fire', e1, 100); // 点燃+主伤害击杀 → 触发燃爆
+  const orig = Math.random; Math.random = () => 0; // 必触发（40% 基础概率）
+  try { c.hit('fire', e1, 100); } finally { Math.random = orig; }
   assert.ok(e1.hp <= 0, '主目标应死亡');
   assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
 });

@@ -63,18 +63,18 @@ t('targeting 自动路径选目标特效', () => {
 t('槽满后新特效替换非目标特效（保留目标）', () => {
   const m = freshManager();
   const fire = m.tower('fire');
-  // 直接构造 3 槽满：燃爆 + 溅射 + 连击
+  // 直接构造 3 槽满：燃爆 + 大火球 + 火柱
   fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
-  fire.applyChoice(fire.pool.find((e) => e.name === '溅射'));
-  fire.applyChoice(fire.pool.find((e) => e.name === '连击'));
+  fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
+  fire.applyChoice(fire.pool.find((e) => e.name === '火柱'));
   assert.strictEqual(fire.activeNames.length, 3);
-  // 新激活第 4 个：过载级→未激活 灼烧层数，触发替换
-  const newEf = fire.pool.find((e) => e.name === '灼烧层数');
+  // 新激活第 4 个：过载级→未激活 灼烧叠层，触发替换
+  const newEf = fire.pool.find((e) => e.name === '灼烧叠层');
   const res = fire.applyChoice(newEf);
   assert.ok(res.replaced, '应触发替换');
   assert.ok(fire.hasActive('燃爆'), '目标特效必须保留');
   assert.strictEqual(fire.activeNames.length, 3, '槽数保持 3');
-  assert.ok(fire.hasActive('灼烧层数'), '新特效已激活');
+  assert.ok(fire.hasActive('灼烧叠层'), '新特效已激活');
 });
 
 /* 5. 分支升级封顶 Lv3，三分支全满后移出候选池（v1.11：分支独立升级） */

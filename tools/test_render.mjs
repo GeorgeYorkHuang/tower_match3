@@ -138,9 +138,9 @@ t('v1.11 两级候选渲染冒烟', () => {
   const group = {
     tower: 'fire',
     candidates: [
-      { name: '点燃', type: 'branch', branch: 'A', branchLv: 1, fromTower: 'fire', desc: '灼烧时间 +50%', icon: '🔥', color: '#ff6b35' },
-      { name: '溅射', type: 'skill', fromTower: 'fire', desc: '命中溅射邻近敌人', icon: '💥', color: '#ff9f43' },
-      { name: '连击', type: 'branch', branch: 'C', branchLv: 0, fromTower: 'fire', desc: '连击保持：目标死亡时层数不清零', icon: '⚔️', color: '#e67e22' },
+      { name: '点燃', type: 'branch', branch: 'A', branchLv: 1, fromTower: 'fire', desc: '燎原：灼烧时间+50%', icon: '🔥', color: '#ff6b35' },
+      { name: '大火球', type: 'skill', fromTower: 'fire', desc: '发射大火球：主目标120%伤害，爆炸范围130内60%溅射', icon: '🧨', color: '#ff9f43' },
+      { name: '火柱', type: 'branch', branch: 'C', branchLv: 0, fromTower: 'fire', desc: '余烬：火柱落地留下燃烧地面3秒', icon: '🌋', color: '#e74c3c' },
     ],
     target: null,
   };
