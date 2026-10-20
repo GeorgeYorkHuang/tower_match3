@@ -948,6 +948,16 @@ class Renderer {
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.beginPath(); ctx.arc(2.25 * sc, 0, 5.6 * sc, 0, Math.PI * 2); ctx.fill();
+            // v1.13.27 冰晶尾迹：沿飞行反向散布细小冰晶点，渐淡收敛（区别于火球长火焰尾）
+            for (let i = 0; i < 4; i++) {
+              const tp = (i + 1) / 5;
+              ctx.globalAlpha = (1 - p) * 0.35 * (1 - i / 5);
+              ctx.fillStyle = i % 2 ? '#b8e6ff' : '#eaf6ff';
+              ctx.beginPath();
+              ctx.arc(-22 * sc * tp + (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 11 * sc * (1 - p), 2.6 * sc * (1 - i / 5), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
           } else if (f.key === 'fire') {
             // v1.13.16 火球弹道美化：多层焰体（辉光/橙焰/亮心）+ 沿飞行反向火焰尾（三段椭圆渐变+摆动）+ 尾迹火星 + 前部焰舌
             // 尾部长度随飞行推进收敛（出发时尾长，接近目标时收短）

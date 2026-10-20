@@ -483,6 +483,12 @@ class CombatSystem {
       this.fxParticle(sx, sy - 4, tint, 3, 24, 0.25, 90, 4);
       this.fxFlash(sx, sy, tint, 0.15);
     }
+    // v1.13.27 冰塔开火专属特效：塔口冰晶迸发 + 冰蓝闪光
+    if (key === 'ice') {
+      this.fxParticle(sx, sy - 6, '#eaf6ff', 5, 34, 0.28, 120, 5);
+      this.fxParticle(sx, sy - 6, '#7fd4ff', 3, 44, 0.32, 70, 4);
+      this.fxFlash(sx, sy, '#a9d6f5', 0.2);
+    }
     if (key === 'boomerang') {
       // 回旋镖 v1.7：弧线飞出再飞回（弧高加大），沿途扫过所有敌人（不锁定单体）；投出后标记等待接回
       // v1.10：落点计算怪物前行提前量——镖飞行期间怪物继续向城墙行走，瞄准其预测位置而非当前位置；
@@ -746,6 +752,10 @@ class CombatSystem {
   /* ============ 冰塔 ============ */
   hitIce(e, dmg) {
     this.damage(e, dmg, 'ice');
+    // v1.13.27 普攻命中打击特效：冰锥撞击爆冰晶（白屑 + 蓝屑 + 小环 + 微闪）
+    this.fxParticle(e.x, e.y, '#eaf6ff', 6, 44, 0.30, 130, 5);
+    this.fxParticle(e.x, e.y, '#a9d6f5', 4, 62, 0.35, 90, 4);
+    this.fxRing(e.x, e.y, '#d6f0ff', 16, 0.2, 2);
     // 普攻减速（v1.13.23）：基础 20% 概率减速；学寒霜后概率提升至 70%
     // 寒霜 A 凝时：减速时长 +0.5s/级；B 深寒：减速幅度 +15%/级；C 易伤在 damage 内处理
     const frost = this.lv('ice', '寒霜');
@@ -762,7 +772,8 @@ class CombatSystem {
       const prob = 0.20 + 0.15 * (frzLv - 1);
       if (Math.random() < prob) {
         e.frozen = Math.max(e.frozen || 0, 1 + 0.5 * (frzLv - 1));
-        // 冰冻视觉：冰蓝扩散环 + 冰晶粒子
+        // 冰冻视觉：冻结凝固闪光 + 冰蓝扩散环 + 冰晶粒子
+        this.fxFlash(e.x, e.y, '#d6f0ff', 0.28);
         this.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
         this.fxParticle(e.x, e.y, '#b8e6ff', 10, 60, 0.5, 130, 5);
       }
@@ -829,6 +840,8 @@ class CombatSystem {
       const hitR = 45;
       const strike = (o, d) => {
         this.damage(o, d, 'ice');
+        // v1.13.27 碎冰命中：冰晶迸发 + 闪光 + 小环
+        this.fxFlash(o.x, o.y, '#d6f0ff', 0.22);
         this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
         if (slowP > 0 && Math.random() < slowP) this.applySlow(o, 0.3, 1.5);
@@ -1289,6 +1302,9 @@ class CombatSystem {
           spots.forEach((sp) => {
             this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: 5, tickT: 0, tickI, dmg, slowA });
             this.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: 5 });
+            // v1.13.27 冬珠浮现光效：冰球凝现闪光 + 冰雾
+            this.fxFlash(sp.x, sp.y, '#d6f0ff', 0.3);
+            this.fxParticle(sp.x, sp.y, '#b8e6ff', 8, 70, 0.5, 140, 5);
           });
         }
       }
