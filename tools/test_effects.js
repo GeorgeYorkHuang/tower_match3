@@ -84,18 +84,19 @@ t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升�
   assert.strictEqual(new Set(names).size, names.length, '同一技能每轮升级最多 1 张卡');
 });
 
-/* 5. 分支升级封顶 Lv3，三分支全满后移出候选池（v1.11：分支独立升级） */
-t('特效升级封顶 Lv3 并移出候选池', () => {
+/* 5. v1.13.5 分支锁定：技能任一分支升级后，其余分支移出池；选中分支可升到 Lv3 后移出候选池 */
+t('特效分支锁定：只升已选分支至 Lv3 后移出候选池', () => {
   const m = freshManager();
   const elec = m.tower('electric');
+  // 自动路径持续选目标（连锁）——首次升级锁定 A 分支，此后只升 A
   elec.pending = 20;
-  m.settleAuto(); // 自动路径持续选目标（连锁）分支直到三分支全满
+  m.settleAuto();
   const chain = elec.pool.find((e) => e.name === '连锁');
   assert.strictEqual(chain.level, CONFIG.EFFECT.maxLevel, '目标特效应升满');
-  assert.strictEqual(chain.branches.A, CONFIG.EFFECT.maxLevel, '分支 A 应升满');
-  assert.strictEqual(chain.branches.B, CONFIG.EFFECT.maxLevel, '分支 B 应升满');
-  assert.strictEqual(chain.branches.C, CONFIG.EFFECT.maxLevel, '分支 C 应升满');
-  // 三分支全满后不再出现在候选
+  assert.strictEqual(chain.branches.A, CONFIG.EFFECT.maxLevel, '分支 A 应升满（锁定线）');
+  assert.strictEqual(chain.branches.B, 0, '分支 B 应移出池（未选不升）');
+  assert.strictEqual(chain.branches.C, 0, '分支 C 应移出池（未选不升）');
+  // 锁定分支满级后不再出现在候选
   elec.pending = 1;
   const q = m.settlePending();
   if (q.length) q[0].candidates.forEach((e) => assert.notStrictEqual(e.name, '连锁'));

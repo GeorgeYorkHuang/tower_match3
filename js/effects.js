@@ -105,10 +105,11 @@ class TowerBuild {
           });
         }
       } else {
-        // 每技能最多 1 张分支卡：等级最低的未满分支（均衡升级，同一技能不重复出卡）
-        const lvSorted = BRANCH_KEYS.filter((br) => ef.branches[br] < CONFIG.EFFECT.maxLevel)
-          .sort((a, b) => ef.branches[a] - ef.branches[b]);
-        const br = lvSorted[0];
+        // v1.13.5 分支锁定：技能任一分支升级后，其余两个分支移出抽卡池（后续只升级已选分支）
+        // 尚无分支升级 → 出 1 张卡（取等级最低未满分支）供玩家选定路线
+        const raised = BRANCH_KEYS.filter((br) => ef.branches[br] > 0);
+        const canUp = raised.length ? raised : BRANCH_KEYS;
+        const br = canUp.find((b) => ef.branches[b] < CONFIG.EFFECT.maxLevel);
         if (br !== undefined) {
           cands.push({
             name: ef.name, icon: cfg.icon, color: cfg.color,

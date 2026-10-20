@@ -456,8 +456,15 @@ class CombatSystem {
     // 弹道（视觉）+ 命中（逻辑）
     // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
     const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target };
-    g.fx.push(baseShot);
-    g.playSfx('shot', 0.25);
+    if (key === 'fire' && this.lv('fire', '多重火球') > 0) {
+      // 多重火球：弹道由 hitFire 自行推送多枚（扇形分离），此处不再推普通弹道避免重叠
+      g.playSfx('shot', 0.25);
+    } else {
+      // v1.13.5：大火球激活 → 火球弹体 ×2（扩大一倍）
+      if (key === 'fire' && this.lv('fire', '大火球') > 0) baseShot.scale = 2.0;
+      g.fx.push(baseShot);
+      g.playSfx('shot', 0.25);
+    }
     // v1.13.2 塔口发射特效：攻击瞬间塔口喷发微火星 + 小闪光（直线/闪电类塔）
     if (cfg.shot.kind === 'line' || cfg.shot.kind === 'bolt') {
       this.fxParticle(sx, sy - 4, tint, 3, 24, 0.25, 90, 4);
