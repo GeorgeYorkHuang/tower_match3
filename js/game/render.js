@@ -527,26 +527,29 @@ class Renderer {
       if (e.dots && e.dots.length) {
         e.dots.forEach((d) => {
           if (d.type === 'burn') {
-            // v1.13.3 灼烧效果：跳动火苗（叠层越多火越旺）+ 火焰描边 + 橙色火光圆
+            // v1.13.7 灼烧效果：4 帧火焰贴图循环燃烧（120ms/帧，透明 PNG）+ 火焰描边 + 少量火苗
             const fireI = d.stack || 1;
             const cx = x + size / 2, cy = y + size / 2;
-            // 火光圆（内焰黄 → 外焰橙）
-            ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
-            ctx.beginPath(); ctx.arc(cx, cy, size * (0.26 + 0.05 * Math.min(2, fireI)), 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ffd24a'; ctx.globalAlpha = 0.4;
-            ctx.beginPath(); ctx.arc(cx, cy, size * (0.15 + 0.03 * Math.min(2, fireI)), 0, Math.PI * 2); ctx.fill();
-            // 跳动火苗（每帧随机上飘）
-            for (let k = 0; k < 2 + Math.min(3, fireI); k++) {
-              const rx = cx + (Math.random() - 0.5) * size * 0.7;
-              const ry = cy + (Math.random() - 0.45) * size * 0.45;
-              const rr = (1.6 + Math.random() * 3) * (1 + 0.25 * Math.min(2, fireI));
-              ctx.fillStyle = Math.random() < 0.45 ? '#ffd24a' : '#ff7043';
-              ctx.globalAlpha = 0.45 + Math.random() * 0.45;
-              ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fill();
+            const fw = size * (1.1 + 0.08 * Math.min(2, fireI)), fh = size * (1.1 + 0.08 * Math.min(2, fireI));
+            const frameIdx = Math.floor(Date.now() / 120) % 4;
+            if (!drawImg(ctx, `images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, cy - size * 0.95, fw, fh)) {
+              // 贴图未加载时回退：火光圆 + 跳动火苗（确定性）
+              ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
+              ctx.beginPath(); ctx.arc(cx, cy, size * 0.26, 0, Math.PI * 2); ctx.fill();
+              ctx.globalAlpha = 1;
+              for (let k = 0; k < 2 + Math.min(3, fireI); k++) {
+                const rx = cx + (Math.random() - 0.5) * size * 0.7;
+                const ry = cy + (Math.random() - 0.45) * size * 0.45;
+                const rr = (1.6 + Math.random() * 3) * (1 + 0.25 * Math.min(2, fireI));
+                ctx.fillStyle = Math.random() < 0.45 ? '#ffd24a' : '#ff7043';
+                ctx.globalAlpha = 0.45 + Math.random() * 0.45;
+                ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fill();
+              }
+              ctx.globalAlpha = 1;
             }
-            // 火焰描边（闪烁）
-            const flick = 0.7 + 0.3 * Math.sin(Date.now() / 110 + e.x * 0.05);
-            ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * flick;
+            // 火焰描边（闪烁，叠层越多越旺）
+            const flick = 0.6 + 0.4 * Math.sin(Date.now() / 110 + e.x * 0.05);
+            ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2.5 + 0.5 * Math.min(2, fireI); ctx.globalAlpha = 0.7 * flick + 0.15 * Math.min(2, fireI);
             ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
             ctx.globalAlpha = 1;
           } else {
