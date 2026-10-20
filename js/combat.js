@@ -987,6 +987,7 @@ class CombatSystem {
       }
     }
     // 火·火雨：每 12 秒随机 3 个区域降下火焰段（每段 80% 伤害·半径140；A 密集段数+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
+    // v1.13.8：每区域连续下 3 次火雨（0.35s 间隔），动画错开推入、伤害延迟结算
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
@@ -999,19 +1000,35 @@ class CombatSystem {
         const area = this.ly();
         const minX = area.areaX, maxX = area.areaX + area.areaW;
         const minY = area.areaY + area.entryH, maxY = area.wallY;
+        const waves = 3, gap = 0.35;
+        this.rainWaves = this.rainWaves || [];
         for (let i = 0; i < segs; i++) {
           const px = minX + Math.random() * (maxX - minX);
           const py = minY + Math.random() * (maxY - minY);
-          this.explode(px, py, segR, segDmg, 'fire');
-          if (igniteLv > 0) {
-            this.enemies().forEach((o) => {
-              if (o.hp > 0 && Math.hypot(o.x - px, o.y - py) <= segR && Math.random() < 0.50) this.applyBurn(o, segDmg, 'fire');
-            });
+          for (let w = 0; w < waves; w++) {
+            this.rainWaves.push({ t: w * gap, px, py, r: segR, dmg: segDmg, ignite: igniteLv });
+            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w * gap, dur: 1.05, seed: Math.random() * 100 });
           }
-          // 火雨视觉：天降火球帧动画（下落→爆焰→地面燃烧）+ 少量点缀粒子
-          g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: 0, dur: 0.9, seed: Math.random() * 100 });
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
+      }
+      // 延迟波次结算：到达时间后逐波造成伤害
+      if (this.rainWaves && this.rainWaves.length) {
+        const remaining = [];
+        for (const wv of this.rainWaves) {
+          wv.t -= dt;
+          if (wv.t <= 0) {
+            this.explode(wv.px, wv.py, wv.r, wv.dmg, 'fire');
+            if (wv.ignite > 0) {
+              this.enemies().forEach((o) => {
+                if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r && Math.random() < 0.50) this.applyBurn(o, wv.dmg, 'fire');
+              });
+            }
+          } else {
+            remaining.push(wv);
+          }
+        }
+        this.rainWaves = remaining;
       }
     }
     const coldWave = this.lv('ice', '寒潮');

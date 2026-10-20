@@ -580,6 +580,7 @@ class Renderer {
   /** 打击特效：子弹 / 爆炸帧动画 / 命中闪光（无图回退几何形状） */
   fx(ctx, fxList) {
     fxList.forEach((f) => {
+      if (f.t < 0) return; // v1.13.8：延迟帧动画（火雨连续波次 stagger）未到时跳过渲染
       if (f.type === 'shot') {
         // 塔攻击弹道：line=直线弹（火球/冰锥/毒液，按塔 key 区分形状）、bolt=闪电折线（电）、
         // arc=往返弧线回旋镖（回旋镖）、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
@@ -777,39 +778,53 @@ class Renderer {
         ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       } else if (f.type === 'pillar') {
-        // 火柱帧动画（v1.13.6）：起势火圈 → 冲天火柱 → 白热冲击环 → 余烬消散
+        // 火柱帧动画（v1.13.8）：地上火圈标记 → 冲天圆柱火柱 → 白热冲击 → 余烬消散
         const p = Math.min(1, f.t / f.dur);
         const cx = f.x, cy = f.y, R = f.r || 120, seed = f.seed || 0;
-        if (p < 0.12) {
-          // 帧 1 起势：地面火圈扩张 + 红晕
-          const k = p / 0.12;
-          ctx.globalAlpha = 0.4 + 0.6 * k;
-          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(cx, cy, 8 + k * R * 0.3, 0, Math.PI * 2); ctx.stroke();
-          ctx.fillStyle = 'rgba(255,112,67,0.4)';
-          ctx.beginPath(); ctx.arc(cx, cy, 6 + k * R * 0.22, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        } else if (p < 0.5) {
-          // 帧 2 喷发：三层火焰柱生长，顶部火苗乱舞
-          const k = (p - 0.12) / 0.38;
-          const h = 40 + k * 190;
-          const w = 14 + k * R * 0.32;
-          const sway = Math.sin(p * 17 + seed) * 8;
-          drawFlameTongue(ctx, cx, cy, w, h, sway, '#e74c3c', 0.95);
-          drawFlameTongue(ctx, cx, cy, w * 0.68, h * 0.92, sway * 0.7, '#ff7043', 0.9);
-          drawFlameTongue(ctx, cx, cy, w * 0.36, h * 0.8, sway * 0.4, '#ffd24a', 0.95);
-          for (let i = 0; i < 5; i++) {
+        if (p < 0.22) {
+          // 帧 1 地上画圈：双环火圈扩张 + 圈上火苗 + 地面红晕（先标识落点范围）
+          const k = p / 0.22;
+          const r1 = 8 + k * R;
+          ctx.globalAlpha = 0.5 + 0.5 * k;
+          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 3 + k * 2;
+          ctx.beginPath(); ctx.arc(cx, cy, r1, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = '#ff9f43'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(cx, cy, r1 * 0.75, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = 'rgba(255,112,67,0.35)';
+          ctx.beginPath(); ctx.arc(cx, cy, r1 * 0.7, 0, Math.PI * 2); ctx.fill();
+          for (let i = 0; i < 10; i++) {
             const s = ((i * 5171 + seed * 13) % 97) / 97;
-            const fx0 = cx + (s - 0.5) * w * 1.4 + sway;
-            const fy0 = cy - h * (0.55 + s * 0.5) + Math.sin(p * 22 + i + seed) * 6;
-            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-            ctx.globalAlpha = 0.55 + s * 0.4;
-            ctx.beginPath(); ctx.arc(fx0, fy0, 2.5 + s * 3.5, 0, Math.PI * 2); ctx.fill();
+            const a = s * Math.PI * 2;
+            const px0 = cx + Math.cos(a) * r1 * 0.92, py0 = cy + Math.sin(a) * r1 * 0.92;
+            ctx.fillStyle = i % 2 ? '#ffd24a' : '#ff7043';
+            ctx.globalAlpha = 0.7 + 0.3 * k;
+            ctx.beginPath(); ctx.arc(px0, py0, 2 + s * 3.5, 0, Math.PI * 2); ctx.fill();
           }
           ctx.globalAlpha = 1;
-        } else if (p < 0.62) {
-          // 帧 3 冲击：白热冲击环扩张 + 落点爆焰
-          const k = (p - 0.5) / 0.12;
+        } else if (p < 0.68) {
+          // 帧 2 冲天圆柱火柱：实心柱体（深橙外柱→橙中柱→黄芯柱）+ 顶部喷涌火舌 + 上升火花
+          const k = (p - 0.22) / 0.46;
+          const h = 30 + k * 300;
+          const w = 16 + k * R * 0.42;
+          fillRoundRect(ctx, cx - w / 2, cy - h, w, h, w * 0.35, '#e74c3c');
+          fillRoundRect(ctx, cx - w * 0.62 / 2, cy - h * 0.94, w * 0.62, h * 0.94, w * 0.28, '#ff7043');
+          fillRoundRect(ctx, cx - w * 0.3 / 2, cy - h * 0.86, w * 0.3, h * 0.86, w * 0.16, '#ffd24a');
+          const sway = Math.sin(p * 17 + seed) * 10;
+          drawFlameTongue(ctx, cx, cy - h, w * 0.9, 50 + k * 30, sway, '#ff7043', 0.95);
+          drawFlameTongue(ctx, cx - w * 0.25, cy - h, w * 0.55, 40 + k * 24, sway * 0.8, '#ffd24a', 0.9);
+          drawFlameTongue(ctx, cx + w * 0.25, cy - h, w * 0.55, 44 + k * 26, sway * 0.8, '#ff9f43', 0.9);
+          for (let i = 0; i < 6; i++) {
+            const s = ((i * 6173 + seed * 9) % 89) / 89;
+            const sx0 = cx + (s - 0.5) * w * 0.8;
+            const sy0 = cy - h * (0.15 + s * 0.7) + Math.sin(p * 22 + i + seed) * 8;
+            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = 0.5 + s * 0.4;
+            ctx.beginPath(); ctx.arc(sx0, sy0, 2 + s * 3, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        } else if (p < 0.82) {
+          // 帧 3 白热冲击环扩张
+          const k = (p - 0.68) / 0.14;
           ctx.globalAlpha = 0.9 * (1 - k * 0.4);
           ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 5;
           ctx.beginPath(); ctx.arc(cx, cy, R * 0.3 + k * R * 0.7, 0, Math.PI * 2); ctx.stroke();
@@ -818,14 +833,13 @@ class Renderer {
           ctx.beginPath(); ctx.arc(cx, cy, 20 * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
         } else {
-          // 帧 4 余烬：火柱收缩消散 + 余烬上飘
-          const k = (p - 0.62) / 0.38;
-          const h = 60 * (1 - k * 0.85);
-          drawFlameTongue(ctx, cx, cy, 18 * (1 - k * 0.7), h, Math.sin(p * 12 + seed) * 5, '#e74c3c', 0.8 * (1 - k));
-          for (let i = 0; i < 6; i++) {
+          // 帧 4 余烬消散
+          const k = (p - 0.82) / 0.18;
+          drawFlameTongue(ctx, cx, cy, 14 * (1 - k * 0.7), 40 * (1 - k * 0.8), Math.sin(p * 12 + seed) * 5, '#e74c3c', 0.7 * (1 - k));
+          for (let i = 0; i < 5; i++) {
             const s = ((i * 8191 + seed * 7) % 89) / 89;
             const ex = cx + (s - 0.5) * 40;
-            const ey = cy - h - s * k * 60 - 10;
+            const ey = cy - s * k * 50 - 8;
             ctx.fillStyle = s < 0.6 ? '#ff7043' : '#ffd24a';
             ctx.globalAlpha = (1 - k) * (0.3 + s * 0.5);
             ctx.beginPath(); ctx.arc(ex, ey, 2 + s * 3, 0, Math.PI * 2); ctx.fill();
@@ -833,45 +847,61 @@ class Renderer {
           ctx.globalAlpha = 1;
         }
       } else if (f.type === 'rain') {
-        // 火雨帧动画（v1.13.6）：天降火球 → 落地爆焰冲击 → 地面燃烧衰减
+        // 火雨帧动画（v1.13.8）：范围圈标识（全程）+ 天降火球雨 → 落地爆焰 → 地面燃烧
+        // combat 以 0.35s 间隔推入多个 rain fx，形成同一区域连续 3 次火雨
         const p = Math.min(1, f.t / f.dur);
         const cx = f.x, cy = f.y, R = f.r || 140, seed = f.seed || 0;
-        if (p < 0.3) {
-          // 帧 1 天降：火球从高空下落（带拖尾火苗）
-          const k = p / 0.3;
-          const by = cy - 260 * (1 - k);
-          const br = 8 + k * 10;
-          for (let i = 0; i < 4; i++) {
+        // 全程范围圈：双环 + 半透明红晕（标识火雨覆盖区域）
+        ctx.globalAlpha = 0.22 + 0.08 * Math.sin(p * 20 + seed);
+        ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#ff9f43'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, R * 0.85, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,112,67,0.12)';
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        if (p < 0.5) {
+          // 帧 1 天降火球雨：6 枚火球从高空分散落向圈内（带拖尾）
+          const k = p / 0.5;
+          for (let i = 0; i < 6; i++) {
             const s = ((i * 6301 + seed * 11) % 83) / 83;
+            const tx = cx + (s - 0.5) * R * 0.9;
+            const by = cy - 240 * (1 - k) + s * 20;
+            const br = 6 + s * 6;
             ctx.globalAlpha = (1 - k) * 0.5 + s * 0.4;
             ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-            ctx.beginPath(); ctx.arc(cx + (s - 0.5) * 12, by - 10 - s * 34 * (1 - k * 0.6), 3 + s * 5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(tx, by - 8 - s * 26 * (1 - k * 0.6), 2.5 + s * 4, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#ff7043';
+            ctx.beginPath(); ctx.arc(tx, by, br, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffe08a';
+            ctx.beginPath(); ctx.arc(tx - br * 0.2, by - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
           }
           ctx.globalAlpha = 1;
-          ctx.fillStyle = '#ff7043';
-          ctx.beginPath(); ctx.arc(cx, by, br, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#ffe08a';
-          ctx.beginPath(); ctx.arc(cx - br * 0.2, by - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
-        } else if (p < 0.42) {
-          // 帧 2 爆焰：白热爆焰 + 冲击环扩张
-          const k = (p - 0.3) / 0.12;
+        } else if (p < 0.65) {
+          // 帧 2 落地爆焰：白热冲击环 + 圈内多点爆焰
+          const k = (p - 0.5) / 0.15;
           ctx.globalAlpha = 0.95 * (1 - k * 0.4);
           ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 5;
-          ctx.beginPath(); ctx.arc(cx, cy, R * 0.25 + k * R * 0.6, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx, cy, R * 0.25 + k * R * 0.55, 0, Math.PI * 2); ctx.stroke();
           ctx.globalAlpha = 1 - k * 0.5;
           ctx.fillStyle = '#fff3c4';
-          ctx.beginPath(); ctx.arc(cx, cy, 24 * (1 - k * 0.3), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx, cy, 26 * (1 - k * 0.3), 0, Math.PI * 2); ctx.fill();
+          for (let i = 0; i < 5; i++) {
+            const s = ((i * 4441 + seed * 5) % 79) / 79;
+            const bx0 = cx + (s - 0.5) * R * 0.8, by0 = cy + ((i * 733 + seed) % 53) / 53 * R * 0.6 - R * 0.3;
+            ctx.fillStyle = i % 2 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = 0.8 * (1 - k * 0.5);
+            ctx.beginPath(); ctx.arc(bx0, by0, 8 - k * 4, 0, Math.PI * 2); ctx.fill();
+          }
           ctx.globalAlpha = 1;
         } else {
-          // 帧 3 燃烧：地面火圈收缩 + 火苗上飘衰减
-          const k = (p - 0.42) / 0.58;
-          ctx.globalAlpha = 0.85 * (1 - k);
-          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 3.5;
-          ctx.beginPath(); ctx.arc(cx, cy, R * 0.3 * (1 - k * 0.5), 0, Math.PI * 2); ctx.stroke();
-          for (let i = 0; i < 6; i++) {
+          // 帧 3 地面燃烧衰减：火苗上飘
+          const k = (p - 0.65) / 0.35;
+          for (let i = 0; i < 8; i++) {
             const s = ((i * 7297 + seed * 17) % 91) / 91;
-            const ex = cx + (s - 0.5) * R * 0.5;
-            const ey = cy - s * k * 42 - 6;
+            const ex = cx + (s - 0.5) * R * 0.8;
+            const ey = cy - s * k * 40 - 4;
             ctx.fillStyle = s < 0.55 ? '#ff7043' : '#ffd24a';
             ctx.globalAlpha = (1 - k) * (0.35 + s * 0.45);
             ctx.beginPath(); ctx.arc(ex, ey, 2.5 + s * 3.5, 0, Math.PI * 2); ctx.fill();
