@@ -52,9 +52,9 @@ t('存档恢复：塔位解锁不再恢复（slotOrder 空）', () => {
 });
 
 t('音效上下文创建（wx 环境）', () => {
-  assert.ok(game.bgm, 'bgm 应创建');
-  assert.ok(game.fxShot, '射击音效应创建');
-  assert.ok(game.fxBoom, '爆炸音效应创建');
+  assert.ok(game.sfx && game.sfx.bgm, 'bgm 应创建（SfxManager 模块化）');
+  assert.ok(game.sfx.fxShot, '射击音效应创建');
+  assert.ok(game.sfx.fxBoom, '爆炸音效应创建');
 });
 
 t('打击特效：击杀产生爆炸并清除敌人', () => {

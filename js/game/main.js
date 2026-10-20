@@ -6,50 +6,22 @@ const CONFIG = require('../config.js');
 const { Run } = require('../run.js');
 const { Renderer, layout } = require('./render.js');
 const { CombatSystem } = require('../combat.js');
+const { initCanvas } = require('./canvas.js');
+const { SfxManager } = require('./audio.js');
 
-/* 环境防御：新版小游戏基础库已不暴露全局 canvas，需用 wx.createCanvas() 获取主画布 */
-let _c = null;
-if (typeof canvas !== 'undefined') _c = canvas;
-else if (typeof GameGlobal !== 'undefined' && GameGlobal.canvas) _c = GameGlobal.canvas;
-else if (typeof wx !== 'undefined' && wx.createCanvas) {
-  try { _c = wx.createCanvas(); } catch (e) { _c = null; } // 首次调用返回主画布
-}
-const ctx = _c ? _c.getContext('2d') : null;
-if (ctx && (!_c.width || !_c.height)) {
-  // canvas 尺寸为 0（部分环境/真机异常）时按系统屏幕信息初始化
-  try {
-    const info = (typeof wx !== 'undefined' && wx.getSystemInfoSync) ? wx.getSystemInfoSync() : null;
-    if (info) {
-      _c.width = info.windowWidth * (info.pixelRatio || 1);
-      _c.height = info.windowHeight * (info.pixelRatio || 1);
-    }
-  } catch (e) {}
-}
+/* 环境初始化（模块化 v1.13.11）：主画布获取 + 尺寸适配 + ctx；失败返回 null 并输出诊断 */
+const _c = initCanvas();
+const ctx = _c ? _c.ctx : null;
 if (!ctx) {
-  if (typeof console !== 'undefined') {
-    console.error('[消消防线] 运行环境诊断：', JSON.stringify({
-      hasCanvas: typeof canvas !== 'undefined',
-      hasGameGlobalCanvas: (typeof GameGlobal !== 'undefined' && !!GameGlobal.canvas),
-      hasWx: typeof wx !== 'undefined',
-      hasSharedCanvas: (typeof GameGlobal !== 'undefined' && !!GameGlobal.sharedCanvas),
-      canCreateCanvas: (typeof wx !== 'undefined' && typeof wx.createCanvas),
-      canCreateAudio: (typeof wx !== 'undefined' && typeof wx.createInnerAudioContext),
-    }));
-    console.error(
-      '[消消防线] 未找到 canvas：本游戏只能在微信小游戏主域（主包 game.js 入口）运行。\n' +
-      '  可能原因：项目根被配置为开放数据域(openDataContext)，或主游戏代码被放进了子域目录。\n' +
-      '  排行榜子域请使用 sharedCanvas 单独编写，不要加载主游戏代码。'
-    );
-  }
   module.exports = null;
 } else if (typeof console !== 'undefined' && console.info) {
-  console.info('[消消防线] 启动：canvas', _c.width + 'x' + _c.height,
-    'scale', (Math.min(_c.width / CONFIG.DESIGN.W, _c.height / CONFIG.DESIGN.H)).toFixed(3));
+  console.info('[消消防线] 启动：canvas', _c.canvas.width + 'x' + _c.canvas.height,
+    'scale', (Math.min(_c.canvas.width / CONFIG.DESIGN.W, _c.canvas.height / CONFIG.DESIGN.H)).toFixed(3));
 }
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.13.10';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.13.11';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -57,20 +29,9 @@ const { Match3Controller } = require('../match3.js');
 /* 塔位图标字符（加载失败时的兜底） */
 const TOWER_ICON = { fire: '🔥', ice: '❄', poison: '☠', electric: '⚡', boomerang: '🌀', cannon: '💣' };
 
-/* 音效 */
-const AUDIO = { bgm: 'audio/bgm.mp3', shot: 'audio/bullet.mp3', boom: 'audio/boom.mp3' };
-function createAudio(src, loop, vol) {
-  if (typeof wx === 'undefined' || !wx.createInnerAudioContext) return null;
-  try {
-    const a = wx.createInnerAudioContext();
-    a.src = src; a.loop = !!loop; a.volume = vol;
-    return a;
-  } catch (e) { return null; }
-}
-
 class GameMain {
   constructor() {
-    this.scale = Math.min(_c.width / LOGIC_W, _c.height / LOGIC_H); // 等比 contain：完整显示且铺满（背景延伸填充剩余区）
+    this.scale = Math.min(_c.canvas.width / LOGIC_W, _c.canvas.height / LOGIC_H); // 等比 contain：完整显示且铺满（背景延伸填充剩余区）
     this.renderer = new Renderer();
     this.ly = layout();
     this.restartBtn = {};
@@ -87,15 +48,10 @@ class GameMain {
     this.waveClearBtn = {};
     // 开局引导：先消先得（消除 3 连 → 获得对应塔上槽）
     this.toasts.push({ msg: '滑动相邻方块消除 3 连 · 获得对应塔', color: '#9fb2c3', ttl: 3.2 });
-    // 打击特效与音效
+    // 打击特效与音效（模块化 v1.13.11：SfxManager 独立管理）
     this.fx = [];
     this.anim = null; // 三消动画（消除+下落）
-    this._bgmStarted = false;
-    this._lastShotSfx = 0;
-    this._lastBoomSfx = 0;
-    this.bgm = createAudio(AUDIO.bgm, true, 0.3);
-    this.fxShot = createAudio(AUDIO.shot, false, 0.12);
-    this.fxBoom = createAudio(AUDIO.boom, false, 0.4);
+    this.sfx = new SfxManager();
     // 波次导演 / 三消控制器 / 存档 / 战斗系统（save 绑定 game，run 重建时仍读写当前局）
     this.wave = new WaveDirector(this, this.ly);
     this.match3 = new Match3Controller(this);
@@ -136,8 +92,7 @@ class GameMain {
       this.enterBattle();
     } else {
       this.state = 'menu';
-      this._bgmStarted = false;
-      if (this.bgm) { try { this.bgm.stop(); } catch (e) {} }
+      this.sfx.stopBgm();
     }
   }
 
@@ -157,10 +112,7 @@ class GameMain {
     this.wave.start();
     this.toast('进入战斗 · 消灭全部怪物', '#7ef0a3');
     // 战斗 BGM（真机需在用户手势后播放）
-    if (this.bgm && !this._bgmStarted) {
-      try { this.bgm.play(); } catch (e) {}
-      this._bgmStarted = true;
-    }
+    this.sfx.startBgm();
   }
 
   /* ---------- 帧循环 ---------- */
@@ -184,7 +136,7 @@ class GameMain {
     if (this._pixelChecked) return;
     this._pixelChecked = true;
     try {
-      const w = _c.width, h = _c.height;
+      const w = _c.canvas.width, h = _c.canvas.height;
       const img = ctx.getImageData(Math.floor(w / 2), Math.floor(h / 2), 1, 1);
       console.info('[消消防线] 画布中心像素采样：', Array.prototype.slice.call(img.data));
     } catch (e) {
@@ -286,13 +238,8 @@ class GameMain {
   }
 
   playSfx(kind, minGap) {
-    const now = Date.now();
-    const last = kind === 'shot' ? this._lastShotSfx : this._lastBoomSfx;
-    if (now - last < minGap * 1000) return;
-    const a = kind === 'shot' ? this.fxShot : this.fxBoom;
-    if (!a) return;
-    try { a.stop(); a.play(); } catch (e) {}
-    if (kind === 'shot') this._lastShotSfx = now; else this._lastBoomSfx = now;
+    // 模块化 v1.13.11：转发到 SfxManager（防抖 + stop/play）
+    this.sfx.play(kind, minGap);
   }
 
   waveEnd() {
@@ -308,7 +255,7 @@ class GameMain {
     this.save.save();
     if (res.broken) {
       this.state = 'gameover';
-      if (this.bgm) { try { this.bgm.stop(); } catch (e) {} }
+      this.sfx.stopBgm();
       return;
     }
     this.waveClear = {
@@ -396,8 +343,7 @@ class GameMain {
     this._postPick = null;
     this.pendingRelicPicks = [];
     this.relicPick = null;
-    if (this.bgm) { try { this.bgm.stop(); } catch (e) {} }
-    this._bgmStarted = false;
+    this.sfx.stopBgm();
     this.save.save();
   }
 
@@ -478,7 +424,7 @@ class GameMain {
     ctx.setTransform(s, 0, 0, s, 0, 0);
     ctx.fillStyle = '#0d1117';
     // 背景铺满整个屏幕（逻辑坐标换算），模拟器/真机比例 ≠ 750:1334 时剩余区也填充，不留黑边
-    ctx.fillRect(0, 0, Math.ceil(_c.width / s), Math.ceil(_c.height / s));
+    ctx.fillRect(0, 0, Math.ceil(_c.canvas.width / s), Math.ceil(_c.canvas.height / s));
     if (this.state === 'menu') {
       this.menuHits = this.renderer.menuLayer(ctx, this.menuState(), this.menuHits);
       this.renderer.toast(ctx, this.toasts);
@@ -763,8 +709,114 @@ class GameMain {
   }
 
   /* ---------- 触摸 ---------- */
+  /** 触摸状态分发（模块化 v1.13.11：从 bindTouch 抽出，返回 true=已消费该触摸） */
+  dispatchTouch(p) {
+    // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
+    if (this.state === 'menu') { this.onMenuTap(p); return true; }
+    // 塔详情弹层打开中：点关闭/遮罩关闭
+    if (this.towerInfo) {
+      const h = this.towerInfoHits;
+      if (h.close && h.close.hit(p.x, p.y)) { this.towerInfo = null; return true; }
+      if (h.bg && h.bg.hit(p.x, p.y)) { this.towerInfo = null; return true; }
+      return true; // 面板内点击不处理其它
+    }
+    // 底部功能弹层打开中：清档确认 / 返回主界面 / 关闭 / 遮罩关闭
+    if (this.funcLayer) {
+      const h = this.funcLayerHits;
+      if (this.funcLayer.type === 'setting' && h.confirm && h.confirm.hit(p.x, p.y)) {
+        if (this.funcLayer.confirming) {
+          this.save.clear();
+          this.saveData = null;
+          this.meta = this.save.applyMeta(null);
+          this.funcLayer = null;
+          this.goMenu();
+          this.toast('已清档', '#7ef0a3');
+        } else {
+          this.funcLayer.confirming = true;
+        }
+        return true;
+      }
+      // 设置弹层底部按钮 =「返回主菜单」；其它弹层 =「关闭」
+      if (h.close && h.close.hit(p.x, p.y)) {
+        if (this.funcLayer.type === 'setting') this.goMenu();
+        else this.funcLayer = null;
+        return true;
+      }
+      if (h.bg && h.bg.hit(p.x, p.y)) { this.funcLayer = null; return true; }
+      return true; // 面板内点击不处理其它
+    }
+    // 底部功能键区：打开对应弹层
+    if (this.funcHits.length) {
+      for (const f of this.funcHits) {
+        if (f.hit(p.x, p.y)) {
+          this.funcLayer = { type: f.key, version: GAME_VERSION };
+          return true;
+        }
+      }
+    }
+    if (this.state === 'fighting') {
+      // 战斗中点全局技能按钮 → 释放技能（v1.12：左=全局洗牌，右=全局冰冻）
+      const btns = this.renderer.globalBtns || [];
+      for (const b of btns) {
+        if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
+          this.combat.castGlobal(b.key);
+          return true;
+        }
+      }
+      // 战斗中点塔位图标 → 查看技能/等级
+      const si = this.towerSlotAt(p);
+      const slot = this.sceneState().towers[si] || null;
+      if (si >= 0 && slot) {
+        this.towerInfo = { ...slot, slotIdx: si };
+        return true;
+      }
+    }
+    // 波次结束弹窗：点「继续」→ 三选一 / 下一波
+    if (this.state === 'waveclear') {
+      if (this.waveClearBtn.hit && this.waveClearBtn.hit(p.x, p.y)) this.waveClearNext();
+      return true;
+    }
+    // 弹层按钮判定
+    if (this.state === 'picking') {
+      const group = this.pickQueue[this.pickIndex];
+      if (!group || !group.candidates || !group.candidates.length) return true;
+      for (let i = 0; i < group.candidates.length; i++) {
+        if (this.pickHits[i] && this.pickHits[i].hit(p.x, p.y)) {
+          const res = this.run.applyChoice(group.tower, group.candidates[i]);
+          if (res.ok) {
+            const cd = group.candidates[i];
+            const nm = cd.name;
+            const actTxt = cd.type === 'branch' ? `${nm}·分支${cd.branch} 强化` : (res.activated ? `激活技能：${nm}` : `替换特效：${nm}`);
+            this.toast(actTxt, '#7ef0a3');
+            this.nextPick();
+          }
+          return true;
+        }
+      }
+      return true;
+    }
+    // 圣物宝箱三选一弹层：点候选 → 获取该圣物
+    if (this.state === 'relicpick') {
+      if (this.relicPick && this.relicPick.candidates) {
+        for (let i = 0; i < this.relicPick.candidates.length; i++) {
+          if (this.relicPickHits[i] && this.relicPickHits[i].hit(p.x, p.y)) {
+            this.relicPickChoice(i);
+            return true;
+          }
+        }
+      }
+      return true;
+    }
+    if (this.state === 'gameover') {
+      if (this.restartBtn.hit && this.restartBtn.hit(p.x, p.y)) { this.restart(); return true; }
+      if (this.restartBtn.toMenu && this.restartBtn.toMenu.hit(p.x, p.y)) { this.goMenu(); return true; }
+      return true;
+    }
+    return false;
+  }
+
   bindTouch() {
-    const c = _c; // 获取到的主画布（可能是 wx.createCanvas() 返回）
+    const c = _c ? _c.canvas : null; // 获取到的主画布（可能是 wx.createCanvas() 返回）
     let startCell = null, lastCell = null;
     this.pickCell = null; // 点击交换：当前选中格（渲染高亮，直到下次点击/滑动）
     let moved = false;    // 是否已发生滑动（点击 vs 滑动判定）
@@ -773,115 +825,15 @@ class GameMain {
       const t = e && e.touches && e.touches[0];
       if (!t) return;
       const p = this.toLogic(t.clientX, t.clientY);
-      // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
-      if (this.state === 'menu') {
-        this.onMenuTap(p);
-        return;
-      }
-      // 塔详情弹层打开中：点关闭/遮罩关闭
-      if (this.towerInfo) {
-        const h = this.towerInfoHits;
-        if (h.close && h.close.hit(p.x, p.y)) { this.towerInfo = null; return; }
-        if (h.bg && h.bg.hit(p.x, p.y)) { this.towerInfo = null; return; }
-        return; // 面板内点击不处理其它
-      }
-      // 底部功能弹层打开中：清档确认 / 返回主界面 / 关闭 / 遮罩关闭
-      if (this.funcLayer) {
-        const h = this.funcLayerHits;
-        if (this.funcLayer.type === 'setting' && h.confirm && h.confirm.hit(p.x, p.y)) {
-          if (this.funcLayer.confirming) {
-            this.save.clear();
-            this.saveData = null;
-            this.meta = this.save.applyMeta(null);
-            this.funcLayer = null;
-            this.goMenu();
-            this.toast('已清档', '#7ef0a3');
-          } else {
-            this.funcLayer.confirming = true;
-          }
-          return;
-        }
-        // 设置弹层底部按钮 =「返回主菜单」；其它弹层 =「关闭」
-        if (h.close && h.close.hit(p.x, p.y)) {
-          if (this.funcLayer.type === 'setting') this.goMenu();
-          else this.funcLayer = null;
-          return;
-        }
-        if (h.bg && h.bg.hit(p.x, p.y)) { this.funcLayer = null; return; }
-        return; // 面板内点击不处理其它
-      }
-      // 底部功能键区：打开对应弹层
-      if (this.funcHits.length) {
-        for (const f of this.funcHits) {
-          if (f.hit(p.x, p.y)) {
-            this.funcLayer = { type: f.key, version: GAME_VERSION };
-            return;
-          }
-        }
-      }
+      // 状态/弹层/按钮命中分发（模块化 v1.13.11：dispatchTouch 独立方法）
+      if (this.dispatchTouch(p)) return;
+      // 棋盘点击/滑动准备
       startCell = this.cellAt(p);
       lastCell = startCell;
       this.selected = startCell;
       this.swapped = false;
       moved = false;
       this._touchStart = { x: p.x, y: p.y };
-      // 战斗中点全局技能按钮 → 释放技能（v1.12：左=全局洗牌，右=全局冰冻）
-      if (this.state === 'fighting') {
-        const btns = this.renderer.globalBtns || [];
-        for (const b of btns) {
-          if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-            this.combat.castGlobal(b.key);
-            return;
-          }
-        }
-      }
-      // 战斗中点塔位图标 → 查看技能/等级
-      if (this.state === 'fighting') {
-        const si = this.towerSlotAt(p);
-        const slot = this.sceneState().towers[si] || null;
-        if (si >= 0 && slot) {
-          this.towerInfo = { ...slot, slotIdx: si };
-          return;
-        }
-      }
-      // 波次结束弹窗：点「继续」→ 三选一 / 下一波
-      if (this.state === 'waveclear') {
-        if (this.waveClearBtn.hit && this.waveClearBtn.hit(p.x, p.y)) this.waveClearNext();
-        return;
-      }
-      // 弹层按钮判定
-      if (this.state === 'picking') {
-        const group = this.pickQueue[this.pickIndex];
-        if (!group || !group.candidates || !group.candidates.length) return;
-        for (let i = 0; i < group.candidates.length; i++) {
-          if (this.pickHits[i] && this.pickHits[i].hit(p.x, p.y)) {
-            const res = this.run.applyChoice(group.tower, group.candidates[i]);
-            if (res.ok) {
-              const cd = group.candidates[i];
-              const nm = cd.name;
-              const actTxt = cd.type === 'branch' ? `${nm}·分支${cd.branch} 强化` : (res.activated ? `激活技能：${nm}` : `替换特效：${nm}`);
-              this.toast(actTxt, '#7ef0a3');
-              this.nextPick();
-            }
-            return;
-          }
-        }
-      }
-      // 圣物宝箱三选一弹层：点候选 → 获取该圣物
-      if (this.state === 'relicpick') {
-        if (!this.relicPick || !this.relicPick.candidates) return;
-        for (let i = 0; i < this.relicPick.candidates.length; i++) {
-          if (this.relicPickHits[i] && this.relicPickHits[i].hit(p.x, p.y)) {
-            this.relicPickChoice(i);
-            return;
-          }
-        }
-        return;
-      }
-      if (this.state === 'gameover') {
-        if (this.restartBtn.hit && this.restartBtn.hit(p.x, p.y)) { this.restart(); return; }
-        if (this.restartBtn.toMenu && this.restartBtn.toMenu.hit(p.x, p.y)) { this.goMenu(); return; }
-      }
     };
     const onMove = (e) => {
       if (this.towerInfo) return; // 详情弹层打开时锁定交换
@@ -964,8 +916,8 @@ class GameMain {
         const w = info.windowWidth || info.screenWidth;
         const h = info.windowHeight || info.screenHeight;
         if (w > 0 && h > 0) {
-          const cw = (_c && _c.width) || 0;
-          const ch = (_c && _c.height) || 0;
+          const cw = (_c && _c.canvas && _c.canvas.width) || 0;
+          const ch = (_c && _c.canvas && _c.canvas.height) || 0;
           if (cw > 0 && cx > w) { // 坐标超出逻辑宽 → 按 canvas 物理像素归一化
             return { x: cx * LOGIC_W / cw, y: cy * LOGIC_H / (ch || cw) };
           }
