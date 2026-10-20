@@ -118,15 +118,18 @@ t('火·大火球：命中爆炸波及邻近敌人', () => {
   assert.ok(e2.hp < 1000, '邻近敌人应受爆炸伤害');
 });
 
-t('火·多重火球：一次攻击命中 3 个不同目标', () => {
+t('火·多重火球：一次攻击命中 3 个不同目标（多弹道）', () => {
   const g = mkGame({ fire: { 多重火球: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(2000, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(2000, 385, 806); g.enemies.push(e2);
   const e3 = mkEnemy(2000, 360, 812); g.enemies.push(e3);
   c.hit('fire', e1, 200);
-  assert.ok(e1.hp < 2000, '主目标应受一枚火球伤害');
+  assert.ok(e1.hp < 2000, '主目标应立即受一枚火球伤害');
+  // 额外目标走弹道命中结算（resolveShot → onHit）
+  c.shots.slice().forEach((s) => c.resolveShot(s));
   assert.ok(e2.hp < 2000 && e3.hp < 2000, '额外两目标应各受一枚火球伤害');
+  assert.ok(g.fx.filter((f) => f.type === 'shot').length >= 3, '应有 3 条火球弹道（主+2）');
 });
 
 t('火·火焰鹰眼两极反转：越近伤害越高', () => {

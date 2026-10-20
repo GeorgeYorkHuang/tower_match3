@@ -455,6 +455,11 @@ class CombatSystem {
     const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target };
     g.fx.push(baseShot);
     g.playSfx('shot', 0.25);
+    // v1.13.2 塔口发射特效：攻击瞬间塔口喷发微火星 + 小闪光（直线/闪电类塔）
+    if (cfg.shot.kind === 'line' || cfg.shot.kind === 'bolt') {
+      this.fxParticle(sx, sy - 4, tint, 3, 24, 0.25, 90, 4);
+      this.fxFlash(sx, sy, tint, 0.15);
+    }
     if (key === 'boomerang') {
       // 回旋镖 v1.7：弧线飞出再飞回（弧高加大），沿途扫过所有敌人（不锁定单体）；投出后标记等待接回
       // v1.10：落点计算怪物前行提前量——镖飞行期间怪物继续向城墙行走，瞄准其预测位置而非当前位置；
@@ -501,6 +506,7 @@ class CombatSystem {
     const g = this.game;
     const e = s.target;
     if (!e || e.hp <= 0 || !g.enemies.includes(e)) return; // 目标已死/消失 → 落空
+    if (s.onHit) { s.onHit(e, s.dmg); return; }             // v1.13.2：自定义命中回调（多重火球分击等，不触发技能链）
     this.hit(s.key, e, s.dmg);
   }
 
@@ -567,10 +573,12 @@ class CombatSystem {
     if (key === 'boomerang' && bowSpeed > 0 && this.atkTimers.boomerang !== undefined) {
       this.atkTimers.boomerang = Math.max(0, this.atkTimers.boomerang - this.interval('boomerang') * 0.01 * bowSpeed);
     }
-    // 命中特效：按塔类型爆发专属粒子（直接伤害的视觉反馈）
+    // 命中特效：按塔类型爆发专属粒子（v1.13.2 增强：数量更多 + 命中冲击环 + 双色火花）
     const HIT_FX = { fire: '#ff7043', ice: '#7fd4ff', poison: '#7ee2a8', electric: '#f4d03f', boomerang: '#c39bd3', cannon: '#d89e63' };
-    this.fxParticle(e.x, e.y, HIT_FX[key] || '#ffffff', 5, 40, 0.35, 120, 5);
-    this.fxFlash(e.x, e.y, '#ffffff');
+    this.fxParticle(e.x, e.y, HIT_FX[key] || '#ffffff', 8, 52, 0.4, 140, 5);
+    this.fxParticle(e.x, e.y, '#ffffff', 4, 30, 0.25, 110, 3);
+    this.fxRing(e.x, e.y, HIT_FX[key] || '#ffffff', 30, 0.28, 3);
+    this.fxFlash(e.x, e.y, '#ffffff', 0.25);
   }
 
   /* ============ 火塔（v1.13 重构：点燃/灼烧叠层/火柱/大火球/燃爆/多重火球/火焰鹰眼/火雨） ============ */
@@ -596,23 +604,44 @@ class CombatSystem {
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
     const mainMult = big > 0 ? 1.2 : 1;
-    // 多重火球：主目标 + 额外目标（增发 3→4→5 枚 / 凝火 +15%/枚 / 分击不同目标+25%点燃）
+    // 多重火球：主目标 + 额外目标，每枚都是真实火球弹道（塔口扇形射出，命中才结算）
+    //         A 增发 3→4→5 枚 / B 凝火 +15%/枚 / C 分击不同目标+25%点燃
     const multi = this.lv('fire', '多重火球');
     if (multi > 0) {
+      // 塔发射点（与 attackOnce 同口径）
+      const ly0 = this.ly();
+      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
+      const startX = (750 - rowW) / 2;
+      const slotW = ly0.slotSize + ly0.slotGap;
+      const idx = g.run.slotOrder.indexOf('fire');
+      const fsx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
+      const fsy = ly0.slotY + ly0.slotSize / 2;
       const n = 2 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 额外
       const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
-      this.damage(e, perDmg, 'fire');                                // 主目标 1 枚
+      const dur = CONFIG.TOWERS.fire.shot.dur;
+      const tint = '#ff7043';
+      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道
+      this.damage(e, perDmg, 'fire');
+      g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, tx: e.x, ty: e.y, t: 0, dur, key: 'fire', target: e });
+      // 额外目标：扇形分散各一枚火球，命中才结算（onHit 不触发技能链）
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e)
         .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
       for (let i = 0; i < n - 1 && cands.length; i++) {
         const o = cands[i];
-        this.damage(o, perDmg, 'fire');
-        this.fxBeam(e.x, e.y, o.x, o.y, '#ff7043', 0.25, 3);         // 分击连线视觉
-        if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
+        this.shots.push({
+          key: 'fire', target: o, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy,
+          onHit: (t, d) => {
+            this.damage(t, d, 'fire');
+            // 分击命中特效：火球爆焰
+            this.fxParticle(t.x, t.y, '#ff9f43', 6, 46, 0.35, 140, 5);
+            this.fxRing(t.x, t.y, '#ff7043', 26, 0.25, 3);
+            this.fxFlash(t.x, t.y, '#ffd24a', 0.2);
+            if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(t, d, 'fire');
+          },
+        });
+        g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, tx: o.x, ty: o.y, t: 0, dur, key: 'fire', target: o });
       }
-      // 多重火球视觉：数道弹道火星
-      for (let i = 0; i < n; i++) this.fxParticle(e.x, e.y, '#ff9f43', 4, 36, 0.4, 150, 4);
     } else {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
     }
