@@ -20,11 +20,23 @@ class SaveManager {
     try {
       const d = wx.getStorageSync(SAVE_KEY);
       if (!d) return null;
-      if (d.version === 5 || d.version === 4 || d.version === 3) return d;
+      if (d.version === 5 || d.version === 4 || d.version === 3) return this._renameBounceSkill(d);
       if (d.version === 2) return this._migrateV2(d); // v2 旧档自动迁移（技能卡带等级）
       if (d.version === 1) return this._migrateV2(this._migrateV1(d));
       return null;
     } catch (e) { return null; }
+  }
+
+  /** v1.13.19 技能改名迁移：弹跳 → 活电（旧档技能卡/槽位不丢失） */
+  _renameBounceSkill(d) {
+    Object.keys(d.skillCards || {}).forEach((tk) => {
+      const sc = d.skillCards[tk];
+      if (sc && sc['弹跳'] && !sc['活电']) { sc['活电'] = sc['弹跳']; delete sc['弹跳']; }
+    });
+    Object.keys(d.towerSkillSlots || {}).forEach((tk) => {
+      if (d.towerSkillSlots[tk] === '弹跳') d.towerSkillSlots[tk] = '活电';
+    });
+    return d;
   }
 
   /** v1 → v2 迁移：金币/塔解锁保留；塔等级经验不再跨局（技能卡系统接管） */

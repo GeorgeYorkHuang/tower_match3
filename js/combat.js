@@ -8,7 +8,7 @@
  *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
  *       冰：减速 / 冰冻 / 冰锥穿透 / 寒潮 / 霜星 / 冻结率 / 低温全塔 / 永冻
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
- *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 弹跳 / 充能 / 电磁场
+ *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
  *       炮：溅射 / 重击 / 穿透弹 / 炮台座 / 震击 / 引信 / 弹幕 / 阵地加固
  *   - 敌人状态：灼烧/中毒 DoT、冰冻、麻痹、减速、腐蚀、连击/过载层数
@@ -141,7 +141,7 @@ class CombatSystem {
       const s = this.shots[i];
       s.t += dt;
       if (s.orb) {
-        // v1.13.18 游走电球（弹跳扩散）：每帧随机转向漂移，命中 34px 内敌人即结算消失，dur 耗尽消散
+        // v1.13.18 游走电球（活电扩散）：每帧随机转向漂移，命中 34px 内敌人即结算消失，dur 耗尽消散
         s.ang += (Math.random() - 0.5) * 2.6;
         s.x += Math.cos(s.ang) * s.speed * dt;
         s.y += Math.sin(s.ang) * s.speed * dt;
@@ -884,12 +884,12 @@ class CombatSystem {
       // 麻痹视觉：金黄电火花
       this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 140, 5);
     }
-    // 弹跳（v1.13.18 改电球）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
-    const bounce = this.lv('electric', '弹跳');
+    // 活电（v1.13.18 改电球，v1.13.19 更名）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
+    const bounce = this.lv('electric', '活电');
     if (bounce > 0 && e.paralyzed > 0) {
-      const n = 5 + 2 * Math.max(0, this.branchLv('electric', '弹跳', 'A') - 1);
-      const orbDmg = dmg * 0.5 * (1 + 0.2 * Math.max(0, this.branchLv('electric', '弹跳', 'B') - 1));
-      const oDur = 0.8 + 0.3 * Math.max(0, this.branchLv('electric', '弹跳', 'C') - 1);
+      const n = 5 + 2 * Math.max(0, this.branchLv('electric', '活电', 'A') - 1);
+      const orbDmg = dmg * 0.5 * (1 + 0.2 * Math.max(0, this.branchLv('electric', '活电', 'B') - 1));
+      const oDur = 0.8 + 0.3 * Math.max(0, this.branchLv('electric', '活电', 'C') - 1);
       for (let i = 0; i < n; i++) {
         const orb = {
           key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
@@ -902,7 +902,7 @@ class CombatSystem {
       }
       this.fxRing(e.x, e.y, '#f4d03f', 44, 0.3, 3);
     }
-    // 连锁弹跳（v1.13.18：不再叠加弹跳技能——弹跳已改电球机制）
+    // 连锁弹跳（v1.13.18：不再叠加弹跳——弹跳已改活电电球机制）
     const chainLv = this.lv('electric', '连锁');
     if (chainLv > 0) {
       const extra = 1 + 2 * Math.max(0, chainLv - 1);
@@ -1175,10 +1175,24 @@ class CombatSystem {
         this.timers.arc = 0;
         const dmg = this.shotDmg('electric') * 0.6 * (1 + 0.5 * (arc - 1));
         const targets = this.enemies().filter((e) => e.hp > 0).sort((a, b) => b.y - a.y).slice(0, 5);
+        // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
+        const ly = this.ly();
+        const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
+        const startX = (750 - rowW) / 2;
+        const slotW = ly.slotSize + ly.slotGap;
+        const idx = (this.game.run.slotOrder || []).indexOf('electric');
+        const tx = startX + (idx < 0 ? 0 : idx) * slotW + ly.slotSize / 2;
+        const ty = ly.slotY + ly.slotSize / 2;
         targets.forEach((e) => {
           this.damage(e, dmg, 'electric');
-          // 电弧视觉：塔位到目标连线
-          this.fxBeam(this.ly().slotY, 375, e.x, e.y, '#f4d03f', 0.3, 3);
+          // 电弧视觉：塔口 → 目标 锯齿折线电弧（3 段随机拐点 + 抖动白芯）
+          const path = [{ x: tx, y: ty }];
+          for (let s = 1; s < 3; s++) {
+            const t = s / 3;
+            path.push({ x: tx + (e.x - tx) * t + (Math.random() * 26 - 13), y: ty + (e.y - ty) * t + (Math.random() * 26 - 13) });
+          }
+          path.push({ x: e.x, y: e.y });
+          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.3, color: '#f4d03f', w: 3 });
           this.fxFlash(e.x, e.y, '#f4d03f');
         });
       }

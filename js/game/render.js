@@ -48,7 +48,7 @@ const TOME_ROWS = [
   { tint: '#e74c3c', name: '火塔',     desc: '直线火球 · 灼烧爆破',         skills: '点燃 · 火柱 · 大火球' },
   { tint: '#5dade2', name: '冰塔',     desc: '冰锥减速 · 冻结控场',       skills: '减速场 · 冰冻 · 冰锥穿透' },
   { tint: '#52be80', name: '毒塔',     desc: '毒液持续伤害 · 扩散传染',   skills: '剧毒 · 扩散 · 毒爆' },
-  { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 弹跳群伤',       skills: '连锁 · 麻痹 · 过载' },
+  { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 活电群伤',       skills: '连锁 · 麻痹 · 过载' },
   { tint: '#a569bd', name: '回旋镖塔', desc: '弧线飞行 · 穿透折返',       skills: '穿透 · 折返增伤 · 飞距' },
   { tint: '#b5651d', name: '炮塔',     desc: '抛物线炮弹 · 范围爆炸',     skills: '溅射 · 重击 · 穿透弹' },
 ];
@@ -716,8 +716,22 @@ class Renderer {
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
+        } else if (f.kind === 'zigzag') {
+          // v1.13.19 锯齿电弧（塔口→目标）：多段折线 + 每帧轻微抖动 + 白芯
+          const p = f.path;
+          if (p && p.length > 1) {
+            ctx.strokeStyle = f.color || '#f4d03f'; ctx.lineWidth = (f.w || 3) + 1.5; ctx.globalAlpha = 0.4;
+            ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
+            for (let i = 1; i < p.length; i++) { const j = Math.random() * 5 - 2.5; ctx.lineTo(p[i].x + j, p[i].y + j); }
+            ctx.stroke();
+            ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
+            for (let i = 1; i < p.length; i++) { const j = Math.random() * 5 - 2.5; ctx.lineTo(p[i].x + j, p[i].y + j); }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         } else if (f.kind === 'orb') {
-          // v1.13.18 游走电球（电塔弹跳扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
+          // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
           const o = f.ref || f;
           ctx.fillStyle = '#f4d03f'; ctx.globalAlpha = 0.3;
           ctx.beginPath(); ctx.arc(o.x, o.y, 13, 0, Math.PI * 2); ctx.fill();

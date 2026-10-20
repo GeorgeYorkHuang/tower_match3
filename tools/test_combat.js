@@ -152,8 +152,8 @@ t('电·过载C：满层闪电爆发麻痹周边敌人', () => {
   assert.ok(e3.hp === 1000, '150px 外敌人不受影响');
 });
 
-t('电·弹跳：命中麻痹敌人扩散5个游走电球', () => {
-  const g = mkGame({ electric: { 弹跳: { B: 1 } } });
+t('电·活电：命中麻痹敌人扩散5个游走电球', () => {
+  const g = mkGame({ electric: { 活电: { B: 1 } } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
   const orig = Math.random;
