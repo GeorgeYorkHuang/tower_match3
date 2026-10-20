@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.13.24';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.13.25';        // 设置弹层版本信息
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -108,6 +108,7 @@ class GameMain {
     // 圣物·磐石印：城墙血量上限
     const b = this.meta.relicBonus();
     this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * b.wall));
+    this.run.lineMaxHp = this.run.lineHp;   // v1.13.25 冰墙回血上限基准
     this.state = 'fighting';
     this.wave.start();
     this.toast('进入战斗 · 消灭全部怪物', '#7ef0a3');
@@ -207,16 +208,33 @@ class GameMain {
     });
     // 移动：冰冻/减速影响移动速度；已到城墙攻击范围的停止前进
     this.enemies.forEach((e) => this.moveEnemy(e, dt));
-    // 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击）
+    // 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
     const wallLine = this.ly.wallY - 10; // 城墙攻击范围（城墙顶）
     let wallHits = 0;
     for (const e of this.enemies) {
       if (e.y < wallLine) continue;
       if (e.frozen > 0 || e.paralyzed > 0) continue;
+      // 冰墙攻速减缓计时（v1.13.25：被冰墙迟缓的敌人攻击间隔 ×1.5）
+      if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowMult = 1; }
+      const eAtkInt = (e.attackInterval || 1) * (e.atkSlowMult || 1);
       e.attackT = (e.attackT || 0) + dt;
-      if (e.attackT >= (e.attackInterval || 1)) {
-        e.attackT -= (e.attackInterval || 1);
-        this.run.lineHp -= e.attack;
+      if (e.attackT >= eAtkInt) {
+        e.attackT -= eAtkInt;
+        const iw = this.combat.iceWall;
+        if (iw && iw.ttl > 0) {
+          // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻速减缓×1.5）
+          const absorbed = Math.min(iw.absorb, e.attack);
+          iw.absorb -= absorbed;
+          const leak = e.attack - absorbed;
+          if (leak > 0) this.run.lineHp -= leak;
+          if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
+          this.combat.applySlow(e, 0.4, 2);
+          e.atkSlowMult = 1.5; e.atkSlowT = 2;
+          // 冰墙受击视觉：冰晶飞溅
+          this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
+        } else {
+          this.run.lineHp -= e.attack;
+        }
         wallHits++;
         if (this.run.lineHp <= 0) {
           this.run.lineHp = 0;
@@ -319,6 +337,7 @@ class GameMain {
     this.run.board.regen();
     // v1.9：磐石印圣物加成在重开时同样生效（与 enterBattle 一致）
     this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * this.meta.relicBonus().wall));
+    this.run.lineMaxHp = this.run.lineHp;   // v1.13.25 冰墙回血上限基准
     this.run.broken = false;
     this.run.pendingPeak = 0;
     this.run.picks = 0;

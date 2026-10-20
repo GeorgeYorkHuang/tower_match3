@@ -153,6 +153,22 @@ t('冰·碎冰：命中后碎裂3枚碎冰穿透身后敌人', () => {
   assert.ok(hurt >= 2, `主目标 + 身后敌人应被命中，实际 ${hurt}`);
 });
 
+t('冰·冰墙：周期附魔城墙 + 结束回血', () => {
+  const g = mkGame({ ice: { 冰墙: { C: 1 } } });
+  const c = new CombatSystem(g);
+  const origHp = g.run.lineHp;   // CONFIG.LINE.hp
+  c.timers.iceWall = 19.9;
+  c.update(0.2);   // timer 20.1 ≥20 → 生成冰墙（ttl 8 + 2×A0；C1 → 回血 40）
+  assert.ok(c.iceWall && c.iceWall.ttl > 0, '应生成冰墙');
+  assert.ok(c.iceWall.absorb === 400, '冰墙吸收值应为 400');
+  assert.ok(c.iceWall.heal === 40, 'C1 回血应为 40');
+  // 模拟攻城扣血后冰墙消散回血
+  g.run.lineHp -= 100;
+  c.update(8.0);   // ttl 8 - 8.0 → 结束
+  assert.ok(!c.iceWall, '冰墙应已消散');
+  assert.ok(Math.abs(g.run.lineHp - (origHp - 100 + 40)) < 1e-6, `结束应回血 40，实际 lineHp=${g.run.lineHp}`);
+});
+
 t('冰·冬珠：持续冰霜之球范围伤害', () => {
   const g = mkGame({ ice: { 冬珠: 1 } });
   const c = new CombatSystem(g);

@@ -803,6 +803,34 @@ class Renderer {
             ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 22 * breathe, f.y + Math.sin(a) * 22 * breathe, 3, 0, Math.PI * 2); ctx.fill();
           }
           ctx.globalAlpha = 1;
+        } else if (f.kind === 'icewall') {
+          // v1.13.25 冰墙（城墙冰霜护盾）：横贯城墙的半透明冰墙 + 顶部冰刺 + 冰晶呼吸
+          const fp = Math.min(1, f.t / f.dur);
+          const breathe = 1 + 0.06 * Math.sin(Date.now() / 260);
+          const wy = (f.y || this.ly.wallY);
+          // 主体墙体（冰蓝半透明，中央略厚）
+          ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.20 * (1 - fp * 0.35);
+          ctx.fillRect(f.x - (f.r || 350) / 2, wy - 16 * breathe, (f.r || 350), 30 * breathe);
+          ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.35 * (1 - fp * 0.4);
+          ctx.fillRect(f.x - (f.r || 350) / 2, wy - 6 * breathe, (f.r || 350), 10 * breathe);
+          // 顶部冰刺
+          ctx.fillStyle = '#a9d6f5'; ctx.globalAlpha = 0.7;
+          for (let k = 0; k < 7; k++) {
+            const bx = f.x - (f.r || 350) / 2 + ((k + 0.5) * (f.r || 350)) / 7;
+            const h = (10 + (k % 3) * 6) * breathe;
+            ctx.beginPath();
+            ctx.moveTo(bx - 7, wy - 2);
+            ctx.lineTo(bx, wy - 14 - h);
+            ctx.lineTo(bx + 7, wy - 2);
+            ctx.closePath(); ctx.fill();
+          }
+          // 冰晶粒子（呼吸闪烁）
+          ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 180 + f.x);
+          for (let k = 0; k < 5; k++) {
+            const px = f.x - (f.r || 350) / 2 + ((f.x * 7 + k * 131) % (f.r || 350));
+            ctx.beginPath(); ctx.arc(px, wy - (8 + ((f.x * 13 + k * 71) % 34)), 2.2, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
         } else if (f.kind === 'orb') {
           // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
           const o = f.ref || f;

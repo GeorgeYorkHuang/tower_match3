@@ -6,7 +6,7 @@
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
  *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
- *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 永冻
+ *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
@@ -281,9 +281,6 @@ class CombatSystem {
     let v = dmg;
     // 腐蚀增伤
     if (e.corrode) v *= e.corrode.mult;
-    // 冰·永冻 b：冰塔对冰冻目标 +40%×(lv-1)
-    const perm = Math.max(0, this.lv('ice', '永冻') - 1);
-    if (srcKey === 'ice' && e.frozen > 0 && perm > 0) v *= (1 + 0.40 * perm);
     // 冰·寒霜 C 易伤：被减速目标受伤 +15%/级
     if (e.slow && e.slow.ttl > 0) v *= (1 + 0.15 * this.branchLv('ice', '寒霜', 'C'));
     // 火·点燃 C 焚魂：被灼烧目标受到的伤害 +15%/级（全来源）
@@ -748,7 +745,6 @@ class CombatSystem {
 
   /* ============ 冰塔 ============ */
   hitIce(e, dmg) {
-    // 永冻 b：冰塔对冰冻目标增伤在 damage 内处理
     this.damage(e, dmg, 'ice');
     // 普攻减速（v1.13.23）：基础 20% 概率减速；学寒霜后概率提升至 70%
     // 寒霜 A 凝时：减速时长 +0.5s/级；B 深寒：减速幅度 +15%/级；C 易伤在 damage 内处理
@@ -1311,6 +1307,39 @@ class CombatSystem {
           remain.push(ob);
         }
         this.frostOrbs = remain;
+      }
+    }
+    // 冰墙（v1.13.25 原永冻改，驻场城墙护盾）：每 20 秒为城墙附魔冰霜之墙，持续 8+2A 秒，
+    //     吸收 400 伤害；攻击冰墙的敌人减速 40% + 攻速减缓 ×1.5（由 main.js 攻城段结算吸收/反伤/迟缓）
+    //     A 凝壁 持续+2s/级；B 霜反 反伤 30%/级；C 融暖 结束回血 40/级
+    const wallSkill = this.lv('ice', '冰墙');
+    if (wallSkill > 0) {
+      this.timers.iceWall = (this.timers.iceWall || 0) + dt;
+      // 冰墙驻场推进（ttl 递减，结束回血 + 消散特效）
+      const iw = this.iceWall;
+      if (iw && iw.ttl > 0) {
+        iw.ttl -= dt;
+        if (iw.ttl <= 0) {
+          if (iw.heal > 0 && this.game.run) {
+            const maxHp = this.game.run.lineMaxHp || CONFIG.LINE.hp;
+            this.game.run.lineHp = Math.min(maxHp, this.game.run.lineHp + iw.heal);
+          }
+          this.fxRing(375, this.ly().wallY, '#7fd4ff', 300, 0.5, 5);
+          this.fxParticle(375, this.ly().wallY, '#b8e6ff', 16, 90, 0.6, 160, 6);
+          this.iceWall = null;
+        }
+      }
+      if (this.timers.iceWall >= 20) {
+        this.timers.iceWall = 0;
+        this.iceWall = {
+          ttl: 8 + 2 * Math.max(0, this.branchLv('ice', '冰墙', 'A') - 1),
+          absorb: 400,
+          reflect: 0.30 * this.branchLv('ice', '冰墙', 'B'),
+          heal: 40 * this.branchLv('ice', '冰墙', 'C'),
+        };
+        this.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: this.ly().wallY, t: 0, dur: this.iceWall.ttl });
+        this.fxRing(375, this.ly().wallY, '#7fd4ff', 320, 0.6, 5);
+        this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
       }
     }
     const arc = this.lv('electric', '电弧');
