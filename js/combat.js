@@ -889,11 +889,11 @@ class CombatSystem {
     if (bounce > 0 && e.paralyzed > 0) {
       const n = 5 + 2 * Math.max(0, this.branchLv('electric', '活电', 'A') - 1);
       const orbDmg = dmg * 0.5 * (1 + 0.2 * Math.max(0, this.branchLv('electric', '活电', 'B') - 1));
-      const oDur = 0.8 + 0.3 * Math.max(0, this.branchLv('electric', '活电', 'C') - 1);
+      const oDur = 1.4 + 0.4 * Math.max(0, this.branchLv('electric', '活电', 'C') - 1);   // v1.13.21 游走时长 0.8→1.4s
       for (let i = 0; i < n; i++) {
         const orb = {
           key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
-          x: e.x, y: e.y, ang: Math.random() * Math.PI * 2, speed: 95 + Math.random() * 60,
+          x: e.x, y: e.y, ang: Math.random() * Math.PI * 2, speed: 150 + Math.random() * 80,   // v1.13.21 速度 95-155→150-230
           orb: true, fx: null,
         };
         orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };

@@ -571,23 +571,41 @@ class Renderer {
         ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
         ctx.globalAlpha = 1;
       }
+      // v1.13.21 麻痹持续特效：头顶金色电花（⚡+跳动电光点），麻痹期间常驻
+      if (e.paralyzed > 0) {
+        const cx = x + size / 2, cy = y + size / 2;
+        const tNow = Date.now();
+        ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillText('⚡', cx, cy - size * 0.72);
+        // 周围跳动电光点（确定性：时间+索引相位）
+        for (let k = 0; k < 3; k++) {
+          const ph = tNow / 130 + k * 2.1;
+          const rx = cx + Math.cos(ph) * (size * 0.62 + 3 * Math.sin(tNow / 90 + k));
+          const ry = cy - size * 0.72 + Math.sin(ph * 1.7) * size * 0.34;
+          ctx.fillStyle = '#f4d03f'; ctx.globalAlpha = 0.55 + 0.4 * Math.sin(tNow / 110 + k * 2);
+          ctx.beginPath(); ctx.arc(rx, ry, 2.6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       if (e.dots && e.dots.length) {
         e.dots.forEach((d) => {
           if (d.type === 'burn') {
             // v1.13.7 灼烧效果：4 帧火焰贴图循环燃烧（120ms/帧，透明 PNG）+ 火焰描边 + 少量火苗
+            // v1.13.21 图标缩小并下移到底部（怪物脚下）
             const fireI = d.stack || 1;
             const cx = x + size / 2, cy = y + size / 2;
-            const fw = size * (1.1 + 0.08 * Math.min(2, fireI)), fh = size * (1.1 + 0.08 * Math.min(2, fireI));
+            const fw = size * (0.68 + 0.05 * Math.min(2, fireI)), fh = size * (0.68 + 0.05 * Math.min(2, fireI));
             const frameIdx = Math.floor(Date.now() / 120) % 4;
-            if (!drawImg(ctx, `images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, cy - size * 0.95, fw, fh)) {
+            if (!drawImg(ctx, `images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, cy + size * 0.28, fw, fh)) {
               // 贴图未加载时回退：火光圆 + 跳动火苗（确定性）
               ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
-              ctx.beginPath(); ctx.arc(cx, cy, size * 0.26, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(cx, cy + size * 0.28, size * 0.18, 0, Math.PI * 2); ctx.fill();
               ctx.globalAlpha = 1;
               for (let k = 0; k < 2 + Math.min(3, fireI); k++) {
-                const rx = cx + (Math.random() - 0.5) * size * 0.7;
-                const ry = cy + (Math.random() - 0.45) * size * 0.45;
-                const rr = (1.6 + Math.random() * 3) * (1 + 0.25 * Math.min(2, fireI));
+                const rx = cx + (Math.random() - 0.5) * size * 0.5;
+                const ry = cy + size * 0.28 + (Math.random() - 0.45) * size * 0.35;
+                const rr = (1.4 + Math.random() * 2.6) * (1 + 0.25 * Math.min(2, fireI));
                 ctx.fillStyle = Math.random() < 0.45 ? '#ffd24a' : '#ff7043';
                 ctx.globalAlpha = 0.45 + Math.random() * 0.45;
                 ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fill();
@@ -596,7 +614,7 @@ class Renderer {
             }
             // 火焰描边（闪烁，叠层越多越旺）
             const flick = 0.6 + 0.4 * Math.sin(Date.now() / 110 + e.x * 0.05);
-            ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2.5 + 0.5 * Math.min(2, fireI); ctx.globalAlpha = 0.7 * flick + 0.15 * Math.min(2, fireI);
+            ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2 + 0.5 * Math.min(2, fireI); ctx.globalAlpha = 0.7 * flick + 0.15 * Math.min(2, fireI);
             ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
             ctx.globalAlpha = 1;
           } else {
