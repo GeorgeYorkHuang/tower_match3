@@ -332,17 +332,21 @@ class Renderer {
         const lvY = cy + 130;
         fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 24, 12, '#f7c948');
         text(ctx, lvTxt, cx + cardW / 2, lvY + 13, lvSize, '#5c4a00', 'center');
-        // 三分支徽章横排（分支名 + 等级；v1.14 火塔用分支名称，其余塔效果短词）
+        // 分支徽章横排（v1.13.16：只显示已选择升级的分支——lv>0 金色徽章，未选分支不渲染；已选分支整体居中）
         const bw = 54, bh = 48, bY = cy + 178;
-        ['A', 'B', 'C'].forEach((br, bi) => {
-          const l = sk.branches[br] || 0;
-          const on = l > 0;
-          const bx = cx + 12 + bi * (bw + 4);
-          fillRoundRect(ctx, bx, bY, bw, bh, 8, on ? 'rgba(247,201,72,0.22)' : '#2c3542');
-          strokeRoundRect(ctx, bx, bY, bw, bh, 8, on ? '#f7c948' : 'rgba(255,255,255,0.12)', 1.5);
-          text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 17, 12, on ? '#f7c948' : '#8ea3b8', 'center');
-          text(ctx, `Lv${l}`, bx + bw / 2, bY + 35, 11, on ? '#f7c948' : '#6c7a88', 'center');
-        });
+        const activeBrs = ['A', 'B', 'C'].filter((br) => (sk.branches[br] || 0) > 0);
+        if (activeBrs.length) {
+          const totalW = activeBrs.length * bw + (activeBrs.length - 1) * 4;
+          const startX = cx + (cardW - totalW) / 2;
+          activeBrs.forEach((br, bi) => {
+            const l = sk.branches[br] || 0;
+            const bx = startX + bi * (bw + 4);
+            fillRoundRect(ctx, bx, bY, bw, bh, 8, 'rgba(247,201,72,0.22)');
+            strokeRoundRect(ctx, bx, bY, bw, bh, 8, '#f7c948', 1.5);
+            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 17, 12, '#f7c948', 'center');
+            text(ctx, `Lv${l}`, bx + bw / 2, bY + 35, 11, '#f7c948', 'center');
+          });
+        }
       });
     }
     // 关闭按钮
@@ -762,17 +766,52 @@ class Renderer {
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.beginPath(); ctx.arc(2.25 * sc, 0, 5.6 * sc, 0, Math.PI * 2); ctx.fill();
+          } else if (f.key === 'fire') {
+            // v1.13.16 火球弹道美化：多层焰体（辉光/橙焰/亮心）+ 沿飞行反向火焰尾（三段椭圆渐变+摆动）+ 尾迹火星 + 前部焰舌
+            // 尾部长度随飞行推进收敛（出发时尾长，接近目标时收短）
+            const trailLen = (34 + (1 - p) * 30) * sc;
+            // 火焰尾：三段椭圆渐变沿 -x 叠放（外→内：深橙/橙/亮黄），摆动 + 淡出
+            const trailCols = ['#e25822', '#ff8c42', '#ffd24a'];
+            const trailSegs = [[0.50, 7.2, 0.30], [0.32, 5.6, 0.45], [0.16, 4.2, 0.65]];
+            for (let i = 0; i < 3; i++) {
+              ctx.globalAlpha = (1 - p) * trailSegs[i][2];
+              ctx.fillStyle = trailCols[i];
+              ctx.beginPath();
+              ctx.ellipse(-trailLen * trailSegs[i][0], (Math.random() - 0.5) * 5 * sc, trailLen * trailSegs[i][0], trailSegs[i][1] * sc, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // 尾迹火星（随机散布在尾部，渐淡）
+            for (let i = 0; i < 3; i++) {
+              ctx.globalAlpha = (1 - p) * (0.25 + Math.random() * 0.35);
+              ctx.fillStyle = Math.random() > 0.5 ? '#ffe08a' : '#ff8c42';
+              ctx.beginPath();
+              ctx.arc(-trailLen * (0.2 + Math.random() * 0.65), (Math.random() - 0.5) * 9 * sc, (1.8 + Math.random() * 2.2) * sc, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            // 弹体：三层焰球（外辉 → 橙焰 → 亮心）
+            ctx.fillStyle = f.color; ctx.globalAlpha = 0.5;
+            ctx.beginPath(); ctx.arc(0, 0, 16.5 * sc, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#ff8c42';
+            ctx.beginPath(); ctx.arc(0, 0, 11.5 * sc, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffe08a';
+            ctx.beginPath(); ctx.arc(1.8 * sc, 0, 6.8 * sc, 0, Math.PI * 2); ctx.fill();
+            // 前部焰舌（燃烧突出，随飞行抖动）
+            ctx.fillStyle = '#ffd24a'; ctx.globalAlpha = 0.85;
+            for (let i = -1; i <= 1; i++) {
+              ctx.beginPath();
+              ctx.moveTo(10 * sc, i * 3.2 * sc);
+              ctx.quadraticCurveTo(16.5 * sc, i * 2 * sc, 14.5 * sc, i * 6 * sc);
+              ctx.closePath(); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
           } else {
-            // 火球/毒液：圆形弹体（火=橙红焰心，毒=绿球）
+            // 毒液：绿球（原样）
             ctx.fillStyle = f.color;
             ctx.beginPath(); ctx.arc(0, 0, 13.5 * sc, 0, Math.PI * 2); ctx.fill();
-            if (f.key === 'fire') {
-              ctx.fillStyle = '#ffe08a';
-              ctx.beginPath(); ctx.arc(4.5 * sc, 0, 6.75 * sc, 0, Math.PI * 2); ctx.fill();
-            } else {
-              ctx.fillStyle = 'rgba(255,255,255,0.5)';
-              ctx.beginPath(); ctx.arc(-3.4 * sc, -3.4 * sc, 4.05 * sc, 0, Math.PI * 2); ctx.fill();
-            }
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath(); ctx.arc(-3.4 * sc, -3.4 * sc, 4.05 * sc, 0, Math.PI * 2); ctx.fill();
           }
           ctx.restore();
           // 拖尾（外辉 + 亮线）
