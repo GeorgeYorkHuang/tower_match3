@@ -730,6 +730,39 @@ class Renderer {
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
+        } else if (f.kind === 'storm') {
+          // v1.13.20 雷暴演出：0.22s 预兆收缩金圈 → 主闪（锯齿主枝+2 分叉+白芯）→ 落点闪光；delay 用于分批错开
+          const tt = f.t - (f.delay || 0);
+          if (tt < 0) return;
+          const sx = f.x, sy = f.y;
+          if (tt < 0.22) {
+            // 预兆：目标点收缩金圈
+            const k = tt / 0.22;
+            ctx.strokeStyle = '#f4d03f'; ctx.lineWidth = 2.2; ctx.globalAlpha = (1 - k) * 0.85;
+            ctx.beginPath(); ctx.arc(sx, sy, 10 + 24 * k, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 1;
+          } else if (tt < 0.55) {
+            const pk = (tt - 0.22) / 0.33;
+            const seed = f.seed || 0;
+            const topY = sy - 220;
+            const off1 = (seed % 19) - 9, off2 = ((seed >> 3) % 21) - 10;
+            const mid1 = { x: sx + off1, y: sy + (topY - sy) * 0.35 };
+            const mid2 = { x: sx + off2, y: sy + (topY - sy) * 0.7 };
+            // 主枝（金芯 + 白芯）
+            ctx.strokeStyle = '#f4d03f'; ctx.lineWidth = 4; ctx.globalAlpha = 0.9 * Math.min(1, pk * 3 + 0.15);
+            ctx.beginPath(); ctx.moveTo(sx, topY); ctx.lineTo(mid1.x, mid1.y); ctx.lineTo(mid2.x, mid2.y); ctx.lineTo(sx, sy); ctx.stroke();
+            ctx.globalAlpha = 0.95; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(sx, topY); ctx.lineTo(mid1.x, mid1.y); ctx.lineTo(mid2.x, mid2.y); ctx.lineTo(sx, sy); ctx.stroke();
+            // 2 条分叉
+            ctx.globalAlpha = 0.7; ctx.strokeStyle = '#f4d03f'; ctx.lineWidth = 2.6;
+            ctx.beginPath(); ctx.moveTo(mid1.x, mid1.y); ctx.lineTo(mid1.x - 26 + (seed % 13), mid1.y + 36); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(mid2.x, mid2.y); ctx.lineTo(mid2.x + 24 - ((seed >> 2) % 11), mid2.y + 28); ctx.stroke();
+            ctx.globalAlpha = 1;
+            // 落点闪光
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.85 * (1 - pk);
+            ctx.beginPath(); ctx.arc(sx, sy, 10 * (1 - pk * 0.5), 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
         } else if (f.kind === 'orb') {
           // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
           const o = f.ref || f;

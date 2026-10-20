@@ -1170,11 +1170,11 @@ class CombatSystem {
     }
     const arc = this.lv('electric', '电弧');
     if (arc > 0) {
+      // v1.13.20 削弱：周期 5×(1-0.2×Lv)（Lv4 2s）；伤害 0.5×(1+0.3×Lv)（Lv4 95%）；目标 5→3 且限塔射程
       this.timers.arc = (this.timers.arc || 0) + dt;
-      if (this.timers.arc >= 5 * (1 - 0.3 * (arc - 1))) {
+      if (this.timers.arc >= 5 * (1 - 0.2 * (arc - 1))) {
         this.timers.arc = 0;
-        const dmg = this.shotDmg('electric') * 0.6 * (1 + 0.5 * (arc - 1));
-        const targets = this.enemies().filter((e) => e.hp > 0).sort((a, b) => b.y - a.y).slice(0, 5);
+        const dmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (arc - 1));
         // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
         const ly = this.ly();
         const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
@@ -1183,6 +1183,8 @@ class CombatSystem {
         const idx = (this.game.run.slotOrder || []).indexOf('electric');
         const tx = startX + (idx < 0 ? 0 : idx) * slotW + ly.slotSize / 2;
         const ty = ly.slotY + ly.slotSize / 2;
+        const range = CONFIG.TOWERS.electric.range;
+        const targets = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range).sort((a, b) => b.y - a.y).slice(0, 3);
         targets.forEach((e) => {
           this.damage(e, dmg, 'electric');
           // 电弧视觉：塔口 → 目标 锯齿折线电弧（3 段随机拐点 + 抖动白芯）
@@ -1199,18 +1201,48 @@ class CombatSystem {
     }
     const storm = this.lv('electric', '雷暴');
     if (storm > 0) {
+      // v1.13.20 雷暴重做：随机电击 N 个敌人；A=雷击目标+2/级；B=雷击连锁周边敌人；C=雷击间隔-25%/级
+      const cLv = this.branchLv('electric', '雷暴', 'C');
+      const period = 10 * (1 - 0.25 * cLv);   // C1 7.5 / C2 5 / C3 2.5s
       this.timers.storm = (this.timers.storm || 0) + dt;
-      if (this.timers.storm >= 10 * (1 - 0.3 * (storm - 1))) {
+      if (this.timers.storm >= period) {
         this.timers.storm = 0;
-        const dmg = this.shotDmg('electric') * 0.8 * (1 + 0.4 * (storm - 1));
-        this.enemies().forEach((e) => {
-          if (e.hp <= 0 || Math.random() < 0.6) return;
+        const aLv = this.branchLv('electric', '雷暴', 'A');
+        const bLv = this.branchLv('electric', '雷暴', 'B');
+        const n = 3 + 2 * Math.max(0, aLv - 1);   // A1 5 / A2 7 / A3 9
+        const dmg = this.shotDmg('electric') * 0.8 * (1 + 0.25 * (storm - 1));
+        // 全图随机 N 个存活目标（Fisher-Yates）
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        const pool = alive.slice();
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+        }
+        const targets = pool.slice(0, n);
+        // 按 y 从上到下分 2-3 批，每批间隔 0.12s（落雷演出分批）
+        const sorted = targets.slice().sort((a, b) => a.y - b.y);
+        const batches = Math.min(3, Math.max(2, Math.ceil(n / 3)));
+        sorted.forEach((e, idx) => {
+          const delay = Math.floor(idx * batches / n) * 0.12;
+          // 雷击伤害（即时结算）
           this.damage(e, dmg, 'electric');
-          // 雷暴视觉：随机落雷连线 + 电花
-          this.fxBeam(e.x + (Math.random() * 60 - 30), e.y - 220, e.x, e.y, '#f4d03f', 0.35, 4);
-          this.fxBeam(e.x + (Math.random() * 60 - 30), e.y - 220, e.x, e.y, '#ffffff', 0.35, 1.5);
-          this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 150, 5);
-          this.fxFlash(e.x, e.y, '#ffffff');
+          // B 分支：雷击命中后连锁周边最近 bLv 个敌人（90px，50% 伤害）
+          if (bLv > 0) {
+            const chain = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
+              .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, bLv);
+            chain.forEach((o) => {
+              this.damage(o, dmg * 0.5, 'electric');
+              const cpath = [{ x: e.x, y: e.y }];
+              const mx = (e.x + o.x) / 2 + (Math.random() * 14 - 7), my = (e.y + o.y) / 2 + (Math.random() * 14 - 7);
+              cpath.push({ x: mx, y: my }, { x: o.x, y: o.y });
+              this.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
+              this.fxFlash(o.x, o.y, '#7fc7ff');
+            });
+          }
+          // 雷暴演出：预兆圈 0.22s → 主闪分叉 → 地面电花（按批 delay 错开）
+          this.game.fx.push({ type: 'shot', kind: 'storm', x: e.x, y: e.y, t: 0, dur: delay + 0.55, delay, seed: Math.floor(Math.random() * 9999) });
+          this.fxParticle(e.x, e.y, '#f4d03f', 6, 40, 0.35, 140, 5);
+          this.fxRing(e.x, e.y, '#f4d03f', 26, 0.35, 3);
         });
       }
     }

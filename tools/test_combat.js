@@ -163,6 +163,48 @@ t('电·活电：命中麻痹敌人扩散5个游走电球', () => {
   assert.ok(c.shots.filter((s) => s.orb).length === 5, '基础扩散 5 个电球');
 });
 
+t('电·雷暴：随机电击3个敌人', () => {
+  const g = mkGame({ electric: { 雷暴: 1 } });
+  const c = new CombatSystem(g);
+  const orig = Math.random;
+  try {
+    Math.random = () => 0.5;
+    for (let i = 0; i < 5; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 500 + i * 30));
+    c.update(10);   // 周期 10s（C=0）触发一次；普攻也会命中最近目标
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((e) => e.hp < 1000).length;
+  assert.ok(hurt >= 3 && hurt <= 4, `基础雷暴应电击 3 个（+普攻重叠），实际 ${hurt}`);
+});
+
+t('电·雷暴B：雷击连锁周边敌人', () => {
+  const g = mkGame({ electric: { 雷暴: { B: 2 } } });
+  const c = new CombatSystem(g);
+  const orig = Math.random;
+  try {
+    Math.random = () => 0.5;
+    // 紧密聚堆（间距 30 < 90）：雷击命中后连锁必覆盖周边
+    for (let i = 0; i < 4; i++) g.enemies.push(mkEnemy(1000, 300 + i * 30, 500));
+    c.update(10);
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((e) => e.hp < 1000).length;
+  assert.ok(hurt >= 4, `雷击3个+连锁应覆盖全部4个，实际 ${hurt}`);
+});
+
+t('电·电弧：周期触发射程内前3目标', () => {
+  const g = mkGame({ electric: { 电弧: 1 } });
+  const c = new CombatSystem(g);
+  const orig = Math.random;
+  try {
+    Math.random = () => 0.5;
+    // 4 个射程内（塔口 y≈1103，range 700）+ 1 个超射程（y=100）
+    for (let i = 0; i < 4; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 500 + i * 30));
+    g.enemies.push(mkEnemy(1000, 500, 100));
+    c.update(10);   // 电弧周期 5s（Lv1）触发一次
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((e) => e.hp < 1000).length;
+  assert.ok(hurt === 3, `电弧应命中射程内前 3（超射程不受），实际 ${hurt}`);
+});
+
 t('火·大火球：命中爆炸波及邻近敌人', () => {
   const g = mkGame({ fire: { 大火球: 1 } });
   const c = new CombatSystem(g);
