@@ -490,22 +490,24 @@ t('毒·中毒可叠层：多次命中叠到上限并刷新', () => {
   assert.ok(hp0 - e.hp > 0, 'DoT 应按层数持续掉血');
 });
 
-t('回旋镖·暴击：概率暴击（固定随机触发）', () => {
-  const g = mkGame({ boomerang: { 暴击: 1 } });
+t('回旋镖·折返增伤：命中后折返段追加伤害（A 增强）', () => {
+  const g = mkGame({ boomerang: { '折返增伤': { A: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  const orig = Math.random; Math.random = () => 0;
-  try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
-  assert.ok(1000 - e.hp > 100, '暴击应造成更高伤害');
+  c.hit('boomerang', e, 100);
+  const lost = 1000 - e.hp;
+  assert.ok(lost > 100, '折返段应追加额外伤害');
+  assert.ok(lost <= 100 + 100 * 0.65 * 1.25 + 0.01, '折返段 = 命中×0.65×(1+0.25×A)');
 });
 
-t('炮·溅射：爆炸范围伤害', () => {
-  const g = mkGame({ cannon: { 溅射: 1 } });
+t('炮·重炮：爆炸范围伤害（半径随 A 增强）', () => {
+  const g = mkGame({ cannon: { 重炮: { A: 2 } } }, ['cannon']);
   const c = new CombatSystem(g);
   const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 395, 820); g.enemies.push(e2);
   c.hit('cannon', e1, 100);
   assert.ok(e2.hp < 1000, '爆炸应波及邻近敌人');
+  assert.ok(Math.abs(48 * (1 + 0.25 + 0.15 * 2) - 48 * 1.55) < 0.01, '重炮半径 = 48×(1+0.25×lv+0.15×A)');
 });
 
 t('死亡触发：燃爆（灼烧敌人死亡时爆炸波及邻近）', () => {
@@ -665,35 +667,69 @@ t('回旋镖 sweep：椭圆大弧越过怪物后绕回，沿途扫过所有敌�
   assert.ok(1000 - e1.hp <= 100, '单镖对同一敌人只结算一次');
 });
 
-t('回旋镖·多镖：每次多投 1 枚，单镖伤害下降（总数上升）', () => {
-  const g = mkGame({ boomerang: { 多镖: 1 } }, ['boomerang']);
+t('回旋镖·多镖：多投且单镖衰减（B 稳镖减半）', () => {
+  const g = mkGame({ boomerang: { 多镖: { B: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
   const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
   const dmg = c.shotDmg('boomerang');
   c.attackOnce('boomerang');
   const sweeps = c.shots.filter((s) => s.sweep);
   assert.strictEqual(sweeps.length, 2, '多镖 Lv1 应一次投出 2 枚回旋镖');
-  sweeps.forEach((s) => assert.ok(Math.abs(s.dmg - dmg * 0.85) < 0.01, '多镖单镖伤害应为基础 ×0.85'));
-  assert.ok(c.shots.every((s) => s.tx >= 0 && s.ty >= 0), '多镖各枚落点应有效');
+  sweeps.forEach((s) => assert.ok(Math.abs(s.dmg - dmg * (1 - 0.12 * 0.5)) < 0.01, 'B 稳镖：单镖衰减减半为 6%'));
 });
 
-t('回旋镖·巨镖：吸附半径放大，可扫中轨迹外侧敌人', () => {
-  const g = mkGame({ boomerang: { 巨镖: 1 } }, ['boomerang']);
+t('回旋镖·穿透：命中后贯穿身后敌人', () => {
+  const g = mkGame({ boomerang: { 穿透: { A: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
-  const s0 = { key: 'boomerang', dmg: 100, t: 0, dur: 1.2, sx: 375, sy: 1100, tx: 375, ty: 400, sweep: true, hitIds: {}, large: 1 };
-  // 敌人放在轨迹采样点外侧 50px：基础半径 42 够不到，巨镖 42×1.3=54.6 可扫中
-  const pos = c.sweepPos(s0, 0.5);
-  const e = mkEnemy(1000, pos.x, pos.y + 50); g.enemies.push(e);
+  const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 375, 740); g.enemies.push(e2); // 身后 40px（<55 可贯穿）
+  c.hit('boomerang', e1, 100);
+  assert.ok(e2.hp < 1000, '穿透应命中身后敌人');
+});
+
+t('回旋镖·猎手标记：命中同目标叠层增伤', () => {
+  const g = mkGame({ boomerang: { 猎手标记: { A: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  c.hit('boomerang', e, 100);
+  const hp1 = e.hp;
+  c.hit('boomerang', e, 100);
+  assert.ok(hp1 - e.hp > 100, '第二击应受标记层数加成');
+});
+
+t('回旋镖·风痕：镖路径留痕（A 久痕）', () => {
+  const g = mkGame({ boomerang: { 风痕: { A: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const s0 = { key: 'boomerang', dmg: 100, t: 0, dur: 1.2, sx: 375, sy: 1100, tx: 375, ty: 400, sweep: true, hitIds: {}, windLv: 1 };
   c.shots.push(s0);
-  for (let i = 0; i < 90; i++) c.update(1 / 60);
-  assert.ok(e.hp < 1000, '巨镖 Lv1 吸附半径应放大并扫中轨迹外侧敌人');
+  for (let i = 0; i < 30; i++) c.update(1 / 60);
+  assert.ok(c.windTrails && c.windTrails.length > 0, '镖路径应留下风痕');
+});
+
+t('回旋镖·风暴镖：每 12 秒召唤持续伤害旋风（A 扩域）', () => {
+  const g = mkGame({ boomerang: { 风暴镖: { A: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
+  c.update(12.01);
+  assert.strictEqual(c.storms.length, 1, '应生成 1 个风暴镖');
+  const hp0 = e.hp;
+  for (let i = 0; i < 30; i++) c.update(1 / 60); // 0.5s 圈内 DoT
+  assert.ok(e.hp < hp0, '风暴内敌人应持续受伤');
+});
+
+t('回旋镖·镖阵：每 10 秒投出环形镖阵（A 增镖）', () => {
+  const g = mkGame({ boomerang: { 镖阵: { A: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
+  c.update(10.01);
+  assert.ok(c.shots.filter((s) => s.ring).length >= 12, 'A1 应投出 12 枚环形镖');
 });
 
 t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', () => {
   const g = mkGame({ boomerang: {} });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  const dmg = c.shotDmg('boomerang'); // 22 × 1.3 = 28.6
+  const dmg = c.shotDmg('boomerang');
   let maxS = 0;
   for (let i = 0; i < 300; i++) { // 推进 5s（dur 2.4s，应投两枚）
     c.update(1 / 60);
@@ -701,6 +737,72 @@ t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', ()
   }
   assert.strictEqual(maxS, 1, '任意时刻至多一枚回旋镖在飞（接到镖才能投下一个）');
   assert.ok(e.hp < 1000 - dmg * 1.5, '接回后第二枚应继续造成伤害');
+});
+
+t('回旋镖·接镖C续投：接镖立即投且下镖伤害 +10%/级', () => {
+  const g = mkGame({ boomerang: { 接镖: { C: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const dmg = c.shotDmg('boomerang');
+  c.attackOnce('boomerang');
+  c.shots = []; c.bWait.boomerang = true; // 模拟接回
+  c.update(1 / 60);
+  const s = c.shots.find((x) => x.sweep);
+  assert.ok(s && Math.abs(s.dmg - dmg * 1.10) < 0.01, '续投伤害 = shotDmg×1.10');
+});
+
+t('炮·双管齐射：A 概率双发（固定随机触发）', () => {
+  const g = mkGame({ cannon: { 双管齐射: { A: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0;
+  try { c.attackOnce('cannon'); } finally { Math.random = orig; }
+  assert.strictEqual(c.shots.length, 2, '双管齐射应发射 2 枚炮弹');
+});
+
+t('炮·贯穿弹：爆炸后弹片贯穿身后敌人', () => {
+  const g = mkGame({ cannon: { 贯穿弹: { A: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 375, 745); g.enemies.push(e2);
+  c.hit('cannon', e1, 100);
+  assert.ok(e2.hp < 1000, '贯穿弹应命中身后敌人');
+});
+
+t('炮·炮火支援：每 12 秒降下炮击（延迟爆炸落点）', () => {
+  const g = mkGame({ cannon: { 炮火支援: { A: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  g.enemies.push(mkEnemy(1000, 375, 700));
+  c.update(12.01);
+  assert.ok(c.delayed.length >= 4, 'A1 应降下 4 发延迟落点');
+});
+
+t('炮·地雷阵：每 15 秒城墙前布雷，踩中爆炸', () => {
+  const g = mkGame({ cannon: { 地雷阵: { A: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  c.update(15.01);
+  assert.ok(c.mines.length >= 5, 'A1 应埋 5 颗雷');
+  const m = c.mines[0];
+  const e = mkEnemy(2000, m.x, m.y); g.enemies.push(e);
+  for (let i = 0; i < 60 && e.hp > 0; i++) c.update(1 / 60);
+  assert.ok(e.hp < 2000, '敌人踩中地雷应爆炸受伤');
+});
+
+t('炮·炮台：周期召唤自动炮台独立炮击', () => {
+  const g = mkGame({ cannon: { 炮台: { A: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  c.update(10.01);
+  assert.ok(c.turrets.length >= 2, 'A1 应部署 2 门炮台');
+  const e = mkEnemy(2000, 375, 700); g.enemies.push(e);
+  for (let i = 0; i < 120 && e.hp > 0; i++) c.update(1 / 60);
+  assert.ok(e.hp < 2000, '炮台应独立炮击敌人');
+});
+
+t('协同：炮重炮×火大火球（溅射已更名重炮，v1.16）', () => {
+  const hit = CONFIG.SYNERGIES.some((s) =>
+    (s.a.tower === 'cannon' && s.a.effect === '重炮' && s.b.tower === 'fire' && s.b.effect === '大火球') ||
+    (s.a.tower === 'fire' && s.a.effect === '大火球' && s.b.tower === 'cannon' && s.b.effect === '重炮'));
+  assert.ok(hit, 'SYNERGIES 应引用新技能名 重炮');
 });
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);

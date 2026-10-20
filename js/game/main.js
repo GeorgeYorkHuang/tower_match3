@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.15.0';        // v1.15.0 毒塔技能重做：基础中毒叠层机制 + 剧毒/毒爆/毒池/毒棒/毒性强化/瘟疫/毒藤/瘴气环境 8 技能新分支；移除燃爆×毒爆协同
+const GAME_VERSION = 'v1.16.0';        // v1.16.0 炮塔与回旋镖塔技能重做：8技能×3分支（重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库；折返增伤/穿透/多镖/接镖/猎手标记/风暴镖/镖阵/风痕）+ 新特效 + 数值平衡（溅射→重炮协同更名）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

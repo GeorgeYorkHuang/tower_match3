@@ -46,6 +46,7 @@ class CombatSystem {
     this.atkTimers = {};    // 每塔攻击计时
     this.kills = {};        // 每塔击杀计数（回收/充能联动）
     this.bWait = {};        // 回旋镖：镖在飞行中 → true（接回后才能投下一个）
+    this._nextDmg = {};     // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
   }
 
   reset() {
@@ -55,9 +56,14 @@ class CombatSystem {
     this.atkTimers = {};
     this.kills = {};
     this.bWait = {};
+    this._nextDmg = {};        // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
     this.groundDots = [];      // 火·火柱余烬 / 毒·毒池·毒沼：地面持续区域
     this.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
     this.poisonSticks = [];    // 毒·毒棒：独立攻击的召唤物（v1.15）
+    this.mines = [];           // 炮·地雷阵（v1.16）
+    this.turrets = [];         // 炮·炮台（v1.16）
+    this.storms = [];          // 回旋镖·风暴镖（v1.16）
+    this.windTrails = [];      // 回旋镖·风痕（v1.16）
   }
 
   /* ---------- 工具 ---------- */
@@ -86,12 +92,12 @@ class CombatSystem {
     // 冰·低温全塔：全塔 +10%/级，冰塔额外 +15%/级
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
-    // 回旋镖·攻速 +25%/级
-    if (key === 'boomerang') iv /= (1 + 0.25 * this.lv('boomerang', '攻速'));
-    // 回旋镖·飞距更快折返 +10%/级
-    if (key === 'boomerang') iv /= (1 + 0.10 * Math.max(0, this.lv('boomerang', '飞距') - 1));
-    // 炮·炮台座 +20%/级
-    if (key === 'cannon') iv /= (1 + 0.20 * this.lv('cannon', '炮台座'));
+    // 回旋镖·接镖 A 疾投：攻速 +15%/级（v1.16 重做）
+    if (key === 'boomerang') iv /= (1 + 0.15 * this.branchLv('boomerang', '接镖', 'A'));
+    // 炮·双管齐射 C 速射：+12%/级；军火库 A 速填：+15%/级（v1.16 重做）
+    if (key === 'cannon') iv /= (1 + 0.12 * this.branchLv('cannon', '双管齐射', 'C') + 0.15 * this.branchLv('cannon', '军火库', 'A'));
+    // 炮·军火库 B 协同：全塔攻速 +8%/级（炮塔在场即全塔生效）
+    if (this.lv('cannon', '军火库') > 0) iv /= (1 + 0.08 * this.branchLv('cannon', '军火库', 'B'));
     // 电·充能：命中累计攻速 +5%/层（上限 5×lv 层；A 扩容上限+5/级、B 快充每层+10%、C 共享全塔）
     const charge = this.lv('electric', '充能');
     if (charge > 0 && (key === 'electric' || this.branchLv('electric', '充能', 'C') > 0)) {
@@ -107,13 +113,12 @@ class CombatSystem {
     return Math.max(0.15, iv);
   }
 
-  /** 塔当前射程（射程/飞距/范围回旋技能叠加） */
+  /** 塔当前射程（射程/技能叠加） */
   range(key) {
     const cfg = CONFIG.TOWERS[key];
     let r = cfg.range;
     // 火·火焰鹰眼 A（延伸）：射程 +30%/级
     if (key === 'fire') r *= (1 + 0.30 * this.branchLv('fire', '火焰鹰眼', 'A'));
-    if (key === 'boomerang') r *= (1 + 0.30 * this.lv('boomerang', '飞距') + 0.30 * this.lv('boomerang', '范围回旋'));
     return r;
   }
 
@@ -178,13 +183,18 @@ class CombatSystem {
         this.sweepDamage(s, dt);
       }
     }
-    // 2. 延迟爆炸（炮引信）
+    // 2. 延迟爆炸（炮引信/炮火支援落点）
     for (let i = this.delayed.length - 1; i >= 0; i--) {
       const d = this.delayed[i];
       d.t += dt;
       if (d.t >= d.delay) {
         this.delayed.splice(i, 1);
         this.explode(d.x, d.y, d.r, d.dmg, d.key, d.knock, d.slowAfter);
+        // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
+        if (d.ember > 0) {
+          this.groundDots = this.groundDots || [];
+          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon') * 0.30 * d.ember, key: 'fire' });
+        }
       }
     }
     // 3. 敌人状态推进（DoT / 控制 / 层数衰减）
@@ -234,6 +244,79 @@ class CombatSystem {
             this.fxParticle(o.x, o.y, '#7ee2a8', 4, 30, 0.3, 90, 4);
           });
         }
+      }
+    }
+    // 3.7 炮·地雷（v1.16）：敌人踩中（接触半径 60）引爆，C 连爆击退且 50% 连环引爆相邻地雷
+    if (this.mines && this.mines.length) {
+      for (let i = this.mines.length - 1; i >= 0; i--) {
+        const m = this.mines[i];
+        m.ttl -= dt;
+        m.armed -= dt;
+        if (m.ttl <= 0) { this.mines.splice(i, 1); continue; }
+        if (m.armed > 0) continue;
+        const hit = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 60);
+        if (!hit) continue;
+        this.mines.splice(i, 1);
+        const knock = m.chain > 0 ? 70 : 0;
+        this.explode(m.x, m.y, m.r, m.dmg, 'cannon', knock, false);
+        if (m.chain > 0) {
+          // C 连爆：爆炸击退 + 50% 概率连环引爆相邻地雷（直接爆炸）
+          this.enemies().forEach((o) => {
+            if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= m.r + 40 && Math.random() < 0.5) this.applySlow(o, 0.3, 1);
+          });
+          const chainTargets = this.mines.filter((m2) => Math.hypot(m2.x - m.x, m2.y - m.y) <= 150 && Math.random() < 0.5);
+          chainTargets.forEach((m2) => { const idx = this.mines.indexOf(m2); if (idx >= 0) this.mines.splice(idx, 1); });
+          chainTargets.forEach((m2) => this.explode(m2.x, m2.y, m2.r, m2.dmg, 'cannon', 0, false));
+        }
+      }
+    }
+    // 3.8 炮·炮台（v1.16）：独立炮击最靠墙敌人（直伤+爆炸），持续结束消失
+    if (this.turrets && this.turrets.length) {
+      for (let i = this.turrets.length - 1; i >= 0; i--) {
+        const tu = this.turrets[i];
+        tu.ttl -= dt;
+        if (tu.ttl <= 0) { this.turrets.splice(i, 1); continue; }
+        tu.atkT += dt;
+        if (tu.atkT >= tu.atkI) {
+          tu.atkT -= tu.atkI;
+          const tgt = this.enemies().filter((o) => o.hp > 0).sort((a, b) => b.y - a.y)[0];
+          if (tgt) {
+            this.damage(tgt, tu.dmg, 'cannon');
+            this.explode(tgt.x, tgt.y, tu.r, tu.dmg * 0.6, 'cannon', 0, false);
+            this.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
+          }
+        }
+      }
+    }
+    // 3.9 回旋镖·风暴镖（v1.16）：持续伤害圈（每秒 dps），C 卷风减速 20%
+    if (this.storms && this.storms.length) {
+      for (let i = this.storms.length - 1; i >= 0; i--) {
+        const st = this.storms[i];
+        st.ttl -= dt;
+        if (st.ttl <= 0) { this.storms.splice(i, 1); continue; }
+        this.enemies().forEach((o) => {
+          if (o.hp <= 0 || Math.hypot(o.x - st.x, o.y - st.y) > st.r) return;
+          this.damage(o, st.dps * dt, 'boomerang');
+          if (st.slow) this.applySlow(o, 0.20, 0.2);
+        });
+        if (Math.random() < 0.6) {
+          const ang = Math.random() * Math.PI * 2;
+          const rr = Math.sqrt(Math.random()) * st.r;
+          this.fxParticle(st.x + Math.cos(ang) * rr, st.y + Math.sin(ang) * rr, '#c39bd3', 2, 20, 0.4, 90, 4);
+        }
+      }
+    }
+    // 3.10 回旋镖·风痕（v1.16）：路径伤害区，C 卷痕减速 15%
+    if (this.windTrails && this.windTrails.length) {
+      for (let i = this.windTrails.length - 1; i >= 0; i--) {
+        const w = this.windTrails[i];
+        w.ttl -= dt;
+        if (w.ttl <= 0) { this.windTrails.splice(i, 1); continue; }
+        this.enemies().forEach((o) => {
+          if (o.hp <= 0 || Math.hypot(o.x - w.x, o.y - w.y) > w.r) return;
+          this.damage(o, w.dps * dt, 'boomerang');
+          if (w.slow) this.applySlow(o, w.slow, 0.2);
+        });
       }
     }
     // 4. 塔攻击调度（每塔独立节奏）
@@ -426,13 +509,13 @@ class CombatSystem {
         }
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
-      if (key === 'boomerang' && this.has('boomerang', '回收')) {
-        const l = this.lv('boomerang', '回收');
-        this.kills.boomerang = (this.kills.boomerang || 0) + 1;
-        // b：击杀恢复防线 1%×lv
-        if (l > 1) {
-          const maxHp = CONFIG.LINE.hp;
-          g.run.lineHp = Math.min(maxHp, g.run.lineHp + maxHp * 0.01 * (l - 1));
+      // 回旋镖·猎手标记 C 猎杀（v1.16）：标记目标死亡向 100px 内 2 个敌人扩散 1 层标记
+      if (key === 'boomerang' && this.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
+        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100);
+        for (let i = 0; i < Math.min(2, cands.length); i++) {
+          const pick = cands[i];
+          pick._mark = Math.min(3 + 2 * this.branchLv('boomerang', '猎手标记', 'B'), (pick._mark || 0) + 1);
+          this.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
         }
       }
     });
@@ -485,21 +568,15 @@ class CombatSystem {
     if (!t || t.level === 0) return;
     const cfg = CONFIG.TOWERS[key];
     let iv = this.interval(key);
-    // 回旋镖·回收：击杀后冷却缩短（本次攻击间隔 ×0.7×(lv-1)）
-    if (key === 'boomerang' && this.has('boomerang', '回收')) {
-      const rc = (this.kills.boomerang || 0);
-      if (rc > 0) {
-        const l = this.lv('boomerang', '回收');
-        this.kills.boomerang -= 1;
-        iv *= Math.max(0.4, 1 - 0.30 * (l - 1));
-      }
-    }
     // 回旋镖·接镖机制：镖未飞回前不投掷下一个（也不累计计时）；刚接回 → 立即投下一个
+    // v1.16 接镖 C 续投：接镖立即投掷且下镖伤害 +10%/级
     if (key === 'boomerang') {
       const flying = this.shots.some((s) => s.sweep && s.key === key);
       if (flying) return;
       if (this.bWait[key]) {
         this.bWait[key] = false;
+        const cnt = this.branchLv('boomerang', '接镖', 'C');
+        if (cnt > 0) this._nextDmg[key] = (this._nextDmg[key] || 0) + 0.10 * cnt;
         this.attackOnce(key);
         return;
       }
@@ -539,7 +616,9 @@ class CombatSystem {
       if (key === 'boomerang') this.bWait[key] = false;
       return;
     }
-    if (ammoT) ammoT.ammo -= 1;
+    // v1.16 接镖 B 回能：回旋镖 30% 概率不耗弹药
+    const regain = key === 'boomerang' && this.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < 0.30;
+    if (ammoT && !regain) ammoT.ammo -= 1;
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
     const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
@@ -553,8 +632,9 @@ class CombatSystem {
     const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
     const dur = cfg.shot.dur;
     const dmg = this.shotDmg(key);
-    // 炮·炮台座 b：概率双发
-    const duel = key === 'cannon' && Math.random() < 0.10 * Math.max(0, this.lv('cannon', '炮台座') - 1);
+    // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
+    const duelProb = key === 'cannon' ? (0.25 + 0.15 * this.branchLv('cannon', '双管齐射', 'A')) : 0;
+    const duel = key === 'cannon' && this.lv('cannon', '双管齐射') > 0 && Math.random() < duelProb;
     // 电·充能：攻击次数累计
     const chargeLv = this.lv('electric', '充能');
     if (key === 'electric' && chargeLv > 0) {
@@ -587,25 +667,26 @@ class CombatSystem {
       this.fxFlash(sx, sy, '#a9d6f5', 0.2);
     }
     if (key === 'boomerang') {
-      // 回旋镖 v1.7：弧线飞出再飞回（弧高加大），沿途扫过所有敌人（不锁定单体）；投出后标记等待接回
-      // v1.10：落点计算怪物前行提前量——镖飞行期间怪物继续向城墙行走，瞄准其预测位置而非当前位置；
-      //        多镖技能：每次多投 1 枚（单镖伤害下降）；巨镖技能：镖体/吸附半径放大
+      // 回旋镖 v1.16 重做：弧线飞出再飞回，沿途扫过所有敌人；投出后标记等待接回（接镖机制保留）
+      // 多镖：每次多投 1 枚（单镖伤害 -15%/级；B 稳镖衰减减半）；风痕：镖路径留痕（C 卷痕减速）
       this.bWait[key] = true;
-      const fly = this.lv('boomerang', '飞距');
       const multi = this.lv('boomerang', '多镖');
-      const large = this.lv('boomerang', '巨镖');
+      const nextBoost = this._nextDmg[key] || 0;   // 接镖 C 续投：下镖伤害 +10%/级
+      this._nextDmg[key] = 0;
       // 怪物只沿 +y 走向城墙（main.moveEnemy），预测位移 = speed × 减速系数 × 到达弧顶时间（dur×0.53）
       const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
       const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
       const aimY = Math.min(target.y + target.speed * slowMult * dur * 0.53, wallY);
       const n = 1 + multi;
-      const perDmg = dmg * (1 - 0.15 * multi);   // 多镖：单镖伤害下降，总数上升
-      const maxD = CONFIG.TOWERS.boomerang.range * (1 + 0.30 * Math.max(0, fly - 1));
-      // 移除通用视觉弹道（baseShot），按 n 枚重建（各带微偏角与巨镖放大）
+      const decay = multi > 0 ? (0.12 * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? 0.5 : 1) : 0;
+      const perDmg = dmg * (1 - decay) * (1 + nextBoost);
+      const maxD = CONFIG.TOWERS.boomerang.range;
+      const spread = 0.07 * (1 + 0.30 * this.branchLv('boomerang', '多镖', 'C'));
+      // 移除通用视觉弹道（baseShot），按 n 枚重建（各带微偏角）
       const bidx = g.fx.indexOf(baseShot);
       if (bidx >= 0) g.fx.splice(bidx, 1);
       for (let i = 0; i < n; i++) {
-        const off = (n > 1) ? (i - (n - 1) / 2) * 0.07 : 0;   // 多镖扇形微偏角
+        const off = (n > 1) ? (i - (n - 1) / 2) * spread : 0;
         const dx = target.x - sx, dy = aimY - sy;
         const dist = Math.hypot(dx, dy) || 1;
         const k = Math.min(1, maxD / dist);
@@ -614,16 +695,17 @@ class CombatSystem {
         const rx = ex0 - sx, ry = ey0 - sy;
         const ex = sx + rx * cos - ry * sin;
         const ey = sy + rx * sin + ry * cos;
-        this.shots.push({ key, dmg: perDmg, t: 0, dur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, large });
-        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur, key, large });
+        this.shots.push({ key, dmg: perDmg, t: 0, dur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
+        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur, key });
       }
     } else {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
     }
     if (duel) {
-      // 第二发（更短弹道）
+      // 双管齐射第二发（更短弹道；B 副炮第二发伤害 +25%/级）
+      const duelDmg = dmg * (1 + 0.25 * this.branchLv('cannon', '双管齐射', 'B'));
       g.fx.push({ ...baseShot, t: 0, dur: dur * 0.75 });
-      this.shots.push({ key, target, dmg, t: 0, dur: dur * 0.75, sx, sy });
+      this.shots.push({ key, target, dmg: duelDmg, t: 0, dur: dur * 0.75, sx, sy });
     }
   }
 
@@ -667,21 +749,33 @@ class CombatSystem {
     };
   }
 
-  /** 回旋镖沿途伤害（v1.9）：椭圆大弧扫过路径上的所有敌人，每敌单镖最多命中一次 */
+  /** 回旋镖沿途伤害（v1.16）：椭圆大弧扫过路径上的所有敌人，每敌单镖最多命中一次；折返 C 宽返吸附 +20%/级；风痕留痕 */
   sweepDamage(s) {
     const g = this.game;
     const p = Math.min(1, s.t / s.dur);
     const pos = this.sweepPos(s, p);
     const bx = pos.x, by = pos.y;
-    const orbit = this.lv('boomerang', '范围回旋');
-    const large = s.large || 0;   // v1.10 巨镖：吸附半径放大
-    const r = 42 * (orbit > 0 ? 1 + 0.30 * (orbit - 1) : 1) * (1 + 0.30 * large);
+    const foldC = this.branchLv('boomerang', '折返增伤', 'C');
+    const r = 42 * (1 + 0.20 * foldC);
     for (const e of g.enemies) {
       if (e.hp <= 0 || s.hitIds[e.id]) continue;
       if (Math.hypot(e.x - bx, e.y - by) <= r) {
         s.hitIds[e.id] = true;
         this.damage(e, s.dmg, 'boomerang');
       }
+    }
+    // 风痕（v1.16）：镖路径每秒留下风痕伤害区（A 久痕 +0.5s/级；B 劲风 +30%/级；C 卷痕减速 15%）
+    if (s.windLv > 0) {
+      const wA = this.branchLv('boomerang', '风痕', 'A');
+      const wB = this.branchLv('boomerang', '风痕', 'B');
+      const wC = this.branchLv('boomerang', '风痕', 'C');
+      this.windTrails = this.windTrails || [];
+      if (this.windTrails.length < 120) {
+        const ttl = 1.5 + 0.5 * wA;
+        const dps = this.shotDmg('boomerang') * 0.30 * (1 + 0.3 * wB);
+        this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: wC > 0 ? 0.15 : 0 });
+      }
+      if (Math.random() < 0.5) this.fxParticle(bx, by, '#c39bd3', 1, 14, 0.5, 50, 3);
     }
   }
 
@@ -714,13 +808,8 @@ class CombatSystem {
     else if (key === 'boomerang') this.hitBoomerang(e, dmg);
     else if (key === 'cannon') this.hitCannon(e, dmg);
 
-    // 命中计数（电·充能/回收）
+    // 命中计数（电·充能）
     e.hitCount++;
-    // 回旋镖·攻速 b：命中回能（下次攻击提前）
-    const bowSpeed = this.lv('boomerang', '攻速');
-    if (key === 'boomerang' && bowSpeed > 0 && this.atkTimers.boomerang !== undefined) {
-      this.atkTimers.boomerang = Math.max(0, this.atkTimers.boomerang - this.interval('boomerang') * 0.01 * bowSpeed);
-    }
     // 命中特效：按塔类型爆发专属粒子（v1.13.2 增强：数量更多 + 命中冲击环 + 双色火花）
     const HIT_FX = { fire: '#ff7043', ice: '#7fd4ff', poison: '#7ee2a8', electric: '#f4d03f', boomerang: '#c39bd3', cannon: '#d89e63' };
     this.fxParticle(e.x, e.y, HIT_FX[key] || '#ffffff', 8, 52, 0.4, 140, 5);
@@ -1136,91 +1225,79 @@ class CombatSystem {
   }
 
   /* ============ 回旋镖塔 ============ */
+  /* ============ 回旋镖塔（v1.16 重做：折返增伤/穿透/多镖/接镖/猎手标记/风暴镖/镖阵/风痕） ============ */
   hitBoomerang(e, dmg) {
-    // 暴击：概率暴击
+    // 猎手标记（v1.16）：命中同目标叠加标记，每层受镖伤 +8%（A 深标 +3%/级；上限 3+2×B）
+    const markLv = this.lv('boomerang', '猎手标记');
     let v = dmg;
-    const critLv = this.lv('boomerang', '暴击');
-    if (critLv > 0 && Math.random() < 0.15 * critLv) {
-      v *= (1.5 + 0.5 * (critLv - 1));
-      // 暴击视觉：金色大爆发
-      this.fxRing(e.x, e.y, '#ffd24a', 52, 0.4, 4);
-      this.fxParticle(e.x, e.y, '#ffd24a', 12, 70, 0.5, 160, 6);
+    if (markLv > 0) {
+      const cap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
+      e._mark = Math.min(cap, (e._mark || 0) + 1);
+      v = dmg * (1 + (0.08 + 0.03 * this.branchLv('boomerang', '猎手标记', 'A')) * e._mark);
+      // 标记视觉：目标头顶紫色标记计数
+      this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
     this.damage(e, v, 'boomerang');
-    // 折返增伤：折返段再次命中（减速 20%×(lv-1) 1s）
+    // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
     const fold = this.lv('boomerang', '折返增伤');
     if (fold > 0) {
-      const foldDmg = dmg * 0.5 * (1 + 0.5 * (fold - 1));
+      const foldDmg = v * 0.65 * (1 + 0.25 * this.branchLv('boomerang', '折返增伤', 'A'));
       this.damage(e, foldDmg, 'boomerang');
-      if (fold > 1) this.applySlow(e, 0.20 * (fold - 1), 1);
+      if (this.branchLv('boomerang', '折返增伤', 'B') > 0) this.applySlow(e, 0.20, 1);
+      // 折返视觉：紫色小回环
+      this.fxRing(e.x, e.y, '#c39bd3', 34, 0.3, 2.5);
     }
-    // 双镖：第二目标（合击主目标 +30%×(lv-1)）
-    const twin = this.lv('boomerang', '双镖');
-    if (twin > 0) {
-      const second = this.enemies().filter((o) => o !== e && o.hp > 0)
-        .sort((a, b) => (Math.abs(a.x - e.x) + Math.abs(a.y - e.y)) - (Math.abs(b.x - e.x) + Math.abs(b.y - e.y)))[0];
-      if (second) this.damage(second, dmg, 'boomerang');
-      else this.damage(e, dmg * 0.30 * (twin - 1), 'boomerang');
-    }
-    // 范围回旋 b：命中附带小溅射
-    const orbit = this.lv('boomerang', '范围回旋');
-    if (orbit > 1) {
-      this.enemies().forEach((o) => {
-        if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 50) this.damage(o, dmg * 0.35, 'boomerang');
-      });
-    }
-    // 穿透
+    // 穿透（v1.16）：命中后向前贯穿 1+穿数 个敌人（85%×穿力），C 穿缓减速 15%
     const pierce = this.lv('boomerang', '穿透');
     if (pierce > 0) {
-      const n = pierce;
-      const pMult = 1 - 0.10 * Math.max(0, pierce - 1);
-      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 50 && Math.abs(o.x - e.x) < 80)
+      const n = 1 + this.branchLv('boomerang', '穿透', 'A');
+      const pMult = 0.85 * (1 + 0.15 * this.branchLv('boomerang', '穿透', 'B'));
+      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 55 && Math.abs(o.x - e.x) < 85)
         .sort((a, b) => b.y - a.y);
-      for (let i = 0; i < Math.min(n, cands.length); i++) this.damage(cands[i], dmg * pMult, 'boomerang');
+      for (let i = 0; i < Math.min(n, cands.length); i++) {
+        this.damage(cands[i], dmg * pMult, 'boomerang');
+        if (this.branchLv('boomerang', '穿透', 'C') > 0) this.applySlow(cands[i], 0.15, 1);
+        this.fxBeam(e.x, e.y, cands[i].x, cands[i].y, '#a569bd', 0.25, 2);
+      }
     }
   }
 
-  /* ============ 炮塔 ============ */
+  /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) {
-    // 重击：概率单体高伤
-    let v = dmg;
-    const heavy = this.lv('cannon', '重击');
-    if (heavy > 0 && Math.random() < 0.20 + 0.15 * (heavy - 1)) v *= 1.5 * (1 + 0.5 * (heavy - 1));
-    this.damage(e, v, 'cannon');
-    // 爆炸范围（基础 45 半径 0.5 伤害；溅射技能增强）
-    const splLv = this.lv('cannon', '溅射');
-    const r = 45 * (splLv > 0 ? 1 + 0.3 * (splLv - 1) : 1);
-    const splDmg = dmg * (splLv > 0 ? 0.6 * (1 + 0.4 * (splLv - 1)) : 0.5);
-    // 协同：炮溅射×火溅射 → 爆炸伤害 ×1.5
+    // 重炮（v1.16）：爆炸半径基础 45×(1+0.25×lv+0.15×A)；爆炸伤害基础 dmg×0.5×(1+0.15×B)；C 震尘 20% 减速 30%
+    const heavy = this.lv('cannon', '重炮');
+    const r = 48 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    const splDmg = dmg * 0.65 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
+    // 协同：炮溅射×火溅射 → 爆炸伤害 ×1.5（保持）
     let boomMult = 1;
     if (this.game.run.effects.synergyDone[2]) boomMult *= 1.5;
-    // 震击：击退 + 减速
+    // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1s
     const shock = this.lv('cannon', '震击');
     let knock = 0, slowAfter = false;
-    if (shock > 0) {
-      knock = 30 * (1 + 0.4 * (shock - 1));
-      slowAfter = shock > 1;
+    if (shock > 0 && Math.random() < 0.40 + 0.20 * this.branchLv('cannon', '震击', 'B')) {
+      knock = 60 * (1 + 0.4 * this.branchLv('cannon', '震击', 'A'));
+      slowAfter = this.branchLv('cannon', '震击', 'C') > 0;
     }
-    // 引信：延迟爆炸（先 0.3×dmg，延迟后大爆炸）
-    const fuse = this.lv('cannon', '引信');
-    if (fuse > 0) {
-      const delay = Math.max(0.15, 0.5 * (1 - 0.5 * (fuse - 1)));
-      this.damage(e, dmg * 0.3, 'cannon');
-      this.delayed.push({
-        x: e.x, y: e.y, r: r * 1.3, dmg: dmg * (1 + 0.6 * (fuse - 1)) * boomMult,
-        delay, t: 0, key: 'cannon', knock, slowAfter,
+    this.damage(e, dmg, 'cannon');
+    // 爆炸（AOE 溅射 + 震尘减速）
+    this.explode(e.x, e.y, r, splDmg * boomMult, 'cannon', knock, slowAfter);
+    if (this.branchLv('cannon', '重炮', 'C') > 0) {
+      this.enemies().forEach((o) => {
+        if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20) this.applySlow(o, 0.30, 1);
       });
-    } else {
-      this.explode(e.x, e.y, r, splDmg * boomMult, 'cannon', knock, slowAfter);
     }
-    // 穿透弹
-    const pierce = this.lv('cannon', '穿透弹');
+    // 贯穿弹（v1.16）：爆炸后弹片向前贯穿 2+裂片 个敌人（70%×碎劲），C 贯透减速 15%
+    const pierce = this.lv('cannon', '贯穿弹');
     if (pierce > 0) {
-      const n = 3 * (pierce - 1);
-      const pDmg = dmg * (1 + 0.25 * (pierce - 1));
-      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 55 && Math.abs(o.x - e.x) < 75)
+      const n = 2 + this.branchLv('cannon', '贯穿弹', 'A');
+      const pDmg = dmg * 0.7 * (1 + 0.20 * this.branchLv('cannon', '贯穿弹', 'B'));
+      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 60 && Math.abs(o.x - e.x) < 85)
         .sort((a, b) => b.y - a.y);
-      for (let i = 0; i < Math.min(n, cands.length); i++) this.damage(cands[i], pDmg, 'cannon');
+      for (let i = 0; i < Math.min(n, cands.length); i++) {
+        this.damage(cands[i], pDmg, 'cannon');
+        if (this.branchLv('cannon', '贯穿弹', 'C') > 0) this.applySlow(cands[i], 0.15, 1);
+        this.fxParticle(cands[i].x, cands[i].y, '#d89e63', 3, 22, 0.3, 90, 4);
+      }
     }
   }
 
@@ -1618,16 +1695,106 @@ class CombatSystem {
         });
       }
     }
-    const barrage = this.lv('cannon', '弹幕');
-    if (barrage > 0) {
-      this.timers.barrage = (this.timers.barrage || 0) + dt;
-      if (this.timers.barrage >= 10 * (1 - 0.3 * (barrage - 1))) {
-        this.timers.barrage = 0;
-        const dmg = this.shotDmg('cannon') * 0.7 * (1 + 0.4 * (barrage - 1));
-        const targets = this.enemies().filter((e) => e.hp > 0);
-        for (let i = 0; i < Math.min(4, targets.length); i++) {
-          const t = targets[Math.floor(Math.random() * targets.length)];
-          this.explode(t.x, t.y, 60, dmg, 'cannon');
+    // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（90%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
+    const support = this.lv('cannon', '炮火支援');
+    if (support > 0) {
+      this.timers.support = (this.timers.support || 0) + dt;
+      if (this.timers.support >= 12) {
+        this.timers.support = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
+          const dmg = this.shotDmg('cannon') * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          for (let i = 0; i < n; i++) {
+            const t = alive[Math.floor(Math.random() * alive.length)];
+            const px = t.x + (Math.random() - 0.5) * 40;
+            const py = t.y + (Math.random() - 0.5) * 40;
+            // 落点预兆圈 → 延迟爆炸（0.45s），C 焦土留地面
+            this.fxRing(px, py, '#f39c12', 130, 0.45, 3);
+            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 0.45, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
+            this.fxParticle(px, py - 10, '#f39c12', 3, 30, 0.4, 90, 4);
+          }
+        }
+      }
+    }
+    // 炮·地雷阵（v1.16 周期）：每 15 秒在城墙前 260px 沿线埋 3 颗地雷（A 布雷 +2/级；B 雷威 +50%/级；C 连爆击退+50% 连环），敌人踩中爆炸（130% 伤害·半径100）
+    const mineLv = this.lv('cannon', '地雷阵');
+    if (mineLv > 0) {
+      this.timers.mine = (this.timers.mine || 0) + dt;
+      if (this.timers.mine >= 15) {
+        this.timers.mine = 0;
+        const n = 3 + 2 * this.branchLv('cannon', '地雷阵', 'A');
+        const wallY = this.ly().wallY - 10;
+        const lineY = wallY - 260;
+        const my = lineY + (Math.random() - 0.5) * 40;
+        for (let i = 0; i < n; i++) {
+          const mx = 40 + Math.random() * (700 - 80);
+          this.mines = this.mines || [];
+          this.mines.push({ x: mx, y: my, r: 100, dmg: this.shotDmg('cannon') * 1.5 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')), armed: 0.3, ttl: 12, chain: this.branchLv('cannon', '地雷阵', 'C') });
+          g.fx.push({ type: 'mine', x: mx, y: my, t: 0, dur: 12, seed: Math.random() * 100 });
+        }
+      }
+    }
+    // 炮·炮台（v1.16 周期召唤）：每 10 秒部署一门自动炮台（A 增台 +1/级；B 久驻 +2s 且 CD -1s/级），独立炮击最靠墙敌人（70% 伤害·1s/发；C 重炮台爆炸范围 +30%/级）
+    const turret = this.lv('cannon', '炮台');
+    if (turret > 0) {
+      this.timers.turret = (this.timers.turret || 0) + dt;
+      const cd = Math.max(4, 10 - this.branchLv('cannon', '炮台', 'B'));
+      if (this.timers.turret >= cd) {
+        this.timers.turret = 0;
+        const n = 1 + this.branchLv('cannon', '炮台', 'A');
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        for (let i = 0; i < n; i++) {
+          const near = alive.length ? alive[Math.floor(Math.random() * alive.length)] : null;
+          const px = near ? near.x + (Math.random() - 0.5) * 90 : 375;
+          const py = near ? near.y + (Math.random() - 0.5) * 90 : 600;
+          const ttl = 8 + 2 * this.branchLv('cannon', '炮台', 'B');
+          this.turrets = this.turrets || [];
+          this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: 0.9, dmg: this.shotDmg('cannon') * 0.85, r: 100 * (1 + 0.3 * this.branchLv('cannon', '炮台', 'C')) });
+          g.fx.push({ type: 'turret', x: px, y: py, t: 0, dur: ttl, seed: Math.random() * 100 });
+          this.fxRing(px, py, '#b5651d', 40, 0.5, 3.5);
+        }
+      }
+    }
+    // 回旋镖·风暴镖（v1.16 周期）：每 12 秒在敌人密集区召唤回旋镖风暴（持续3s，圈内每秒 45%×烈风 伤害；A 扩域 +30%/级；C 卷风减速 20%）
+    const cyclone = this.lv('boomerang', '风暴镖');
+    if (cyclone > 0) {
+      this.timers.storm = (this.timers.storm || 0) + dt;
+      if (this.timers.storm >= 12) {
+        this.timers.storm = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const t = alive[Math.floor(Math.random() * alive.length)];
+          const sr = 145 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'A'));
+          const dps = this.shotDmg('boomerang') * 0.55 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'B'));
+          this.storms = this.storms || [];
+          this.storms.push({ x: t.x, y: t.y, r: sr, ttl: 3, dps, slow: this.branchLv('boomerang', '风暴镖', 'C') > 0 });
+          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: sr, t: 0, dur: 3, seed: Math.random() * 100 });
+        }
+      }
+    }
+    // 回旋镖·镖阵（v1.16 周期）：每 10 秒投出环形镖阵（8 枚镖向四周穿透；A 增镖 +4/级；B 利刃 +25%/级；C 切割 25% 减速 30%）
+    const ringN = this.lv('boomerang', '镖阵');
+    if (ringN > 0) {
+      this.timers.ringN = (this.timers.ringN || 0) + dt;
+      if (this.timers.ringN >= 10) {
+        this.timers.ringN = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const t = alive[Math.floor(Math.random() * alive.length)];
+          const n = 8 + 4 * this.branchLv('boomerang', '镖阵', 'A');
+          const perDmg = this.shotDmg('boomerang') * 0.55 * (1 + 0.25 * this.branchLv('boomerang', '镖阵', 'B'));
+          const mus = this.towerMuzzle('boomerang');
+          const dur = 1.2;
+          const R = 260;
+          this.fxRing(t.x, t.y, '#c39bd3', 90, 0.5, 4);
+          for (let i = 0; i < n; i++) {
+            const ang = (Math.PI * 2 * i) / n;
+            const ex = mus.x + Math.cos(ang) * R;
+            const ey = mus.y + Math.sin(ang) * R;
+            this.shots.push({ key: 'boomerang', dmg: perDmg, t: 0, dur, sx: mus.x, sy: mus.y, tx: ex, ty: ey, sweep: true, hitIds: {}, ring: true, cut: this.branchLv('boomerang', '镖阵', 'C') });
+            g.fx.push({ type: 'shot', kind: 'arc', color: '#c39bd3', x: mus.x, y: mus.y, tx: ex, ty: ey, t: 0, dur, key: 'boomerang' });
+          }
         }
       }
     }

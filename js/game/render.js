@@ -1081,6 +1081,68 @@ class Renderer {
         ctx.fillStyle = f.color || '#ffffff';
         ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
+      } else if (f.type === 'mine') {
+        // 炮·地雷（v1.16）：城墙前地雷（暗色弹体 + 警示闪光 + 引信），驻留期间闪烁
+        const p = Math.min(1, f.t / f.dur);
+        const blink = 0.6 + 0.4 * Math.sin(p * 22 + (f.seed || 0));
+        ctx.globalAlpha = blink;
+        ctx.fillStyle = '#5d4a2f';
+        ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#b5651d';
+        ctx.fillRect(f.x - 1, f.y - 14, 2, 6);
+        ctx.globalAlpha = 1;
+      } else if (f.type === 'turret') {
+        // 炮·炮台（v1.16）：自动炮台（底座 + 炮管，驻留期炮管左右摆动）
+        const p = Math.min(1, f.t / f.dur);
+        const sway = Math.sin(p * 8 + (f.seed || 0)) * 0.12;
+        ctx.fillStyle = '#7a5a30';
+        ctx.fillRect(f.x - 10, f.y - 8, 20, 16);
+        ctx.fillStyle = '#a06020';
+        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.save();
+        ctx.translate(f.x, f.y - 8); ctx.rotate(sway);
+        ctx.fillStyle = '#c0392b';
+        ctx.fillRect(-2, -14, 5, 16);
+        ctx.restore();
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(p * 12);
+        ctx.fillStyle = '#d89e63';
+        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (f.type === 'cyclone') {
+        // 回旋镖·风暴镖（v1.16）：紫色旋风（旋转风轨 + 中心涡眼 + 飘散镖影）
+        const p = Math.min(1, f.t / f.dur);
+        const R = f.r || 130;
+        const seed = f.seed || 0;
+        ctx.globalAlpha = 0.65;
+        ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 3;
+        for (let ringI = 0; ringI < 3; ringI++) {
+          const rr = R * (0.4 + 0.3 * ringI);
+          ctx.beginPath();
+          for (let a = 0; a <= Math.PI * 2.2; a += 0.35) {
+            const wob = 1 + 0.12 * Math.sin(a * 3 + p * 10 + ringI * 2);
+            const px = f.x + Math.cos(a + p * (2.2 + ringI * 0.8)) * rr * wob;
+            const py = f.y + Math.sin(a + p * (2.2 + ringI * 0.8)) * rr * wob;
+            if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(142,68,173,0.35)';
+        ctx.beginPath(); ctx.arc(f.x, f.y, R * 0.25, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.9;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + p * 5;
+          const px = f.x + Math.cos(a) * R * 0.5;
+          const py = f.y + Math.sin(a) * R * 0.5;
+          ctx.fillStyle = i % 2 ? '#c39bd3' : '#d2b4de';
+          ctx.beginPath();
+          ctx.arc(px, py, 3 + (i % 2) * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       } else if (f.type === 'pillar') {
         // 火柱帧动画（v1.13.9）：地上火圈标记(0~25%) → 冲天圆柱火柱(25~70%) → 白热冲击(70~82%) → 余烬消散
         // dur 2.4s（v1.13.9 放慢一倍）；伤害在地面圈画完后由 combat 延迟结算，动画与伤害一致
