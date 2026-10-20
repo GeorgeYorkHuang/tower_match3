@@ -109,6 +109,60 @@ t('电·麻痹：命中概率麻痹', () => {
   assert.ok(e.paralyzed > 0, '应进入麻痹状态');
 });
 
+t('电·麻痹A满B满：95%概率 + 时长3.5s + 减速50%', () => {
+  const g = mkGame({ electric: { 麻痹: { A: 3, B: 3 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random;
+  try {
+    Math.random = () => 0.94;  // 0.94 < 0.95 → A=3 满概率应触发
+    c.hit('electric', e, 100);
+  } finally { Math.random = orig; }
+  assert.ok(e.paralyzed > 0, 'A=3 满概率 95% 应触发麻痹');
+  assert.ok(e.paralyzed >= 3.5 - 1e-6, 'B=3 时长应为 2 + 0.5×3 = 3.5s');
+  assert.ok(e.slow && e.slow.mult <= 0.5 + 1e-6, '麻痹应附带 50% 减速');
+});
+
+t('电·过载A：每3层填充1发弹药', () => {
+  const g = mkGame({ electric: { 过载: { A: 1 } } });
+  const c = new CombatSystem(g);
+  const tw = g.run.effects.tower('electric');
+  tw.ammo = 0;
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  c.hit('electric', e, 100);
+  assert.ok(tw.ammo === 0, '1 层不填充');
+  c.hit('electric', e, 100);
+  assert.ok(tw.ammo === 0, '2 层不填充');
+  c.hit('electric', e, 100);
+  assert.ok(tw.ammo === 1, '3 层填充 1 发');
+});
+
+t('电·过载C：满层闪电爆发麻痹周边敌人', () => {
+  const g = mkGame({ electric: { 过载: { C: 2 } } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 400, 400); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 420, 410); g.enemies.push(e2);
+  const e3 = mkEnemy(1000, 800, 800); g.enemies.push(e3);
+  c.hit('electric', e1, 100);
+  c.hit('electric', e1, 100);
+  c.hit('electric', e1, 100);
+  assert.ok(e1.overload && e1.overload.n >= 3, '应叠满 3 层');
+  assert.ok(e2.hp < 1000, '150px 内敌人应受爆发伤害');
+  assert.ok(e2.paralyzed > 0, '周边敌人应被麻痹');
+  assert.ok(e3.hp === 1000, '150px 外敌人不受影响');
+});
+
+t('电·弹跳：命中麻痹敌人扩散5个游走电球', () => {
+  const g = mkGame({ electric: { 弹跳: { B: 1 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random;
+  try { Math.random = () => 0; c.hit('electric', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.paralyzed > 0, '目标应麻痹');
+  assert.ok(c.shots.some((s) => s.orb), '应生成游走电球');
+  assert.ok(c.shots.filter((s) => s.orb).length === 5, '基础扩散 5 个电球');
+});
+
 t('火·大火球：命中爆炸波及邻近敌人', () => {
   const g = mkGame({ fire: { 大火球: 1 } });
   const c = new CombatSystem(g);

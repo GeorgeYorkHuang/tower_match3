@@ -70,10 +70,10 @@ CONFIG = {
     "DIRECT_FIRST": 2,           # 标准路径：前 2 次消除定向红/绿（玩家按协同目标开局）
     # 塔基础属性：DPS 与等级成长（6 塔池：火冰毒电回旋镖 + 炮塔 P1）
     "TOWERS": {
-        "fire":   {"color": "red",    "base_dps": 30, "grow": 1.25},
+        "fire":   {"color": "red",    "base_dps": 32, "grow": 1.26},
         "ice":    {"color": "blue",   "base_dps": 20, "grow": 1.22},
         "poison": {"color": "green",  "base_dps": 25, "grow": 1.23},
-        "electric": {"color": "yellow", "base_dps": 25, "grow": 1.23},
+        "electric": {"color": "yellow", "base_dps": 23, "grow": 1.24},
         "boomerang": {"color": "purple", "base_dps": 22, "grow": 1.24},
     "cannon":   {"color": "orange", "base_dps": 38, "grow": 1.26},
     },

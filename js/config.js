@@ -101,10 +101,10 @@ module.exports = {
 
   /* ================= 塔属性（DPS 与等级成长 + 弹道表现参数） ================= */
   TOWERS: {
-    fire:      { color: 'red',    baseDps: 30, grow: 1.25, range: 830, atkInterval: 0.9,  shot: { kind: 'line',  dur: 1.0  } }, // 火球弹道（直线慢速）
+    fire:      { color: 'red',    baseDps: 32, grow: 1.26, range: 830, atkInterval: 0.9,  shot: { kind: 'line',  dur: 1.0  } }, // 火球弹道（直线慢速）；v1.13.18 平衡：纯输出塔上调
     ice:       { color: 'blue',   baseDps: 20, grow: 1.22, range: 760, atkInterval: 1.1,  shot: { kind: 'line',  dur: 1.0  } }, // 冰锥弹道
     poison:    { color: 'green',  baseDps: 25, grow: 1.23, range: 800, atkInterval: 1.0,  shot: { kind: 'line',  dur: 1.0  } }, // 毒液弹道
-    electric:  { color: 'yellow', baseDps: 25, grow: 1.23, range: 700, atkInterval: 1.0,  shot: { kind: 'bolt',  dur: 0.5  } }, // 闪电折线
+    electric:  { color: 'yellow', baseDps: 23, grow: 1.24, range: 700, atkInterval: 1.0,  shot: { kind: 'bolt',  dur: 0.5  } }, // 闪电折线；v1.13.18 平衡：控制型塔下调纯伤、上调成长
     boomerang: { color: 'purple', baseDps: 22, grow: 1.24, range: 880, atkInterval: 1.3,  shot: { kind: 'arc',   dur: 2.4  } }, // 回旋弧线（v1.7 慢一倍 + 接镖再投）
     cannon:    { color: 'orange', baseDps: 38, grow: 1.26, range: 930, atkInterval: 1.8,  shot: { kind: 'mortar', dur: 1.5  } }, // 抛物线炮弹
   },
@@ -147,11 +147,11 @@ module.exports = {
     ],
     electric: [
       { name: '连锁',       icon: '⚡', color: '#f4d03f', desc: '攻击弹跳多个目标',          p0: true,  a: '扩展：连锁目标 +2',         b: '稳流：连锁衰减 -20%',        c: '回能：每次连锁命中缩短攻击间隔' },  // 协同：与冰冻
-      { name: '麻痹',       icon: '😵', color: '#f7dc6f', desc: '命中概率麻痹（停止攻击）',  p0: true,  a: '强麻：麻痹概率 +15%',       b: '久麻：麻痹时长 +0.3 秒',     c: '传导：邻近敌人 20% 概率被麻痹' },
-      { name: '过载',       icon: '🔋', color: '#f5b041', desc: '连续命中同目标增伤',        p0: true,  a: '蓄载：增伤叠层上限 +3',     b: '强载：每层增伤 +15%',        c: '爆载：满层触发闪电爆发' },
+      { name: '麻痹',       icon: '😵', color: '#f7dc6f', desc: '命中20%概率麻痹（目标减速50%并停止攻击）', p0: true, a: '强麻：麻痹概率 +15%',  b: '久麻：麻痹时长 +0.5秒/级',  c: '传导：邻近敌人 20% 概率被麻痹' },
+      { name: '过载',       icon: '🔋', color: '#f5b041', desc: '连续命中同目标叠层增伤（上限3层）', p0: true, a: '弹载：每3层填充1发弹药', b: '强载：每层增伤 +15%', c: '爆载：满层麻痹150px内敌人并造成伤害' },
       { name: '电弧',       icon: '💡', color: '#fad390', desc: '周期性放电路径伤害',        p0: true,  a: '强弧：电弧伤害 +50%',       b: '宽弧：电弧宽度 +30%',        c: '麻痹弧：命中 20% 概率麻痹' },
       { name: '雷暴',       icon: '🌩️', color: '#f9e79f', desc: '周期性全屏落雷',            p0: true,  a: '急雷：落雷间隔 -30%',       b: '强雷：落雷伤害 +40%',        c: '残雷：落雷区域残留电弧' },
-      { name: '弹跳',       icon: '🏓', color: '#ffd24a', desc: '弹体弹跳次数提升',          p0: false, a: '连跳：弹跳次数 +2',         b: '保伤：弹跳保留伤害 +20%',    c: '寻敌：弹跳优先未命中目标' },
+      { name: '弹跳',       icon: '🏓', color: '#ffd24a', desc: '击中麻痹敌人扩散5个随机游走电球', p0: false, a: '增球：扩散电球 +2',      b: '强球：电球伤害 +20%',         c: '久游：电球游走时长 +0.3秒' },
       { name: '充能',       icon: '🔌', color: '#f1c40f', desc: '攻速随攻击次数提升',        p0: false, a: '扩容：充能叠层上限 +5',     b: '快充：每层攻速 +10%',        c: '共享：充能全塔共享' },
       { name: '电磁场',     icon: '🧲', color: '#f7e27e', desc: '全塔概率触发微型连锁',      p0: false, a: '激磁：触发概率 +10%',       b: '强磁：微型连锁伤害 +30%',    c: '扩磁：微型连锁目标 +1' },
     ],

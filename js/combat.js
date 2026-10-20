@@ -140,6 +140,23 @@ class CombatSystem {
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i];
       s.t += dt;
+      if (s.orb) {
+        // v1.13.18 游走电球（弹跳扩散）：每帧随机转向漂移，命中 34px 内敌人即结算消失，dur 耗尽消散
+        s.ang += (Math.random() - 0.5) * 2.6;
+        s.x += Math.cos(s.ang) * s.speed * dt;
+        s.y += Math.sin(s.ang) * s.speed * dt;
+        const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < 34);
+        if (hitE) {
+          if (s.fx) s.fx.t = s.fx.dur;
+          this.shots.splice(i, 1);
+          this.damage(hitE, s.dmg, 'electric');
+          this.fxFlash(hitE.x, hitE.y, '#f4d03f');
+          this.fxParticle(hitE.x, hitE.y, '#f4d03f', 5, 30, 0.3, 120, 4);
+        } else if (s.t >= s.dur) {
+          this.shots.splice(i, 1);
+        }
+        continue;
+      }
       if (s.scatter) {
         // v1.13.13：无目标散射弹道——沿途真实碰撞，命中即结算并消失；射界尽头（dur 耗尽）未命中也消失
         const hitE = this.scatterCheck(s);
@@ -828,27 +845,68 @@ class CombatSystem {
   hitElectric(e, dmg) {
     // 主目标伤害（过载层数为上一击累计，连续命中递增）
     this.damage(e, dmg, 'electric');
-    // 过载：叠层（下次命中生效）
+    // 过载（v1.13.18）：叠层上限固定 3 层；A 分支=每 3 层填充 1 发弹药；C 分支=满层闪电爆发（麻痹 150px 内敌人并造成伤害）
     const over = this.lv('electric', '过载');
     if (over > 0) {
-      const cap = 3 + 3 * (over - 1);
       if (!e.overload) e.overload = { n: 0, ttl: 2 };
-      e.overload.n = Math.min(cap, e.overload.n + 1);
+      e.overload.n = Math.min(3, e.overload.n + 1);
       e.overload.ttl = 2;
+      // A 分支：每 3 层填充 1 发弹药（封顶 ammoMax）
+      if (this.branchLv('electric', '过载', 'A') > 0 && e.overload.n >= 3) {
+        const maxA = CONFIG.GLOBAL_SKILL && CONFIG.GLOBAL_SKILL.ammoMax ? CONFIG.GLOBAL_SKILL.ammoMax : 50;
+        const et = this.tower('electric');
+        if (et) et.ammo = Math.min(maxA, et.ammo + 1);
+        this.fxFlash(e.x, e.y, '#f4d03f');
+      }
+      // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
+      if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
+        e.overload._burst = true;
+        const bDmg = this.shotDmg('electric') * 0.8;
+        const r = 150;
+        this.enemies().forEach((o) => {
+          if (o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > r) return;
+          this.damage(o, bDmg, 'electric');
+          o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
+          this.applySlow(o, 0.5, 1.5);
+          this.fxFlash(o.x, o.y, '#f4d03f');
+        });
+        this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
+      }
     }
-    // 麻痹
-    const para = this.lv('electric', '麻痹');
-    if (para > 0 && Math.random() < 0.20 + 0.15 * (para - 1)) {
-      e.paralyzed = Math.max(e.paralyzed || 0, 1 + 0.3 * (para - 1));
+    // 麻痹（v1.13.18）：电塔基础 20%；学麻痹技能 +30%；A 分支每级 +15%（满 95%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
+    const paraLv = this.lv('electric', '麻痹');
+    const pA = this.branchLv('electric', '麻痹', 'A');
+    const pB = this.branchLv('electric', '麻痹', 'B');
+    if (Math.random() < 0.20 + (paraLv > 0 ? 0.30 : 0) + 0.15 * pA) {
+      const dur = 2 + 0.5 * pB;
+      e.paralyzed = Math.max(e.paralyzed || 0, dur);
+      this.applySlow(e, 0.5, dur);
       // 麻痹视觉：金黄电火花
       this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 140, 5);
     }
-    // 连锁弹跳
-    const chainLv = Math.max(this.lv('electric', '连锁'), this.lv('electric', '弹跳'));
+    // 弹跳（v1.13.18 改电球）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
+    const bounce = this.lv('electric', '弹跳');
+    if (bounce > 0 && e.paralyzed > 0) {
+      const n = 5 + 2 * Math.max(0, this.branchLv('electric', '弹跳', 'A') - 1);
+      const orbDmg = dmg * 0.5 * (1 + 0.2 * Math.max(0, this.branchLv('electric', '弹跳', 'B') - 1));
+      const oDur = 0.8 + 0.3 * Math.max(0, this.branchLv('electric', '弹跳', 'C') - 1);
+      for (let i = 0; i < n; i++) {
+        const orb = {
+          key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
+          x: e.x, y: e.y, ang: Math.random() * Math.PI * 2, speed: 95 + Math.random() * 60,
+          orb: true, fx: null,
+        };
+        orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };
+        this.shots.push(orb);
+        this.game.fx.push(orb.fx);
+      }
+      this.fxRing(e.x, e.y, '#f4d03f', 44, 0.3, 3);
+    }
+    // 连锁弹跳（v1.13.18：不再叠加弹跳技能——弹跳已改电球机制）
+    const chainLv = this.lv('electric', '连锁');
     if (chainLv > 0) {
-      const extra = (this.lv('electric', '连锁') > 0 ? 1 + 2 * Math.max(0, this.lv('electric', '连锁') - 1) : 0)
-                  + 2 * this.lv('electric', '弹跳');
-      let decay = 0.30 * (1 - 0.2 * Math.max(0, this.lv('electric', '连锁') - 1));
+      const extra = 1 + 2 * Math.max(0, chainLv - 1);
+      let decay = 0.30 * (1 - 0.2 * Math.max(0, chainLv - 1));
       decay = Math.max(0.10, decay);
       const hitSet = [e];
       let cur = e;
@@ -859,10 +917,6 @@ class CombatSystem {
         // 连锁视觉：电弧连线（每次弹跳）
         this.fxBeam(cur.x, cur.y, next.x, next.y, '#f4d03f', 0.25, 3.5);
         let cDmg = dmg * (1 - decay);
-        // 弹跳 b：保留伤害 +20%×(lv-1)
-        cDmg *= (1 + 0.20 * Math.max(0, this.lv('electric', '弹跳') - 1));
-        // 协同：冰冻×连锁 → 弹跳到冰冻目标 ×1.5
-        if (next.frozen > 0 && this.game.run.effects.synergyDone[1]) cDmg *= 1.5;
         this.damage(next, cDmg, 'electric');
         hitSet.push(next);
         cur = next;

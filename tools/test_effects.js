@@ -133,21 +133,21 @@ t('协同检测（燃爆×毒爆）', () => {
 t('DPS 计算含全部乘区', () => {
   const m = freshManager();
   const fire = m.tower('fire');
-  assert.strictEqual(fire.dps(false), 30, 'Lv1 无特效 = baseDps 30');
-  // 升到 Lv2：30 × 1.25 = 37.5
+  assert.strictEqual(fire.dps(false), 32, 'Lv1 无特效 = baseDps 32');
+  // 升到 Lv2：32 × 1.26 = 40.32
   fire.gainExp(CONFIG.EXP.perCell * 3); // +12 → 需要 30，未升级
   fire.exp = 30; fire.level = 1;
   // 直接构造：level=2
   fire.exp = 0; fire.level = 2;
-  assert.ok(Math.abs(fire.dps(false) - 30 * 1.25) < 1e-9);
+  assert.ok(Math.abs(fire.dps(false) - 32 * 1.26) < 1e-9);
   // 激活 1 个 Lv1 特效：×(1+0.15)
   fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
   const d = fire.dps(false);
-  assert.ok(Math.abs(d - 30 * 1.25 * 1.15) < 1e-9, `DPS=${d}`);
+  assert.ok(Math.abs(d - 32 * 1.26 * 1.15) < 1e-9, `DPS=${d}`);
   // 协同：×(1+0.5)
   m.synergyDone[0] = true;
   const ds = fire.dps(true);
-  assert.ok(Math.abs(ds - 30 * 1.25 * 1.15 * 1.5) < 1e-9, `协同 DPS=${ds}`);
+  assert.ok(Math.abs(ds - 32 * 1.26 * 1.15 * 1.5) < 1e-9, `协同 DPS=${ds}`);
 });
 
 /* 9. 惩罚经验：未获得塔不吸收 */
