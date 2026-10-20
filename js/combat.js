@@ -136,10 +136,21 @@ class CombatSystem {
     // 兼容缺字段的敌人（测试/旧数据）：惰性补齐 A1 状态
     g.enemies.forEach((e) => { if (!e.dots) initEnemyState(e); });
 
-    // 1. 飞行弹道推进与命中结算（回旋镖 sweep：沿途扫过伤害；其余：终点单体命中）
+    // 1. 飞行弹道推进与命中结算（回旋镖 sweep：沿途扫过伤害；散射 scatter：无目标沿途碰撞；其余：终点单体命中）
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i];
       s.t += dt;
+      if (s.scatter) {
+        // v1.13.13：无目标散射弹道——沿途真实碰撞，命中即结算并消失；射界尽头（dur 耗尽）未命中也消失
+        const hitE = this.scatterCheck(s);
+        if (hitE) {
+          this.shots.splice(i, 1);
+          if (s.onHit) s.onHit(hitE, s.dmg);
+        } else if (s.t >= s.dur) {
+          this.shots.splice(i, 1);
+        }
+        continue;
+      }
       if (s.t >= s.dur) {
         this.shots.splice(i, 1);
         if (s.sweep) this.sweepDamage(s, dt);
@@ -520,6 +531,19 @@ class CombatSystem {
     this.hit(s.key, e, s.dmg);
   }
 
+  /** 散射弹道（无目标）沿途碰撞检测（v1.13.13）：按 t/dur 线性插值当前位置，命中半径内敌人返回该敌，未命中返回 null */
+  scatterCheck(s) {
+    const p = Math.min(1, s.t / s.dur);
+    const bx = s.sx + (s.tx - s.sx) * p;
+    const by = s.sy + (s.ty - s.sy) * p;
+    const r = s.hitR || 42;
+    for (const e of this.enemies()) {
+      if (e.hp <= 0) continue;
+      if (Math.hypot(e.x - bx, e.y - by) <= r) return e;
+    }
+    return null;
+  }
+
   /** 回旋镖轨迹点（v1.9）：椭圆大弧——镖从塔出发，划弧越过投掷方向最远点后继续绕回塔（非原路径折返） */
   sweepPos(s, p) {
     const dx = s.tx - s.sx, dy = s.ty - s.sy;
@@ -637,30 +661,28 @@ class CombatSystem {
         const cos = Math.cos(off), sin = Math.sin(off);
         return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
       };
-      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道
+      // v1.13.13：额外火球改为无目标散射弹道——扇形随机角度射出，沿途真实碰撞命中，射界尽头消失
+      const R = this.range('fire');                 // 射界半径（= 塔射程）
+      const hitR = 45;                              // 散射火球碰撞半径（弹体较大）
+      const strike = (o, d) => {                    // 命中结算（主目标直瞄与散射弹道共用）
+        this.damage(o, d, 'fire');
+        this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
+        this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
+        this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
+        if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, d, 'fire');
+      };
+      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道（仍直瞄）
       this.damage(e, perDmg, 'fire');
       g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aimOf(e, 0)));
-      // 额外目标：扇形范围内随机偏角各一枚火球（v1.13.12：原等角度排列改为随机散射，
-      //          扇形边界与等角度版一致 maxOff=(n-2)*0.08，命中才结算 onHit 不触发技能链）
+      // 额外火球：无目标散射——扇形范围内随机角度（基准垂直向上），垂直射界，沿途碰撞命中即止
       const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：3 枚 ±0.08 / 4 枚 ±0.16 / 5 枚 ±0.24
-      const cands = this.enemies().filter((o) => o.hp > 0 && o !== e)
-        .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
-      for (let i = 0; i < n - 1 && cands.length; i++) {
-        const o = cands[i];
+      for (let i = 0; i < n - 1; i++) {
         const off = (Math.random() * 2 - 1) * maxOff;   // 扇形范围内随机角度发射
-        const aim = aimOf(o, off);
-        this.shots.push({
-          key: 'fire', target: o, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy,
-          onHit: (t, d) => {
-            this.damage(t, d, 'fire');
-            // 分击命中特效：火球爆焰
-            this.fxParticle(t.x, t.y, '#ff9f43', 6, 46, 0.35, 140, 5);
-            this.fxRing(t.x, t.y, '#ff7043', 26, 0.25, 3);
-            this.fxFlash(t.x, t.y, '#ffd24a', 0.2);
-            if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(t, d, 'fire');
-          },
-        });
-        g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: o, aim: true, scale: 1.35 }, aim));
+        const tx = fsx + Math.sin(off) * R;
+        const ty = fsy - Math.cos(off) * R;
+        const fball = { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx, ty };
+        this.shots.push({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx, ty, hitR, onHit: strike });
+        g.fx.push(fball);
       }
     } else {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）

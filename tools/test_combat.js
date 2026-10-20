@@ -118,18 +118,39 @@ t('火·大火球：命中爆炸波及邻近敌人', () => {
   assert.ok(e2.hp < 1000, '邻近敌人应受爆炸伤害');
 });
 
-t('火·多重火球：一次攻击命中 3 个不同目标（多弹道）', () => {
+t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰撞）', () => {
   const g = mkGame({ fire: { 多重火球: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(2000, 370, 800); g.enemies.push(e1);
-  const e2 = mkEnemy(2000, 385, 806); g.enemies.push(e2);
-  const e3 = mkEnemy(2000, 360, 812); g.enemies.push(e3);
   c.hit('fire', e1, 200);
   assert.ok(e1.hp < 2000, '主目标应立即受一枚火球伤害');
-  // 额外目标走弹道命中结算（resolveShot → onHit）
-  c.shots.slice().forEach((s) => c.resolveShot(s));
-  assert.ok(e2.hp < 2000 && e3.hp < 2000, '额外两目标应各受一枚火球伤害');
-  assert.ok(g.fx.filter((f) => f.type === 'shot').length >= 3, '应有 3 条火球弹道（主+2）');
+  // 主目标移出战场（避免散射弹道优先命中主目标，干扰散射路径验证）
+  g.enemies = g.enemies.filter((o) => o !== e1);
+  // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 2
+  const scatters = c.shots.filter((s) => s.scatter);
+  assert.strictEqual(scatters.length, 2, `应有 2 条散射弹道（实际 ${scatters.length}）`);
+  scatters.forEach((s) => {
+    assert.ok(!s.target, '散射弹道不配置目标');
+    assert.ok(s.hitR > 0 && s.tx !== s.sx, '散射弹道有碰撞半径与射界终点');
+  });
+  // 碰撞检测确定性验证：把敌人放到某条散射弹道当前位置 → scatterCheck 应命中
+  const s0 = scatters[0];
+  s0.t = 0.3;
+  const p = 0.3 / s0.dur;
+  const bx = s0.sx + (s0.tx - s0.sx) * p, by = s0.sy + (s0.ty - s0.sy) * p;
+  const e2 = mkEnemy(2000, bx, by); g.enemies.push(e2);   // 放在弹道正上方
+  const hit = c.scatterCheck(s0);
+  assert.strictEqual(hit, e2, '位于弹道上的敌人应被碰撞命中');
+  // 未命中路径：把 e2 移出战场，远离弹道的敌人 → 返回 null
+  g.enemies = g.enemies.filter((o) => o !== e2);
+  const e3 = mkEnemy(2000, bx + 500, by + 500); g.enemies.push(e3);
+  assert.strictEqual(c.scatterCheck(s0), null, '远离弹道的敌人不应被命中');
+  // 命中结算：推进 update 直到该弹道命中（敌人挡在路径上）
+  const e2b = mkEnemy(2000, bx, by); g.enemies.push(e2b);   // 重新放回弹道位置
+  let guard = 0;
+  while (c.shots.some((s) => s.scatter) && guard < 120) { c.update(1 / 60); guard++; }
+  assert.ok(e2b.hp < 2000, '推进后位于弹道上的敌人应受散射火球伤害');
+  assert.ok(!c.shots.some((s) => s.scatter), '散射弹道命中后消失（或射界耗尽）');
 });
 
 t('火·火焰鹰眼两极反转：越近伤害越高', () => {
