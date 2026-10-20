@@ -590,31 +590,34 @@ class Renderer {
         ctx.beginPath(); ctx.arc(cx - size * 0.15, cy - size * 0.15, 3, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // v1.13.29 寒霜重做：脚下冰霜雾气（双环扩散）+ 寒气粒子上升 + 冰霜结晶光点，无方框
+      // v1.13.30 寒霜加强：全身淡冰蓝霜罩（呼吸染色，无方框）+ 脚下双环冰雾 + 寒气粒子上升 + 冰霜结晶
       if (e.slow && e.slow.ttl > 0 && e.frozen <= 0) {
         const cx = x + size / 2, cy = y + size / 2;
         const tNow = Date.now();
         const pulse = (tNow / 420) % 1;
-        // 双环冰雾扩散（内外两圈，淡出）
-        ctx.strokeStyle = '#a9d6f5'; ctx.lineWidth = 1.4;
+        // 全身淡冰蓝霜罩（纯填充染色，呼吸变化，不是边框）
+        ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(tNow / 300);
+        ctx.fillRect(x - 1, y - 1, size + 2, size + 2);
+        // 双环冰雾扩散（内外两圈，更亮更明显）
+        ctx.strokeStyle = '#cfe8ff'; ctx.lineWidth = 2.2;
+        ctx.globalAlpha = 0.85 * (1 - pulse);
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 3 + pulse * size * 0.45, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 0.5 * (1 - pulse);
-        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 3 + pulse * size * 0.38, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = 0.28 * (1 - pulse);
-        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 8 + pulse * size * 0.5, 0, Math.PI * 2); ctx.stroke();
-        // 寒气粒子从脚下上升（确定性：时间+索引相位，淡出）
-        for (let k = 0; k < 4; k++) {
-          const ph = ((tNow / 500 + k * 0.25) % 1);
-          const px = cx + Math.sin((tNow / 300 + k * 1.7) * 2) * size * 0.22;
-          const py = cy + size * 0.42 - ph * size * 0.5;
-          ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.45 * (1 - ph);
-          ctx.beginPath(); ctx.arc(px, py, 1.6 + ph * 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 9 + pulse * size * 0.58, 0, Math.PI * 2); ctx.stroke();
+        // 寒气粒子从脚下上升（6 粒，更大更亮，确定性相位）
+        for (let k = 0; k < 6; k++) {
+          const ph = ((tNow / 460 + k * 0.1667) % 1);
+          const px = cx + Math.sin((tNow / 280 + k * 1.5) * 2) * size * 0.26;
+          const py = cy + size * 0.42 - ph * size * 0.62;
+          ctx.fillStyle = '#e8f7ff'; ctx.globalAlpha = 0.7 * (1 - ph);
+          ctx.beginPath(); ctx.arc(px, py, 2.2 + ph * 2.2, 0, Math.PI * 2); ctx.fill();
         }
-        // 冰霜结晶光点附着怪身（绕边跳动，确定性相位）
-        for (let k = 0; k < 3; k++) {
-          const a = tNow / 700 + k * 2.09;
-          const jx = cx + Math.cos(a) * size * 0.5, jy = cy + Math.sin(a) * size * 0.5;
-          ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(tNow / 180 + k);
-          ctx.beginPath(); ctx.arc(jx, jy, 1.8, 0, Math.PI * 2); ctx.fill();
+        // 冰霜结晶光点绕身跳动（5 点，更亮）
+        for (let k = 0; k < 5; k++) {
+          const a = tNow / 650 + k * 1.256;
+          const jx = cx + Math.cos(a) * size * 0.52, jy = cy + Math.sin(a) * size * 0.52;
+          ctx.fillStyle = '#bde7ff'; ctx.globalAlpha = 0.75 + 0.25 * Math.sin(tNow / 170 + k);
+          ctx.beginPath(); ctx.arc(jx, jy, 2.4, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = 1;
       }
