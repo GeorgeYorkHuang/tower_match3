@@ -963,12 +963,12 @@ class CombatSystem {
   /* ---------- 周期技 ---------- */
   tickPeriodic(dt) {
     const g = this.game;
-    // 火·火柱：每 20 秒（v1.13.9 放慢一倍）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
+    // 火·火柱：每 10 秒（触发间隔保持原值，v1.13.10）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
     // v1.13.9：伤害延迟到地面圈画完（约 0.6s）后结算，动画与伤害节奏一致
     const pillar = this.lv('fire', '火柱');
     if (pillar > 0) {
       this.timers.firePillar = (this.timers.firePillar || 0) + dt;
-      if (this.timers.firePillar >= 20) {
+      if (this.timers.firePillar >= 10) {
         this.timers.firePillar = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
@@ -1001,12 +1001,12 @@ class CombatSystem {
         this.pillarWaves = remaining;
       }
     }
-    // 火·火雨：每 24 秒（v1.13.9 放慢一倍）在索敌区域降下火雨（每波 80% 伤害·半径140；A 波次+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
+    // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨（每波 80% 伤害·半径140；A 波次+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
     // v1.13.9：每次只触发 1 个区域（索敌：在存活敌人处释放）；区域内连续 waves 波，0.7s 间隔，伤害延迟结算
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
-      if (this.timers.fireRain >= 24) {
+      if (this.timers.fireRain >= 12) {
         this.timers.fireRain = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
