@@ -980,10 +980,9 @@ class CombatSystem {
             this.groundDots = this.groundDots || [];
             this.groundDots.push({ x: tgt.x, y: tgt.y, r: pR, ttl: 3, dps: this.shotDmg('fire') * 0.30 * emberLv, key: 'fire' });
           }
-          // 火柱视觉：冲天火焰柱 + 落点爆焰
-          this.fxParticle(tgt.x, tgt.y - 20, '#ff7043', 16, 90, 0.6, 220, 8);
-          this.fxFlash(tgt.x, tgt.y, '#ff9f43');
-          this.fxRing(tgt.x, tgt.y, '#ff7043', pR, 0.5, 4);
+          // 火柱视觉：冲天火柱帧动画（起势火圈→喷发→冲击环→余烬）+ 少量点缀粒子
+          g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: 1.2, seed: Math.random() * 100 });
+          this.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
         }
       }
     }
@@ -1009,9 +1008,9 @@ class CombatSystem {
               if (o.hp > 0 && Math.hypot(o.x - px, o.y - py) <= segR && Math.random() < 0.50) this.applyBurn(o, segDmg, 'fire');
             });
           }
-          // 火雨视觉：落点火焰爆焰
-          this.fxParticle(px, py - 10, '#ff7043', 10, 50, 0.5, 180, 6);
-          this.fxParticle(px, py, '#ffd24a', 6, 30, 0.4, 120, 4);
+          // 火雨视觉：天降火球帧动画（下落→爆焰→地面燃烧）+ 少量点缀粒子
+          g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: 0, dur: 0.9, seed: Math.random() * 100 });
+          this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
       }
     }

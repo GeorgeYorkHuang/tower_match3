@@ -17,6 +17,19 @@ function lighten(hex, f) {
   return `rgb(${r},${g},${b})`;
 }
 
+/* 火焰舌（v1.13.6 火柱/火雨帧动画）：底部宽、顶部带摆动的锥形火焰 */
+function drawFlameTongue(ctx, x, y, w, h, sway, color, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y);
+  ctx.quadraticCurveTo(x - w * 0.2, y - h * 0.55, x + sway, y - h);
+  ctx.quadraticCurveTo(x + w * 0.5, y - h * 0.4, x + w / 2, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
 /* 棋盘 6 色 */
 const COLOR_FILL = {
   red: '#e74c3c', blue: '#3498db', green: '#2ecc71',
@@ -760,6 +773,108 @@ class Renderer {
         ctx.fillStyle = f.color || '#ffffff';
         ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
+      } else if (f.type === 'pillar') {
+        // 火柱帧动画（v1.13.6）：起势火圈 → 冲天火柱 → 白热冲击环 → 余烬消散
+        const p = Math.min(1, f.t / f.dur);
+        const cx = f.x, cy = f.y, R = f.r || 120, seed = f.seed || 0;
+        if (p < 0.12) {
+          // 帧 1 起势：地面火圈扩张 + 红晕
+          const k = p / 0.12;
+          ctx.globalAlpha = 0.4 + 0.6 * k;
+          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(cx, cy, 8 + k * R * 0.3, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = 'rgba(255,112,67,0.4)';
+          ctx.beginPath(); ctx.arc(cx, cy, 6 + k * R * 0.22, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        } else if (p < 0.5) {
+          // 帧 2 喷发：三层火焰柱生长，顶部火苗乱舞
+          const k = (p - 0.12) / 0.38;
+          const h = 40 + k * 190;
+          const w = 14 + k * R * 0.32;
+          const sway = Math.sin(p * 17 + seed) * 8;
+          drawFlameTongue(ctx, cx, cy, w, h, sway, '#e74c3c', 0.95);
+          drawFlameTongue(ctx, cx, cy, w * 0.68, h * 0.92, sway * 0.7, '#ff7043', 0.9);
+          drawFlameTongue(ctx, cx, cy, w * 0.36, h * 0.8, sway * 0.4, '#ffd24a', 0.95);
+          for (let i = 0; i < 5; i++) {
+            const s = ((i * 5171 + seed * 13) % 97) / 97;
+            const fx0 = cx + (s - 0.5) * w * 1.4 + sway;
+            const fy0 = cy - h * (0.55 + s * 0.5) + Math.sin(p * 22 + i + seed) * 6;
+            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = 0.55 + s * 0.4;
+            ctx.beginPath(); ctx.arc(fx0, fy0, 2.5 + s * 3.5, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        } else if (p < 0.62) {
+          // 帧 3 冲击：白热冲击环扩张 + 落点爆焰
+          const k = (p - 0.5) / 0.12;
+          ctx.globalAlpha = 0.9 * (1 - k * 0.4);
+          ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.arc(cx, cy, R * 0.3 + k * R * 0.7, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1 - k * 0.6;
+          ctx.fillStyle = '#fff3c4';
+          ctx.beginPath(); ctx.arc(cx, cy, 20 * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        } else {
+          // 帧 4 余烬：火柱收缩消散 + 余烬上飘
+          const k = (p - 0.62) / 0.38;
+          const h = 60 * (1 - k * 0.85);
+          drawFlameTongue(ctx, cx, cy, 18 * (1 - k * 0.7), h, Math.sin(p * 12 + seed) * 5, '#e74c3c', 0.8 * (1 - k));
+          for (let i = 0; i < 6; i++) {
+            const s = ((i * 8191 + seed * 7) % 89) / 89;
+            const ex = cx + (s - 0.5) * 40;
+            const ey = cy - h - s * k * 60 - 10;
+            ctx.fillStyle = s < 0.6 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = (1 - k) * (0.3 + s * 0.5);
+            ctx.beginPath(); ctx.arc(ex, ey, 2 + s * 3, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+      } else if (f.type === 'rain') {
+        // 火雨帧动画（v1.13.6）：天降火球 → 落地爆焰冲击 → 地面燃烧衰减
+        const p = Math.min(1, f.t / f.dur);
+        const cx = f.x, cy = f.y, R = f.r || 140, seed = f.seed || 0;
+        if (p < 0.3) {
+          // 帧 1 天降：火球从高空下落（带拖尾火苗）
+          const k = p / 0.3;
+          const by = cy - 260 * (1 - k);
+          const br = 8 + k * 10;
+          for (let i = 0; i < 4; i++) {
+            const s = ((i * 6301 + seed * 11) % 83) / 83;
+            ctx.globalAlpha = (1 - k) * 0.5 + s * 0.4;
+            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+            ctx.beginPath(); ctx.arc(cx + (s - 0.5) * 12, by - 10 - s * 34 * (1 - k * 0.6), 3 + s * 5, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#ff7043';
+          ctx.beginPath(); ctx.arc(cx, by, br, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffe08a';
+          ctx.beginPath(); ctx.arc(cx - br * 0.2, by - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
+        } else if (p < 0.42) {
+          // 帧 2 爆焰：白热爆焰 + 冲击环扩张
+          const k = (p - 0.3) / 0.12;
+          ctx.globalAlpha = 0.95 * (1 - k * 0.4);
+          ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.arc(cx, cy, R * 0.25 + k * R * 0.6, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1 - k * 0.5;
+          ctx.fillStyle = '#fff3c4';
+          ctx.beginPath(); ctx.arc(cx, cy, 24 * (1 - k * 0.3), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        } else {
+          // 帧 3 燃烧：地面火圈收缩 + 火苗上飘衰减
+          const k = (p - 0.42) / 0.58;
+          ctx.globalAlpha = 0.85 * (1 - k);
+          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 3.5;
+          ctx.beginPath(); ctx.arc(cx, cy, R * 0.3 * (1 - k * 0.5), 0, Math.PI * 2); ctx.stroke();
+          for (let i = 0; i < 6; i++) {
+            const s = ((i * 7297 + seed * 17) % 91) / 91;
+            const ex = cx + (s - 0.5) * R * 0.5;
+            const ey = cy - s * k * 42 - 6;
+            ctx.fillStyle = s < 0.55 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = (1 - k) * (0.35 + s * 0.45);
+            ctx.beginPath(); ctx.arc(ex, ey, 2.5 + s * 3.5, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
       } else if (f.type === 'particle') {
         // 技能特效粒子：随机方向小圆点 + 速度衰减 + 淡出（灼烧/毒泡/冰晶/电花/爆炸碎片）
         const p = Math.min(1, f.t / f.dur);
