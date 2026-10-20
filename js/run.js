@@ -185,11 +185,11 @@ class Run {
     this._globalMap = { [remain[0]]: 'shuffle', [remain[1]]: 'refill' };
   }
 
-  /** 塔色消除弹药供给：3消 +3 / 4消 +6 / 5消（L5/直5）+10 / 5消以上(x块) 10+3(x-5) */
+  /** 塔色消除弹药供给（v1.13.1 ×3）：3消 +9 / 4消 +18 / 5消（L5/直5）+30 / 5消以上(x块) 30+9(x-5) */
   _ammoGain(shape, size) {
     const fixed = CONFIG.GLOBAL_SKILL.ammoShape[shape];
     if (fixed !== undefined) return fixed;
-    return 10 + 3 * (size - 5);   // '6+'（x 块，x≥6）
+    return 30 + 9 * (size - 5);   // '6+'（x 块，x≥6）
   }
 
   /** 全局技能累计弹药充能（封顶 energyMax=90；返回实际入账发数） */

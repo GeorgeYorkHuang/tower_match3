@@ -54,8 +54,8 @@ t('先消先得与剩余 2 色动态充能', () => {
   const r = run.applyMatch('purple', '3', 3);
   assert.strictEqual(r.gotTower, false);
   assert.strictEqual(r.penalized, false);
-  assert.strictEqual(r.shuffleGain + r.refillGain, 3, '未选中色消除 → 弹药充能 +3（3连）');
-  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 3, '全局技能累计弹药应入账 3 发');
+  assert.strictEqual(r.shuffleGain + r.refillGain, 9, '未选中色消除 → 弹药充能 +9（3连 ×3）');
+  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 9, '全局技能累计弹药应入账 9 发（×3）');
   assert.strictEqual(run.exp - expBefore, Math.floor(6 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
 });
 
@@ -70,12 +70,12 @@ t('炮塔可入槽 + 剩余色弹药充能公式', () => {
   run.applyMatch('red', '3', 3); run.applyMatch('blue', '3', 3);
   run.applyMatch('green', '3', 3); run.applyMatch('yellow', '3', 3);
   const r2 = run.applyMatch('purple', '4', 4);
-  assert.strictEqual(r2.shuffleGain + r2.refillGain, 6, '直4 剩余色弹药 +6');
+  assert.strictEqual(r2.shuffleGain + r2.refillGain, 18, '直4 剩余色弹药 +18（×3）');
   const r3 = run.applyMatch('purple', '5', 5);
-  assert.strictEqual(r3.shuffleGain + r3.refillGain, 10, '直5 剩余色弹药 +10');
+  assert.strictEqual(r3.shuffleGain + r3.refillGain, 30, '直5 剩余色弹药 +30（×3）');
   const r4 = run.applyMatch('yellow', '6+', 6);
-  assert.strictEqual(r4.shuffleGain + r4.refillGain, 13, '6+ 剩余色弹药 +13（10+3×1）');
-  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 32, '两个技能累计弹药 32 发（yellow3连3+直4 6+直5 10+6+ 13）');
+  assert.strictEqual(r4.shuffleGain + r4.refillGain, 39, '6+ 剩余色弹药 +39（30+9×1）');
+  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 96, '两个技能累计弹药 96 发（yellow3连9+直4 18+直5 30+6+ 39）');
   // 累计封顶 energyMax（90）：同一技能反复充能不得超过上限
   const runC = seededRun(6, 9);
   runC.applyMatch('red', '3', 3); runC.applyMatch('blue', '3', 3);
@@ -156,18 +156,18 @@ t('v1.12 弹药与全局技能结算', () => {
   run.applyMatch('green', '3', 3); run.applyMatch('yellow', '3', 3);
   const fire = run.effects.tower('fire');
   assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo, '得塔初始弹药 = startAmmo');
-  // 塔色消除 → 弹药 +3（3连）
+  // 塔色消除 → 弹药 +9（3连，v1.13.1 ×3）
   const r1 = run.applyMatch('red', '3', 3);
-  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo + 3, '塔色消除弹药 +3');
-  assert.strictEqual(r1.ammoGain, 3);
-  // 弹药满（50）→ 溢出均分充能两个全局技能：r1 后 28 + 8×3 = 52 → 溢出 2 → 均分各 +1 发
+  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo + 9, '塔色消除弹药 +9');
+  assert.strictEqual(r1.ammoGain, 9);
+  // 弹药满（50）→ 溢出均分充能两个全局技能：r1 后 34 + 8×9 = 106 → 溢出 56 → 均分各 +28 发
   for (let i = 0; i < 8; i++) run.applyMatch('red', '3', 3);
   assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.ammoMax, '弹药封顶 ammoMax');
-  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 2, '溢出均分入账 2 发');
+  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 56, '溢出均分入账 56 发');
   // 剩余色消除 → 弹药口径充能 + 半量经验（动态分配 shuffle/refill，断言总入账）
   const expB = run.exp;
   const r2 = run.applyMatch('purple', '4', 4);
-  assert.strictEqual(r2.shuffleGain + r2.refillGain, 6, '直4 充 6 发');
+  assert.strictEqual(r2.shuffleGain + r2.refillGain, 18, '直4 充 18 发（×3）');
   assert.strictEqual(run.exp - expB, Math.floor(12 * CONFIG.PENALTY_RATIO), '未选中色保留半量经验');
   // 两个剩余色各自对应一个全局技能 → 分别消除，各自累计封顶 90
   for (let i = 0; i < 10; i++) { run.applyMatch('purple', '6+', 6); run.applyMatch('orange', '6+', 6); }
@@ -177,13 +177,13 @@ t('v1.12 弹药与全局技能结算', () => {
   assert.ok(run.spendAmmo('shuffle'), '累计 ≥30 发可释放');
   assert.strictEqual(run.shuffleAmmo, CONFIG.GLOBAL_SKILL.energyMax - CONFIG.GLOBAL_SKILL.chargePerUse, '释放消耗 30 发');
   assert.ok(!run.spendAmmo('shuffle') || run.shuffleAmmo >= CONFIG.GLOBAL_SKILL.chargePerUse, '不足 30 发不可释放');
-  // v1.12.3 形状弹药供给：3消+3 / 4消+6 / 5消+10 / 6+(x块) 10+3(x-5)（各自独立 run 避免上限截断）
-  const mk = (seed) => { const r = seededRun(6, seed); ['red', 'blue', 'green', 'yellow'].forEach((c) => r.applyMatch(c, '3', 3)); return r; };
-  assert.strictEqual(mk(1).applyMatch('red', '3', 3).ammoGain, 3, '3消 弹药 +3');
-  assert.strictEqual(mk(2).applyMatch('red', '4', 4).ammoGain, 6, '4消 弹药 +6');
-  assert.strictEqual(mk(3).applyMatch('red', '5', 5).ammoGain, 10, '5消 弹药 +10');
-  assert.strictEqual(mk(4).applyMatch('red', '6+', 6).ammoGain, 13, '6消 弹药 +13（10+3×(6-5)）');
-  assert.strictEqual(mk(5).applyMatch('red', '6+', 8).ammoGain, 19, '8消 弹药 +19（10+3×3）');
+  // v1.13.1 形状弹药供给（×3）：3消+9 / 4消+18 / 5消+30 / 6+(x块) 30+9(x-5)（直接断言 _ammoGain，避免弹药上限截断）
+  const mk2 = (seed) => seededRun(6, seed);
+  assert.strictEqual(mk2(1)._ammoGain('3', 3), 9, '3消 弹药 +9');
+  assert.strictEqual(mk2(2)._ammoGain('4', 4), 18, '4消 弹药 +18');
+  assert.strictEqual(mk2(3)._ammoGain('5', 5), 30, '5消 弹药 +30');
+  assert.strictEqual(mk2(4)._ammoGain('6+', 6), 39, '6消 弹药 +39（30+9×(6-5)）');
+  assert.strictEqual(mk2(5)._ammoGain('6+', 8), 57, '8消 弹药 +57（30+9×3）');
 });
 
 /* 9. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */

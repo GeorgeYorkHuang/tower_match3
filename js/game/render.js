@@ -323,15 +323,16 @@ class Renderer {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.beginPath(); ctx.arc(x + 17, slotY + 17, 11, 0, Math.PI * 2); ctx.fill();
         text(ctx, 'i', x + 17, slotY + 21, 14, '#1a1a1a', 'center');
-        // v1.12 弹药条：图标下方（ammo/ammoMax），无弹药红色警示
-        const aY = iy + L.towerIcon.size - 4;
-        const aW = L.towerIcon.size - 8;
+        // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
         const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
+        const bx = x + slotSize - 9;              // 槽内右侧竖条
+        const by0 = slotY + 8;
+        const bh = slotSize - 16;
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
-        ctx.fillRect(ix + 4, aY, aW, 5);
+        ctx.fillRect(bx, by0, 7, bh);
         ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
-        ctx.fillRect(ix + 4, aY, aW * aRatio, 5);
-        text(ctx, `${tw.ammo || 0}/${tw.ammoMax}`, x + slotSize / 2, aY + 14, 12, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
+        ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
+        text(ctx, `${tw.ammo || 0}`, bx + 3, slotY + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
         // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
       }
       x += slotSize + slotGap;
