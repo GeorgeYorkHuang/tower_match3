@@ -93,7 +93,7 @@ module.exports = {
     poolP0: false,              // 全池口径：每塔 8 特效全部可入池（原 P0 前 5 已全部实现，P1 一并开放）
     p0PoolSize: 5,              // P0 口径时的池大小（与模拟器校验对齐用；poolP0=false 时忽略）
     targetWeight: 2,            // 目标特效候选加权 ×2
-    swapOnFull: true,           // 槽满可替换（roguelike 换装）
+    swapOnFull: false,          // v1.13.4：槽满 3 技能后三选一不再刷新未激活技能（只升级已有技能）
     firstPickGuarantee: true,   // 每塔本局首次三选一必含标志特效
     bonusPerLv: 0.15,           // 已激活特效每 1 级对塔 DPS 的乘区加成
     synergyBonus: 0.5,          // 协同达成后的乘区加成

@@ -59,8 +59,8 @@ t('targeting 自动路径选目标特效', () => {
   assert.ok(poison.hasActive('毒爆'), '毒塔首次自动结算应激活毒爆');
 });
 
-/* 4. 激活与槽满替换 */
-t('槽满后新特效替换非目标特效（保留目标）', () => {
+/* 4. 激活与槽满锁定（v1.13.4：满 3 技能后三选一不再刷新未激活技能，只升级已有技能） */
+t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升级卡）', () => {
   const m = freshManager();
   const fire = m.tower('fire');
   // 直接构造 3 槽满：燃爆 + 大火球 + 火柱
@@ -68,13 +68,20 @@ t('槽满后新特效替换非目标特效（保留目标）', () => {
   fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
   fire.applyChoice(fire.pool.find((e) => e.name === '火柱'));
   assert.strictEqual(fire.activeNames.length, 3);
-  // 新激活第 4 个：过载级→未激活 灼烧叠层，触发替换
+  // 槽满后激活未激活技能应被拒绝（防御）
   const newEf = fire.pool.find((e) => e.name === '灼烧叠层');
   const res = fire.applyChoice(newEf);
-  assert.ok(res.replaced, '应触发替换');
-  assert.ok(fire.hasActive('燃爆'), '目标特效必须保留');
+  assert.ok(!res.ok, '槽满后激活新技能应被拒绝');
   assert.strictEqual(fire.activeNames.length, 3, '槽数保持 3');
-  assert.ok(fire.hasActive('灼烧叠层'), '新特效已激活');
+  // 三选一候选：只出分支升级卡，不出未激活技能
+  fire.pending = 1;
+  const q = m.settlePending();
+  const cands = q[0].candidates;
+  assert.ok(cands.length > 0, '槽满后仍有升级候选');
+  cands.forEach((c) => assert.strictEqual(c.type, 'branch', '槽满后只出升级分支卡'));
+  assert.ok(cands.every((c) => c.name !== '灼烧叠层'), '未激活技能不应出现');
+  const names = cands.map((c) => c.name);
+  assert.strictEqual(new Set(names).size, names.length, '同一技能每轮升级最多 1 张卡');
 });
 
 /* 5. 分支升级封顶 Lv3，三分支全满后移出候选池（v1.11：分支独立升级） */
@@ -169,11 +176,10 @@ t('v1.11 两级候选：技能卡 + 分支卡混池', () => {
   const skills = all.filter((e) => e.type === 'skill');
   const branches = all.filter((e) => e.type === 'branch');
   assert.strictEqual(skills.length, 7, '未激活技能卡 = 池 8 - 已激活 1');
-  assert.strictEqual(branches.length, 3, '已激活技能三分支卡各 1');
-  branches.forEach((e) => {
-    assert.ok(['A', 'B', 'C'].includes(e.branch), '分支卡带分支标识');
-    assert.ok(e.branchLv >= 0 && e.branchLv < CONFIG.EFFECT.maxLevel, '分支等级在 0-2');
-  });
+  assert.strictEqual(branches.length, 1, '已激活技能每轮最多 1 张分支卡（v1.13.4）');
+  assert.strictEqual(branches[0].name, '点燃', '分支卡来自已激活技能');
+  assert.ok(['A', 'B', 'C'].includes(branches[0].branch), '分支卡带分支标识');
+  assert.ok(branches[0].branchLv >= 0 && branches[0].branchLv < CONFIG.EFFECT.maxLevel, '分支等级在 0-2');
 });
 
 /* 12. v1.11 分支独立升级：分支卡只升对应分支 */

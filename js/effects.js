@@ -86,9 +86,9 @@ class TowerBuild {
   cfgOf(name) { return (CONFIG.EFFECT_POOLS[this.key] || []).find((e) => e.name === name) || {}; }
 
   /**
-   * 生成该塔的两级三选一候选（v1.11）：
-   *   · 未激活技能 → 技能卡（type='skill'；槽满且 SWAP_ON_FULL 关时不可选）
-   *   · 已激活技能 → 各未满分支一张分支卡（type='branch'，branch Lv < maxLevel）
+   * 生成该塔的两级三选一候选（v1.11 + v1.13.4）：
+   *   · 未激活技能 → 技能卡（type='skill'；槽满后不再刷新未激活技能，只升级已有技能）
+   *   · 已激活技能 → 最多 1 张分支卡（type='branch'，取等级最低的未满分支——同一技能每轮升级只能选一个）
    * 返回 [{name, icon, color, desc, type, branch?, branchLv?, fromTower, level}]。
    */
   _choices() {
@@ -97,23 +97,26 @@ class TowerBuild {
     this.pool.forEach((ef) => {
       const cfg = this.cfgOf(ef.name);
       if (!this._activated(ef)) {
-        if (CONFIG.EFFECT.swapOnFull || !slotsFull) {
+        // v1.13.4：槽满 3 技能后不再刷新未激活技能
+        if (!slotsFull) {
           cands.push({
             name: ef.name, icon: cfg.icon, color: cfg.color, desc: cfg.desc || '',
             type: 'skill', fromTower: this.key, level: 0,
           });
         }
       } else {
-        BRANCH_KEYS.forEach((br) => {
-          if (ef.branches[br] < CONFIG.EFFECT.maxLevel) {
-            cands.push({
-              name: ef.name, icon: cfg.icon, color: cfg.color,
-              desc: cfg[br.toLowerCase()] || cfg.desc || '',
-              type: 'branch', branch: br, branchLv: ef.branches[br],
-              fromTower: this.key, level: ef.level,
-            });
-          }
-        });
+        // 每技能最多 1 张分支卡：等级最低的未满分支（均衡升级，同一技能不重复出卡）
+        const lvSorted = BRANCH_KEYS.filter((br) => ef.branches[br] < CONFIG.EFFECT.maxLevel)
+          .sort((a, b) => ef.branches[a] - ef.branches[b]);
+        const br = lvSorted[0];
+        if (br !== undefined) {
+          cands.push({
+            name: ef.name, icon: cfg.icon, color: cfg.color,
+            desc: cfg[br.toLowerCase()] || cfg.desc || '',
+            type: 'branch', branch: br, branchLv: ef.branches[br],
+            fromTower: this.key, level: ef.level,
+          });
+        }
       }
     });
     return cands;
@@ -190,17 +193,10 @@ class TowerBuild {
         poolEf.branches.A = Math.min(poolEf.branches.A + 1, CONFIG.EFFECT.maxLevel);
         host.picked.add(poolEf.name);
         res.leveled = true;
+      } else if (host.activeNames.length >= CONFIG.EFFECT.activeSlots) {
+        // v1.13.4：槽满 3 技能后不允许再激活新技能（候选已排除；防御拒绝超槽）
+        return { ok: false };
       } else {
-        if (host.activeNames.length >= CONFIG.EFFECT.activeSlots && CONFIG.EFFECT.swapOnFull) {
-          const target = TARGET_OF[host.key];
-          let victim = host.activeNames.find((n) => n !== target);
-          if (victim === undefined) victim = host.activeNames[0];
-          host.activeNames.splice(host.activeNames.indexOf(victim), 1);
-          const victimEf = host.pool.find((e) => e.name === victim);
-          if (victimEf) { victimEf.branches.A = 0; victimEf.branches.B = 0; victimEf.branches.C = 0; }
-          host.picked.delete(victim);   // 被替换技能不再展示
-          res.replaced = true;
-        }
         poolEf.branches.A = Math.max(poolEf.branches.A, 1); // 激活默认分支 A Lv1
         if (!host.activeNames.includes(poolEf.name)) host.activeNames.push(poolEf.name);
         host.picked.add(poolEf.name);

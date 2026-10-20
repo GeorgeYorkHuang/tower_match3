@@ -51,7 +51,7 @@ CONFIG = {
     "TARGET_WEIGHT": 2,
     # 槽满可替换：抽到未激活特效且槽满时，允许替换一个已激活特效（roguelike 换装）
     # 模拟侧策略：玩家总是保留目标特效、替换其他。False=槽满后未激活特效出局（GDD 原案）
-    "SWAP_ON_FULL": True,
+    "SWAP_ON_FULL": False,
     # 首选保底：每塔本 run 第一次三选一时，候选固定包含该塔标志特效
     # （火=燃爆、毒=毒爆、冰=冰冻、电=连锁），对应 GDD"每波关键色保底"在候选池的延伸
     "FIRST_PICK_GUARANTEE": True,
