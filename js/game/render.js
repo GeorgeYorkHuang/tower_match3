@@ -513,10 +513,35 @@ class Renderer {
       }
       if (e.dots && e.dots.length) {
         e.dots.forEach((d) => {
-          ctx.fillStyle = d.type === 'burn' ? '#ff9f43' : '#52be80';
-          ctx.globalAlpha = 0.65;
-          ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size * 0.28, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
+          if (d.type === 'burn') {
+            // v1.13.3 灼烧效果：跳动火苗（叠层越多火越旺）+ 火焰描边 + 橙色火光圆
+            const fireI = d.stack || 1;
+            const cx = x + size / 2, cy = y + size / 2;
+            // 火光圆（内焰黄 → 外焰橙）
+            ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
+            ctx.beginPath(); ctx.arc(cx, cy, size * (0.26 + 0.05 * Math.min(2, fireI)), 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffd24a'; ctx.globalAlpha = 0.4;
+            ctx.beginPath(); ctx.arc(cx, cy, size * (0.15 + 0.03 * Math.min(2, fireI)), 0, Math.PI * 2); ctx.fill();
+            // 跳动火苗（每帧随机上飘）
+            for (let k = 0; k < 2 + Math.min(3, fireI); k++) {
+              const rx = cx + (Math.random() - 0.5) * size * 0.7;
+              const ry = cy + (Math.random() - 0.45) * size * 0.45;
+              const rr = (1.6 + Math.random() * 3) * (1 + 0.25 * Math.min(2, fireI));
+              ctx.fillStyle = Math.random() < 0.45 ? '#ffd24a' : '#ff7043';
+              ctx.globalAlpha = 0.45 + Math.random() * 0.45;
+              ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fill();
+            }
+            // 火焰描边（闪烁）
+            const flick = 0.7 + 0.3 * Math.sin(Date.now() / 110 + e.x * 0.05);
+            ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 3; ctx.globalAlpha = 0.85 * flick;
+            ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
+            ctx.globalAlpha = 1;
+          } else {
+            ctx.fillStyle = '#52be80';
+            ctx.globalAlpha = 0.65;
+            ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size * 0.28, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
         });
       }
       // 个体血条：实色当前血量 + 浅色延迟尾条（直接伤害后尾条缓慢收缩，一眼区分
@@ -544,9 +569,11 @@ class Renderer {
         // arc=往返弧线回旋镖（回旋镖）、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
         // v1.5：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
         let endX = f.tx, endY = f.ty;
-        if ((f.kind === 'line' || f.kind === 'bolt') && f.target && f.target.hp > 0) {
+        if ((f.kind === 'line' || f.kind === 'bolt') && !f.aim && f.target && f.target.hp > 0) {
           endX = f.target.x; endY = f.target.y;
         }
+        // v1.13.3：多重火球等放大弹体（scale）
+        const sc = f.scale || 1;
         const p = Math.min(1, f.t / f.dur);
         const x = f.x + (endX - f.x) * p;
         const y = f.y + (endY - f.y) * p;
@@ -665,26 +692,26 @@ class Renderer {
           ctx.rotate(Math.atan2(endY - f.y, endX - f.x));
           // 弹体辉光
           ctx.fillStyle = f.color; ctx.globalAlpha = 0.35;
-          ctx.beginPath(); ctx.arc(0, 0, 20.25, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 0, 20.25 * sc, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
           if (f.key === 'ice') {
             // 冰锥：菱形弹体
             ctx.fillStyle = f.color;
             ctx.beginPath();
-            ctx.moveTo(20.25, 0); ctx.lineTo(0, -10.1); ctx.lineTo(-15.75, 0); ctx.lineTo(0, 10.1);
+            ctx.moveTo(20.25 * sc, 0); ctx.lineTo(0, -10.1 * sc); ctx.lineTo(-15.75 * sc, 0); ctx.lineTo(0, 10.1 * sc);
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#ffffff';
-            ctx.beginPath(); ctx.arc(2.25, 0, 5.6, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(2.25 * sc, 0, 5.6 * sc, 0, Math.PI * 2); ctx.fill();
           } else {
             // 火球/毒液：圆形弹体（火=橙红焰心，毒=绿球）
             ctx.fillStyle = f.color;
-            ctx.beginPath(); ctx.arc(0, 0, 13.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 13.5 * sc, 0, Math.PI * 2); ctx.fill();
             if (f.key === 'fire') {
               ctx.fillStyle = '#ffe08a';
-              ctx.beginPath(); ctx.arc(4.5, 0, 6.75, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(4.5 * sc, 0, 6.75 * sc, 0, Math.PI * 2); ctx.fill();
             } else {
               ctx.fillStyle = 'rgba(255,255,255,0.5)';
-              ctx.beginPath(); ctx.arc(-3.4, -3.4, 4.05, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(-3.4 * sc, -3.4 * sc, 4.05 * sc, 0, Math.PI * 2); ctx.fill();
             }
           }
           ctx.restore();

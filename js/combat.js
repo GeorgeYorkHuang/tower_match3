@@ -210,10 +210,13 @@ class CombatSystem {
           if (d.type === 'burn' && burstLv > 0 && Math.random() < 0.15 + 0.10 * (burstLv - 1)) {
             this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.4 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '燃爆', 'A') - 1)), 'fire');
           }
-          // 持续伤特效：灼烧=火焰粒子（上飘）、中毒=毒泡（小概率避免过密）
-          if (Math.random() < 0.5) {
+          // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
+          if (Math.random() < 0.7) {
             if (d.type === 'burn') {
-              this.fxParticle(e.x + (Math.random() * 16 - 8), e.y - 12, '#ff7043', 3, 26, 0.5, 90, 5);
+              const fireN = 3 + Math.min(4, d.stack || 1);
+              for (let k = 0; k < fireN; k++) {
+                this.fxParticle(e.x + (Math.random() * 20 - 10), e.y - 12 - Math.random() * 8, Math.random() < 0.4 ? '#ffd24a' : '#ff7043', 1, 28, 0.45, 100, 5);
+              }
             } else {
               this.fxParticle(e.x + (Math.random() * 16 - 8), e.y - 8, '#7ee2a8', 3, 24, 0.5, 70, 4);
             }
@@ -621,14 +624,22 @@ class CombatSystem {
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.fire.shot.dur;
       const tint = '#ff7043';
+      // v1.13.3：多枚火球扇形分离——aim 固定终点 + 弹体放大，确保视觉上清晰可见「多个火球」
+      const aimOf = (tgt, off) => {
+        const dx = tgt.x - fsx, dy = tgt.y - fsy;
+        const cos = Math.cos(off), sin = Math.sin(off);
+        return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
+      };
       // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道
       this.damage(e, perDmg, 'fire');
-      g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, tx: e.x, ty: e.y, t: 0, dur, key: 'fire', target: e });
-      // 额外目标：扇形分散各一枚火球，命中才结算（onHit 不触发技能链）
+      g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aimOf(e, 0)));
+      // 额外目标：扇形偏角各一枚火球，命中才结算（onHit 不触发技能链）
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e)
         .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
       for (let i = 0; i < n - 1 && cands.length; i++) {
         const o = cands[i];
+        const off = (i - (n - 2) / 2) * 0.16;   // 扇形分离角（弧度）
+        const aim = aimOf(o, off);
         this.shots.push({
           key: 'fire', target: o, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy,
           onHit: (t, d) => {
@@ -640,7 +651,7 @@ class CombatSystem {
             if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(t, d, 'fire');
           },
         });
-        g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, tx: o.x, ty: o.y, t: 0, dur, key: 'fire', target: o });
+        g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: o, aim: true, scale: 1.35 }, aim));
       }
     } else {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
