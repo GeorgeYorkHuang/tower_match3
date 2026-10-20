@@ -856,6 +856,9 @@ class CombatSystem {
       for (let i = 0; i < Math.min(n, cands.length); i++) {
         this.damage(cands[i], pDmg, 'ice');
         this.applySlow(cands[i], 0.2, 1);
+        // v1.13.26 穿透特效：被穿透敌人爆出冰晶碎片 + 小冰环（沿弹道方向的贯穿感）
+        this.fxParticle(cands[i].x, cands[i].y, '#b8e6ff', 5, 40, 0.3, 110, 4);
+        this.fxRing(cands[i].x, cands[i].y, '#a9d6f5', 20, 0.2, 2);
       }
     }
   }
@@ -1258,7 +1261,8 @@ class CombatSystem {
                 });
               });
             }
-            // 冰花视觉：绽放冰环 + 冰晶碎瓣 + 闪光
+            // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
+            this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r, t: 0, dur: 0.55 });
             this.fxRing(tgt.x, tgt.y, '#7fd4ff', r, 0.5, 5);
             this.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
             this.fxFlash(tgt.x, tgt.y, '#7fd4ff');
@@ -1279,7 +1283,7 @@ class CombatSystem {
           const r = 110 * (1 + 0.3 * Math.max(0, this.branchLv('ice', '冬珠', 'B') - 1));
           const tickI = 0.8 * (1 - 0.2 * Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1));
           const slowA = this.branchLv('ice', '冬珠', 'A');
-          const dmg = this.shotDmg('ice') * 0.5;
+          const dmg = this.shotDmg('ice') * 0.55;   // v1.13.26 平衡：冬珠每跳 0.5→0.55×普攻
           const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbN);  // 最近 N 个敌人位置落球
           this.frostOrbs = this.frostOrbs || [];
           spots.forEach((sp) => {
@@ -1333,7 +1337,7 @@ class CombatSystem {
         this.timers.iceWall = 0;
         this.iceWall = {
           ttl: 8 + 2 * Math.max(0, this.branchLv('ice', '冰墙', 'A') - 1),
-          absorb: 400,
+          absorb: 500,   // v1.13.26 平衡：冰墙吸收 400→500
           reflect: 0.30 * this.branchLv('ice', '冰墙', 'B'),
           heal: 40 * this.branchLv('ice', '冰墙', 'C'),
         };

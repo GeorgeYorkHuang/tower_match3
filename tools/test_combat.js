@@ -160,7 +160,7 @@ t('冰·冰墙：周期附魔城墙 + 结束回血', () => {
   c.timers.iceWall = 19.9;
   c.update(0.2);   // timer 20.1 ≥20 → 生成冰墙（ttl 8 + 2×A0；C1 → 回血 40）
   assert.ok(c.iceWall && c.iceWall.ttl > 0, '应生成冰墙');
-  assert.ok(c.iceWall.absorb === 400, '冰墙吸收值应为 400');
+  assert.ok(c.iceWall.absorb === 500, '冰墙吸收值应为 500');
   assert.ok(c.iceWall.heal === 40, 'C1 回血应为 40');
   // 模拟攻城扣血后冰墙消散回血
   g.run.lineHp -= 100;

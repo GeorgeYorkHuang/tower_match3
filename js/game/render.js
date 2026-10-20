@@ -571,6 +571,37 @@ class Renderer {
         ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
         ctx.globalAlpha = 1;
       }
+      // v1.13.26 冰冻持续特效：冰晶外壳（半透明冰壳 + 冰刺 + 白色呼吸高光），冻结期间常驻
+      if (e.frozen > 0) {
+        const cx = x + size / 2, cy = y + size / 2;
+        const br = 1 + 0.08 * Math.sin(Date.now() / 220);
+        ctx.fillStyle = '#b8e6ff'; ctx.globalAlpha = 0.22;
+        ctx.beginPath(); ctx.arc(cx, cy, size * 0.55 * br, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.55;
+        for (let k = 0; k < 5; k++) {
+          const a = Date.now() / 600 + k * 1.256;
+          const ix = cx + Math.cos(a) * size * 0.52 * br, iy = cy + Math.sin(a) * size * 0.52 * br;
+          ctx.beginPath();
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + Math.cos(a + 0.5) * 6, iy + Math.sin(a + 0.5) * 6);
+          ctx.lineTo(ix + Math.cos(a + 1.4) * 6, iy + Math.sin(a + 1.4) * 6);
+          ctx.closePath(); ctx.fill();
+        }
+        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 160);
+        ctx.beginPath(); ctx.arc(cx - size * 0.15, cy - size * 0.15, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      // v1.13.26 减速持续特效：脚下扩散冰环（寒霜核心视觉）
+      if (e.slow && e.slow.ttl > 0 && e.frozen <= 0) {
+        const cx = x + size / 2, cy = y + size / 2;
+        const pulse = (Date.now() / 400) % 1;
+        ctx.strokeStyle = '#5dade2'; ctx.lineWidth = 1.6;
+        ctx.globalAlpha = 0.55 * (1 - pulse);
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 4 + pulse * size * 0.4, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#5dade2'; ctx.globalAlpha = 0.4;
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       // v1.13.21 麻痹持续特效：头顶金色电花（⚡+跳动电光点），麻痹期间常驻
       if (e.paralyzed > 0) {
         const cx = x + size / 2, cy = y + size / 2;
@@ -830,6 +861,28 @@ class Renderer {
             const px = f.x - (f.r || 350) / 2 + ((f.x * 7 + k * 131) % (f.r || 350));
             ctx.beginPath(); ctx.arc(px, wy - (8 + ((f.x * 13 + k * 71) % 34)), 2.2, 0, Math.PI * 2); ctx.fill();
           }
+          ctx.globalAlpha = 1;
+        } else if (f.kind === 'icebloom') {
+          // v1.13.26 冰花绽放：六瓣雪花展开 + 冰晶高光 + 扩散（0.55s）
+          const fp = Math.min(1, f.t / f.dur);
+          const bloomR = (f.r || 100) * (0.25 + 0.75 * fp);
+          const rot = Date.now() / 200;
+          ctx.strokeStyle = '#a9d6f5'; ctx.lineWidth = 2.5;
+          ctx.globalAlpha = 0.85 * (1 - fp * 0.55);
+          for (let k = 0; k < 6; k++) {
+            const a = rot + k * Math.PI / 3;
+            ctx.beginPath();
+            ctx.moveTo(f.x, f.y);
+            ctx.lineTo(f.x + Math.cos(a) * bloomR, f.y + Math.sin(a) * bloomR * 0.9);
+            ctx.stroke();
+            // 瓣尖小冰晶
+            ctx.fillStyle = '#d6f0ff';
+            ctx.beginPath();
+            ctx.arc(f.x + Math.cos(a) * bloomR * 1.05, f.y + Math.sin(a) * bloomR * 0.95, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.strokeStyle = '#7fd4ff'; ctx.globalAlpha = 0.5 * (1 - fp);
+          ctx.beginPath(); ctx.arc(f.x, f.y, bloomR * 1.25, 0, Math.PI * 2); ctx.stroke();
           ctx.globalAlpha = 1;
         } else if (f.kind === 'orb') {
           // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
