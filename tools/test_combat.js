@@ -177,6 +177,26 @@ t('火·火柱：周期技对随机敌人范围爆炸', () => {
   assert.ok(e2.hp < 2000, '火柱范围应波及邻近敌人');
 });
 
+t('火·火雨：每波 3 批×2-5 颗独立落下，落地结算伤害+灼烧', () => {
+  const g = mkGame({ fire: { 火雨: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(5000, 370, 800); g.enemies.push(e1);
+  c.tickPeriodic(12); // 触发火雨（3 波 × 3 批 × 每批 2-5 颗）
+  const drops = g.fx.filter((f) => f.type === 'raindrop');
+  assert.ok(drops.length >= 18, `基础 3 波×3 批×2 颗 → 至少 18 颗火雨点（实际 ${drops.length}）`);
+  assert.ok(drops.length <= 45, `每批至多 5 颗 → 至多 45 颗（实际 ${drops.length}）`);
+  drops.forEach((d) => {
+    assert.ok(d.ty - d.y === 260, '火雨点起点应在落点上方 260px（平行圈内）');
+    assert.ok(d.tx === d.x, '火雨点垂直落下（起点/落点同列）');
+  });
+  // 落地结算：把一发火雨点放到敌人身上，推进后敌人受伤并带灼烧
+  c.rainWaves = c.rainWaves || [];
+  c.rainWaves.push({ t: 0.01, dx: e1.x, dy: e1.y, r: 80, dmg: 60, ignite: 0 });
+  c.update(1 / 60);
+  assert.ok(e1.hp < 5000, '落地结算：落点半径内敌人受火雨伤害（30% 段伤）');
+  assert.ok(e1.dots.some((d) => d.type === 'burn'), '落地结算：火雨造成灼烧效果');
+});
+
 t('死亡触发：燃爆（灼烧敌人死亡时概率爆炸波及邻近）', () => {
   const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 } });
   const c = new CombatSystem(g);

@@ -1025,8 +1025,10 @@ class CombatSystem {
         this.pillarWaves = remaining;
       }
     }
-    // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨（每波 80% 伤害·半径140；A 波次+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
-    // v1.13.9：每次只触发 1 个区域（索敌：在存活敌人处释放）；区域内连续 waves 波，0.7s 间隔，伤害延迟结算
+    // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨
+    // v1.13.14 动画+机制重做：每波 0.1s 内随机生成 3 批（每批 2-5 颗）火雨点，起点在区域圈上方 260px 平行圈内随机，
+    //   独立落下（下落 0.5s），每 0.3s 一波（基础 3 波，A 波次+1）；火雨点落地瞬间才结算伤害（30%）并造成灼烧；
+    //   B 猛烈 +50%/级、C 引燃 50% 概率灼烧加深
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
@@ -1034,34 +1036,60 @@ class CombatSystem {
         this.timers.fireRain = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
-          const segDmg = this.shotDmg('fire') * 0.8 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
-          const segR = 140;
+          const segR = 140;                        // 火雨圈半径（区域标识 + 落点采样范围）
+          const perR = 80;                         // 单发落点伤害半径
+          const segDmg = this.shotDmg('fire') * 0.3 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
           const igniteLv = this.branchLv('fire', '火雨', 'C');
           const waves = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
-          const gap = 0.7;
+          const gap = 0.3;                         // 每 0.3s 一波
+          const FALL = 0.5;                        // 单颗下落时长（与 render raindrop 同步）
           const tgt = alive[Math.floor(Math.random() * alive.length)];
           const px = tgt.x + (Math.random() - 0.5) * 20;
           const py = tgt.y + (Math.random() - 0.5) * 20;
           this.rainWaves = this.rainWaves || [];
           for (let w = 0; w < waves; w++) {
-            this.rainWaves.push({ t: w * gap, px, py, r: segR, dmg: segDmg, ignite: igniteLv });
-            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w * gap, dur: 2.1, seed: Math.random() * 100 });
+            const w0 = w * gap;
+            // 区域圈 fx：整波持续（生成 0.1s + 下落 0.5s + 落地余焰）
+            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w0, dur: 0.1 + FALL + 0.25, seed: Math.random() * 100 });
+            // 每波 3 批，0.1s 内随机时刻生成，每批 2-5 颗，独立落下
+            for (let b = 0; b < 3; b++) {
+              const cnt = 2 + Math.floor(Math.random() * 4);   // 2-5 颗
+              for (let k = 0; k < cnt; k++) {
+                const ang = Math.random() * Math.PI * 2;
+                const rr = Math.sqrt(Math.random()) * segR * 0.95;  // 圈内均匀采样
+                const dx = px + Math.cos(ang) * rr;
+                const dy = py + Math.sin(ang) * rr;
+                const s = Math.random() * 0.1;            // 0.1s 内随机生成时刻
+                const t0 = w0 + s + FALL;                 // 落地（结算）时刻
+                this.rainWaves.push({ t: t0, dx, dy, r: perR, dmg: segDmg, ignite: igniteLv });
+                // 火雨点 fx：起点 = 落点正上方 260px（与火雨圈平行的圈内），独立落下
+                g.fx.push({ type: 'raindrop', x: dx, y: dy - 260, tx: dx, ty: dy, t: -(w0 + s), dur: FALL + 0.25, r: perR, seed: Math.random() * 100 });
+              }
+            }
           }
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
       }
-      // 延迟波次结算：到达时间后逐波造成伤害
+      // 延迟结算：火雨点落地瞬间造成伤害 + 灼烧（v1.13.14 每发独立结算，替换整波 explode）
       if (this.rainWaves && this.rainWaves.length) {
         const remaining = [];
         for (const wv of this.rainWaves) {
           wv.t -= dt;
           if (wv.t <= 0) {
-            this.explode(wv.px, wv.py, wv.r, wv.dmg, 'fire');
+            this.enemies().forEach((o) => {
+              if (o.hp > 0 && Math.hypot(o.x - wv.dx, o.y - wv.dy) <= wv.r) {
+                this.damage(o, wv.dmg, 'fire');
+                this.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
+              }
+            });
             if (wv.ignite > 0) {
               this.enemies().forEach((o) => {
-                if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r && Math.random() < 0.50) this.applyBurn(o, wv.dmg, 'fire');
+                if (o.hp > 0 && Math.hypot(o.x - wv.dx, o.y - wv.dy) <= wv.r && Math.random() < 0.50) this.applyBurn(o, wv.dmg, 'fire');
               });
             }
+            // 落地小爆焰（轻量，替代 explode 重特效）
+            this.fxParticle(wv.dx, wv.dy, '#ff7043', 5, wv.r * 0.5, 0.3, 120, 4);
+            this.fxRing(wv.dx, wv.dy, '#ff9f43', wv.r, 0.25, 2);
           } else {
             remaining.push(wv);
           }

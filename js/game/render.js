@@ -848,11 +848,9 @@ class Renderer {
           ctx.globalAlpha = 1;
         }
       } else if (f.type === 'rain') {
-        // 火雨帧动画（v1.13.9）：范围圈标识（全程）+ 波内 6 枚火球陆续落下（各自错开 0.12s）+ 落地爆焰 + 地面燃烧
-        // combat 以 0.7s 间隔推入多个 rain fx，同一区域连续 waves 波
+        // 火雨区域标识（v1.13.14）：双环 + 半透明红晕，标注火雨覆盖圈（火雨点由独立 raindrop fx 绘制）
         const p = Math.min(1, f.t / f.dur);
         const cx = f.x, cy = f.y, R = f.r || 140, seed = f.seed || 0;
-        // 全程范围圈：双环 + 半透明红晕（标识火雨覆盖区域）
         ctx.globalAlpha = 0.22 + 0.08 * Math.sin(p * 20 + seed);
         ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
@@ -861,44 +859,36 @@ class Renderer {
         ctx.fillStyle = 'rgba(255,112,67,0.12)';
         ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
-        // 6 枚火球：每枚独立时间线（下落 0.5s → 落地小爆焰 0.25s），stagger 0.12s 陆续落下
-        const FALL = 0.5, BURST = 0.25, STEP = 0.12;
-        for (let i = 0; i < 6; i++) {
-          const s = ((i * 6301 + seed * 11) % 83) / 83;
-          const tx = cx + (s - 0.5) * R * 0.9;
-          const ti = p * f.dur - STEP * i;
-          if (ti < 0) continue;
-          if (ti < FALL) {
-            const k = ti / FALL;
-            const by = cy - 260 * (1 - k);
-            const br = 6 + s * 6;
-            ctx.globalAlpha = (1 - k) * 0.5 + s * 0.4;
-            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-            ctx.beginPath(); ctx.arc(tx, by - 8 - s * 26 * (1 - k * 0.6), 2.5 + s * 4, 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = '#ff7043';
-            ctx.beginPath(); ctx.arc(tx, by, br, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ffe08a';
-            ctx.beginPath(); ctx.arc(tx - br * 0.2, by - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
-          } else if (ti < FALL + BURST) {
-            // 落地小爆焰（该火球落点）
-            const k = (ti - FALL) / BURST;
-            const br = 5 + s * 5;
-            ctx.globalAlpha = 0.9 * (1 - k);
-            ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(tx, cy, br * (1 + k * 1.6), 0, Math.PI * 2); ctx.stroke();
-            ctx.globalAlpha = (1 - k) * 0.9;
-            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-            ctx.beginPath(); ctx.arc(tx, cy, br * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 1;
-          } else {
-            // 落地后地面小火焰
-            const k = Math.min(1, (ti - FALL - BURST) / 0.4);
-            ctx.fillStyle = '#ff7043';
-            ctx.globalAlpha = 0.5 * (1 - k);
-            ctx.beginPath(); ctx.arc(tx, cy - 4, 3 + s * 3, 0, Math.PI * 2); ctx.fill();
-            ctx.globalAlpha = 1;
-          }
+      } else if (f.type === 'raindrop') {
+        // 单颗火雨点（v1.13.14）：从上方 260px 平行圈起点垂直落向落点（0.5s），落地小爆焰（0.25s 淡出）
+        // 每颗独立时间线：combat 以负 t 延迟生成时刻错峰，落地瞬间同步结算伤害
+        const FALL = 0.5;
+        const seed = f.seed || 0;
+        const s = seed % 1;
+        const br = 5 + s * 4;
+        if (f.t < FALL) {
+          // 下落火球：起点 (x,y) → 落点 (tx,ty)，带尾焰
+          const k = Math.max(0, f.t / FALL);
+          const cx = f.x + (f.tx - f.x) * k;
+          const cy = f.y + (f.ty - f.y) * k;
+          ctx.globalAlpha = (1 - k) * 0.5 + s * 0.3;
+          ctx.fillStyle = '#ff7043';
+          ctx.beginPath(); ctx.arc(cx, cy - 6 - s * 14 * (1 - k * 0.5), 2.5 + s * 3, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#ff7043';
+          ctx.beginPath(); ctx.arc(cx, cy, br, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffe08a';
+          ctx.beginPath(); ctx.arc(cx - br * 0.2, cy - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
+        } else {
+          // 落地小爆焰（淡出）
+          const k = Math.min(1, (f.t - FALL) / 0.25);
+          ctx.globalAlpha = 0.9 * (1 - k);
+          ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 + k * 1.6), 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = (1 - k) * 0.9;
+          ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
         }
       } else if (f.type === 'particle') {
         // 技能特效粒子：随机方向小圆点 + 速度衰减 + 淡出（灼烧/毒泡/冰晶/电花/爆炸碎片）
