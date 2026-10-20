@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.14.0';        // v1.14 测试战场：6塔免三消直测技能+刷怪+倍速+技能分支面板
+const GAME_VERSION = 'v1.14.1';        // v1.14.1 测试战场单塔模式：1塔出战+随意更换+技能分支配置
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -120,9 +120,9 @@ class GameMain {
     this.sfx.startBgm();
   }
 
-  /** 测试战场：6 塔全部出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14） */
+  /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14.1） */
   enterTestField() {
-    // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），然后直接解锁全部 6 塔
+    // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
@@ -133,8 +133,8 @@ class GameMain {
     this.pickCell = null;
     this.combat.reset();
     this.battleRelics = [];
-    // 解锁全部 6 塔（level=1），全部出战
-    this.run.slotOrder = Object.keys(this.run.effects.towers);
+    // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
+    this.run.slotOrder = ['fire'];
     this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
     // 城墙：测试战场不扣血（恒满）
     this.run.lineHp = CONFIG.LINE.hp;
@@ -145,10 +145,21 @@ class GameMain {
     this.testSpeed = 1;
     this.state = 'testfield';
     this.sfx.stopBgm();
-    this.toast('测试战场 · 点塔位配置技能 · 刷怪验证', '#7cd6a6');
+    this.toast('测试战场 · 点塔位配置技能 · 点“更换”切塔', '#7cd6a6');
   }
 
-  /** 测试战场状态（6 塔槽 + 当前技能配置） */
+  /** 测试战场：更换出战塔（单塔模式，v1.14.1） */
+  switchTestTower(key) {
+    const t = this.run.effects.tower(key);
+    if (!t) return;
+    t.unlock();
+    this.run.slotOrder = [key];
+    this.testPanel = { key }; // 切塔后直接打开该塔技能面板
+    this.combat.reset();
+    this.toast(`出战塔：${CONFIG.COLORS[CONFIG.TOWERS[key].color].name}`, '#7cd6a6');
+  }
+
+  /** 测试战场状态（出战塔槽 + 全部塔简表 + 当前技能配置） */
   testState() {
     const run = this.run;
     const slots = [];
@@ -170,11 +181,17 @@ class GameMain {
         skills,
       });
     });
+    // 6 塔切换简表（v1.14.1）
+    const allTowers = Object.keys(this.run.effects.towers).map((key) => {
+      const t = run.effects.tower(key);
+      return { key, name: CONFIG.COLORS[t.color].name, icon: TOWER_ICON[key] || '?' };
+    });
     return {
       state: this.state,
       lineHp: run.lineHp, lineMaxHp: run.lineMaxHp,
       wave: run.wave, waveTime: this.waveTime, waveDuration: WAVE_DUR,
       towers: slots,
+      allTowers,
       enemyCount: this.enemies.length,
       speed: this.testSpeed,
       panel: this.testPanel,
@@ -760,6 +777,7 @@ class GameMain {
         case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
         case 'tf_clear': this.clearTestEnemies(); return true;
         case 'tf_slot': this.testPanel = { key: it.data }; return true;
+        case 'tf_switch': this.switchTestTower(it.data); return true;
         case 'panel_close': this.testPanel = null; return true;
         case 'panel_all': this.testSkillAll(this.testPanel.key, true); return true;
         case 'panel_clear': this.testSkillAll(this.testPanel.key, false); return true;

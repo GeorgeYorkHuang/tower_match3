@@ -58,7 +58,7 @@ function tapAt(lx, ly) {
 /* ---------- 用例 ---------- */
 
 // 1. 主界面入口按钮 → 测试战场
-t('主界面「测试战场」按钮进入 testfield（6 塔出战）', () => {
+t('主界面「测试战场」按钮进入 testfield（单塔出战）', () => {
   game.goMenu();
   game.menuTab = 'battle';
   game.render();
@@ -67,11 +67,13 @@ t('主界面「测试战场」按钮进入 testfield（6 塔出战）', () => {
   // 测试按钮区域：ty=940 th=74 → 中心 (375, 977)
   tapAt(375, 977);
   assert.strictEqual(game.state, 'testfield', '点击后 state 应为 testfield');
-  assert.strictEqual(game.run.slotOrder.length, 6, '应 6 塔全部出战');
-  game.run.slotOrder.forEach((k) => {
-    const tw = game.run.effects.tower(k);
-    assert.ok(tw.level >= 1, `${k} 塔应已解锁`);
-  });
+  assert.strictEqual(game.run.slotOrder.length, 1, '应单塔出战');
+  assert.strictEqual(game.run.slotOrder[0], 'fire', '默认出战火塔');
+  const tw = game.run.effects.tower('fire');
+  assert.ok(tw.level >= 1, '火塔应已解锁');
+  // 全部 6 塔可在切换简表选择
+  const st = game.testState();
+  assert.strictEqual(st.allTowers.length, 6, '切换简表应有 6 塔');
 });
 
 // 2. 弹药恒满
@@ -140,10 +142,10 @@ t('塔槽触摸打开面板 + 面板 A 分支按钮生效', () => {
   game.testPanel = null;
   game.render(); // 重建 testHits
   const firstKey = game.run.slotOrder[0];
-  // 塔槽 0：6 槽 total=740 x0=5，槽0 x=5..105 y=1053..1153 → 中心 (55, 1103)
-  tapAt(55, 1103);
+  // 出战塔槽：x=15..115 y=1053..1153 → 中心 (65, 1103)
+  tapAt(65, 1103);
   assert.ok(game.testPanel, '点塔位应打开技能面板');
-  assert.strictEqual(game.testPanel.key, firstKey, '槽 0 应为 slotOrder[0] 塔');
+  assert.strictEqual(game.testPanel.key, firstKey, '槽应为出战塔');
   game.render(); // 重建含面板按钮的 testHits
   const firstSkill = game.run.effects.tower(firstKey).pool[0].name;
   // 面板行 0 A 按钮：b0=278，A bx=278..374 y=258..310 → 中心 (326, 284)
@@ -155,6 +157,33 @@ t('塔槽触摸打开面板 + 面板 A 分支按钮生效', () => {
   game.render();
   tapAt(663, 192); // panel_close 命中区 (634,168)-(692,216) 中心 (663,192)
   assert.strictEqual(game.testPanel, null, '点关闭应关闭面板');
+});
+
+// 6b. 更换出战塔（真实触摸链路）
+t('切换钮更换出战塔并打开新塔面板', () => {
+  game.render(); // 重建含 tf_switch 的 testHits
+  // 6 塔切换钮：x=185+i*66, y=1053..1109 → ice 钮（i=1）中心 (185+66+28, 1081) = (279, 1081)
+  tapAt(279, 1081);
+  assert.strictEqual(game.run.slotOrder.length, 1, '仍单塔出战');
+  assert.strictEqual(game.run.slotOrder[0], 'ice', '切换后出战冰塔');
+  assert.ok(game.testPanel, '切塔后应自动打开技能面板');
+  assert.strictEqual(game.testPanel.key, 'ice', '面板应为冰塔');
+  const tw = game.run.effects.tower('ice');
+  assert.ok(tw.level >= 1, '冰塔应已解锁');
+  // 冰塔分支操作生效
+  game.render();
+  const firstSkill = tw.pool[0].name;
+  tapAt(326, 284); // 行 0 A 按钮
+  const ef = tw.pool.find((e) => e.name === firstSkill);
+  assert.strictEqual(ef.branches.A, 1, `冰塔 ${firstSkill} A 分支应为 1`);
+  // 切回火塔（先关闭冰塔面板——面板打开时底层按钮不响应）
+  game.render();
+  tapAt(663, 192); // 关面板
+  assert.strictEqual(game.testPanel, null, '面板应关闭');
+  game.render();
+  tapAt(213, 1081); // fire 钮（i=0）中心 (213, 1081)
+  assert.strictEqual(game.run.slotOrder[0], 'fire', '切回火塔');
+  assert.strictEqual(game.testPanel.key, 'fire', '面板切回火塔');
 });
 
 // 7. 攻城不扣城墙血（测试战场城墙无敌）

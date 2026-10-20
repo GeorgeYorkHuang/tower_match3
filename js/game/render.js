@@ -1531,18 +1531,46 @@ class Renderer {
     // 敌人与特效（位于战场区，不被控制条覆盖）
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
-    // 塔槽行：6 槽居中，无全局技能按钮
-    this.towerRow(ctx, s, 6, false);
-    // 塔槽命中区（与 towerRow 6 槽布局一致：slotSize 48 gap 12 total 348 居中）
-    let sx0 = (750 - (6 * this.ly.slotSize + 5 * this.ly.slotGap)) / 2;
-    (s.towers || []).forEach((tw) => {
-      if (tw) push('tf_slot', tw.key, sx0, this.ly.slotY, this.ly.slotSize, this.ly.slotSize);
-      sx0 += this.ly.slotSize + this.ly.slotGap;
+    // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）
+    const cur = (s.towers || [])[0] || null;
+    if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
+      fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
+    }
+    text(ctx, '出战塔', 65, TOWER_ROW_Y + 16, 14, 'rgba(255,255,255,0.4)', 'center');
+    if (cur) {
+      push('tf_slot', cur.key, 15, 1053, 100, 100);
+      const ix = 15 + (100 - L.towerIcon.size) / 2;
+      const iy = 1053 + (100 - L.towerIcon.size) / 2;
+      if (!drawImg(ctx, IMG_SRC[cur.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
+        drawTowerGlyph(ctx, cur.key, ix, iy, L.towerIcon.size);
+      }
+      // 等级徽章
+      fillRoundRect(ctx, 15 + 100 - 16, 1053 - 6, L.towerIcon.badge, L.towerIcon.badge, 4, '#f7c948');
+      text(ctx, `${cur.level}`, 15 + 100 - 8, 1053 + 2, 12, '#5c4a00', 'center');
+      // 弹药竖条（槽内右侧）
+      const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
+      const bx = 15 + 100 - 9, by0 = 1053 + 8, bh = 100 - 16;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(bx, by0, 7, bh);
+      ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
+      ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
+      text(ctx, `${cur.ammo || 0}`, bx + 3, 1053 + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
+    }
+    // 6 塔切换钮
+    text(ctx, '更换', 158, TOWER_ROW_Y + 16, 14, 'rgba(255,255,255,0.4)', 'left');
+    (s.allTowers || []).forEach((tw, i) => {
+      const bx = 185 + i * 66;
+      const active = cur && tw.key === cur.key;
+      push('tf_switch', tw.key, bx, 1053, 56, 56);
+      fillRoundRect(ctx, bx, 1053, 56, 56, 10, active ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, bx, 1053, 56, 56, 10, active ? '#f7c948' : 'rgba(255,255,255,0.2)', active ? 2 : 1);
+      text(ctx, tw.icon, bx + 28, 1053 + 26, 24, '#ffffff', 'center');
+      text(ctx, tw.name, bx + 28, 1053 + 50, 12, active ? '#f7c948' : 'rgba(255,255,255,0.6)', 'center');
     });
     // 底部控制区
     const cY = TOWER_ROW_Y + L.towerRow.h;
     fillRoundRect(ctx, AREA_X, cY, AREA_W, LOGIC_H - cY - 16, 12, 'rgba(255,255,255,0.04)');
-    text(ctx, '— 刷怪测试 —', 375, cY + 30, 20, '#9fb2c3', 'center');
+    text(ctx, `— 刷怪测试 · ${cur ? '出战塔：' + cur.name : ''} —`, 375, cY + 30, 20, '#9fb2c3', 'center');
     const btnW = 208, btnH = 64, btnGap = 16, bX = 44;
     const rows = [
       [['tf_spawn_n', '👾 普通×5', '#7cd6a6'], ['tf_spawn_r', '🏃 快速×5', '#f7c948'], ['tf_spawn_t', '🛡 重甲×5', '#a78bfa']],
@@ -1558,7 +1586,7 @@ class Renderer {
         text(ctx, b[1], bx + btnW / 2, by + 38, 24, '#ffffff', 'center');
       });
     });
-    text(ctx, '技能面板：A/B/C 分支按钮循环 0→1→2→3（点塔位打开）', 375, cY + 216, 16, '#5b6b7c', 'center');
+    text(ctx, '点上方“出战塔”配技能 · 点“更换”切塔 · A/B/C 分支循环 0→3', 375, cY + 216, 16, '#5b6b7c', 'center');
     // 返回主界面
     push('tf_back', null, 100, 1490, 550, 76);
     fillRoundRect(ctx, 100, 1490, 550, 76, 18, 'rgba(255,255,255,0.06)');
