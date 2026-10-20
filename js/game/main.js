@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.14.1';        // v1.14.1 测试战场单塔模式：1塔出战+随意更换+技能分支配置
+const GAME_VERSION = 'v1.14.2';        // v1.14.2 测试战场出怪修复：怪速×3（13s到墙），消除入口盲区长时间无输出
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -246,7 +246,7 @@ class GameMain {
     const ly = this.renderer.ly;
     const entryY = ly.areaY + ly.entryH;
     const wallY = ly.wallY;
-    const baseSpeed = (wallY - entryY) / WAVE_DUR; // 类型速度由 CONFIG.ENEMY.types.spdMult 控制
+    const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
     // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
     const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
     for (let i = 0; i < count; i++) {

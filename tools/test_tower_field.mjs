@@ -129,6 +129,10 @@ t('spawnTestEnemies / clearTestEnemies', () => {
   game.spawnTestEnemies('normal', 2);
   assert.strictEqual(game.enemies.length, 2, '应入列 2 只普通怪');
   assert.strictEqual(game.enemies[0].hp, 500, '普通怪测试血量 500');
+  assert.ok(game.enemies[0].speed > 50, `测试战场怪速应 ×3（约 62），实际 ${game.enemies[0].speed}`);
+  // 推进 5 秒：怪物进入射程后首发弹道命中结算（塔锁定 y 最大的敌人，故断言任一敌人受伤）
+  for (let i = 0; i < 50; i++) game.update(0.1);
+  assert.ok(game.enemies.some((e) => e.hp < 500), '进射程后应已受到攻击伤害');
   game.spawnTestEnemies('boss', 1);
   assert.strictEqual(game.enemies.length, 3);
   assert.ok(game.enemies[2].isBoss, '第 3 只应为 Boss');
