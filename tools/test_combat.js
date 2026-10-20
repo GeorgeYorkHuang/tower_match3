@@ -456,24 +456,38 @@ t('火·灼烧爆裂：灼烧每跳概率向外爆炸', () => {
   assert.ok(e2.hp < 3000, '灼烧跳伤爆炸应波及邻近敌人');
 });
 
-t('毒·剧毒：中毒 DoT', () => {
+t('毒·基础中毒 + 剧毒：命中概率叠层 DoT（v1.15）', () => {
   const g = mkGame({ poison: { 剧毒: 1 } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  c.hit('poison', e, 80);
+  const orig = Math.random; Math.random = () => 0; // 触发上毒
+  try { c.hit('poison', e, 80); } finally { Math.random = orig; }
   const dot = e.dots.find((d) => d.type === 'poison');
-  assert.ok(dot && dot.dps > 0, '应有中毒 DoT');
+  assert.ok(dot && dot.stack === 1, '应有 1 层中毒');
+  assert.ok(dot.stackDps > 0, '应有每层 DoT 伤害（单发×10%）');
+  assert.strictEqual(dot.maxStack, 5, '默认层数上限 5');
+  // 未触发（概率外）→ 无 DoT
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  Math.random = () => 0.99;
+  try { c.hit('poison', e2, 80); } finally { Math.random = orig; }
+  assert.ok(!e2.dots.find((d) => d.type === 'poison'), '概率未命中时不上毒');
 });
 
-t('毒·腐蚀：受伤加深', () => {
-  const g = mkGame({ poison: { 腐蚀: 1 } });
+t('毒·中毒可叠层：多次命中叠到上限并刷新', () => {
+  const g = mkGame({ poison: { 剧毒: 1, '毒性强化': { C: 1 } } });
   const c = new CombatSystem(g);
-  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  c.hit('poison', e, 80);
-  assert.ok(e.corrode && e.corrode.mult > 1, '应有腐蚀增伤状态');
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 每次必上毒
+  try {
+    for (let i = 0; i < 10; i++) c.hit('poison', e, 80);
+  } finally { Math.random = orig; }
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(dot.stack <= 7, '毒性强化 C+1 级 → 上限 7');
+  assert.strictEqual(dot.stack, 7, '叠满上限 7');
+  // DoT 结算：层数 × 每层 dps
   const hp0 = e.hp;
-  c.damage(e, 100, 'poison');
-  assert.ok(hp0 - e.hp > 100, '腐蚀后伤害应高于基础值');
+  c.update(1.0);
+  assert.ok(hp0 - e.hp > 0, 'DoT 应按层数持续掉血');
 });
 
 t('回旋镖·暴击：概率暴击（固定随机触发）', () => {
@@ -505,26 +519,23 @@ t('死亡触发：燃爆（灼烧敌人死亡时爆炸波及邻近）', () => {
   assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
 });
 
-t('死亡触发：毒爆', () => {
+t('死亡触发：毒爆（v1.15 传播中毒）', () => {
   const g = mkGame({ poison: { 毒爆: 1, 剧毒: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
-  c.hit('poison', e1, 100);
+  const orig = Math.random; Math.random = () => 0; // 上毒必中
+  try { c.hit('poison', e1, 100); } finally { Math.random = orig; }
   assert.ok(e1.hp <= 0, '主目标应死亡');
-  assert.ok(e2.hp < 1000, '毒爆应波及邻近敌人');
+  const dot = e2.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.stack === 1, '毒爆应向邻近 200px 内目标传播 1 层中毒');
 });
 
-t('协同：燃爆×毒爆 → 双爆炸伤害加深', () => {
-  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 }, poison: { 毒爆: 1, 剧毒: 1 } }, ['fire', 'poison']);
-  g.run.effects.synergyDone[0] = true;
-  const c = new CombatSystem(g);
-  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
-  const e2 = mkEnemy(1000, 385, 810); g.enemies.push(e2);
-  c.hit('fire', e1, 100);
-  c.hit('poison', e1, 100); // 双爆触发
-  // 无断言数值，验证不抛异常且爆炸 fx 产生
-  assert.ok(g.fx.some((f) => f.type === 'boom'), '应产生爆炸特效');
+t('协同：燃爆×毒爆 不再存在（毒爆重做为传播，v1.15 移除协同）', () => {
+  const hit = CONFIG.SYNERGIES.some((s) =>
+    (s.a.tower === 'fire' && s.a.effect === '燃爆' && s.b.tower === 'poison' && s.b.effect === '毒爆') ||
+    (s.a.tower === 'poison' && s.a.effect === '毒爆' && s.b.tower === 'fire' && s.b.effect === '燃爆'));
+  assert.ok(!hit, '毒爆重做后不应再有燃爆×毒爆协同');
 });
 
 t('全塔攻击调度：tickTower 按间隔发弹道并命中', () => {
@@ -535,6 +546,103 @@ t('全塔攻击调度：tickTower 按间隔发弹道并命中', () => {
   for (let i = 0; i < 125; i++) c.update(1 / 60);
   assert.ok(e.hp < 1000, '敌人应被真实攻击命中掉血');
   assert.ok(g.fx.some((f) => f.type === 'shot'), '应有弹道特效');
+});
+
+/* ================= v1.15 毒塔重做专项 ================= */
+
+t('毒·毒池：周期释放，池内敌人每秒毒伤并叠毒', () => {
+  const g = mkGame({ poison: { 毒池: 1 } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(5000, 375, 800); g.enemies.push(e);
+  for (let i = 0; i < 5 * 60 + 8; i++) c.update(1 / 60); // 5s（+余量防浮点边界）→ 触发毒池
+  assert.ok(c.groundDots.some((d) => d.key === 'poison' && d.dps > 0), '应释放毒池（key=poison）');
+  c.update(1.0); // 池内 1s：直伤 + 叠毒
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(e.hp < 5000, '毒池应造成直伤');
+  assert.ok(dot && dot.stack >= 1, '毒池应每秒叠毒 1 层');
+});
+
+t('毒·毒棒：周期召唤独立攻击（继承 30% 攻击、索敌 200px）', () => {
+  const g = mkGame({ poison: { 毒棒: 1 } });   // mkGame 数字=全分支 1：A 数量+1 → 2 根
+  const c = new CombatSystem(g);
+  const e = mkEnemy(5000, 375, 800); g.enemies.push(e);
+  for (let i = 0; i < 4 * 60 + 8; i++) c.update(1 / 60); // 4s（+余量）→ 召唤毒棒
+  assert.strictEqual(c.poisonSticks.length, 2, '毒棒 A 分支 → 应召唤 1+A=2 根');
+  const st = c.poisonSticks[0];
+  assert.ok(Math.abs(st.dmg - c.shotDmg('poison') * 0.30) < 1e-9, '毒棒应继承 30% 攻击');
+  c.update(1.0); // 毒棒攻击 1 次
+  assert.ok(e.hp < 5000, '毒棒应独立攻击敌人');
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.stack >= 1, '毒棒攻击应叠毒');
+});
+
+t('毒·毒藤：缠绕最靠城墙敌人（定身 + 每秒叠毒）', () => {
+  const g = mkGame({ poison: { 毒藤: 1 } });   // mkGame 数字=全分支 1：A 数量+1 → 缠 2 目标
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(5000, 375, 850); g.enemies.push(e1); // 更靠墙
+  const e2 = mkEnemy(5000, 375, 500); g.enemies.push(e2);
+  for (let i = 0; i < 6 * 60 + 8; i++) c.update(1 / 60); // 6s（+余量）→ 毒藤
+  assert.ok(e1.frozen > 0, '靠墙敌人应被缠绕定身');
+  assert.ok(e1._vineT > 0, '应有缠绕叠毒计时');
+  assert.ok(e2.frozen > 0, 'A 分支数量+1 → 第二个目标也被缠');
+  c.update(1.0);
+  const dot = e1.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.stack >= 1, '缠绕期间应每秒叠毒');
+});
+
+t('毒·毒藤 C：被缠敌人死亡后藤蔓延伸缠 100px 内下一个', () => {
+  const g = mkGame({ poison: { 毒藤: { C: 1 } } });   // 只升 C：缠 1 个 + 死亡延伸
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(5000, 375, 850); g.enemies.push(e1); // 靠墙，先被缠
+  const e2 = mkEnemy(5000, 380, 800); g.enemies.push(e2); // 稍不靠墙（100px 内）
+  for (let i = 0; i < 6 * 60 + 8; i++) c.update(1 / 60); // 6s → 毒藤缠 e1
+  assert.ok(e1.frozen > 0 && !(e2.frozen > 0), '仅最靠墙敌人被缠');
+  const orig = Math.random; Math.random = () => 0;
+  try { c.hit('poison', e1, 99999); } finally { Math.random = orig; }
+  assert.ok(e1.hp <= 0, '被缠敌人死亡');
+  assert.ok(e2.frozen > 0, '藤蔓应延伸缠住 100px 内下一个敌人');
+  assert.ok(e2._vineT > 0, '延伸目标应持续叠毒');
+});
+
+t('毒·瘟疫：中毒敌人减速 20% + 周期传染判定', () => {
+  const g = mkGame({ poison: { 瘟疫: 1, 剧毒: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(5000, 375, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(5000, 380, 800); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0; // 上毒必中 + 传染必中
+  try {
+    c.hit('poison', e1, 100);
+    c.update(2.1); // 触发减速 + 2s 判定
+  } finally { Math.random = orig; }
+  assert.ok(e1.slow && Math.abs(e1.slow.mult - 0.8) < 1e-9, '中毒敌人应减速 20%');
+  assert.ok(e2.dots.find((d) => d.type === 'poison'), '应传染给周边敌人');
+});
+
+t('毒·瘴气环境：光环内敌人持续叠毒 + 标记命中率下降 + C 攻击力降低', () => {
+  const g = mkGame({ poison: { '瘴气环境': { C: 2 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(5000, 375, 1079); g.enemies.push(e); // 塔口附近
+  const e2 = mkEnemy(5000, 700, 300); g.enemies.push(e2); // 光环外
+  const orig = Math.random; Math.random = () => 0; // 上毒必中
+  try { c.update(1.1); } finally { Math.random = orig; }
+  assert.ok(e._miasma === true, '光环内敌人应标记瘴气');
+  assert.ok(e._miasmaAtkMult === 0.65, '瘴气 C 级 2 → 攻击力 -35%');
+  assert.ok(!e2._miasma, '光环外敌人不应标记');
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.stack >= 1, '光环内应每秒叠毒');
+});
+
+t('毒·毒爆 C：死亡后留毒沼（4s 每秒 +1 层）', () => {
+  const g = mkGame({ poison: { 毒爆: { C: 1 }, 剧毒: 1 } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(5000, 375, 800); g.enemies.push(e2); // 毒沼范围内
+  const orig = Math.random; Math.random = () => 0; // 上毒必中
+  try { c.hit('poison', e1, 100); } finally { Math.random = orig; }
+  assert.ok(c.groundDots.some((d) => d.key === 'poison' && d.dps === 0 && d.stackPerSec === 1), '毒爆 C 应留毒沼');
+  c.update(1.0);
+  const dot = e2.dots.find((d) => d.type === 'poison');
+  assert.ok(dot && dot.stack >= 1, '毒沼应每秒叠毒');
 });
 
 t('回旋镖 sweep：椭圆大弧越过怪物后绕回，沿途扫过所有敌人（每敌单镖一次）', () => {

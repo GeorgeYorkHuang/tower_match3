@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.14.3';        // v1.14.3 测试战场渲染修复：main.render 漏传 enemies/fx 导致场上无怪、无特效
+const GAME_VERSION = 'v1.15.0';        // v1.15.0 毒塔技能重做：基础中毒叠层机制 + 剧毒/毒爆/毒池/毒棒/毒性强化/瘟疫/毒藤/瘴气环境 8 技能新分支；移除燃爆×毒爆协同
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -382,18 +382,22 @@ class GameMain {
     for (const e of this.enemies) {
       if (e.y < wallLine) continue;
       if (e.frozen > 0 || e.paralyzed > 0) continue;
+      // 毒·瘴气环境：环内敌人命中率下降（15% 概率攻击落空，v1.15）
+      if (e._miasma && Math.random() < 0.15) continue;
       // 冰墙攻速减缓计时（v1.13.25：被冰墙迟缓的敌人攻击间隔 ×1.5）
       if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowMult = 1; }
       const eAtkInt = (e.attackInterval || 1) * (e.atkSlowMult || 1);
       e.attackT = (e.attackT || 0) + dt;
       if (e.attackT >= eAtkInt) {
         e.attackT -= eAtkInt;
+        // 毒·瘴气环境 C：环内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）
+        const atkDmg = e.attack * (e._miasmaAtkMult || 1);
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {
           // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻速减缓×1.5）
-          const absorbed = Math.min(iw.absorb, e.attack);
+          const absorbed = Math.min(iw.absorb, atkDmg);
           iw.absorb -= absorbed;
-          const leak = e.attack - absorbed;
+          const leak = atkDmg - absorbed;
           // v1.14 测试战场：城墙无敌（不扣血，专注技能验证）
           if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= leak;
           if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
@@ -402,7 +406,7 @@ class GameMain {
           // 冰墙受击视觉：冰晶飞溅
           this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
         } else {
-          if (this.state !== 'testfield') this.run.lineHp -= e.attack;
+          if (this.state !== 'testfield') this.run.lineHp -= atkDmg;
         }
         wallHits++;
         // v1.14 测试战场：城墙无敌，不触发破防

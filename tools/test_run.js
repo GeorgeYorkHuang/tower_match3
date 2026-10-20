@@ -214,7 +214,10 @@ console.log(`\n会话模拟 ${SEEDS} 样本交叉验证：`);
     assert.strictEqual(pickEarly, SEEDS, '构筑节奏 100%');
     // v1.12 非塔色不再给经验（改为全局技能能量）→ 整体升级节奏略降，协同达成率随之下降；
     // 自动路径已均衡分支升级，阈值按 v1.12 口径 85%（实际约 91%，留随机余量）
-    assert.ok(syn15 >= SEEDS * 0.85, `协同 15 波 ≥85%（实际 ${(syn15 / SEEDS * 100).toFixed(1)}%）`);
+    // v1.15：毒爆重做移除燃爆×毒爆协同（协同组 3→2：冰冻×连锁 / 溅射×大火球）。
+    // 随机模拟需 ice·冰冻 + electric·连锁 同时激活（均非首塔 P0 必选线），达成率实测 ~10%，
+    // 阈值放宽为「协同机制可达（存在达成样本）」；是否补毒塔旗舰协同待用户决策。
+    assert.ok(syn15 > 0, `协同 15 波应存在达成样本（实际 ${(syn15 / SEEDS * 100).toFixed(1)}%）`);
     assert.strictEqual(econOk, SEEDS, '经济 ≤100k 100%');
     assert.strictEqual(capOk, SEEDS, '待选峰值 ≤5 100%');
   });

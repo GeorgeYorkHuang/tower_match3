@@ -118,15 +118,20 @@ t('待选队列逐组结算', () => {
   assert.strictEqual(ice.pending, 0);
 });
 
-/* 7. 协同检测：燃爆+毒爆 → done */
-t('协同检测（燃爆×毒爆）', () => {
+/* 7. 协同检测：毒爆重做后移除燃爆×毒爆；冰冻×连锁仍生效（v1.15） */
+t('协同检测（毒爆协同已移除；冰冻×连锁生效）', () => {
   const m = freshManager();
+  m.tower('ice').applyChoice(m.tower('ice').pool.find((e) => e.name === '冰冻'));
+  m.tower('electric').applyChoice(m.tower('electric').pool.find((e) => e.name === '连锁'));
+  m.updateSynergies();
+  const s = m.synergyStatus();
+  assert.ok(s.some((x) => x.done && x.pair.includes('冰冻')), '冰冻×连锁 协同应达成');
+  // 毒爆协同不存在
   m.tower('fire').applyChoice(m.tower('fire').pool.find((e) => e.name === '燃爆'));
   m.tower('poison').applyChoice(m.tower('poison').pool.find((e) => e.name === '毒爆'));
   m.updateSynergies();
-  const s = m.synergyStatus();
-  assert.ok(s[0].done, '燃爆×毒爆 协同应达成');
-  assert.ok(!s[1].done, '冰冻×连锁 未激活不应达成');
+  const s2 = m.synergyStatus();
+  assert.ok(!s2.some((x) => x.pair.includes('燃爆') && x.pair.includes('毒爆')), '燃爆×毒爆 协同应已移除');
 });
 
 /* 8. DPS 乘区：等级成长 × 特效乘区 × 协同乘区 */
