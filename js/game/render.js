@@ -863,27 +863,32 @@ class Renderer {
           }
           ctx.globalAlpha = 1;
         } else if (f.kind === 'icebloom') {
-          // v1.13.26 冰花绽放：六瓣雪花展开 + 冰晶高光 + 扩散（0.55s）
+          // v1.13.28 冰花帧动画：4 帧绽放序列（images/icebloom/icebloom1-4.png，按进度选帧）
           const fp = Math.min(1, f.t / f.dur);
-          const bloomR = (f.r || 100) * (0.25 + 0.75 * fp);
-          const rot = Date.now() / 200;
-          ctx.strokeStyle = '#a9d6f5'; ctx.lineWidth = 2.5;
-          ctx.globalAlpha = 0.85 * (1 - fp * 0.55);
-          for (let k = 0; k < 6; k++) {
-            const a = rot + k * Math.PI / 3;
-            ctx.beginPath();
-            ctx.moveTo(f.x, f.y);
-            ctx.lineTo(f.x + Math.cos(a) * bloomR, f.y + Math.sin(a) * bloomR * 0.9);
-            ctx.stroke();
-            // 瓣尖小冰晶
-            ctx.fillStyle = '#d6f0ff';
-            ctx.beginPath();
-            ctx.arc(f.x + Math.cos(a) * bloomR * 1.05, f.y + Math.sin(a) * bloomR * 0.95, 3.2, 0, Math.PI * 2);
-            ctx.fill();
+          const frameIdx = Math.min(3, Math.floor(fp * 4));
+          const fw = (f.r || 100) * 1.9, fh = (f.r || 100) * 1.9;
+          if (!drawImg(ctx, `images/icebloom/icebloom${frameIdx + 1}.png`, f.x - fw / 2, f.y - fh / 2, fw, fh)) {
+            // 回退：六瓣雪花展开 + 冰晶高光 + 扩散（贴图未加载时）
+            const bloomR = (f.r || 100) * (0.25 + 0.75 * fp);
+            const rot = Date.now() / 200;
+            ctx.strokeStyle = '#a9d6f5'; ctx.lineWidth = 2.5;
+            ctx.globalAlpha = 0.85 * (1 - fp * 0.55);
+            for (let k = 0; k < 6; k++) {
+              const a = rot + k * Math.PI / 3;
+              ctx.beginPath();
+              ctx.moveTo(f.x, f.y);
+              ctx.lineTo(f.x + Math.cos(a) * bloomR, f.y + Math.sin(a) * bloomR * 0.9);
+              ctx.stroke();
+              // 瓣尖小冰晶
+              ctx.fillStyle = '#d6f0ff';
+              ctx.beginPath();
+              ctx.arc(f.x + Math.cos(a) * bloomR * 1.05, f.y + Math.sin(a) * bloomR * 0.95, 3.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.strokeStyle = '#7fd4ff'; ctx.globalAlpha = 0.5 * (1 - fp);
+            ctx.beginPath(); ctx.arc(f.x, f.y, bloomR * 1.25, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 1;
           }
-          ctx.strokeStyle = '#7fd4ff'; ctx.globalAlpha = 0.5 * (1 - fp);
-          ctx.beginPath(); ctx.arc(f.x, f.y, bloomR * 1.25, 0, Math.PI * 2); ctx.stroke();
-          ctx.globalAlpha = 1;
         } else if (f.kind === 'orb') {
           // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
           const o = f.ref || f;

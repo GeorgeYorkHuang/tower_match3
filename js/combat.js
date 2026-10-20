@@ -455,7 +455,7 @@ class CombatSystem {
     if (idx < 0) return;
     const sx = startX + idx * slotW + ly.slotSize / 2;
     const sy = ly.slotY + ly.slotSize / 2;
-    const tint = { fire: '#e74c3c', ice: '#5dade2', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
+    const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
     const dur = cfg.shot.dur;
     const dmg = this.shotDmg(key);
     // 炮·炮台座 b：概率双发
@@ -475,6 +475,8 @@ class CombatSystem {
     } else {
       // v1.13.5：大火球激活 → 火球弹体 ×2（扩大一倍）
       if (key === 'fire' && this.lv('fire', '大火球') > 0) baseShot.scale = 2.0;
+      // v1.13.28：冰塔普攻弹道统一采用多重冰锥样式（冰蓝菱形 + 放大 1.15）
+      if (key === 'ice') baseShot.scale = 1.15;
       g.fx.push(baseShot);
       g.playSfx('shot', 0.25);
     }
