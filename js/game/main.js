@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.14.2';        // v1.14.2 测试战场出怪修复：怪速×3（13s到墙），消除入口盲区长时间无输出
+const GAME_VERSION = 'v1.14.3';        // v1.14.3 测试战场渲染修复：main.render 漏传 enemies/fx 导致场上无怪、无特效
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -625,7 +625,7 @@ class GameMain {
     }
     // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）
     if (this.state === 'testfield') {
-      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits);
+      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx);
       this.renderer.toast(ctx, this.toasts);
       return;
     }

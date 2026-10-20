@@ -136,6 +136,14 @@ t('spawnTestEnemies / clearTestEnemies', () => {
   game.spawnTestEnemies('boss', 1);
   assert.strictEqual(game.enemies.length, 3);
   assert.ok(game.enemies[2].isBoss, '第 3 只应为 Boss');
+  // 渲染层必须收到真实 enemies / fx（v1.14.3 修复：此前 main.render 漏传参数导致场上无怪）
+  let seenEnemies = null, seenFx = null;
+  const origTFL = game.renderer.testFieldLayer.bind(game.renderer);
+  game.renderer.testFieldLayer = (ctx, s, hits, enemies, fx) => { seenEnemies = enemies; seenFx = fx; return origTFL(ctx, s, hits, enemies, fx); };
+  game.render();
+  game.renderer.testFieldLayer = origTFL;
+  assert.strictEqual(seenEnemies, game.enemies, '渲染层应收到真实 enemies 数组');
+  assert.strictEqual(seenFx, game.fx, '渲染层应收到真实 fx 数组');
   game.clearTestEnemies();
   assert.strictEqual(game.enemies.length, 0, '清场后无敌人');
 });
