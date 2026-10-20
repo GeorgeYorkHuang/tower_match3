@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.13.30';        // 设置弹层版本信息
+const GAME_VERSION = 'v1.14.0';        // v1.14 测试战场：6塔免三消直测技能+刷怪+倍速+技能分支面板
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -39,6 +39,10 @@ class GameMain {
     this.funcHits = [];
     this.towerInfo = null;       // 塔详情弹层：{slotIdx, key, name, level, exp, expNeed, expRatio, dps, skills}
     this.towerInfoHits = {};     // 详情弹层命中：{bg, close}
+    // v1.14 测试战场：塔技能配置面板 + 倍速 + 刷怪控制
+    this.testPanel = null;       // {key} 当前配置的塔
+    this.testHits = {};          // 测试战场命中区（渲染时重建）
+    this.testSpeed = 1;          // 倍速 ×1/×2/×4
     this.funcLayer = null;       // 底部功能弹层：{type:'shop'|'setting'|'tome'|'help', confirming?, version?}
     this.funcLayerHits = {};     // 功能弹层命中：{bg, close, confirm?}
     this.toasts = [];
@@ -116,7 +120,143 @@ class GameMain {
     this.sfx.startBgm();
   }
 
+  /** 测试战场：6 塔全部出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14） */
+  enterTestField() {
+    // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），然后直接解锁全部 6 塔
+    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
+    this.save.apply(this.saveData);
+    this.run.resetRunBuild();
+    this.waveTime = 0;
+    this.enemies = [];
+    this.pickQueue = [];
+    this.pickIndex = 0;
+    this.pickCell = null;
+    this.combat.reset();
+    this.battleRelics = [];
+    // 解锁全部 6 塔（level=1），全部出战
+    this.run.slotOrder = Object.keys(this.run.effects.towers);
+    this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
+    // 城墙：测试战场不扣血（恒满）
+    this.run.lineHp = CONFIG.LINE.hp;
+    this.run.lineMaxHp = this.run.lineHp;
+    this.run.broken = false;
+    this.run.wave = 0;
+    this.testPanel = null;
+    this.testSpeed = 1;
+    this.state = 'testfield';
+    this.sfx.stopBgm();
+    this.toast('测试战场 · 点塔位配置技能 · 刷怪验证', '#7cd6a6');
+  }
+
+  /** 测试战场状态（6 塔槽 + 当前技能配置） */
+  testState() {
+    const run = this.run;
+    const slots = [];
+    this.run.slotOrder.forEach((key) => {
+      const t = run.effects.tower(key);
+      if (!t) { slots.push(null); return; }
+      const skills = t.pool.map((ef) => {
+        const p = (CONFIG.EFFECT_POOLS[key] || []).find((q) => q.name === ef.name) || {};
+        return {
+          name: ef.name, icon: p.icon || '?', color: p.color || '#888',
+          level: ef.level,
+          branches: { A: ef.branches.A || 0, B: ef.branches.B || 0, C: ef.branches.C || 0 },
+        };
+      });
+      slots.push({
+        key, name: CONFIG.COLORS[t.color].name,
+        icon: TOWER_ICON[key] || '?', unlocked: true,
+        level: run.expLevel, ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,
+        skills,
+      });
+    });
+    return {
+      state: this.state,
+      lineHp: run.lineHp, lineMaxHp: run.lineMaxHp,
+      wave: run.wave, waveTime: this.waveTime, waveDuration: WAVE_DUR,
+      towers: slots,
+      enemyCount: this.enemies.length,
+      speed: this.testSpeed,
+      panel: this.testPanel,
+      synergies: run.effects.synergyStatus(),
+    };
+  }
+
+  /** 测试战场：点塔技能行分支按钮 → 该分支 0↔1↔2↔3 循环；clear 清空该技能 */
+  testSkillAction(key, name, br) {
+    const t = this.run.effects.tower(key);
+    if (!t) return;
+    const ef = t.pool.find((e) => e.name === name);
+    if (!ef) return;
+    if (br === 'clear') {
+      ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0;
+      const i = t.activeNames.indexOf(name);
+      if (i >= 0) t.activeNames.splice(i, 1);
+      t.picked.delete(name);
+    } else if (['A', 'B', 'C'].includes(br)) {
+      ef.branches[br] = (ef.branches[br] + 1) % 4; // 0→1→2→3→0
+      if (ef.level > 0) {
+        if (!t.activeNames.includes(name)) t.activeNames.push(name);
+        t.picked.add(name);
+      } else {
+        // 分支全部归零 → 移出激活与获取记录
+        const i = t.activeNames.indexOf(name);
+        if (i >= 0) t.activeNames.splice(i, 1);
+        t.picked.delete(name);
+      }
+    }
+    this.run.effects.updateSynergies();
+    this.combat.reset(); // 技能变更后重置周期技计时，立即按新配置生效
+    this.toast(`${CONFIG.COLORS[CONFIG.TOWERS[key].color].name}·${name} A${ef.branches.A}B${ef.branches.B}C${ef.branches.C}`, '#7ef0a3');
+  }
+
+  /** 测试战场：一键激活该塔全部技能（A 分支 Lv3，便于快速看全特效） */
+  testSkillAll(key, on) {
+    const t = this.run.effects.tower(key);
+    if (!t) return;
+    t.pool.forEach((ef) => {
+      if (on) { ef.branches.A = 3; ef.branches.B = 0; ef.branches.C = 0; if (!t.activeNames.includes(ef.name)) t.activeNames.push(ef.name); t.picked.add(ef.name); }
+      else { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; }
+    });
+    if (!on) { t.activeNames = []; t.picked = new Set(); }
+    this.run.effects.updateSynergies();
+    this.combat.reset();
+    this.toast(on ? `${CONFIG.COLORS[CONFIG.TOWERS[key].color].name} 全部技能激活` : `${CONFIG.COLORS[CONFIG.TOWERS[key].color].name} 技能已清空`, '#7ef0a3');
+  }
+
+  /** 测试战场：召唤敌人（type: normal/runner/tank/elite/boss；hp 按类型给测试值） */
+  spawnTestEnemies(type, count) {
+    const ly = this.renderer.ly;
+    const entryY = ly.areaY + ly.entryH;
+    const wallY = ly.wallY;
+    const baseSpeed = (wallY - entryY) / WAVE_DUR; // 类型速度由 CONFIG.ENEMY.types.spdMult 控制
+    // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
+    const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
+    for (let i = 0; i < count; i++) {
+      const isBoss = type === 'boss';
+      this.wave.pushEnemy(
+        HP[type] || 500, entryY, baseSpeed,
+        0.5 + Math.random() * 0.5, isBoss, type
+      );
+    }
+    this.toast(`召唤 ${type === 'normal' ? '普通' : type === 'runner' ? '快速' : type === 'tank' ? '重甲' : type === 'elite' ? '精英' : 'Boss'} ×${count}`, '#f7c948');
+  }
+
+  /** 测试战场：清空全部敌人与飞行弹道 */
+  clearTestEnemies() {
+    this.enemies = [];
+    this.combat.reset();
+    this.toast('已清场', '#9fb2c3');
+  }
+
+  /** 测试战场：切换倍速 ×1/×2/×4 */
+  cycleTestSpeed() {
+    this.testSpeed = this.testSpeed >= 4 ? 1 : this.testSpeed * 2;
+    this.toast(`倍速 ×${this.testSpeed}`, '#7cd6a6');
+  }
+
   /* ---------- 帧循环 ---------- */
+
   loop(ts) {
     try {
       const dt = this.lastTs ? Math.min(0.1, (ts - this.lastTs) / 1000) : 0.016;
@@ -177,6 +317,17 @@ class GameMain {
       if (!this.enemies.length && !this.wave.plan.length && this.waveTime > 3) {
         this.waveEnd();
       }
+      return;
+    }
+    // v1.14 测试战场：弹药恒满 + 倍速推进战斗（不结算波次/不弹三选一）
+    if (this.state === 'testfield') {
+      this.run.slotOrder.forEach((k) => {
+        const t = this.run.effects.tower(k);
+        if (t) t.ammo = CONFIG.GLOBAL_SKILL.ammoMax;
+      });
+      this.waveTime += dt;
+      this.stepEnemies(dt * this.testSpeed);
+      return;
     }
   }
 
@@ -226,17 +377,19 @@ class GameMain {
           const absorbed = Math.min(iw.absorb, e.attack);
           iw.absorb -= absorbed;
           const leak = e.attack - absorbed;
-          if (leak > 0) this.run.lineHp -= leak;
+          // v1.14 测试战场：城墙无敌（不扣血，专注技能验证）
+          if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= leak;
           if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
           this.combat.applySlow(e, 0.4, 2);
           e.atkSlowMult = 1.5; e.atkSlowT = 2;
           // 冰墙受击视觉：冰晶飞溅
           this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
         } else {
-          this.run.lineHp -= e.attack;
+          if (this.state !== 'testfield') this.run.lineHp -= e.attack;
         }
         wallHits++;
-        if (this.run.lineHp <= 0) {
+        // v1.14 测试战场：城墙无敌，不触发破防
+        if (this.state !== 'testfield' && this.run.lineHp <= 0) {
           this.run.lineHp = 0;
           this.run.broken = true;
         }
@@ -362,12 +515,16 @@ class GameMain {
     this._postPick = null;
     this.pendingRelicPicks = [];
     this.relicPick = null;
+    this.testPanel = null;   // v1.14 测试战场配置面板清理
+    this.testSpeed = 1;
     this.sfx.stopBgm();
     this.save.save();
   }
 
   /* ---------- 击杀奖励：经验（圣物加成，v1.8 入整体池）/ 精英圣物掉落 / Boss 宝箱 ---------- */
   onKillReward(e) {
+    // v1.14 测试战场：无击杀奖励（不涨经验/不掉宝箱，专注技能验证）
+    if (this.state === 'testfield') return;
     const b = this.meta.relicBonus();
     // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）
     const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
@@ -446,6 +603,12 @@ class GameMain {
     ctx.fillRect(0, 0, Math.ceil(_c.canvas.width / s), Math.ceil(_c.canvas.height / s));
     if (this.state === 'menu') {
       this.menuHits = this.renderer.menuLayer(ctx, this.menuState(), this.menuHits);
+      this.renderer.toast(ctx, this.toasts);
+      return;
+    }
+    // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）
+    if (this.state === 'testfield') {
+      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits);
       this.renderer.toast(ctx, this.toasts);
       return;
     }
@@ -580,6 +743,33 @@ class GameMain {
     };
   }
 
+  /** 测试战场触摸分发（v1.14）：面板打开时仅响应面板项，否则控制条/塔槽/返回/倍速 */
+  onTestFieldTap(p) {
+    const items = this.testHits || [];
+    for (const it of items) {
+      if (!it.hit(p.x, p.y)) continue;
+      // 面板打开时只响应面板项（panel_*）
+      if (this.testPanel && !String(it.id).startsWith('panel_')) return true;
+      switch (it.id) {
+        case 'tf_back': this.goMenu(); return true;
+        case 'tf_speed': this.cycleTestSpeed(); return true;
+        case 'tf_spawn_n': this.spawnTestEnemies('normal', 5); return true;
+        case 'tf_spawn_r': this.spawnTestEnemies('runner', 5); return true;
+        case 'tf_spawn_t': this.spawnTestEnemies('tank', 5); return true;
+        case 'tf_spawn_e': this.spawnTestEnemies('elite', 2); return true;
+        case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
+        case 'tf_clear': this.clearTestEnemies(); return true;
+        case 'tf_slot': this.testPanel = { key: it.data }; return true;
+        case 'panel_close': this.testPanel = null; return true;
+        case 'panel_all': this.testSkillAll(this.testPanel.key, true); return true;
+        case 'panel_clear': this.testSkillAll(this.testPanel.key, false); return true;
+        case 'panel_branch': this.testSkillAction(this.testPanel.key, it.data.name, it.data.br); return true;
+        default: return true;
+      }
+    }
+    return false;
+  }
+
   /** 主界面触摸分发：命中 menuHits（渲染时重建）中第一个按键；面板打开时仅响应面板项 */
   onMenuTap(p) {
     if (this.menuPanel) {
@@ -605,6 +795,11 @@ class GameMain {
         case 'enter':
           this.menuPanel = null;
           this.newRun(true);
+          return;
+        case 'testfield':
+          // v1.14 测试战场入口（主界面战斗页）
+          this.menuPanel = null;
+          this.enterTestField();
           return;
         case 'relicDex':
           // 圣物图鉴：查看全部圣物图标（未获取锁定，获取后显示性能）
@@ -789,6 +984,10 @@ class GameMain {
         this.towerInfo = { ...slot, slotIdx: si };
         return true;
       }
+    }
+    // v1.14 测试战场触摸分发：技能面板弹层优先，其次控制条/塔槽/返回/倍速
+    if (this.state === 'testfield') {
+      if (this.onTestFieldTap(p)) return true;
     }
     // 波次结束弹窗：点「继续」→ 三选一 / 下一波
     if (this.state === 'waveclear') {

@@ -353,9 +353,10 @@ class Renderer {
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, '关闭', { bg: '#3a6ea5', fontSize: 26 });
   }
 
-  towerRow(ctx, s) {
+  towerRow(ctx, s, count, showGlobal) {
     const towers = s.towers;
-    const { slotSize, slotGap, slotCount, slotY } = this.ly;
+    const slotCount = count || this.ly.slotCount; // v1.14 测试战场传 6；正式战斗默认 4
+    const { slotSize, slotGap, slotY } = this.ly;
     // 塔位区背景图（石板放置地面）；加载失败回退浅色条
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
       fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
@@ -398,14 +399,19 @@ class Renderer {
       x += slotSize + slotGap;
     }
     // v1.12.4 全局技能按钮：塔位区两侧（左=全局洗牌，右=弹药补给）；累计弹药每 chargePerUse 发 = 1 格，上限 3 格；按钮缩小 20%（128×94 → 102×75）
-    const btnW = 102, btnH = 75, btnY = TOWER_ROW_Y + 12, btnGapX = 8;
-    const perUse = Math.max(1, s.chargePerUse || 30);
-    const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
-    const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
-    this.globalBtns = [
-      this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
-      this._globalBtn(ctx, 'refill', '🔋', '补给', 750 - btnGapX - btnW, btnY, btnW, btnH, refCells, '#7ef0a3'),
-    ];
+    // v1.14 测试战场（showGlobal=false）不渲染全局技能按钮
+    if (showGlobal !== false) {
+      const btnW = 102, btnH = 75, btnY = TOWER_ROW_Y + 12, btnGapX = 8;
+      const perUse = Math.max(1, s.chargePerUse || 30);
+      const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
+      const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
+      this.globalBtns = [
+        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
+        this._globalBtn(ctx, 'refill', '🔋', '补给', 750 - btnGapX - btnW, btnY, btnW, btnH, refCells, '#7ef0a3'),
+      ];
+    } else {
+      this.globalBtns = [];
+    }
   }
 
   /** 全局技能按钮绘制：图标 + 名称 + 3 格能量；返回命中矩形 {key,x,y,w,h}（v1.12.4 缩小 20% 布局） */
@@ -1491,6 +1497,130 @@ class Renderer {
   }
 
   /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（v1.4：无配置页） ================= */
+  /** v1.14 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
+  testFieldLayer(ctx, s, hits, enemies, fx) {
+    const items = [];
+    const push = (id, data, x, y, w, h) => items.push({ id, data, rect: { x, y, w, h }, hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h });
+    // 背景
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    // 状态条
+    const tgrad = ctx.createLinearGradient(0, 0, 0, STATUS_H);
+    tgrad.addColorStop(0, '#16233a'); tgrad.addColorStop(1, '#0d1117');
+    ctx.fillStyle = tgrad; ctx.fillRect(0, 0, 750, STATUS_H);
+    push('tf_back', null, 8, 6, 80, 60);
+    fillRoundRect(ctx, 16, 14, 64, 44, 10, 'rgba(255,255,255,0.1)');
+    text(ctx, '◀', 48, 45, 28, '#ffffff', 'center');
+    text(ctx, '测试战场', 320, 34, 26, '#ffffff', 'center');
+    text(ctx, '城墙无敌 · 弹药恒满 · 免三消', 375, 58, 15, '#8ea3b8', 'center');
+    push('tf_speed', null, 630, 8, 112, 56);
+    const spdCol = s.speed >= 4 ? '#ff8c42' : s.speed >= 2 ? '#f7c948' : '#5b6b7c';
+    fillRoundRect(ctx, 636, 12, 100, 48, 10, 'rgba(0,0,0,0.35)');
+    strokeRoundRect(ctx, 636, 12, 100, 48, 10, spdCol, 1.5);
+    text(ctx, `⏩×${s.speed}`, 686, 43, 24, '#ffffff', 'center');
+    // 行动区底
+    if (!drawImg(ctx, IMG_SRC.actionArea, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
+      fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
+    }
+    // 入口带
+    fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
+    text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
+    text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
+    // 城墙（测试战场恒满）
+    this.wall(ctx, s.lineHp, s.lineMaxHp);
+    // 敌人与特效（位于战场区，不被控制条覆盖）
+    if (enemies) this.enemies(ctx, enemies);
+    if (fx) this.fx(ctx, fx);
+    // 塔槽行：6 槽居中，无全局技能按钮
+    this.towerRow(ctx, s, 6, false);
+    // 塔槽命中区（与 towerRow 6 槽布局一致：slotSize 48 gap 12 total 348 居中）
+    let sx0 = (750 - (6 * this.ly.slotSize + 5 * this.ly.slotGap)) / 2;
+    (s.towers || []).forEach((tw) => {
+      if (tw) push('tf_slot', tw.key, sx0, this.ly.slotY, this.ly.slotSize, this.ly.slotSize);
+      sx0 += this.ly.slotSize + this.ly.slotGap;
+    });
+    // 底部控制区
+    const cY = TOWER_ROW_Y + L.towerRow.h;
+    fillRoundRect(ctx, AREA_X, cY, AREA_W, LOGIC_H - cY - 16, 12, 'rgba(255,255,255,0.04)');
+    text(ctx, '— 刷怪测试 —', 375, cY + 30, 20, '#9fb2c3', 'center');
+    const btnW = 208, btnH = 64, btnGap = 16, bX = 44;
+    const rows = [
+      [['tf_spawn_n', '👾 普通×5', '#7cd6a6'], ['tf_spawn_r', '🏃 快速×5', '#f7c948'], ['tf_spawn_t', '🛡 重甲×5', '#a78bfa']],
+      [['tf_spawn_e', '💀 精英×2', '#ff6b6b'], ['tf_spawn_b', '👹 Boss×1', '#ff8c42'], ['tf_clear', '🧹 清怪', '#9fb2c3']],
+    ];
+    rows.forEach((row, ri) => {
+      row.forEach((b, bi) => {
+        const bx = bX + bi * (btnW + btnGap);
+        const by = cY + 46 + ri * 82;
+        push(b[0], null, bx, by, btnW, btnH);
+        fillRoundRect(ctx, bx, by, btnW, btnH, 12, 'rgba(255,255,255,0.06)');
+        strokeRoundRect(ctx, bx, by, btnW, btnH, 12, b[2], 1.2);
+        text(ctx, b[1], bx + btnW / 2, by + 38, 24, '#ffffff', 'center');
+      });
+    });
+    text(ctx, '技能面板：A/B/C 分支按钮循环 0→1→2→3（点塔位打开）', 375, cY + 216, 16, '#5b6b7c', 'center');
+    // 返回主界面
+    push('tf_back', null, 100, 1490, 550, 76);
+    fillRoundRect(ctx, 100, 1490, 550, 76, 18, 'rgba(255,255,255,0.06)');
+    strokeRoundRect(ctx, 100, 1490, 550, 76, 18, '#8ea3b8', 1.2);
+    text(ctx, '← 返回主界面', 375, 1540, 28, '#8ea3b8', 'center');
+    // 技能配置面板（覆盖层）
+    if (s.panel && s.panel.key) this.testSkillPanel(ctx, s.panel.key, s, push);
+    hits = items;
+    return hits;
+  }
+
+  /** v1.14 测试战场技能配置面板：8 技能行 × (A/B/C 分支循环按钮 + 清除)，底部全激活/清空 */
+  testSkillPanel(ctx, key, s, push) {
+    const tower = s.towers.find((t) => t && t.key === key);
+    if (!tower) return;
+    const pw = 670, ph = 1160, px = (750 - pw) / 2, py = 150;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    fillRoundRect(ctx, px, py, pw, ph, 16, '#1b2230');
+    strokeRoundRect(ctx, px, py, pw, ph, 16, '#3b4b5e', 1.5);
+    text(ctx, `${tower.icon} ${tower.name} · 技能配置`, px + 40, py + 48, 28, '#ffffff', 'left');
+    push('panel_close', null, px + pw - 76, py + 18, 58, 48);
+    fillRoundRect(ctx, px + pw - 70, py + 22, 46, 40, 10, 'rgba(255,255,255,0.1)');
+    text(ctx, '✕', px + pw - 47, py + 50, 26, '#ffffff', 'center');
+    // 8 技能行
+    const rowH = 108, rY0 = py + 84;
+    tower.skills.forEach((sk, i) => {
+      const ry = rY0 + i * rowH;
+      if (i > 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px + 24, ry - 6, pw - 48, 1); }
+      fillRoundRect(ctx, px + 24, ry + 14, 52, 52, 10, sk.level > 0 ? sk.color : 'rgba(255,255,255,0.06)');
+      text(ctx, sk.icon, px + 50, ry + 48, 26, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'center');
+      text(ctx, sk.name, px + 92, ry + 34, 22, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'left');
+      text(ctx, `A${sk.branches.A}B${sk.branches.B}C${sk.branches.C}${sk.level > 0 ? ' · Lv' + sk.level : ' · 未激活'}`, px + 92, ry + 62, 16, sk.level > 0 ? '#7ef0a3' : '#5b6b7c', 'left');
+      const bW = 96, bH = 52, bGap = 8;
+      const b0 = px + pw - 24 - (bW * 4 + bGap * 3);
+      [['A', '#ff6b6b'], ['B', '#f7c948'], ['C', '#7ca8ff']].forEach(([br, col], bi) => {
+        const bx = b0 + bi * (bW + bGap);
+        const lv = sk.branches[br];
+        push('panel_branch', { name: sk.name, br }, bx, ry + 24, bW, bH);
+        fillRoundRect(ctx, bx, ry + 24, bW, bH, 10, lv > 0 ? col : 'rgba(255,255,255,0.06)');
+        strokeRoundRect(ctx, bx, ry + 24, bW, bH, 10, col, lv > 0 ? 1.5 : 0.8);
+        text(ctx, `${br}${lv > 0 ? '·Lv' + lv : ''}`, bx + bW / 2, ry + 58, 20, lv > 0 ? '#ffffff' : col, 'center');
+      });
+      // 清除按钮（第 4 位）
+      const bx0 = b0 + 3 * (bW + bGap);
+      push('panel_branch', { name: sk.name, br: 'clear' }, bx0, ry + 24, bW, bH);
+      fillRoundRect(ctx, bx0, ry + 24, bW, bH, 10, 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, bx0, ry + 24, bW, bH, 10, '#5b6b7c', 1);
+      text(ctx, '清除', bx0 + bW / 2, ry + 58, 20, '#8ea3b8', 'center');
+    });
+    // 底部：全部激活 / 清空全部
+    const by = py + ph - 66;
+    push('panel_all', null, px + 40, by, 250, 48);
+    fillRoundRect(ctx, px + 40, by, 250, 48, 12, 'rgba(46,204,113,0.2)');
+    strokeRoundRect(ctx, px + 40, by, 250, 48, 12, '#2ecc71', 1.2);
+    text(ctx, '⚡ 全部激活（A·Lv3）', px + 165, by + 32, 20, '#7ef0a3', 'center');
+    push('panel_clear', null, px + pw - 290, by, 250, 48);
+    fillRoundRect(ctx, px + pw - 290, by, 250, 48, 12, 'rgba(255,255,255,0.06)');
+    strokeRoundRect(ctx, px + pw - 290, by, 250, 48, 12, '#5b6b7c', 1.2);
+    text(ctx, '🧹 清空全部技能', px + pw - 165, by + 32, 20, '#8ea3b8', 'center');
+  }
+
   menuLayer(ctx, s, hits) {
     const items = [];
     const push = (key, data, x, y, w, h) => items.push({ key, data, rect: { x, y, w, h }, hit: (px, py) => px >= x - 0.5 && px <= x + w + 0.5 && py >= y - 0.5 && py <= y + h + 0.5 });
@@ -1558,13 +1688,21 @@ class Renderer {
     });
     text(ctx, '点击选择战场（目前仅此一种）', 375, sy + sh - 40, 19, '#5a8a72', 'center');
     // 进入战斗：屏幕 2/3 处（1626×2/3 ≈ 1084）
-    const ey = 850, eh = 100;
+    const ey = 850, eh = 80;
     push('enter', null, 75, ey, 600, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, '#2ecc71'); bgrad.addColorStop(1, '#1f8c5f');
     ctx.fillStyle = bgrad; roundRect(ctx, 100, ey, 550, eh, 22); ctx.fill();
     strokeRoundRect(ctx, 100, ey, 550, eh, 22, 'rgba(255,255,255,0.4)', 2);
-    text(ctx, '⚔ 进入战斗', 375, ey + 55, 44, '#ffffff', 'center');
+    text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
+    // v1.14 测试战场入口（进入战斗下方）：免三消直测塔技能效果
+    const ty = 940, th = 74;
+    push('testfield', null, 75, ty, 600, th);
+    const tgrad = ctx.createLinearGradient(0, ty, 0, ty + th);
+    tgrad.addColorStop(0, '#6d5bd0'); tgrad.addColorStop(1, '#4a3aa8');
+    ctx.fillStyle = tgrad; roundRect(ctx, 100, ty, 550, th, 20); ctx.fill();
+    strokeRoundRect(ctx, 100, ty, 550, th, 20, 'rgba(255,255,255,0.35)', 1.5);
+    text(ctx, '🧪 测试战场 · 免三消直测技能', 375, ty + 44, 32, '#ffffff', 'center');
     // 4 个宝箱槽
     for (let i = 0; i < 4; i++) {
       const bx = 40 + i * 170, by = 1050, bw = 160, bh = 140;

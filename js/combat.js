@@ -448,7 +448,8 @@ class CombatSystem {
     if (ammoT) ammoT.ammo -= 1;
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
-    const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
+    const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
+    const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
     const startX = (750 - rowW) / 2;
     const slotW = ly.slotSize + ly.slotGap;
     const idx = g.run.slotOrder.indexOf(key);
@@ -1377,7 +1378,8 @@ class CombatSystem {
         const dmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (arc - 1)) * (1 + 0.5 * arcA);
         // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
         const ly = this.ly();
-        const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
+        const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
+    const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
         const startX = (750 - rowW) / 2;
         const slotW = ly.slotSize + ly.slotGap;
         const idx = (this.game.run.slotOrder || []).indexOf('electric');
