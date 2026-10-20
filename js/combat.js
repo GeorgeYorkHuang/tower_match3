@@ -640,12 +640,14 @@ class CombatSystem {
       // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道
       this.damage(e, perDmg, 'fire');
       g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aimOf(e, 0)));
-      // 额外目标：扇形偏角各一枚火球，命中才结算（onHit 不触发技能链）
+      // 额外目标：扇形范围内随机偏角各一枚火球（v1.13.12：原等角度排列改为随机散射，
+      //          扇形边界与等角度版一致 maxOff=(n-2)*0.08，命中才结算 onHit 不触发技能链）
+      const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：3 枚 ±0.08 / 4 枚 ±0.16 / 5 枚 ±0.24
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e)
         .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y));
       for (let i = 0; i < n - 1 && cands.length; i++) {
         const o = cands[i];
-        const off = (i - (n - 2) / 2) * 0.16;   // 扇形分离角（弧度）
+        const off = (Math.random() * 2 - 1) * maxOff;   // 扇形范围内随机角度发射
         const aim = aimOf(o, off);
         this.shots.push({
           key: 'fire', target: o, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy,
