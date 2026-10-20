@@ -20,7 +20,7 @@ class SaveManager {
     try {
       const d = wx.getStorageSync(SAVE_KEY);
       if (!d) return null;
-      if (d.version === 5 || d.version === 4 || d.version === 3) return this._renameBounceSkill(d);
+      if (d.version === 5 || d.version === 4 || d.version === 3) return this._renameIceSkills(this._renameBounceSkill(d));
       if (d.version === 2) return this._migrateV2(d); // v2 旧档自动迁移（技能卡带等级）
       if (d.version === 1) return this._migrateV2(this._migrateV1(d));
       return null;
@@ -35,6 +35,21 @@ class SaveManager {
     });
     Object.keys(d.towerSkillSlots || {}).forEach((tk) => {
       if (d.towerSkillSlots[tk] === '弹跳') d.towerSkillSlots[tk] = '活电';
+    });
+    return d;
+  }
+
+  /** v1.13.23 冰塔技能改名迁移：减速场→寒霜、寒潮→多重冰锥、霜星→冰花、冻结率→冬珠 */
+  _renameIceSkills(d) {
+    const MAP = { '减速场': '寒霜', '寒潮': '多重冰锥', '霜星': '冰花', '冻结率': '冬珠' };
+    Object.keys(d.skillCards || {}).forEach((tk) => {
+      const sc = d.skillCards[tk];
+      Object.keys(MAP).forEach((old) => {
+        if (sc && sc[old] && !sc[MAP[old]]) { sc[MAP[old]] = sc[old]; delete sc[old]; }
+      });
+    });
+    Object.keys(d.towerSkillSlots || {}).forEach((tk) => {
+      if (d.towerSkillSlots[tk] && MAP[d.towerSkillSlots[tk]]) d.towerSkillSlots[tk] = MAP[d.towerSkillSlots[tk]];
     });
     return d;
   }

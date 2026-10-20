@@ -83,12 +83,71 @@ t('冰·冰冻：命中概率冻结（冻结后不能移动）', () => {
   // 冻结移动检查：moveEnemy 逻辑（main）以 frozen>0 停移，此处验证状态被正确设置
 });
 
-t('冰·减速场：命中减速', () => {
-  const g = mkGame({ ice: { 减速场: 1 } });
+t('冰·寒霜：普攻减速概率提升至70%', () => {
+  const g = mkGame({ ice: { 寒霜: 1 } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  c.hit('ice', e, 50);
+  const orig = Math.random; Math.random = () => 0; // 必触发（0 < 0.70）
+  try { c.hit('ice', e, 50); } finally { Math.random = orig; }
   assert.ok(e.slow && e.slow.mult < 1 && e.slow.ttl > 0, '应有减速状态');
+  // mkGame 数字技能 → 全分支 1：幅度 = 30% + 15%×B1 = 45%
+  assert.ok(Math.abs(e.slow.mult - 0.55) < 1e-6, `减速幅度应为 45%，实际 ${(1 - e.slow.mult) * 100}%`);
+});
+
+t('冰·寒霜C：减速目标易伤+15%/级', () => {
+  const g = mkGame({ ice: { 寒霜: { C: 2 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 触发减速
+  try { c.hit('ice', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.slow.ttl > 0, '应处于减速');
+  // 再次命中：寒霜C2 → 受伤 ×(1+0.15×2)=×1.3
+  const before = e.hp;
+  c.hit('ice', e, 100);
+  const lost = before - e.hp;
+  assert.ok(Math.abs(lost - 100 * 1.3) < 1e-6, `减速目标应受伤 130，实际 ${lost.toFixed(1)}`);
+});
+
+t('冰·多重冰锥：等角度扇形散射命中', () => {
+  const g = mkGame({ ice: { 多重冰锥: 1 } });
+  const c = new CombatSystem(g);
+  // 主目标 + 两侧散射弹道（基础 3 枚 = 主 + 2 散射）
+  const e1 = mkEnemy(1000, 330, 650); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  const e3 = mkEnemy(1000, 420, 650); g.enemies.push(e3);
+  const orig = Math.random; Math.random = () => 0.5;
+  try {
+    c.hit('ice', e2, 100);
+    assert.ok(c.shots.filter((s) => s.scatter).length === 2, '应生成 2 枚散射冰锥弹道');
+    c.update(0.6);
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((x) => x.hp < 1000).length;
+  assert.ok(hurt >= 2, `主目标 + 至少 1 枚散射应命中，实际 ${hurt}`);
+});
+
+t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
+  const g = mkGame({ ice: { 冰花: { A: 1 } } });
+  const c = new CombatSystem(g);
+  // 主目标 y=900（最近），两个周边敌（100 内）+ 一个远处（传染 60 内）
+  g.enemies.push(mkEnemy(10000, 375, 900));
+  g.enemies.push(mkEnemy(10000, 400, 930));
+  g.enemies.push(mkEnemy(10000, 410, 950));   // 传染 60px 内
+  c.tickPeriodic(8);   // 冰花周期 8s 触发
+  const hurt = g.enemies.filter((x) => x.hp < 10000).length;
+  assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
+});
+
+t('冰·冬珠：持续冰霜之球范围伤害', () => {
+  const g = mkGame({ ice: { 冬珠: 1 } });
+  const c = new CombatSystem(g);
+  g.enemies.push(mkEnemy(10000, 375, 800));
+  g.enemies.push(mkEnemy(10000, 390, 830));   // 110 范围内
+  c.timers.frostOrb = 9.9;
+  c.update(0.2);   // timer 10.1 ≥10 → 释放冬珠（推进仅 -0.2s）
+  assert.ok(c.frostOrbs.length === 1, '应生成 1 颗冬珠');
+  c.update(0.7);   // 累计 0.9s > 0.8s tickI → 第一跳
+  const hurt = g.enemies.filter((x) => x.hp < 10000).length;
+  assert.ok(hurt === 2, `冬珠一跳应伤范围内 2 个，实际 ${hurt}`);
 });
 
 t('电·连锁：命中后跳转第二目标', () => {

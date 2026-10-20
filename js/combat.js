@@ -6,7 +6,7 @@
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
  *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
- *       冰：减速 / 冰冻 / 冰锥穿透 / 寒潮 / 霜星 / 冻结率 / 低温全塔 / 永冻
+ *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 低温全塔 / 永冻
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
@@ -56,6 +56,7 @@ class CombatSystem {
     this.kills = {};
     this.bWait = {};
     this.groundDots = [];      // 火·火柱余烬：地面燃烧区域
+    this.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
   }
 
   /* ---------- 工具 ---------- */
@@ -280,11 +281,11 @@ class CombatSystem {
     let v = dmg;
     // 腐蚀增伤
     if (e.corrode) v *= e.corrode.mult;
-    // 冰·冻结率 b：冻结目标受伤 +20%×(lv-1)；永冻 b：冰塔对冰冻目标 +40%×(lv-1)
-    const frz = Math.max(0, this.lv('ice', '冻结率') - 1);
-    if (e.frozen > 0 && frz > 0) v *= (1 + 0.20 * frz);
+    // 冰·永冻 b：冰塔对冰冻目标 +40%×(lv-1)
     const perm = Math.max(0, this.lv('ice', '永冻') - 1);
     if (srcKey === 'ice' && e.frozen > 0 && perm > 0) v *= (1 + 0.40 * perm);
+    // 冰·寒霜 C 易伤：被减速目标受伤 +15%/级
+    if (e.slow && e.slow.ttl > 0) v *= (1 + 0.15 * this.branchLv('ice', '寒霜', 'C'));
     // 火·点燃 C 焚魂：被灼烧目标受到的伤害 +15%/级（全来源）
     const vuln = this.branchLv('fire', '点燃', 'C');
     if (vuln > 0 && this.hasDot(e, 'burn')) v *= (1 + 0.15 * vuln);
@@ -321,20 +322,7 @@ class CombatSystem {
         const l = this.lv('poison', '毒爆');
         this.explode(e.x, e.y, 80 * (1 + 0.4 * (l - 1)), this.shotDmg('poison') * 0.8 * (1 + 0.5 * (l - 1)), 'poison');
       }
-      if (key === 'ice' && this.has('ice', '霜星') && e.frozen > 0) {
-        const l = this.lv('ice', '霜星');
-        const r = 60 * (1 + 0.3 * (l - 1));
-        this.enemies().forEach((o) => {
-          if (o === e || o.hp <= 0) return;
-          if (Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.5 + 0.2 * (l - 1)) {
-            o.frozen = Math.max(o.frozen || 0, 1.0);
-          }
-        });
-        // 霜星视觉：冰蓝大环 + 冰晶粒子
-        this.fxRing(e.x, e.y, '#7fd4ff', r, 0.5, 5);
-        this.fxParticle(e.x, e.y, '#b8e6ff', 14, 80, 0.55, 150, 5);
-        this.fxFlash(e.x, e.y, '#7fd4ff');
-      }
+      // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       if (key === 'poison' && this.has('poison', '扩散') && this.hasDot(e, 'poison')) {
         const l = this.lv('poison', '扩散');
         const n = 1 + 2 * (l - 1);
@@ -762,16 +750,14 @@ class CombatSystem {
   hitIce(e, dmg) {
     // 永冻 b：冰塔对冰冻目标增伤在 damage 内处理
     this.damage(e, dmg, 'ice');
-    // 减速场：命中减速 + 小范围
-    const slow = this.lv('ice', '减速场');
-    if (slow > 0) {
-      const mult = 0.30 * (1 + 0.15 * (slow - 1));
-      const r = 60 * (1 + 0.3 * (slow - 1));
-      this.applySlow(e, mult, 1.5);
-      this.enemies().forEach((o) => {
-        if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r) this.applySlow(o, mult, 1.5);
-      });
-      // 减速场视觉：浅蓝冰雾粒子
+    // 普攻减速（v1.13.23）：基础 20% 概率减速；学寒霜后概率提升至 70%
+    // 寒霜 A 凝时：减速时长 +0.5s/级；B 深寒：减速幅度 +15%/级；C 易伤在 damage 内处理
+    const frost = this.lv('ice', '寒霜');
+    if (Math.random() < (frost > 0 ? 0.70 : 0.20)) {
+      const mult = 0.30 + 0.15 * this.branchLv('ice', '寒霜', 'B');
+      const ttl = 1.5 + 0.5 * this.branchLv('ice', '寒霜', 'A');
+      this.applySlow(e, mult, ttl);
+      // 减速视觉：浅蓝冰雾粒子
       this.fxParticle(e.x, e.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
     }
     // 冰冻
@@ -785,9 +771,45 @@ class CombatSystem {
         this.fxParticle(e.x, e.y, '#b8e6ff', 10, 60, 0.5, 130, 5);
       }
     }
-    // 全塔冻结率（冰·冻结率）：任意命中概率冻结
-    const frzRate = this.lv('ice', '冻结率');
-    if (frzRate > 0 && Math.random() < 0.15 * frzRate) e.frozen = Math.max(e.frozen || 0, 1);
+    // 多重冰锥（v1.13.23 仿多重火球）：主目标直瞄 + 额外冰锥等角度扇形散射（无目标，射界消失或命中即止）
+    //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 分击 25% 概率减速
+    const multi = this.lv('ice', '多重冰锥');
+    if (multi > 0) {
+      const g = this.game;
+      const ly0 = this.ly();
+      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
+      const startX = (750 - rowW) / 2;
+      const slotW = ly0.slotSize + ly0.slotGap;
+      const idx = g.run.slotOrder.indexOf('ice');
+      const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
+      const msy = ly0.slotY + ly0.slotSize / 2;
+      const n = 2 + this.branchLv('ice', '多重冰锥', 'A');          // 基础 3 枚 = 主 + 2 额外
+      const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('ice', '多重冰锥', 'B'));
+      const slowProb = this.branchLv('ice', '多重冰锥', 'C') > 0 ? 0.25 : 0;
+      const dur = CONFIG.TOWERS.ice.shot.dur;
+      const R = this.range('ice');                 // 射界半径（= 塔射程）
+      const hitR = 45;                              // 散射冰锥碰撞半径
+      const strike = (o, d) => {                    // 命中结算（主目标直瞄与散射弹道共用）
+        this.damage(o, d, 'ice');
+        this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
+        this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
+        this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
+        if (slowProb > 0 && Math.random() < slowProb) this.applySlow(o, 0.3, 1.5);
+      };
+      // 主目标：立即伤害 + 一枚可见直瞄冰锥弹道
+      this.damage(e, perDmg, 'ice');
+      g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, tx: e.x, ty: e.y, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
+      // 额外冰锥：等角度扇形（均匀分布在 ±maxOff，主目标角度 0 两侧）
+      const maxOff = (n - 2) * 0.08;
+      for (let i = 0; i < n - 1; i++) {
+        const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
+        const tx = msx + Math.sin(off) * R;
+        const ty = msy - Math.cos(off) * R;
+        const icicle = { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx, ty };
+        this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx, ty, hitR, onHit: strike });
+        g.fx.push(icicle);
+      }
+    }
     // 永冻 a：冰冻不随时间解除（命中刷新）
     if (this.has('ice', '永冻') && e.frozen > 0) e.frozen = Math.max(e.frozen, 1.5);
     // 冰锥穿透
@@ -1178,21 +1200,79 @@ class CombatSystem {
         this.rainWaves = remaining;
       }
     }
-    const coldWave = this.lv('ice', '寒潮');
-    if (coldWave > 0) {
-      this.timers.coldWave = (this.timers.coldWave || 0) + dt;
-      if (this.timers.coldWave >= 8 * (1 - 0.3 * (coldWave - 1))) {
-        this.timers.coldWave = 0;
-        const mult = 0.40 * (1 + 0.15 * (coldWave - 1));
-        const wallY = this.ly().wallY;
-        // 寒潮视觉：全屏冰蓝冲击环
-        this.fxRing(this.ly().areaX + this.ly().areaW / 2, wallY - 60, '#7fd4ff', 380, 0.7, 5);
-        this.enemies().forEach((e) => {
-          if (e.hp > 0) {
-            this.applySlow(e, mult, 2);
-            this.fxParticle(e.x, e.y - 10, '#b8e6ff', 4, 30, 0.5, 90, 4);
+    // 冰·冰花（v1.13.23 原霜星改周期技）：每 8 秒对最近 N 个敌人召唤冰花（范围 100 伤害；A 碎散传染、B 霜力伤害+40%/级、C 繁花数量+1/级）
+    const flower = this.lv('ice', '冰花');
+    if (flower > 0) {
+      this.timers.iceFlower = (this.timers.iceFlower || 0) + dt;
+      if (this.timers.iceFlower >= 8) {
+        this.timers.iceFlower = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const n = 1 + Math.max(0, this.branchLv('ice', '冰花', 'C') - 1);
+          const dmg = this.shotDmg('ice') * (1 + 0.4 * Math.max(0, this.branchLv('ice', '冰花', 'B') - 1));
+          const r = 100;
+          const aLv = this.branchLv('ice', '冰花', 'A');
+          const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
+          targets.forEach((tgt) => {
+            const hitOnes = this.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= r);
+            hitOnes.forEach((o) => this.damage(o, dmg, 'ice'));
+            // A 碎散：冰花碎裂传染周边敌人（50% 伤害）
+            if (aLv > 0) {
+              hitOnes.forEach((h) => {
+                this.enemies().forEach((o) => {
+                  if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) this.damage(o, dmg * 0.5, 'ice');
+                });
+              });
+            }
+            // 冰花视觉：绽放冰环 + 冰晶碎瓣 + 闪光
+            this.fxRing(tgt.x, tgt.y, '#7fd4ff', r, 0.5, 5);
+            this.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
+            this.fxFlash(tgt.x, tgt.y, '#7fd4ff');
+          });
+        }
+      }
+    }
+    // 冰·冬珠（v1.13.23 原冻结率改持续球）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
+    //     A 寒域：范围减速 30%；B 扩容：范围 +30%/级；C 凝华：数量 +1/级、伤害频率 +20%/级
+    const orbSkill = this.lv('ice', '冬珠');
+    if (orbSkill > 0) {
+      this.timers.frostOrb = (this.timers.frostOrb || 0) + dt;
+      if (this.timers.frostOrb >= 10) {
+        this.timers.frostOrb = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const orbN = 1 + Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1);
+          const r = 110 * (1 + 0.3 * Math.max(0, this.branchLv('ice', '冬珠', 'B') - 1));
+          const tickI = 0.8 * (1 - 0.2 * Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1));
+          const slowA = this.branchLv('ice', '冬珠', 'A');
+          const dmg = this.shotDmg('ice') * 0.5;
+          const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbN);  // 最近 N 个敌人位置落球
+          this.frostOrbs = this.frostOrbs || [];
+          spots.forEach((sp) => {
+            this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: 5, tickT: 0, tickI, dmg, slowA });
+            this.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: 5 });
+          });
+        }
+      }
+      // 冬珠持续推进（每跳范围伤害 + 减速）
+      if (this.frostOrbs && this.frostOrbs.length) {
+        const remain = [];
+        for (const ob of this.frostOrbs) {
+          ob.ttl -= dt;
+          if (ob.ttl <= 0) { this.fxRing(ob.x, ob.y, '#7fd4ff', ob.r * 0.6, 0.3, 3); continue; }
+          ob.tickT -= dt;
+          if (ob.tickT <= 0) {
+            ob.tickT += ob.tickI;
+            this.enemies().forEach((o) => {
+              if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
+              this.damage(o, ob.dmg, 'ice');
+              if (ob.slowA > 0) this.applySlow(o, 0.3, 1);
+            });
+            this.fxRing(ob.x, ob.y, '#b8e6ff', ob.r * 0.5, 0.35, 3);
           }
-        });
+          remain.push(ob);
+        }
+        this.frostOrbs = remain;
       }
     }
     const arc = this.lv('electric', '电弧');

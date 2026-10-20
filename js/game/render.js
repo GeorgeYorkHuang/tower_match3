@@ -46,7 +46,7 @@ const TOWER_ICON = { fire: '🔥', ice: '❄', poison: '☠', electric: '⚡', b
 /* 塔图鉴精简数据：定位一句话 + 招牌技能（与 config EFFECT_POOLS P0 技能对应） */
 const TOME_ROWS = [
   { tint: '#e74c3c', name: '火塔',     desc: '直线火球 · 灼烧爆破',         skills: '点燃 · 火柱 · 大火球' },
-  { tint: '#5dade2', name: '冰塔',     desc: '冰锥减速 · 冻结控场',       skills: '减速场 · 冰冻 · 冰锥穿透' },
+  { tint: '#5dade2', name: '冰塔',     desc: '冰锥减速 · 冻结控场',       skills: '寒霜 · 冰冻 · 冰锥穿透' },
   { tint: '#52be80', name: '毒塔',     desc: '毒液持续伤害 · 扩散传染',   skills: '剧毒 · 扩散 · 毒爆' },
   { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 活电群伤',       skills: '连锁 · 麻痹 · 过载' },
   { tint: '#a569bd', name: '回旋镖塔', desc: '弧线飞行 · 穿透折返',       skills: '穿透 · 折返增伤 · 飞距' },
@@ -781,6 +781,28 @@ class Renderer {
             ctx.beginPath(); ctx.arc(sx, sy, 10 * (1 - pk * 0.5), 0, Math.PI * 2); ctx.fill();
             ctx.globalAlpha = 1;
           }
+        } else if (f.kind === 'frostorb') {
+          // v1.13.23 冬珠（冰霜之球）：半透明冰球 + 呼吸光环 + 旋转冰晶点（持续 5s 驻场）
+          const fp = Math.min(1, f.t / f.dur);
+          const breathe = 1 + 0.08 * Math.sin(Date.now() / 300);
+          ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.16;
+          ctx.beginPath(); ctx.arc(f.x, f.y, (f.r || 110) * 0.55 * breathe, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#b8e6ff'; ctx.globalAlpha = 0.5;
+          ctx.beginPath(); ctx.arc(f.x, f.y, 13 * breathe, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.arc(f.x - 2.5, f.y - 2.5, 5, 0, Math.PI * 2); ctx.fill();
+          // 外圈呼吸光环
+          ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.45 * (1 - fp * 0.4);
+          ctx.beginPath(); ctx.arc(f.x, f.y, (f.r || 110) * 0.72 * breathe, 0, Math.PI * 2); ctx.stroke();
+          // 旋转冰晶点（3 颗）
+          for (let k = 0; k < 3; k++) {
+            const a = Date.now() / 700 + k * 2.09;
+            ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.8;
+            ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 22 * breathe, f.y + Math.sin(a) * 22 * breathe, 3, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
         } else if (f.kind === 'orb') {
           // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
           const o = f.ref || f;
