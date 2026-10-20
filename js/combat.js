@@ -963,51 +963,65 @@ class CombatSystem {
   /* ---------- 周期技 ---------- */
   tickPeriodic(dt) {
     const g = this.game;
-    // 火·火柱：每 10 秒随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
+    // 火·火柱：每 20 秒（v1.13.9 放慢一倍）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
+    // v1.13.9：伤害延迟到地面圈画完（约 0.6s）后结算，动画与伤害节奏一致
     const pillar = this.lv('fire', '火柱');
     if (pillar > 0) {
       this.timers.firePillar = (this.timers.firePillar || 0) + dt;
-      if (this.timers.firePillar >= 10) {
+      if (this.timers.firePillar >= 20) {
         this.timers.firePillar = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
           const pDmg = this.shotDmg('fire') * 1.5 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火柱', 'A') - 1));
           const pR = 120 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '火柱', 'B') - 1));
-          this.explode(tgt.x, tgt.y, pR, pDmg, 'fire');
           const emberLv = this.branchLv('fire', '火柱', 'C');
-          if (emberLv > 0) {
-            this.groundDots = this.groundDots || [];
-            this.groundDots.push({ x: tgt.x, y: tgt.y, r: pR, ttl: 3, dps: this.shotDmg('fire') * 0.30 * emberLv, key: 'fire' });
-          }
-          // 火柱视觉：冲天火柱帧动画（起势火圈→喷发→冲击环→余烬）+ 少量点缀粒子
-          g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: 1.2, seed: Math.random() * 100 });
+          this.pillarWaves = this.pillarWaves || [];
+          this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv });
+          // 火柱视觉：地上火圈标记 → 冲天圆柱火柱（帧动画，dur 2.4s 放慢一倍）
+          g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: 2.4, seed: Math.random() * 100 });
           this.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
         }
       }
+      // 延迟伤害结算：圈标记完成后火柱爆发
+      if (this.pillarWaves && this.pillarWaves.length) {
+        const remaining = [];
+        for (const wv of this.pillarWaves) {
+          wv.t -= dt;
+          if (wv.t <= 0) {
+            this.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
+            if (wv.ember > 0) {
+              this.groundDots = this.groundDots || [];
+              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.30 * wv.ember, key: 'fire' });
+            }
+          } else {
+            remaining.push(wv);
+          }
+        }
+        this.pillarWaves = remaining;
+      }
     }
-    // 火·火雨：每 12 秒随机 3 个区域降下火焰段（每段 80% 伤害·半径140；A 密集段数+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
-    // v1.13.8：每区域连续下 3 次火雨（0.35s 间隔），动画错开推入、伤害延迟结算
+    // 火·火雨：每 24 秒（v1.13.9 放慢一倍）在索敌区域降下火雨（每波 80% 伤害·半径140；A 波次+1、B 猛烈+50%/级、C 引燃 50% 概率点燃）
+    // v1.13.9：每次只触发 1 个区域（索敌：在存活敌人处释放）；区域内连续 waves 波，0.7s 间隔，伤害延迟结算
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
-      if (this.timers.fireRain >= 12) {
+      if (this.timers.fireRain >= 24) {
         this.timers.fireRain = 0;
-        const segs = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
-        const segDmg = this.shotDmg('fire') * 0.8 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
-        const segR = 140;
-        const igniteLv = this.branchLv('fire', '火雨', 'C');
-        const area = this.ly();
-        const minX = area.areaX, maxX = area.areaX + area.areaW;
-        const minY = area.areaY + area.entryH, maxY = area.wallY;
-        const waves = 3, gap = 0.35;
-        this.rainWaves = this.rainWaves || [];
-        for (let i = 0; i < segs; i++) {
-          const px = minX + Math.random() * (maxX - minX);
-          const py = minY + Math.random() * (maxY - minY);
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const segDmg = this.shotDmg('fire') * 0.8 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
+          const segR = 140;
+          const igniteLv = this.branchLv('fire', '火雨', 'C');
+          const waves = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
+          const gap = 0.7;
+          const tgt = alive[Math.floor(Math.random() * alive.length)];
+          const px = tgt.x + (Math.random() - 0.5) * 20;
+          const py = tgt.y + (Math.random() - 0.5) * 20;
+          this.rainWaves = this.rainWaves || [];
           for (let w = 0; w < waves; w++) {
             this.rainWaves.push({ t: w * gap, px, py, r: segR, dmg: segDmg, ignite: igniteLv });
-            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w * gap, dur: 1.05, seed: Math.random() * 100 });
+            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w * gap, dur: 2.1, seed: Math.random() * 100 });
           }
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
