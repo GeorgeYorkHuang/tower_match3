@@ -137,6 +137,22 @@ t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
   assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
 });
 
+t('冰·碎冰：命中后碎裂3枚碎冰穿透身后敌人', () => {
+  const g = mkGame({ ice: { 碎冰: 1 } });
+  const c = new CombatSystem(g);
+  // 主目标 + 身后（更靠近远处）敌人：碎冰沿弹道方向越过主目标后命中
+  const e1 = mkEnemy(1000, 375, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 370, 680); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0.5;
+  try {
+    c.hit('ice', e1, 100);
+    assert.ok(c.shots.filter((s) => s.scatter).length === 3, '应生成 3 枚碎冰弹道');
+    c.update(0.1);   // 推进碎冰越过主目标飞向身后
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((x) => x.hp < 1000).length;
+  assert.ok(hurt >= 2, `主目标 + 身后敌人应被命中，实际 ${hurt}`);
+});
+
 t('冰·冬珠：持续冰霜之球范围伤害', () => {
   const g = mkGame({ ice: { 冬珠: 1 } });
   const c = new CombatSystem(g);

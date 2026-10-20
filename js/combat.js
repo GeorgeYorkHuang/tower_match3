@@ -6,7 +6,7 @@
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
  *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
- *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 低温全塔 / 永冻
+ *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 永冻
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
@@ -808,6 +808,44 @@ class CombatSystem {
         const icicle = { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx, ty };
         this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx, ty, hitR, onHit: strike });
         g.fx.push(icicle);
+      }
+    }
+    // 碎冰（v1.13.24 原低温全塔改）：冰锥命中目标后碎裂成 3 枚碎冰，沿弹道方向越过目标，继续向敌人身后飞行命中后续敌人
+    //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害+15%/级、C 冻裂 25% 概率减速 30%
+    const shard = this.lv('ice', '碎冰');
+    if (shard > 0) {
+      const g = this.game;
+      const ly0 = this.ly();
+      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
+      const startX = (750 - rowW) / 2;
+      const slotW = ly0.slotSize + ly0.slotGap;
+      const idx = g.run.slotOrder.indexOf('ice');
+      const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
+      const msy = ly0.slotY + ly0.slotSize / 2;
+      const len = Math.hypot(e.x - msx, e.y - msy) || 1;
+      const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
+      const n = 3 + Math.max(0, this.branchLv('ice', '碎冰', 'A') - 1);
+      const dmg = this.shotDmg('ice') * 0.45 * (1 + 0.15 * Math.max(0, this.branchLv('ice', '碎冰', 'B') - 1));
+      const slowP = this.branchLv('ice', '碎冰', 'C') > 0 ? 0.25 : 0;
+      const sx = e.x + dx * 55, sy = e.y + dy * 55;   // 越过主目标，避免立即重复命中
+      const R = this.range('ice');
+      const dur = CONFIG.TOWERS.ice.shot.dur;
+      const hitR = 45;
+      const strike = (o, d) => {
+        this.damage(o, d, 'ice');
+        this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
+        this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
+        if (slowP > 0 && Math.random() < slowP) this.applySlow(o, 0.3, 1.5);
+      };
+      const baseA = Math.atan2(dy, dx);
+      const spread = 0.06;
+      for (let i = 0; i < n; i++) {
+        const off = n > 1 ? (i / (n - 1) - 0.5) * 2 * spread : 0;
+        const a = baseA + off;
+        const tx = sx + Math.cos(a) * R;
+        const ty = sy + Math.sin(a) * R;
+        this.shots.push({ key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, onHit: strike });
+        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale: 0.85, tx, ty });
       }
     }
     // 永冻 a：冰冻不随时间解除（命中刷新）

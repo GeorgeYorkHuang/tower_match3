@@ -39,9 +39,9 @@ class SaveManager {
     return d;
   }
 
-  /** v1.13.23 冰塔技能改名迁移：减速场→寒霜、寒潮→多重冰锥、霜星→冰花、冻结率→冬珠 */
+  /** v1.13.23/24 冰塔技能改名迁移：减速场→寒霜、寒潮→多重冰锥、霜星→冰花、冻结率→冬珠、低温全塔→碎冰 */
   _renameIceSkills(d) {
-    const MAP = { '减速场': '寒霜', '寒潮': '多重冰锥', '霜星': '冰花', '冻结率': '冬珠' };
+    const MAP = { '减速场': '寒霜', '寒潮': '多重冰锥', '霜星': '冰花', '冻结率': '冬珠', '低温全塔': '碎冰' };
     Object.keys(d.skillCards || {}).forEach((tk) => {
       const sc = d.skillCards[tk];
       Object.keys(MAP).forEach((old) => {
