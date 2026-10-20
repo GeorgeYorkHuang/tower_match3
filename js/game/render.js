@@ -564,10 +564,9 @@ class Renderer {
         fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
         text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
       }
-      // A1 状态可视化：冰冻/麻痹/减速描边 + DoT 光点
-      const stCol = e.frozen > 0 ? '#7fd4ff' : (e.paralyzed > 0 ? '#ffd24a' : (e.slow && e.slow.ttl > 0 ? '#5dade2' : null));
-      if (stCol) {
-        ctx.strokeStyle = stCol; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
+      // A1 状态可视化：仅冰冻保留描边框（蓝框）；减速/麻痹改用专属特效，不再画框
+      if (e.frozen > 0) {
+        ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
         ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
         ctx.globalAlpha = 1;
       }
@@ -591,15 +590,32 @@ class Renderer {
         ctx.beginPath(); ctx.arc(cx - size * 0.15, cy - size * 0.15, 3, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // v1.13.26 减速持续特效：脚下扩散冰环（寒霜核心视觉）
+      // v1.13.29 寒霜重做：脚下冰霜雾气（双环扩散）+ 寒气粒子上升 + 冰霜结晶光点，无方框
       if (e.slow && e.slow.ttl > 0 && e.frozen <= 0) {
         const cx = x + size / 2, cy = y + size / 2;
-        const pulse = (Date.now() / 400) % 1;
-        ctx.strokeStyle = '#5dade2'; ctx.lineWidth = 1.6;
-        ctx.globalAlpha = 0.55 * (1 - pulse);
-        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 4 + pulse * size * 0.4, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#5dade2'; ctx.globalAlpha = 0.4;
-        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 3, 0, Math.PI * 2); ctx.fill();
+        const tNow = Date.now();
+        const pulse = (tNow / 420) % 1;
+        // 双环冰雾扩散（内外两圈，淡出）
+        ctx.strokeStyle = '#a9d6f5'; ctx.lineWidth = 1.4;
+        ctx.globalAlpha = 0.5 * (1 - pulse);
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 3 + pulse * size * 0.38, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 0.28 * (1 - pulse);
+        ctx.beginPath(); ctx.arc(cx, cy + size * 0.42, 8 + pulse * size * 0.5, 0, Math.PI * 2); ctx.stroke();
+        // 寒气粒子从脚下上升（确定性：时间+索引相位，淡出）
+        for (let k = 0; k < 4; k++) {
+          const ph = ((tNow / 500 + k * 0.25) % 1);
+          const px = cx + Math.sin((tNow / 300 + k * 1.7) * 2) * size * 0.22;
+          const py = cy + size * 0.42 - ph * size * 0.5;
+          ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.45 * (1 - ph);
+          ctx.beginPath(); ctx.arc(px, py, 1.6 + ph * 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+        // 冰霜结晶光点附着怪身（绕边跳动，确定性相位）
+        for (let k = 0; k < 3; k++) {
+          const a = tNow / 700 + k * 2.09;
+          const jx = cx + Math.cos(a) * size * 0.5, jy = cy + Math.sin(a) * size * 0.5;
+          ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.6 + 0.3 * Math.sin(tNow / 180 + k);
+          ctx.beginPath(); ctx.arc(jx, jy, 1.8, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.globalAlpha = 1;
       }
       // v1.13.21 麻痹持续特效：头顶金色电花（⚡+跳动电光点），麻痹期间常驻
