@@ -205,13 +205,61 @@ t('电·电弧：周期触发射程内前3目标', () => {
   assert.ok(hurt === 3, `电弧应命中射程内前 3（超射程不受），实际 ${hurt}`);
 });
 
-t('火·大火球：命中爆炸波及邻近敌人', () => {
-  const g = mkGame({ fire: { 大火球: 1 } });
+t('电·电弧A：强弧伤害+50%/级', () => {
+  const g = mkGame({ electric: { 电弧: { A: 2 } } });
   const c = new CombatSystem(g);
-  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
-  const e2 = mkEnemy(1000, 385, 815); g.enemies.push(e2); // 爆炸半径 130 内
-  c.hit('fire', e1, 100);
-  assert.ok(e2.hp < 1000, '邻近敌人应受爆炸伤害');
+  for (let i = 0; i < 3; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 700 + i * 50));
+  c.tickPeriodic(5);   // 电弧周期 5s（Lv1）触发一次，无普攻干扰
+  const dmg = 23 * 0.5 * (1 + 0.3 * 1) * (1 + 0.5 * 2);   // 分支 A2 → 技能 Lv2：0.5×(1+0.3×1)×(1+0.5×A2)
+  g.enemies.forEach((e) => assert.ok(Math.abs(e.hp - (1000 - dmg)) < 1e-6, `A2 应造成 ${dmg}，实际 ${1000 - e.hp}`));
+});
+
+t('电·充能C：共享全塔攻速；B：每层+10%', () => {
+  const g1 = mkGame({ electric: { 充能: { C: 1 } }, fire: {} });
+  const c1 = new CombatSystem(g1);
+  c1.tower('electric')._chargeLayers = 3;
+  const ivShared = c1.interval('fire');   // 无 C 时 fire 不吃充能
+  assert.ok(ivShared < 0.85, `C 共享后 fire 攻速应提升，实际 ${ivShared.toFixed(3)}s`);
+  const g2 = mkGame({ electric: { 充能: { B: 1 } }, fire: {} });
+  const c2 = new CombatSystem(g2);
+  c2.tower('electric')._chargeLayers = 3;
+  const ivB = c2.interval('electric');    // B1：每层 10% → 1/(1+0.10×3)
+  assert.ok(Math.abs(ivB - 1 / 1.3) < 1e-6, `B1 三层应为 ${(1 / 1.3).toFixed(3)}s，实际 ${ivB.toFixed(3)}s`);
+});
+
+t('电·麻痹C：传导邻近敌人麻痹', () => {
+  const g = mkGame({ electric: { 麻痹: { C: 1 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const o = mkEnemy(1000, 385, 815); g.enemies.push(o);   // 60px 内
+  const orig = Math.random;
+  try { Math.random = () => 0.1; c.hit('electric', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.paralyzed > 0, '主目标应麻痹');
+  assert.ok(o.paralyzed > 0, '邻近敌人应被传导麻痹');
+});
+
+t('电·电磁场C：扩磁命中多目标', () => {
+  const g = mkGame({ electric: { 电磁场: { C: 2 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  for (let i = 0; i < 3; i++) g.enemies.push(mkEnemy(1000, 375 + (i - 1) * 40, 800));
+  const orig = Math.random;
+  try { Math.random = () => 0.05; c.hit('electric', e, 100); } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((x) => x.hp < 1000).length;
+  assert.ok(hurt >= 3, `C2 应命中主目标+3 微型连锁（110px 内），实际受伤 ${hurt}`);
+});
+
+t('火·点燃A：余烬爆发结束结算', () => {
+  const g = mkGame({ fire: { 点燃: { A: 1 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  c.hit('fire', e, 100);
+  const dot = e.dots.find((d) => d.type === 'burn');
+  assert.ok(dot, '应有灼烧 DoT');
+  c.update(3.2);   // ttl=3×1.5=4.5s，跑到 3.2s 时灼烧跳了多轮但未结束
+  assert.ok(e.hp < 10000, '灼烧应持续掉血');
+  c.update(2.0);   // 总计 5.2s > 4.5s：dot 到期 → 余烬爆发
+  assert.ok(e.hp < 10000 - 100 * 0.2 * 0.5 * 3, '余烬爆发应造成额外立即伤害');
 });
 
 t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰撞）', () => {

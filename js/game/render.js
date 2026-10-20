@@ -1103,15 +1103,22 @@ class Renderer {
     });
   }
 
-  /** 三选一弹层（波末/升级强化）v3：横向三卡；卡框=所属塔色；上 1/3 图标 / 中介绍 / 下详细描述 */
+  /** 三选一弹层（波末/升级强化）v4：横向三卡；半透明底板 + 立体投影（v1.13.22 美化） */
   pickLayer(ctx, group, pending, onPick) {
     const w = L.pickLayer.w, h = L.pickLayer.h;
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.66)';
+    // 遮罩（半透明，露出战场背景）
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    // 中央面板
-    fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
-    strokeRoundRect(ctx, x, y, w, h, 20, '#3d4553', 2);
+    // 中央面板：投影厚度 + 半透明玻璃底 + 高光描边（立体感）
+    fillRoundRect(ctx, x + 4, y + 6, w, h, 20, 'rgba(0,0,0,0.38)');       // 右下投影
+    const panelGrad = ctx.createLinearGradient(0, y, 0, y + h);
+    panelGrad.addColorStop(0, 'rgba(30,40,54,0.82)');
+    panelGrad.addColorStop(0.5, 'rgba(22,30,42,0.78)');
+    panelGrad.addColorStop(1, 'rgba(16,23,33,0.82)');
+    fillRoundRect(ctx, x, y, w, h, 20, panelGrad);
+    strokeRoundRect(ctx, x, y, w, h, 20, '#4a5462', 2);
+    strokeRoundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, 18, 'rgba(255,255,255,0.14)', 1);   // 内高光
     // group.tower 可能是 key 字符串（settlePending 传入），统一解析为 {key, name}
     const tk = typeof group.tower === 'string' ? group.tower : group.tower.key;
     const tName = typeof group.tower === 'string'
@@ -1160,9 +1167,19 @@ class Renderer {
         ? (CONFIG.COLORS[CONFIG.TOWERS[fromKey] && CONFIG.TOWERS[fromKey].color] || {}).name || fromKey
         : tName;
       const fromTint = TOWER_TINT[fromKey] || tint;
-      // 卡片框：描边 = 该卡来源塔色（波末强化三卡同塔；升级三选一各自独立）
-      fillRoundRect(ctx, cx, topY, cardW, cardH, 16, '#232c38');
+      // 卡片框：投影厚度 + 半透明玻璃底 + 描边=该卡来源塔色（波末强化三卡同塔；升级三选一各自独立）
+      fillRoundRect(ctx, cx + 3, topY + 5, cardW, cardH, 16, 'rgba(0,0,0,0.32)');              // 卡片投影
+      const cardGrad = ctx.createLinearGradient(0, topY, 0, topY + cardH);
+      cardGrad.addColorStop(0, 'rgba(38,50,66,0.75)');
+      cardGrad.addColorStop(1, 'rgba(24,33,44,0.72)');
+      fillRoundRect(ctx, cx, topY, cardW, cardH, 16, cardGrad);
       strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, fromTint, 2.5);
+      strokeRoundRect(ctx, cx + 1.5, topY + 1.5, cardW - 3, cardH - 3, 14, 'rgba(255,255,255,0.10)', 1);  // 卡内高光
+      // 顶部玻璃高光条
+      const hiGrad = ctx.createLinearGradient(0, topY, 0, topY + 34);
+      hiGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+      hiGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      fillRoundRect(ctx, cx + 4, topY + 4, cardW - 8, 34, 6, hiGrad);
       // 顶部状态细条：升级=金 / 目标=绿 / 普通=来源塔色
       fillRoundRect(ctx, cx + 4, topY + 4, cardW - 8, 6, 3, upgrading ? '#f7c948' : (isTarget ? '#27ae60' : fromTint));
       if (isTarget && !upgrading) {
@@ -1221,11 +1238,16 @@ class Renderer {
         const fn = (CONFIG.COLORS[CONFIG.TOWERS[ef.fromTower] && CONFIG.TOWERS[ef.fromTower].color] || {}).name || ef.fromTower;
         text(ctx, `来自${fn}`, cx + cardW / 2, topY + 268 + lines.length * 26 + 24, 17, '#8ea3b8', 'center');
       }
-      // 选择按钮（卡底部；v1.9 统一蓝色，不随塔色变化）
+      // 选择按钮（卡底部；渐变立体：投影 + 高光）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
-      ctx.fillStyle = '#3a6ea5';
-      roundRect(ctx, btnX, btnY, btnW, btnH, 14); ctx.fill();
-      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 14, 'rgba(255,255,255,0.35)', 1.5);
+      fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
+      const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
+      btnGrad.addColorStop(0, '#4a8ac4');
+      btnGrad.addColorStop(1, '#2c5f8f');
+      fillRoundRect(ctx, btnX, btnY, btnW, btnH, 14, btnGrad);
+      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 14, 'rgba(255,255,255,0.30)', 1.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      fillRoundRect(ctx, btnX + 6, btnY + 5, btnW - 12, 14, 7, ctx.fillStyle);
       text(ctx, '选择', btnX + btnW / 2, btnY + btnH / 2, 28, '#ffffff', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });

@@ -90,13 +90,13 @@ class CombatSystem {
     if (key === 'boomerang') iv /= (1 + 0.10 * Math.max(0, this.lv('boomerang', '飞距') - 1));
     // 炮·炮台座 +20%/级
     if (key === 'cannon') iv /= (1 + 0.20 * this.lv('cannon', '炮台座'));
-    // 电·充能：命中累计攻速 +5%/层（上限 5×lv 层）
+    // 电·充能：命中累计攻速 +5%/层（上限 5×lv 层；A 扩容上限+5/级、B 快充每层+10%、C 共享全塔）
     const charge = this.lv('electric', '充能');
-    if (charge > 0) {
+    if (charge > 0 && (key === 'electric' || this.branchLv('electric', '充能', 'C') > 0)) {
       const e = this.tower('electric');
-      const cap = 5 * charge;
+      const cap = 5 * charge + 5 * this.branchLv('electric', '充能', 'A');
       const layers = Math.min(cap, e ? e._chargeLayers || 0 : 0);
-      if (layers > 0) iv /= (1 + 0.05 * layers);
+      if (layers > 0) iv /= (1 + (0.05 + 0.05 * this.branchLv('electric', '充能', 'B')) * layers);
     }
     // 圣物·疾风戒：全塔攻速 +8%/级
     const m = this.game.meta;
@@ -600,13 +600,22 @@ class CombatSystem {
   /* ---------- 六塔命中行为 ---------- */
   hit(key, e, dmg) {
     const g = this.game;
-    // 电磁场：任意塔命中概率触发微型连锁（电·电磁场）
+    // 电磁场（v1.13.22 分支补全）：任意塔命中概率触发微型连锁——A 激磁 +10%/级、B 强磁伤害 +30%/级、C 扩磁目标 +1/级
     const em = this.lv('electric', '电磁场');
-    if (em > 0 && Math.random() < 0.10 + 0.10 * (em - 1)) {
-      const near = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < 110 && Math.abs(o.y - e.y) < 110);
-      if (near.length) {
-        this.damage(near[Math.floor(Math.random() * near.length)], this.shotDmg('electric') * 0.5 * (1 + 0.3 * (em - 1)), 'electric');
-        this.fxFlash(e.x, e.y, '#f4d03f');
+    if (em > 0) {
+      const emA = this.branchLv('electric', '电磁场', 'A');
+      const emB = this.branchLv('electric', '电磁场', 'B');
+      const emC = this.branchLv('electric', '电磁场', 'C');
+      if (Math.random() < 0.10 + 0.10 * (em - 1) + 0.10 * emA) {
+        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < 110 && Math.abs(o.y - e.y) < 110);
+        const emDmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (em - 1)) * (1 + 0.3 * emB);
+        const n = 1 + emC;   // C 扩磁：目标 +1/级
+        for (let i = 0; i < n && cands.length; i++) {
+          const pick = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+          this.damage(pick, emDmg, 'electric');
+          this.fxFlash(pick.x, pick.y, '#f4d03f');
+        }
+        this.fxRing(e.x, e.y, '#f4d03f', 110, 0.3, 3);
       }
     }
 
@@ -874,15 +883,28 @@ class CombatSystem {
       }
     }
     // 麻痹（v1.13.18）：电塔基础 20%；学麻痹技能 +30%；A 分支每级 +15%（满 95%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
+    // C 传导：邻近敌人 20% 概率被麻痹（1s）
     const paraLv = this.lv('electric', '麻痹');
     const pA = this.branchLv('electric', '麻痹', 'A');
     const pB = this.branchLv('electric', '麻痹', 'B');
+    const pC = this.branchLv('electric', '麻痹', 'C');
     if (Math.random() < 0.20 + (paraLv > 0 ? 0.30 : 0) + 0.15 * pA) {
       const dur = 2 + 0.5 * pB;
       e.paralyzed = Math.max(e.paralyzed || 0, dur);
       this.applySlow(e, 0.5, dur);
       // 麻痹视觉：金黄电火花
       this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 140, 5);
+      // C 传导：60px 内其它敌人 20% 概率被传导麻痹
+      if (pC > 0) {
+        this.enemies().forEach((o) => {
+          if (o === e || o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > 60) return;
+          if (Math.random() < 0.20) {
+            o.paralyzed = Math.max(o.paralyzed || 0, 1);
+            this.applySlow(o, 0.5, 1);
+            this.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.35, 110, 4);
+          }
+        });
+      }
     }
     // 活电（v1.13.18 改电球，v1.13.19 更名）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
     const bounce = this.lv('electric', '活电');
@@ -902,8 +924,9 @@ class CombatSystem {
       }
       this.fxRing(e.x, e.y, '#f4d03f', 44, 0.3, 3);
     }
-    // 连锁弹跳（v1.13.18：不再叠加弹跳——弹跳已改活电电球机制）
+    // 连锁弹跳（v1.13.18：不再叠加弹跳——弹跳已改活电电球机制；C 回能：每次连锁命中缩短攻击间隔）
     const chainLv = this.lv('electric', '连锁');
+    const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
       const extra = 1 + 2 * Math.max(0, chainLv - 1);
       let decay = 0.30 * (1 - 0.2 * Math.max(0, chainLv - 1));
@@ -918,6 +941,10 @@ class CombatSystem {
         this.fxBeam(cur.x, cur.y, next.x, next.y, '#f4d03f', 0.25, 3.5);
         let cDmg = dmg * (1 - decay);
         this.damage(next, cDmg, 'electric');
+        // C 回能：每次连锁命中缩短电塔攻击间隔（3%/级）
+        if (chainC > 0 && this.atkTimers.electric !== undefined) {
+          this.atkTimers.electric = Math.max(0, this.atkTimers.electric - this.interval('electric') * 0.03 * chainC);
+        }
         hitSet.push(next);
         cur = next;
       }
@@ -1171,10 +1198,14 @@ class CombatSystem {
     const arc = this.lv('electric', '电弧');
     if (arc > 0) {
       // v1.13.20 削弱：周期 5×(1-0.2×Lv)（Lv4 2s）；伤害 0.5×(1+0.3×Lv)（Lv4 95%）；目标 5→3 且限塔射程
+      // v1.13.22 分支补全：A 强弧 +50%/级、B 宽弧宽度 +30%/级、C 麻痹弧 20% 概率麻痹
+      const arcA = this.branchLv('electric', '电弧', 'A');
+      const arcB = this.branchLv('electric', '电弧', 'B');
+      const arcC = this.branchLv('electric', '电弧', 'C');
       this.timers.arc = (this.timers.arc || 0) + dt;
       if (this.timers.arc >= 5 * (1 - 0.2 * (arc - 1))) {
         this.timers.arc = 0;
-        const dmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (arc - 1));
+        const dmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (arc - 1)) * (1 + 0.5 * arcA);
         // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
         const ly = this.ly();
         const rowW = 4 * ly.slotSize + 3 * ly.slotGap;
@@ -1187,14 +1218,20 @@ class CombatSystem {
         const targets = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range).sort((a, b) => b.y - a.y).slice(0, 3);
         targets.forEach((e) => {
           this.damage(e, dmg, 'electric');
-          // 电弧视觉：塔口 → 目标 锯齿折线电弧（3 段随机拐点 + 抖动白芯）
+          // C 麻痹弧：20% 概率麻痹 1.5s
+          if (arcC > 0 && Math.random() < 0.20) {
+            e.paralyzed = Math.max(e.paralyzed || 0, 1.5);
+            this.applySlow(e, 0.5, 1.5);
+            this.fxParticle(e.x, e.y, '#f4d03f', 6, 40, 0.4, 130, 5);
+          }
+          // 电弧视觉：塔口 → 目标 锯齿折线电弧（3 段随机拐点 + 抖动白芯；B 宽弧加粗）
           const path = [{ x: tx, y: ty }];
           for (let s = 1; s < 3; s++) {
             const t = s / 3;
             path.push({ x: tx + (e.x - tx) * t + (Math.random() * 26 - 13), y: ty + (e.y - ty) * t + (Math.random() * 26 - 13) });
           }
           path.push({ x: e.x, y: e.y });
-          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.3, color: '#f4d03f', w: 3 });
+          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.3, color: '#f4d03f', w: 3 * (1 + 0.3 * arcB) });
           this.fxFlash(e.x, e.y, '#f4d03f');
         });
       }
