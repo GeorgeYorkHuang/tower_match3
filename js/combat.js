@@ -1476,7 +1476,7 @@ class CombatSystem {
               });
             }
             // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
-            this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r, t: 0, dur: 0.55 });
+            this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r, t: 0, dur: 1.1 });
             this.fxRing(tgt.x, tgt.y, '#7fd4ff', r, 0.5, 5);
             this.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
             this.fxFlash(tgt.x, tgt.y, '#7fd4ff');

@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.8';        // v1.16.8 三选一界面美化：三卡错峰上浮入场、六边形徽章图标+旋转光环+流光、渐变描边、暗纹、呼吸光晕、目标金脉动、塔色按钮
+const GAME_VERSION = 'v1.16.9';        // v1.16.9 冰花帧动画放慢一倍（0.55s→1.1s，伤害节奏不变）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
