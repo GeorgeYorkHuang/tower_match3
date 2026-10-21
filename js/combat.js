@@ -393,6 +393,18 @@ class CombatSystem {
     if (e.slow) { e.slow.ttl -= dt; if (e.slow.ttl <= 0) e.slow = null; }
     if (e.corrode) { e.corrode.ttl -= dt; if (e.corrode.ttl <= 0) e.corrode = null; }
     if (e.overload) { e.overload.ttl -= dt; if (e.overload.ttl <= 0) e.overload = null; }
+    // 流血（v1.16.12，回旋镖普攻）：随移动距离结算——每累计移动 100px 跳一次伤害
+    if (e.bleedT > 0) {
+      e.bleedT -= dt;
+      e._bleedDist = (e._bleedDist || 0) + Math.max(0, e.y - (e._bleedLastY != null ? e._bleedLastY : e.y));
+      e._bleedLastY = e.y;
+      if (e._bleedDist >= 100) {
+        e._bleedDist -= 100;
+        this.damage(e, e._bleedDmg || 0, 'boomerang');
+        this.fxParticle(e.x, e.y - 10, '#c0392b', 4, 20, 0.35, 80, 5);
+      }
+      if (e.bleedT <= 0) { e.bleedT = 0; e._bleedDist = 0; }
+    }
     // 瘟疫传染（毒·瘟疫 v1.15）：中毒敌人减速 20% + 周期判定传染（A 判定 1.7/1.5/1.3s；B 范围 +25px/级；C 概率 +30pp/级 cap 100%）
     const plague = this.lv('poison', '瘟疫');
     if (plague > 0 && this.hasDot(e, 'poison')) {
@@ -855,9 +867,9 @@ class CombatSystem {
     }
     dmg *= mult;
 
-    // 先挂点燃（保证击杀瞬间 DoT 已在，燃爆/灼烧叠层可触发），再结算主伤害
+    // 普攻灼烧（v1.16.12）：基础 20% 概率灼烧；学「点燃」后每次命中必灼烧（技能强化）
     const ignite = this.lv('fire', '点燃');
-    if (ignite > 0) this.applyBurn(e, dmg, 'fire');
+    if (ignite > 0 || Math.random() < 0.20) this.applyBurn(e, dmg, 'fire');
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
     const mainMult = big > 0 ? 1.1 : 1;
@@ -953,6 +965,16 @@ class CombatSystem {
       dot.stack = 1;
       this.explode(e.x, e.y, 60, dmg * 0.6, 'fire');
     }
+  }
+
+  /* 普攻流血（v1.16.12，回旋镖塔）：随移动距离结算伤害 */
+  applyBleed(e, dmg) {
+    e.bleedT = 4;                 // 流血持续 4s
+    e._bleedDmg = dmg * 0.10;     // 每移动 100px 结算一次：10%×本次命中伤害
+    e._bleedDist = 0;
+    e._bleedLastY = e.y;
+    // 流血视觉：暗红血珠粒子
+    this.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
   }
 
   /* ============ 冰塔 ============ */
@@ -1258,6 +1280,8 @@ class CombatSystem {
       this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
     this.damage(e, v, 'boomerang');
+    // 普攻流血（v1.16.12）：20% 概率施加流血，随移动距离结算伤害（持续 4s，每移动 100px 跳一次）
+    if (Math.random() < 0.20) this.applyBleed(e, v);
     // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
     const fold = this.lv('boomerang', '折返增伤');
     if (fold > 0) {
@@ -1284,10 +1308,10 @@ class CombatSystem {
 
   /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) {
-    // 重炮（v1.16）：爆炸半径基础 45×(1+0.25×lv+0.15×A)；爆炸伤害基础 dmg×0.5×(1+0.15×B)；C 震尘 20% 减速 30%
+    // 普攻溅射（v1.16.12）：基础 100px 范围、10% 溅射伤害；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
-    const r = 48 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
-    const splDmg = dmg * 0.65 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
+    const r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    const splDmg = dmg * 0.10 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
     // 协同：炮溅射×火溅射 → 爆炸伤害 ×1.5（保持）
     let boomMult = 1;
     if (this.game.run.effects.synergyDone[2]) boomMult *= 1.5;
@@ -1299,8 +1323,8 @@ class CombatSystem {
       slowAfter = this.branchLv('cannon', '震击', 'C') > 0;
     }
     this.damage(e, dmg, 'cannon');
-    // 爆炸（AOE 溅射 + 震尘减速）
-    this.explode(e.x, e.y, r, splDmg * boomMult, 'cannon', knock, slowAfter);
+    // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
+    this.explode(e.x, e.y, r, splDmg * boomMult, 'cannon', knock, slowAfter, e);
     if (this.branchLv('cannon', '重炮', 'C') > 0) {
       this.enemies().forEach((o) => {
         if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20) this.applySlow(o, 0.30, 1);
@@ -1322,7 +1346,7 @@ class CombatSystem {
   }
 
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
-  explode(x, y, r, dmg, key, knock, slowAfter) {
+  explode(x, y, r, dmg, key, knock, slowAfter, exclude) {
     const g = this.game;
     // 燃爆×毒爆 协同：双爆炸伤害 +50%
     let mult = 1;
@@ -1330,6 +1354,7 @@ class CombatSystem {
     const entryY = this.ly().areaY + this.ly().entryH;
     this.enemies().forEach((o) => {
       if (o.hp <= 0) return;
+      if (exclude && o === exclude) return;   // 溅射不重复结算施爆点主目标（v1.16.12）
       const d = Math.hypot(o.x - x, o.y - y);
       if (d > r) return;
       this.damage(o, dmg * mult, key);

@@ -806,5 +806,44 @@ t('协同：炮重炮×火大火球（溅射已更名重炮，v1.16）', () => {
   assert.ok(hit, 'SYNERGIES 应引用新技能名 重炮');
 });
 
+t('普攻·火塔：无技能时 20% 概率灼烧（固定随机触发）', () => {
+  const g = mkGame({ fire: {} });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random;
+  Math.random = () => 0; // 必触发
+  try { c.hit('fire', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.dots.some((d) => d.type === 'burn'), '20% 命中应附加灼烧 DoT');
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  Math.random = () => 0.99; // 不触发
+  try { c.hit('fire', e2, 100); } finally { Math.random = orig; }
+  assert.ok(!e2.dots.some((d) => d.type === 'burn'), '未到 20% 概率时不应灼烧');
+});
+
+t('普攻·炮塔：基础 100px 范围 10% 溅射（无技能）', () => {
+  const g = mkGame({ cannon: {} }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 380, 770); g.enemies.push(e2); // 距 e1 ≈70px < 100
+  c.hit('cannon', e1, 100);
+  assert.strictEqual(Math.round(e1.hp), 900, '主目标应吃满 100% 伤害');
+  assert.ok(e2.hp <= 992, '100px 内敌人应受 10% 溅射伤害');
+});
+
+t('普攻·镖塔：20% 概率流血，随移动距离结算伤害', () => {
+  const g = mkGame({ boomerang: {} }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 必触发
+  try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.bleedT === 4, '应施加 4s 流血');
+  assert.ok(Math.abs(e._bleedDmg - 10) < 0.01, '每 100px 应结算 10%×命中伤害');
+  const hp0 = e.hp;
+  e.y += 100;                      // 敌人移动 100px
+  c.tickStatus(e, 0.1);
+  assert.ok(e.hp < hp0, '移动 100px 后应结算一次流血伤害');
+  assert.strictEqual(Math.round(hp0 - e.hp), 10, '本次跳伤应等于 10 点');
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

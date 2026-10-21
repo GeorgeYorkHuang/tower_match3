@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.11';       // v1.16.11 AOE 削弱（约-20%）+ 怪物 tier/减伤体系 + 精英Boss强化标识 + 塔详情二级技能面板美化
+const GAME_VERSION = 'v1.16.12';       // v1.16.12 三塔普攻特效：火 20% 灼烧 / 炮 10%×100px 溅射 / 镖 20% 流血（随移动距离结算）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
