@@ -1554,7 +1554,7 @@ class CombatSystem {
         this.pillarWaves = remaining;
       }
     }
-    // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长100px·宽30px·持续6s）
+    // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长180px·宽45px·持续6s）
     //   释放瞬间对墙区域敌人造成 50% 攻击伤害（A 神火 +20/40/60%）；墙持续期间每 0.5s 灼烧 + C 迟滞减速 10/20/30%
     const wall = this.lv('fire', '烈焰墙');
     if (wall > 0) {
@@ -1567,8 +1567,8 @@ class CombatSystem {
           const aLv = this.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
           const bLv = this.branchLv('fire', '烈焰墙', 'B');   // 引燃 范围 +20/40/60%
           const cLv = this.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
-          const w = 100 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
-          const h = 30 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
+          const w = 180 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
+          const h = 45 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
           const wDmg = this.shotDmg('fire') * 0.50 * (1 + [0, 0.2, 0.4, 0.6][aLv]);
           this.enemies().forEach((o) => {
             if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) this.damage(o, wDmg, 'fire');
