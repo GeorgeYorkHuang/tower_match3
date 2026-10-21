@@ -149,6 +149,24 @@ t('spawnTestEnemies / clearTestEnemies', () => {
   assert.strictEqual(game.enemies.length, 0, '清场后无敌人');
 });
 
+// 5b. v1.16.11 怪物等级（tier）：波 6+ 血量/减伤随档位提升，精英/Boss 叠加自带 armor
+t('tier 运行时接入：波 6 敌人减伤 + 精英/Boss 叠加 armor', () => {
+  game.clearTestEnemies();
+  game.run.wave = 6;                       // T2：hpMult 1.5 / atkMult 1.25 / armor 0.08
+  game.spawnTestEnemies('normal', 1);
+  const n = game.enemies[0];
+  assert.ok(Math.abs(n.armor - 0.08) < 1e-9, `波6 普通怪减伤应为 8%，实际 ${n.armor}`);
+  assert.strictEqual(n.hp, Math.round(500 * 1.5), `波6 普通怪血量应 ×1.5（750），实际 ${n.hp}`);
+  game.spawnTestEnemies('elite', 1);
+  const el = game.enemies[game.enemies.length - 1];
+  assert.ok(Math.abs(el.armor - (0.08 + 0.10)) < 1e-9, `波6 精英减伤应 8%+10%=18%，实际 ${el.armor}`);
+  game.spawnTestEnemies('boss', 1);
+  const bs = game.enemies[game.enemies.length - 1];
+  assert.ok(Math.abs(bs.armor - (0.08 + 0.25)) < 1e-9, `波6 Boss 减伤应 8%+25%=33%，实际 ${bs.armor}`);
+  game.clearTestEnemies();
+  game.run.wave = 1;                       // 还原，避免影响后续用例
+});
+
 // 6. 塔槽触摸 → 面板；面板 A 按钮 → 分支 +1（真实触摸链路）
 t('塔槽触摸打开面板 + 面板 A 分支按钮生效', () => {
   game.clearTestEnemies();

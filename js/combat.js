@@ -200,7 +200,7 @@ class CombatSystem {
         // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
         if (d.ember > 0) {
           this.groundDots = this.groundDots || [];
-          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon') * 0.30 * d.ember, key: 'fire' });
+          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon') * 0.24 * d.ember, key: 'fire' });
         }
       }
     }
@@ -291,7 +291,7 @@ class CombatSystem {
           const tgt = this.enemies().filter((o) => o.hp > 0).sort((a, b) => b.y - a.y)[0];
           if (tgt) {
             this.damage(tgt, tu.dmg, 'cannon');
-            this.explode(tgt.x, tgt.y, tu.r, tu.dmg * 0.6, 'cannon', 0, false);
+            this.explode(tgt.x, tgt.y, tu.r, tu.dmg * 0.48, 'cannon', 0, false);
             this.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
             // v1.16.6 炮台开火炮口闪光 + 后坐火星
             this.fxFlash(tu.x, tu.y - 8, '#ffd24a', 0.15);
@@ -371,7 +371,7 @@ class CombatSystem {
           // 火·燃爆 C 灼烧爆裂：灼烧每跳 15% 概率向外爆炸（40% 范围伤害）
           const burstLv = this.branchLv('fire', '燃爆', 'C');
           if (d.type === 'burn' && burstLv > 0 && Math.random() < 0.15 + 0.10 * (burstLv - 1)) {
-            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.4 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '燃爆', 'A') - 1)), 'fire');
+            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.32 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '燃爆', 'A') - 1)), 'fire');
           }
           // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.7) {
@@ -453,6 +453,8 @@ class CombatSystem {
   damage(e, dmg, srcKey) {
     if (e.hp <= 0) return;
     let v = dmg;
+    // v1.16.11 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
+    if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor));
     // 腐蚀增伤
     if (e.corrode) v *= e.corrode.mult;
     // 冰·寒霜 C 易伤：被减速目标受伤 +15%/级
@@ -486,7 +488,7 @@ class CombatSystem {
         if (Math.random() < 0.40) {
           const aLv = this.branchLv('fire', '燃爆', 'A');
           const bLv = this.branchLv('fire', '燃爆', 'B');
-          this.explode(e.x, e.y, 80 * (1 + 0.4 * Math.max(0, bLv - 1)), this.shotDmg('fire') * 1.2 * (1 + 0.5 * Math.max(0, aLv - 1)), 'fire');
+          this.explode(e.x, e.y, 80 * (1 + 0.4 * Math.max(0, bLv - 1)), this.shotDmg('fire') * 0.96 * (1 + 0.5 * Math.max(0, aLv - 1)), 'fire');
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -808,7 +810,7 @@ class CombatSystem {
       const emC = this.branchLv('electric', '电磁场', 'C');
       if (Math.random() < 0.10 + 0.10 * (em - 1) + 0.10 * emA) {
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < 110 && Math.abs(o.y - e.y) < 110);
-        const emDmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (em - 1)) * (1 + 0.3 * emB);
+        const emDmg = this.shotDmg('electric') * 0.4 * (1 + 0.3 * (em - 1)) * (1 + 0.3 * emB);
         const n = 1 + emC;   // C 扩磁：目标 +1/级
         for (let i = 0; i < n && cands.length; i++) {
           const pick = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
@@ -858,7 +860,7 @@ class CombatSystem {
     if (ignite > 0) this.applyBurn(e, dmg, 'fire');
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
-    const mainMult = big > 0 ? 1.2 : 1;
+    const mainMult = big > 0 ? 1.1 : 1;
     // 多重火球：主目标 + 额外目标，每枚都是真实火球弹道（塔口扇形射出，命中才结算）
     //         A 增发 3→4→5 枚 / B 凝火 +15%/枚 / C 分击不同目标+25%点燃
     const multi = this.lv('fire', '多重火球');
@@ -872,7 +874,7 @@ class CombatSystem {
       const fsx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
       const fsy = ly0.slotY + ly0.slotSize / 2;
       const n = 2 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 额外
-      const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
+      const perDmg = dmg * 0.44 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.fire.shot.dur;
       const tint = '#ff7043';
@@ -911,7 +913,7 @@ class CombatSystem {
     // 大火球：爆炸范围溅射（扩大 +40%/级、强化 +50%/级、引燃 50% 概率点燃）
     if (big > 0) {
       const r = 130 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '大火球', 'A') - 1));
-      const splDmg = dmg * 0.6 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '大火球', 'B') - 1));
+      const splDmg = dmg * 0.48 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '大火球', 'B') - 1));
       const igniteProb = this.branchLv('fire', '大火球', 'C') > 0 ? 0.50 : 0;
       this.enemies().forEach((o) => {
         if (o === e || o.hp <= 0) return;
@@ -1355,7 +1357,7 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
-          const pDmg = this.shotDmg('fire') * 1.5 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火柱', 'A') - 1));
+          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火柱', 'A') - 1));
           const pR = 120 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '火柱', 'B') - 1));
           const emberLv = this.branchLv('fire', '火柱', 'C');
           this.pillarWaves = this.pillarWaves || [];
@@ -1374,7 +1376,7 @@ class CombatSystem {
             this.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
             if (wv.ember > 0) {
               this.groundDots = this.groundDots || [];
-              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.30 * wv.ember, key: 'fire' });
+              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.24 * wv.ember, key: 'fire' });
             }
           } else {
             remaining.push(wv);
@@ -1396,7 +1398,7 @@ class CombatSystem {
         if (alive.length) {
           const segR = 140;                        // 火雨圈半径（区域标识 + 落点采样范围）
           const perR = 80;                         // 单发落点伤害半径
-          const segDmg = this.shotDmg('fire') * 0.3 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
+          const segDmg = this.shotDmg('fire') * 0.24 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
           const igniteLv = this.branchLv('fire', '火雨', 'C');
           const waves = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
           const gap = 0.3;                         // 每 0.3s 一波
@@ -1464,7 +1466,7 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const n = 1 + Math.max(0, this.branchLv('ice', '冰花', 'C') - 1);
-          const dmg = this.shotDmg('ice') * (1 + 0.4 * Math.max(0, this.branchLv('ice', '冰花', 'B') - 1));
+          const dmg = this.shotDmg('ice') * 0.8 * (1 + 0.4 * Math.max(0, this.branchLv('ice', '冰花', 'B') - 1));
           const r = 100;
           const aLv = this.branchLv('ice', '冰花', 'A');
           const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
@@ -1482,7 +1484,7 @@ class CombatSystem {
                 if (fxALv > 0) {
                   hitOnes.forEach((h) => {
                     cb.enemies().forEach((o) => {
-                      if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) cb.damage(o, fxDmg * 0.5, 'ice');
+                      if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) cb.damage(o, fxDmg * 0.4, 'ice');
                     });
                   });
                 }
@@ -1511,7 +1513,7 @@ class CombatSystem {
           const r = 110 * (1 + 0.3 * Math.max(0, this.branchLv('ice', '冬珠', 'B') - 1));
           const tickI = 0.8 * (1 - 0.2 * Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1));
           const slowA = this.branchLv('ice', '冬珠', 'A');
-          const dmg = this.shotDmg('ice') * 0.55;   // v1.13.26 平衡：冬珠每跳 0.5→0.55×普攻
+          const dmg = this.shotDmg('ice') * 0.44;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
           const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbN);  // 最近 N 个敌人位置落球
           this.frostOrbs = this.frostOrbs || [];
           spots.forEach((sp) => {
@@ -1587,7 +1589,7 @@ class CombatSystem {
       this.timers.arc = (this.timers.arc || 0) + dt;
       if (this.timers.arc >= 5 * (1 - 0.2 * (arc - 1))) {
         this.timers.arc = 0;
-        const dmg = this.shotDmg('electric') * 0.5 * (1 + 0.3 * (arc - 1)) * (1 + 0.5 * arcA);
+        const dmg = this.shotDmg('electric') * 0.4 * (1 + 0.3 * (arc - 1)) * (1 + 0.5 * arcA);
         // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
         const ly = this.ly();
         const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
@@ -1630,7 +1632,7 @@ class CombatSystem {
         const aLv = this.branchLv('electric', '雷暴', 'A');
         const bLv = this.branchLv('electric', '雷暴', 'B');
         const n = 3 + 2 * Math.max(0, aLv - 1);   // A1 5 / A2 7 / A3 9
-        const dmg = this.shotDmg('electric') * 0.8 * (1 + 0.25 * (storm - 1));
+        const dmg = this.shotDmg('electric') * 0.64 * (1 + 0.25 * (storm - 1));
         // 全图随机 N 个存活目标（Fisher-Yates）
         const alive = this.enemies().filter((e) => e.hp > 0);
         const pool = alive.slice();
@@ -1675,7 +1677,7 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         const tgt = alive.length ? alive[Math.floor(Math.random() * alive.length)] : { x: 375, y: 600 };
         const pr = 130 * (1 + 0.3 * this.branchLv('poison', '毒池', 'C'));
-        const dps = this.shotDmg('poison') * 0.35 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
+        const dps = this.shotDmg('poison') * 0.28 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
         const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
         this.groundDots = this.groundDots || [];
         this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449' });
@@ -1698,7 +1700,7 @@ class CombatSystem {
           const py = near ? near.y + (Math.random() - 0.5) * 60 : 600;
           const ttl = 10 + 2 * this.branchLv('poison', '毒棒', 'B');
           this.poisonSticks = this.poisonSticks || [];
-          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.30, targets: 1 + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.24, targets: 1 + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
           this.fxRing(px, py, '#1e8449', 40, 0.5, 4);
           this.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
         }
@@ -1733,7 +1735,7 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
-          const dmg = this.shotDmg('cannon') * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          const dmg = this.shotDmg('cannon') * 0.72 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
           for (let i = 0; i < n; i++) {
             const t = alive[Math.floor(Math.random() * alive.length)];
             const px = t.x + (Math.random() - 0.5) * 40;
@@ -1759,7 +1761,7 @@ class CombatSystem {
         for (let i = 0; i < n; i++) {
           const mx = 40 + Math.random() * (700 - 80);
           this.mines = this.mines || [];
-          this.mines.push({ x: mx, y: my, r: 100, dmg: this.shotDmg('cannon') * 1.5 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')), armed: 0.3, ttl: 12, chain: this.branchLv('cannon', '地雷阵', 'C') });
+          this.mines.push({ x: mx, y: my, r: 100, dmg: this.shotDmg('cannon') * 1.2 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')), armed: 0.3, ttl: 12, chain: this.branchLv('cannon', '地雷阵', 'C') });
           g.fx.push({ type: 'mine', x: mx, y: my, t: 0, dur: 12, seed: Math.random() * 100 });
           this.fxParticle(mx, my, '#b5651d', 4, 22, 0.35, 70, 4);
         }
@@ -1780,7 +1782,7 @@ class CombatSystem {
           const py = near ? near.y + (Math.random() - 0.5) * 90 : 600;
           const ttl = 8 + 2 * this.branchLv('cannon', '炮台', 'B');
           this.turrets = this.turrets || [];
-          this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: 0.9, dmg: this.shotDmg('cannon') * 0.85, r: 100 * (1 + 0.3 * this.branchLv('cannon', '炮台', 'C')) });
+          this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: 0.9, dmg: this.shotDmg('cannon') * 0.68, r: 100 * (1 + 0.3 * this.branchLv('cannon', '炮台', 'C')) });
           g.fx.push({ type: 'turret', x: px, y: py, t: 0, dur: ttl, seed: Math.random() * 100 });
           this.fxRing(px, py, '#b5651d', 40, 0.5, 3.5);
         }
@@ -1796,10 +1798,9 @@ class CombatSystem {
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
           const sr = 145 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'A'));
-          const dps = this.shotDmg('boomerang') * 0.55 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'B'));
+          const dps = this.shotDmg('boomerang') * 0.44 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'B'));
           this.storms = this.storms || [];
-          this.storms.push({ x: t.x, y: t.y, r: sr, ttl: 3, dps, slow: this.branchLv('boomerang', '风暴镖', 'C') > 0 });
-          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: sr, t: 0, dur: 3, seed: Math.random() * 100 });
+          this.storms.push({ x: t.x, y: t.y, r: sr, ttl: 3, dps, slow: this.branchLv('boomerang', '风暴镖', 'C') > 0 });          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: sr, t: 0, dur: 3, seed: Math.random() * 100 });
         }
       }
     }
@@ -1813,7 +1814,7 @@ class CombatSystem {
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
           const n = 8 + 4 * this.branchLv('boomerang', '镖阵', 'A');
-          const perDmg = this.shotDmg('boomerang') * 0.55 * (1 + 0.25 * this.branchLv('boomerang', '镖阵', 'B'));
+          const perDmg = this.shotDmg('boomerang') * 0.44 * (1 + 0.25 * this.branchLv('boomerang', '镖阵', 'B'));
           const mus = this.towerMuzzle('boomerang');
           const dur = 1.2;
           const R = 260;

@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.10';       // v1.16.10 冰花延迟结算（第4帧动画末尾）+ 毒棒/炮台帧动画贴图与攻击效果
+const GAME_VERSION = 'v1.16.11';       // v1.16.11 AOE 削弱（约-20%）+ 怪物 tier/减伤体系 + 精英Boss强化标识 + 塔详情二级技能面板美化
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -38,7 +38,9 @@ class GameMain {
     this.pickHits = {};
     this.funcHits = [];
     this.towerInfo = null;       // 塔详情弹层：{slotIdx, key, name, level, exp, expNeed, expRatio, dps, skills}
-    this.towerInfoHits = {};     // 详情弹层命中：{bg, close}
+    this.towerInfoHits = {};     // 详情弹层命中：{bg, close, skill[]}
+    this.towerSkill = null;      // v1.16.11 技能二级详情弹层：{key, skillName, icon, desc, color, lv, lvMax, branches, bA, bB, bC, branchDesc}
+    this.towerSkillHits = {};    // 二级弹层命中：{bg, back}
     // v1.14 测试战场：塔技能配置面板 + 倍速 + 刷怪控制
     this.testPanel = null;       // {key} 当前配置的塔
     this.testHits = {};          // 测试战场命中区（渲染时重建）
@@ -661,10 +663,29 @@ class GameMain {
       this.waveClearBtn = this.renderer.waveClearLayer(ctx, st, this.waveClearBtn);
     }
     if (this.state === 'gameover') this.renderer.gameOver(ctx, st, this.restartBtn);
-    // 塔详情弹层（任意状态下可查看）
-    if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
+    // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
+    if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
+    else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
     // 底部功能弹层（商店/设置/图鉴/帮助）
     if (this.funcLayer) this.renderer.funcLayer(ctx, this.funcLayer, st, this.funcLayerHits);
+  }
+
+  /** v1.16.11 组装技能二级详情：技能效果 + 三分支完整文案 + 当前等级 */
+  buildTowerSkillInfo(key, sk) {
+    const pool = CONFIG.EFFECT_POOLS[key] || [];
+    const skDef = pool.find((q) => q.name === sk.name) || {};
+    const maxLv = 1 + ((CONFIG.EFFECT && CONFIG.EFFECT.maxLevel) || 3);
+    const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
+    const lv = 1 + maxBr;
+    const branchName = (br) => (this.renderer.branchName ? this.renderer.branchName(skDef, br) : br);
+    return {
+      key, skillName: sk.name, icon: skDef.icon || '?', desc: sk.desc || skDef.desc || '',
+      color: skDef.color || '#a55eea',
+      lv, lvMax: lv >= maxLv,
+      branches: sk.branches,
+      bA: branchName('A'), bB: branchName('B'), bC: branchName('C'),
+      branchDesc: { A: skDef.a || '分支A：未定义效果', B: skDef.b || '分支B：未定义效果', C: skDef.c || '分支C：未定义效果' },
+    };
   }
 
   sceneState() {
@@ -958,9 +979,25 @@ class GameMain {
   dispatchTouch(p) {
     // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
     if (this.state === 'menu') { this.onMenuTap(p); return true; }
-    // 塔详情弹层打开中：点关闭/遮罩关闭
+    // 技能二级详情弹层打开中：点返回/遮罩 → 回到塔详情；再次点关闭逻辑在塔详情分支
+    if (this.towerSkill) {
+      const h = this.towerSkillHits;
+      if (h.back && h.back.hit(p.x, p.y)) { this.towerSkill = null; return true; }
+      if (h.bg && h.bg.hit(p.x, p.y)) { this.towerSkill = null; return true; }
+      return true; // 面板内点击不处理其它
+    }
+    // 塔详情弹层打开中：点技能卡开二级详情 / 点关闭或遮罩关闭
     if (this.towerInfo) {
       const h = this.towerInfoHits;
+      if (h.skill) {
+        for (let i = 0; i < h.skill.length; i++) {
+          if (h.skill[i] && h.skill[i].hit(p.x, p.y)) {
+            const sk = this.towerInfo.skills[i];
+            if (sk) this.towerSkill = this.buildTowerSkillInfo(this.towerInfo.key, sk);
+            return true;
+          }
+        }
+      }
       if (h.close && h.close.hit(p.x, p.y)) { this.towerInfo = null; return true; }
       if (h.bg && h.bg.hit(p.x, p.y)) { this.towerInfo = null; return true; }
       return true; // 面板内点击不处理其它

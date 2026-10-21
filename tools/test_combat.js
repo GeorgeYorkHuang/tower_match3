@@ -302,7 +302,7 @@ t('电·电弧A：强弧伤害+50%/级', () => {
   const c = new CombatSystem(g);
   for (let i = 0; i < 3; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 700 + i * 50));
   c.tickPeriodic(5);   // 电弧周期 5s（Lv1）触发一次，无普攻干扰
-  const dmg = 23 * 0.5 * (1 + 0.3 * 1) * (1 + 0.5 * 2);   // 分支 A2 → 技能 Lv2：0.5×(1+0.3×1)×(1+0.5×A2)
+  const dmg = 23 * 0.4 * (1 + 0.3 * 1) * (1 + 0.5 * 2);   // v1.16.11 电弧基础 0.5→0.4；A2 → 技能 Lv2
   g.enemies.forEach((e) => assert.ok(Math.abs(e.hp - (1000 - dmg)) < 1e-6, `A2 应造成 ${dmg}，实际 ${1000 - e.hp}`));
 });
 
@@ -572,7 +572,7 @@ t('毒·毒棒：周期召唤独立攻击（继承 30% 攻击、索敌 200px）'
   for (let i = 0; i < 4 * 60 + 8; i++) c.update(1 / 60); // 4s（+余量）→ 召唤毒棒
   assert.strictEqual(c.poisonSticks.length, 2, '毒棒 A 分支 → 应召唤 1+A=2 根');
   const st = c.poisonSticks[0];
-  assert.ok(Math.abs(st.dmg - c.shotDmg('poison') * 0.30) < 1e-9, '毒棒应继承 30% 攻击');
+  assert.ok(Math.abs(st.dmg - c.shotDmg('poison') * 0.24) < 1e-9, '毒棒应继承 24% 攻击');
   c.update(1.0); // 毒棒攻击 1 次
   assert.ok(e.hp < 5000, '毒棒应独立攻击敌人');
   const dot = e.dots.find((d) => d.type === 'poison');

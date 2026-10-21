@@ -95,6 +95,15 @@ class WaveDirector {
     }
   }
 
+  /** 本波怪物等级（tier）：每 5 波升一档，血量/攻击/减伤随关卡质量提升（v1.16.11） */
+  tierOf(w) {
+    const n = (CONFIG.ENEMY.tiers || []).length;
+    if (!n) return {};
+    const wi = (w && w > 0) ? w : 1;
+    const idx = Math.min(n - 1, Math.floor((wi - 1) / CONFIG.ENEMY.tierEvery));
+    return CONFIG.ENEMY.tiers[idx] || {};
+  }
+
   /** 按投放计划放出一只敌人 */
   spawnOne() {
     if (!this.plan.length) return;
@@ -102,21 +111,28 @@ class WaveDirector {
     const entryY = this.ly.areaY + this.ly.entryH;
     const wallY = this.ly.wallY;
     const speed = (wallY - entryY) / WAVE_DUR;
-    this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type);
+    this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.tier);
   }
 
   /** 敌人入列（id / 位置 / 血量 / 速度 / 类型 / 攻城攻击参数 / A1 状态字段） */
-  pushEnemy(hp, entryY, speed, offset, isBoss, type) {
+  pushEnemy(hp, entryY, speed, offset, isBoss, type, tier) {
     const tcfg = CONFIG.ENEMY.types[type] || CONFIG.ENEMY.types.normal;
     const size = isBoss ? CONFIG.LAYOUT.enemy.boss : (CONFIG.LAYOUT.enemy[type] || CONFIG.LAYOUT.enemy.normal);
     const atkKey = isBoss ? 'boss' : (type || 'normal');
+    // v1.16.11 怪物等级：tier 放大血量/攻击并附加减伤；精英/Boss 在 tier 基础上再叠自带 armor
+    const wv = (this.game.run && this.game.run.wave) || 1;
+    const tierCfg = tier || this.tierOf(wv);
+    const mult = tierCfg.hpMult || 1;
+    const armor = Math.min(0.85, (tierCfg.armor || 0) + (isBoss ? CONFIG.ENEMY.bossArmor : 0) + ((tcfg.armor || 0) * (type === 'elite' ? 1 : 0)));
     const e = {
       id: this._eid++,
       x: this.ly.areaX + size / 2 + Math.random() * (this.ly.areaW - size),
       y: entryY + 20 * offset,
-      hp, maxHp: hp, isBoss, type: type || 'normal',
+      hp: hp * mult, maxHp: hp * mult, isBoss, type: type || 'normal',
+      tier: Math.floor((wv - 1) / CONFIG.ENEMY.tierEvery) + (type === 'elite' ? 2 : type === 'tank' ? 1 : isBoss ? 4 : 0), // 展示等级 = 波档 + 类型档
+      armor,
       speed: speed * (isBoss ? 0.8 : tcfg.spdMult),
-      attack: CONFIG.ENEMY.attack[atkKey] || CONFIG.ENEMY.attack.normal,        // 攻城每次伤害
+      attack: (CONFIG.ENEMY.attack[atkKey] || CONFIG.ENEMY.attack.normal) * (tierCfg.atkMult || 1), // 攻城每次伤害（随 tier 提升）
       attackInterval: CONFIG.ENEMY.attackInterval[atkKey] || CONFIG.ENEMY.attackInterval.normal, // 攻城攻击间隔
       attackT: 0,
     };
