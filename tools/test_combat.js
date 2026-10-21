@@ -855,15 +855,16 @@ t('回旋镖·镖阵：每 10 秒投出环形镖阵（A 增镖）', () => {
 t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', () => {
   const g = mkGame({ boomerang: {} });
   const c = new CombatSystem(g);
-  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
   const dmg = c.shotDmg('boomerang');
+  // 敌人在塔正上方目标线（v1.16.21 弧顶点越过目标 42px → 距顶点 39px 在 42 命中带内），speed=0 固定在带内
+  const e = mkEnemy(10000, 375, 800); e.speed = 0; g.enemies.push(e);
   let maxS = 0;
   for (let i = 0; i < 300; i++) { // 推进 5s（dur 2.4s，应投两枚）
     c.update(1 / 60);
     maxS = Math.max(maxS, c.shots.filter((s) => s.sweep).length);
   }
   assert.strictEqual(maxS, 1, '任意时刻至多一枚回旋镖在飞（接到镖才能投下一个）');
-  assert.ok(e.hp < 1000 - dmg * 1.5, '接回后第二枚应继续造成伤害');
+  assert.ok(e.hp <= 10000 - dmg * 2, '两枚镖应各扫到目标一次（合计 ≥ 2 枚伤害）');
 });
 
 t('回旋镖·接镖C续投：接镖立即投且下镖伤害 +10%/级', () => {
