@@ -331,7 +331,8 @@ class CombatSystem {
         }
       }
     }
-    // 3.9 回旋镖·风暴镖（v1.16.21 重做）：三同心圈旋转小飞镖（圈不可见），内/中/外圈 4/6/8 枚，每镖独立命中造成 10% 伤害，命中即消失
+    // 3.9 回旋镖·风暴镖（v1.16.21 重做）：三同心圈旋转小飞镖（圈不可见），内/中/外圈 4/6/8 枚，每镖独立命中造成 10% 伤害；
+    //   内圈与外圈顺时针、中圈逆时针（各圈角速度不同），命中不消失（同敌仅结算一次，继续旋转命中其他敌人）
     if (this.storms && this.storms.length) {
       for (let i = this.storms.length - 1; i >= 0; i--) {
         const st = this.storms[i];
@@ -340,7 +341,7 @@ class CombatSystem {
         const ds = st.darts;
         for (let j = ds.length - 1; j >= 0; j--) {
           const d = ds[j];
-          d.a += st.spd * dt;
+          d.a += d.spd * dt;
           const dx = st.x + Math.cos(d.a) * d.r;
           const dy = st.y + Math.sin(d.a) * d.r;
           const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - dx, o.y - dy) < 14);
@@ -349,7 +350,6 @@ class CombatSystem {
             this.damage(hitE, st.perDmg, 'boomerang');
             this.fxFlash(dx, dy, '#c39bd3');
             this.fxParticle(dx, dy, '#c39bd3', 3, 16, 0.25, 80, 4);
-            ds.splice(j, 1);
           }
         }
       }
@@ -2061,19 +2061,21 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
-          const rings = [40, 80, 120];
+          // 三圈角速度不同：内圈 2.6 顺时针 / 中圈 2.0 逆时针 / 外圈 2.4 顺时针（A 疾旋统一 +25%/级）
+          const rings = [{ r: 40, base: 2.6 }, { r: 80, base: -2.0 }, { r: 120, base: 2.4 }];
           const baseN = [4, 6, 8];
           const nAdd = this.branchLv('boomerang', '风暴镖', 'C');
           const perDmg = this.shotDmg('boomerang') * 0.10 * (1 + 0.2 * this.branchLv('boomerang', '风暴镖', 'B'));
-          const spd = 2.4 * (1 + 0.25 * this.branchLv('boomerang', '风暴镖', 'A'));
+          const spdMul = 1 + 0.25 * this.branchLv('boomerang', '风暴镖', 'A');
           const darts = [];
-          rings.forEach((r, ri) => {
+          rings.forEach((rc, ri) => {
             const n = baseN[ri] + nAdd;
-            for (let i = 0; i < n; i++) darts.push({ r, a: (Math.PI * 2 * i) / n, hitIds: {} });
+            const spd = rc.base * spdMul;   // 带方向符号（正=顺时针）
+            for (let i = 0; i < n; i++) darts.push({ r: rc.r, spd, a: (Math.PI * 2 * i) / n, hitIds: {} });
           });
           this.storms = this.storms || [];
-          this.storms.push({ x: t.x, y: t.y, r: 120, ttl: 3, spd, darts, perDmg });
-          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts, spd });
+          this.storms.push({ x: t.x, y: t.y, r: 120, ttl: 3, darts, perDmg });
+          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts });
         }
       }
     }

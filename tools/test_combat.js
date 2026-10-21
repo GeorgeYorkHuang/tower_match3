@@ -844,12 +844,17 @@ t('回旋镖·风暴镖：每 12 秒召唤三圈旋转小飞镖（C 增镖每圈
   assert.strictEqual(s.darts.filter((d) => d.r === 40).length, 5, '内圈 5 枚');
   assert.strictEqual(s.darts.filter((d) => d.r === 80).length, 7, '中圈 7 枚');
   assert.strictEqual(s.darts.filter((d) => d.r === 120).length, 9, '外圈 9 枚');
-  // 敌人放在内圈镖初始轨道上（释放即命中）
+  // 敌人放在内圈镖初始轨道上（释放即命中）；命中后镖不消失
   const e2 = mkEnemy(10000, 375 + 40, 700); g.enemies.push(e2);
   const hp0 = e2.hp;
   for (let i = 0; i < 30; i++) c.update(1 / 60); // 0.5s 旋转
   assert.ok(e2.hp < hp0, '旋转小飞镖应独立命中敌人造成伤害');
+  assert.strictEqual(s.darts.length, 21, '镖命中后不消失（数量不变）');
   assert.ok(e.hp === 10000, '圆心处敌人不应被镖扫到（圈轨道外）');
+  // 方向：内圈+外圈顺时针（spd>0）、中圈逆时针（spd<0）
+  assert.ok(s.darts.filter((d) => d.r === 40).every((d) => d.spd > 0), '内圈应顺时针');
+  assert.ok(s.darts.filter((d) => d.r === 80).every((d) => d.spd < 0), '中圈应逆时针');
+  assert.ok(s.darts.filter((d) => d.r === 120).every((d) => d.spd > 0), '外圈应顺时针');
 });
 
 t('回旋镖·弹力镖：每 8 秒射 2 枚十字镖（A 增镖 +1/级），遇敌反弹结算伤害、边缘反弹、反弹 10 次后消失', () => {
