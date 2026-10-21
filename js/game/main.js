@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.18';       // v1.16.18 三选一候选单塔池（升级哪个塔→哪个塔涨级）+ 毒棒/炮台无敌人不释放
+const GAME_VERSION = 'v1.16.19';       // v1.16.19 麻痹技能激活 +15% 概率（20→35%，满级 A 80%）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

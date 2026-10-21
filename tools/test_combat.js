@@ -201,16 +201,16 @@ t('电·麻痹：命中概率麻痹', () => {
   assert.ok(e.paralyzed > 0, '应进入麻痹状态');
 });
 
-t('电·麻痹A满B满：95%概率 + 时长3.5s + 减速50%', () => {
+t('电·麻痹A满B满：80%概率 + 时长3.5s + 减速50%（v1.16.18 技能+15%）', () => {
   const g = mkGame({ electric: { 麻痹: { A: 3, B: 3 } } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
   const orig = Math.random;
   try {
-    Math.random = () => 0.94;  // 0.94 < 0.95 → A=3 满概率应触发
+    Math.random = () => 0.79;  // 0.79 < 0.80 → A=3 满概率 20+15+3×15=80% 应触发
     c.hit('electric', e, 100);
   } finally { Math.random = orig; }
-  assert.ok(e.paralyzed > 0, 'A=3 满概率 95% 应触发麻痹');
+  assert.ok(e.paralyzed > 0, 'A=3 满概率 80% 应触发麻痹');
   assert.ok(e.paralyzed >= 3.5 - 1e-6, 'B=3 时长应为 2 + 0.5×3 = 3.5s');
   assert.ok(e.slow && e.slow.mult <= 0.5 + 1e-6, '麻痹应附带 50% 减速');
 });
