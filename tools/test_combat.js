@@ -535,6 +535,8 @@ t('毒·基础中毒 + 剧毒：命中概率叠层 DoT（v1.15）', () => {
   assert.ok(dot && dot.stack === 1, '应有 1 层中毒');
   assert.ok(dot.stackDps > 0, '应有每层 DoT 伤害（单发×10%）');
   assert.strictEqual(dot.maxStack, 5, '默认层数上限 5');
+  assert.ok(Math.abs(dot.ttl - 7) < 1e-6, `剧毒 B1 时长应 5+2=7s，实际 ${dot.ttl}`);
+  assert.ok(Math.abs(dot.freq - 1 / 0.9) < 1e-6, `剧毒 C1 跳频应 1/0.9（间隔0.9s），实际 ${dot.freq}`);
   // 未触发（概率外）→ 无 DoT
   const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
   Math.random = () => 0.99;

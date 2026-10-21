@@ -359,7 +359,7 @@ class CombatSystem {
         }
         d.tickT -= dt;
         if (d.tickT <= 0) {
-          // v1.15 毒塔：中毒跳频 = 剧毒 C（每级 +1Hz，基础 1Hz）；burn 等旧 DoT 保持 2Hz
+          // v1.16.21 毒塔：中毒跳频 = 剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（freq=1/间隔，基础 1Hz/1s）；burn 等旧 DoT 保持 2Hz
           const tickI = d.freq ? 1 / d.freq : 0.5;
           d.tickT += tickI;
           // 毒（层数×每层 dps）走 stackDps；灼烧等旧 DoT 走 dps×全局强化
@@ -1209,10 +1209,10 @@ class CombatSystem {
 
   /* ============ 毒塔（v1.15 重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气环境） ============ */
   hitPoison(e, dmg) {
-    // v1.15 基础中毒：20% 概率附加 1 层（剧毒 ×1.5，A 每级再 +15%）
+    // v1.16.21 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）
     let prob = 0.20;
     const toxic = this.lv('poison', '剧毒');
-    if (toxic > 0) prob *= 1.5 * (1 + 0.15 * this.branchLv('poison', '剧毒', 'A'));
+    if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
     if (Math.random() < prob) {
       this.applyPoison(e, dmg, 'poison', 1);
       this.fxParticle(e.x, e.y, '#7ee2a8', 6, 44, 0.45, 100, 5);
@@ -1220,22 +1220,23 @@ class CombatSystem {
     this.damage(e, dmg, 'poison');
   }
 
-  /** 毒·中毒叠层（v1.15）：每层每秒 = 单发伤害×10%，基础持续 4 秒，上限 5 层（毒性强化 C +2/级）；
-   *  剧毒 B 时长 +2s/级、毒性强化 B +25%；剧毒 C 跳频 +1Hz/级 */
+  /** 毒·中毒叠层（v1.16.21）：每层每秒 = 单发伤害×10%，基础持续 5 秒，上限 5 层（毒性强化 C +2/级）；
+   *  剧毒 B 时长 +2s/级（不变）；剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（1s → 0.9/0.8/0.7s） */
   applyPoison(e, dmg, src, layers) {
     const boost = this.dotBoost();
     const perStackDps = dmg * 0.10 * boost.dmg;
-    const ttl = 4 * (1 + 0.5 * this.branchLv('poison', '剧毒', 'B')) * boost.ttl;
+    const ttl = (5 + 2 * this.branchLv('poison', '剧毒', 'B')) * boost.ttl;
     const cap = 5 + 2 * this.branchLv('poison', '毒性强化', 'C');
     const add = Math.max(1, layers || 1);
+    const freq = 1 / (1 - [0, 0.1, 0.2, 0.3][this.branchLv('poison', '剧毒', 'C')]);
     let dot = e.dots.find((d) => d.type === 'poison');
     if (!dot) {
-      e.dots.push({ type: 'poison', stackDps: perStackDps, stack: Math.min(add, cap), maxStack: cap, ttl, tickT: 0, freq: 1 + this.branchLv('poison', '剧毒', 'C'), src });
+      e.dots.push({ type: 'poison', stackDps: perStackDps, stack: Math.min(add, cap), maxStack: cap, ttl, tickT: 0, freq, src });
     } else {
       dot.stack = Math.min(cap, dot.stack + add);
       dot.stackDps = Math.max(dot.stackDps, perStackDps);
       dot.maxStack = cap;
-      dot.freq = 1 + this.branchLv('poison', '剧毒', 'C');
+      dot.freq = freq;
       dot.ttl = Math.max(dot.ttl, ttl);
     }
   }
