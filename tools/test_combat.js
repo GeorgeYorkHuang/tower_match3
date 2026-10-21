@@ -360,28 +360,17 @@ t('电·雷暴B：雷击连锁周边敌人', () => {
   assert.ok(hurt >= 4, `雷击3个+连锁应覆盖全部4个，实际 ${hurt}`);
 });
 
-t('电·电弧：周期触发射程内前3目标', () => {
-  const g = mkGame({ electric: { 电弧: 1 } });
+t('电·极光电击：连线穿透 80% 伤害 + 线宽判定（v1.16.21）', () => {
+  const g = mkGame({ electric: { 极光电击: { A: 3 } } });
   const c = new CombatSystem(g);
-  const orig = Math.random;
-  try {
-    Math.random = () => 0.5;
-    // 4 个射程内（塔口 y≈1103，range 700）+ 1 个超射程（y=100）
-    for (let i = 0; i < 4; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 500 + i * 30));
-    g.enemies.push(mkEnemy(1000, 500, 100));
-    c.update(10);   // 电弧周期 5s（Lv1）触发一次
-  } finally { Math.random = orig; }
-  const hurt = g.enemies.filter((e) => e.hp < 1000).length;
-  assert.ok(hurt === 3, `电弧应命中射程内前 3（超射程不受），实际 ${hurt}`);
-});
-
-t('电·电弧A：强弧伤害+50%/级', () => {
-  const g = mkGame({ electric: { 电弧: { A: 2 } } });
-  const c = new CombatSystem(g);
-  for (let i = 0; i < 3; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 700 + i * 50));
-  c.tickPeriodic(5);   // 电弧周期 5s（Lv1）触发一次，无普攻干扰
-  const dmg = 23 * 0.4 * (1 + 0.3 * 1) * (1 + 0.5 * 2);   // v1.16.11 电弧基础 0.5→0.4；A2 → 技能 Lv2
-  g.enemies.forEach((e) => assert.ok(Math.abs(e.hp - (1000 - dmg)) < 1e-6, `A2 应造成 ${dmg}，实际 ${1000 - e.hp}`));
+  const eNear = mkEnemy(1000, 390, 950); g.enemies.push(eNear);   // 最近（行距 153 → 连线终点）
+  const eMid = mkEnemy(1000, 375, 950); g.enemies.push(eMid);     // 同 y、x 偏 15 → 线带内（A3 半宽 20）
+  const eFar = mkEnemy(1000, 520, 850); g.enemies.push(eFar);     // 线外（垂距 145）
+  c.update(5.1);   // 周期 5s → 触发
+  assert.ok(eNear.hp < 1000, '最近目标应受电击伤害');
+  assert.ok(eMid.hp < 1000, '连线带内敌人应被穿透电击');
+  assert.ok(Math.abs((1000 - eNear.hp) - (1000 - eMid.hp)) < 1e-6, '带内敌人伤害应一致');
+  assert.ok(eFar.hp === 1000, '线外敌人不应受伤害');
 });
 
 t('电·充能C：共享全塔攻速；B：每层+10%', () => {

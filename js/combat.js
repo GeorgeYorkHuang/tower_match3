@@ -8,7 +8,7 @@
  *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 烈焰墙 / 火雨（区域多段）
  *       冰：寒霜 / 冰冻 / 冰穿刺 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
- *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
+ *       电：连锁弹跳 / 麻痹 / 过载 / 极光电击 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
  *       炮：溅射 / 重击 / 穿透弹 / 炮台座 / 震击 / 引信 / 弹幕 / 阵地加固
  *   - 敌人状态：灼烧/中毒 DoT、冰冻、麻痹、减速、腐蚀、连击/过载层数
@@ -1746,46 +1746,58 @@ class CombatSystem {
         this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
       }
     }
-    const arc = this.lv('electric', '电弧');
+    // 电·极光电击（v1.16.21 电弧重做改名）：周期从塔口到最近敌人连线（z 字形前进黄色电击动画），线宽 20px 内所有敌人受 80% 伤害；
+    //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 麻痹电击：命中 20%/级 概率麻痹 1.5s
+    const arc = this.lv('electric', '极光电击');
     if (arc > 0) {
-      // v1.13.20 削弱：周期 5×(1-0.2×Lv)（Lv4 2s）；伤害 0.5×(1+0.3×Lv)（Lv4 95%）；目标 5→3 且限塔射程
-      // v1.13.22 分支补全：A 强弧 +50%/级、B 宽弧宽度 +30%/级、C 麻痹弧 20% 概率麻痹
-      const arcA = this.branchLv('electric', '电弧', 'A');
-      const arcB = this.branchLv('electric', '电弧', 'B');
-      const arcC = this.branchLv('electric', '电弧', 'C');
+      const arcA = this.branchLv('electric', '极光电击', 'A');
+      const arcB = this.branchLv('electric', '极光电击', 'B');
+      const arcC = this.branchLv('electric', '极光电击', 'C');
       this.timers.arc = (this.timers.arc || 0) + dt;
-      if (this.timers.arc >= 5 * (1 - 0.2 * (arc - 1))) {
+      const period = 5 * (1 - 0.2 * (arc - 1));
+      if (this.timers.arc >= period) {
         this.timers.arc = 0;
-        const dmg = this.shotDmg('electric') * 0.4 * (1 + 0.3 * (arc - 1)) * (1 + 0.5 * arcA);
-        // 电弧起点：电塔塔口（槽位坐标，与攻击弹道一致）
         const ly = this.ly();
         const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
-    const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
+        const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
         const startX = (750 - rowW) / 2;
         const slotW = ly.slotSize + ly.slotGap;
         const idx = (this.game.run.slotOrder || []).indexOf('electric');
         const tx = startX + (idx < 0 ? 0 : idx) * slotW + ly.slotSize / 2;
         const ty = ly.slotY + ly.slotSize / 2;
         const range = this.range('electric');
-        const targets = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range).sort((a, b) => b.y - a.y).slice(0, 3);
-        targets.forEach((e) => {
-          this.damage(e, dmg, 'electric');
-          // C 麻痹弧：20% 概率麻痹 1.5s
-          if (arcC > 0 && Math.random() < 0.20) {
-            e.paralyzed = Math.max(e.paralyzed || 0, 1.5);
-            this.applySlow(e, 0.5, 1.5);
-            this.fxParticle(e.x, e.y, '#f4d03f', 6, 40, 0.4, 130, 5);
-          }
-          // 电弧视觉：塔口 → 目标 锯齿折线电弧（3 段随机拐点 + 抖动白芯；B 宽弧加粗）
+        const alive = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
+        if (alive.length) {
+          // 最近的敌人（行距离最小）为连线终点
+          const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
+          const halfW = (20 + [0, 10, 15, 20][arcA]) / 2;
+          const dmg = this.shotDmg('electric') * (0.80 + 0.20 * arcB);
+          const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
+          const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+          // 连线带内所有敌人（点到线段垂距 ≤ 半宽）
+          alive.forEach((o) => {
+            const t = Math.max(0, Math.min(1, ((o.x - x1) * (x2 - x1) + (o.y - y1) * (y2 - y1)) / (len * len)));
+            const px = x1 + (x2 - x1) * t, py = y1 + (y2 - y1) * t;
+            if (Math.hypot(o.x - px, o.y - py) <= halfW) {
+              this.damage(o, dmg, 'electric');
+              // C 麻痹电击：20%/级 概率麻痹 1.5s
+              if (arcC > 0 && Math.random() < 0.20 * arcC) {
+                o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
+                this.applySlow(o, 0.5, 1.5);
+                this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
+              }
+            }
+          });
+          // 视觉：塔口 → 最近敌人 z 字形前进黄色电击
           const path = [{ x: tx, y: ty }];
           for (let s = 1; s < 3; s++) {
             const t = s / 3;
-            path.push({ x: tx + (e.x - tx) * t + (Math.random() * 26 - 13), y: ty + (e.y - ty) * t + (Math.random() * 26 - 13) });
+            path.push({ x: tx + (x2 - tx) * t + (Math.random() * 30 - 15), y: ty + (y2 - ty) * t + (Math.random() * 30 - 15) });
           }
-          path.push({ x: e.x, y: e.y });
-          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.3, color: '#f4d03f', w: 3 * (1 + 0.3 * arcB) });
-          this.fxFlash(e.x, e.y, '#f4d03f');
-        });
+          path.push({ x: x2, y: y2 });
+          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.35, color: '#f4d03f', w: 4 });
+          this.fxFlash(x2, y2, '#f4d03f');
+        }
       }
     }
     const storm = this.lv('electric', '雷暴');
