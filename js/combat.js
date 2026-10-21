@@ -1343,7 +1343,8 @@ class CombatSystem {
           x: e.x, y: e.y,
           // v1.16.21 电球均匀向周围扩散：初始角度等分圆周（360°/n）+ 小幅抖动，不再扎堆生成方向
           ang: (Math.PI * 2 / n) * i + (Math.random() - 0.5) * 0.9,
-          speed: 150 + Math.random() * 80,   // v1.13.21 速度 95-155→150-230
+          // v1.16.21 电球速度 +30%：150-230 → 195-299
+          speed: (150 + Math.random() * 80) * 1.3,   // v1.13.21 速度 95-155→150-230
           orb: true, fx: null,
         };
         orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };
