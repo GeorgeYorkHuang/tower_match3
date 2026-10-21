@@ -26,30 +26,32 @@ function freshManager(seed = 1) {
   return m;
 }
 
-/* 0. v1.16.16 建塔不赠选择：Lv1 无机会，首次升级（Lv1→Lv2）起每升 1 级 = 1 次机会；选择扣机会不涨级 */
-t('v1.16.16 建塔不赠选择；升级产机会；选择不涨级', () => {
+/* 0. v1.16.17 塔等级=选择次数+1：建塔不赠选择；升级产机会不涨级；每次选择完成塔等级 +1 */
+t('v1.16.17 塔等级=选择次数+1；建塔不赠选择', () => {
   const m = new EffectManager();
   const fire = m.tower('fire');
   assert.strictEqual(fire.level, 0, '未得塔 Lv0');
   fire.unlock();
-  assert.strictEqual(fire.level, 1, '得塔 Lv1');
+  assert.strictEqual(fire.level, 1, '得塔 Lv1（0 次选择）');
   assert.strictEqual(fire.pending, 0, '建塔不赠选择机会');
-  // 首次升级：Lv1→Lv2，给 1 次机会
+  // 升级只产机会，不涨等级
   fire.exp = 0; fire.gainExp(fire.expNeed());
-  assert.strictEqual(fire.level, 2, '升级到 Lv2');
-  assert.strictEqual(fire.pending, 1, '第一次升级获得第 1 次选择机会');
-  // 选择：扣机会，不涨等级
+  assert.strictEqual(fire.level, 1, '升级不涨塔等级');
+  assert.strictEqual(fire.pending, 1, '升级产 1 次选择机会');
+  // 第 1 次选择：塔等级 1→2
   const res = fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
   assert.ok(res.ok);
   assert.strictEqual(fire.pending, 0, '选择消耗 1 次机会');
-  assert.strictEqual(fire.level, 2, '选择不额外涨级（等级=升级次数）');
-  // 二次升级：Lv2→Lv3
+  assert.strictEqual(fire.level, 2, '第 1 次选择后 Lv2');
+  // 第 2 次选择：Lv2→Lv3
   fire.exp = 0; fire.gainExp(fire.expNeed());
-  assert.strictEqual(fire.level, 3, '再升到 Lv3');
   assert.strictEqual(fire.pending, 1, '再得 1 次机会');
-  // 连升多级：待选封顶 pendingCap（v1.16.16 恢复 cap 5）
-  fire.exp = 0; fire.gainExp(5000);
-  assert.strictEqual(fire.pending, CONFIG.EFFECT.pendingCap, '待选封顶 pendingCap=5');
+  fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
+  assert.strictEqual(fire.level, 3, '第 2 次选择后 Lv3');
+  // 多选：等级随选择继续增长且不超上限（候选耗尽会提前停，但等级只增不减）
+  fire.pending = 30;
+  m.settleAuto();
+  assert.ok(fire.level > 3 && fire.level <= CONFIG.EXP.towerMaxLevel, `等级随选择增长且封顶 20（实际 ${fire.level}）`);
 });
 
 /* 1. 候选生成：3 个、不重复、来自该塔池 */
@@ -165,20 +167,17 @@ t('DPS 计算含全部乘区', () => {
   const m = freshManager();
   const fire = m.tower('fire');
   assert.strictEqual(fire.dps(false), 32, 'Lv1 无特效 = baseDps 32');
-  // 升到 Lv2：32 × 1.26 = 40.32
-  fire.gainExp(CONFIG.EXP.perCell * 3); // +12 → 需要 30，未升级
-  fire.exp = 30; fire.level = 1;
-  // 直接构造：level=2
+  // 直接构造：level=2（v1.16.17 激活选择会涨级，用动态 level 计算期望）
   fire.exp = 0; fire.level = 2;
-  assert.ok(Math.abs(fire.dps(false) - 32 * 1.26) < 1e-9);
-  // 激活 1 个 Lv1 特效：×(1+0.15)
-  fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
+  fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));   // 激活 → level 2→3
+  assert.strictEqual(fire.level, 3, '激活选择后塔等级 +1');
+  const expected = 32 * Math.pow(1.26, fire.level - 1) * 1.15;
   const d = fire.dps(false);
-  assert.ok(Math.abs(d - 32 * 1.26 * 1.15) < 1e-9, `DPS=${d}`);
+  assert.ok(Math.abs(d - expected) < 1e-9, `DPS=${d}, expected=${expected}`);
   // 协同：×(1+0.5)
   m.synergyDone[0] = true;
   const ds = fire.dps(true);
-  assert.ok(Math.abs(ds - 32 * 1.26 * 1.15 * 1.5) < 1e-9, `协同 DPS=${ds}`);
+  assert.ok(Math.abs(ds - expected * 1.5) < 1e-9, `协同 DPS=${ds}`);
 });
 
 /* 9. 惩罚经验：未获得塔不吸收 */

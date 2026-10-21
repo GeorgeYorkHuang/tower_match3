@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.16';       // v1.16.16 建塔不赠选择：首次升级(Lv2)起每升 1 级=1 次机会；即时三选一保留
+const GAME_VERSION = 'v1.16.17';       // v1.16.17 塔详情/塔位条显示塔自身等级（选择次数+1），不再显示整体总等级
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -183,7 +183,7 @@ class GameMain {
       slots.push({
         key, name: CONFIG.COLORS[t.color].name,
         icon: TOWER_ICON[key] || '?', unlocked: true,
-        level: run.expLevel, ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,
+        level: t.level, ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,   // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）
         skills,
       });
     });
@@ -724,7 +724,7 @@ class GameMain {
         name: CONFIG.COLORS[t.color].name,
         icon: TOWER_ICON[key] || '?',
         unlocked: true,
-        level: run.expLevel,          // v1.8：整体等级（塔共享）
+        level: t.level,          // v1.16.17 塔详情等级 = 塔自身等级（选择次数+1），不再显示整体总等级
         exp: run.exp,
         expNeed: run.expNeed(),
         expRatio: run.expLevel > 0 ? Math.min(1, run.exp / run.expNeed()) : 0,

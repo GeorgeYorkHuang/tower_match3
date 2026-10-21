@@ -300,7 +300,7 @@ class Renderer {
     ctx.fillStyle = band; ctx.globalAlpha = 0.35;
     ctx.fillRect(x + 20, y + 8, w - 40, 3);
     ctx.globalAlpha = 1;
-    // 标题：塔名 + 整体等级
+    // 标题：塔名 + 塔自身等级（v1.16.17 塔等级 = 累计选择次数 + 1，不再显示整体总等级）
     text(ctx, `${info.name}塔 · 等级 Lv.${info.level}`, x + w / 2, y + 48, 34, '#ffffff', 'center');
     // 攻击 / 攻击间隔 / DPS（统计条：三项一行并排，背景胶囊）
     const statY = y + 118, statW = 180;
@@ -531,7 +531,7 @@ class Renderer {
         if (!drawImg(ctx, IMG_SRC[tw.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
           drawTowerGlyph(ctx, tw.key, ix, iy, L.towerIcon.size);
         }
-        // 等级徽章（v1.8：整体等级）
+        // 等级徽章（v1.16.17：塔自身等级 = 选择次数+1）
         fillRoundRect(ctx, x + slotSize - 16, slotY - 6, L.towerIcon.badge, L.towerIcon.badge, 4, '#f7c948');
         text(ctx, `${tw.level}`, x + slotSize - 8, slotY + 2, 12, '#5c4a00', 'center');
         // 可点详情小圆标 ⓘ（点击塔图标查看攻击/攻击间隔/技能等级）

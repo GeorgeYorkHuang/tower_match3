@@ -55,18 +55,20 @@ class TowerBuild {
   get unlocked() { return this.level > 0; }
 
   expNeed() {
-    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.level - 1);
+    // v1.16.17 塔级成长进度 = 已做选择（level-1）+ 待选（pending）；等级=选择次数+1
+    const prog = (this.level - 1) + this.pending;
+    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, Math.max(0, prog));
   }
 
-  /** 获得经验；升级时 +1 待选（封顶 pendingCap）。未获得塔不吸收经验。
-   *  v1.16.16 建塔不赠选择：第一次升级（Lv1→Lv2）起每升 1 级 = 1 次选择机会；等级=升级次数（经验驱动） */
+  /** 获得经验；升级产出 1 次选择机会（v1.16.17 塔等级 = 该塔累计选择次数 + 1，经验不直接涨级）。未获得塔不吸收经验。
+   *  正式游戏经验统一入整体池（run.gainExp），此塔级方法为兜底/测试路径。 */
   gainExp(v) {
     if (this.level === 0) return;
     this.exp += v;
-    while (this.level < CONFIG.EXP.towerMaxLevel && this.exp >= this.expNeed()) {
+    // 机会上限 = 剩余选择额度：已做（level-1）+ 待选（pending）< towerMaxLevel-1（建塔基数占 1 级）
+    while ((this.level - 1) + this.pending < CONFIG.EXP.towerMaxLevel - 1 && this.exp >= this.expNeed()) {
       this.exp -= this.expNeed();
-      this.level += 1;
-      this.pending = Math.min(this.pending + 1, CONFIG.EFFECT.pendingCap);
+      this.pending += 1;
     }
   }
 
@@ -207,8 +209,9 @@ class TowerBuild {
         res.activated = true;
       }
     }
-    // 扣除触发升级塔（group.tower）的待升级次数（v1.16.16 等级由经验升级驱动，选择不额外涨级）
+    // 扣除触发升级塔（group.tower）的待升级次数；完成一次选择 → 塔自身等级 +1（v1.16.17 塔等级 = 累计选择次数 + 1）
     this.pending = Math.max(0, this.pending - 1);
+    this.level = Math.min(this.level + 1, CONFIG.EXP.towerMaxLevel);
     return res;
   }
 
@@ -243,7 +246,7 @@ class TowerBuild {
     return ef ? ef.level : 0;
   }
 
-  /** run 间重置构筑（塔等级/金币跨 run 保留；v1.16.16 重置后由首次升级再得选择机会） */
+  /** run 间重置构筑（塔等级/金币跨 run 保留；v1.16.17 塔等级 = 选择次数+1，重开局技能清零等级回建塔基数） */
   resetRunBuild() {
     this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; ef.act = false; });
     this.activeNames = [];
@@ -252,6 +255,7 @@ class TowerBuild {
     this.exp = 0;
     this.ammo = 0;
     this.firstPickDone = false;
+    this.level = this.level > 0 ? 1 : 0;   // 保留拥有状态，等级回建塔基数（选择清零）
   }
 }
 
