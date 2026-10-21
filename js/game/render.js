@@ -1288,6 +1288,29 @@ class Renderer {
           ctx.strokeStyle = '#f4d03f'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.55;
           ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x - dirX * 12, o.y - dirY * 12); ctx.stroke();
           ctx.globalAlpha = 1;
+        } else if (f.kind === 'bounce') {
+          // v1.16.21 弹力镖（原镖阵重做）：十字飞镖自旋紫光，引用 combat.shots 实时位置与朝向
+          const o = f.ref || f;
+          const spin = f.t * 8;
+          ctx.save();
+          ctx.translate(o.x, o.y);
+          ctx.rotate(spin);
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = f.color || '#c39bd3';
+          ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = f.color || '#c39bd3'; ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(13, 0); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(0, 13); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(9, 0); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 9); ctx.stroke();
+          ctx.lineCap = 'butt';
+          ctx.restore();
+          ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.8;
+          ctx.beginPath(); ctx.arc(o.x, o.y, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
         } else if (f.kind === 'mortar') {
           // 抛物线炮弹（炮塔）：高弧下坠 + 黑壳弹体 + 出膛口焰 + 火焰尾迹 + 落地爆炸冲击波
           const arcH = 46;

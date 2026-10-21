@@ -169,6 +169,35 @@ class CombatSystem {
         }
         continue;
       }
+      if (s.bounce) {
+        // v1.16.21 弹力镖（原镖阵重做，新单体）：直线飞行，碰敌人或战斗区域边缘反弹；每次碰敌造成伤害（同敌仅一次），反弹 maxB 次或超时后消失
+        s.x += Math.cos(s.ang) * s.speed * dt;
+        s.y += Math.sin(s.ang) * s.speed * dt;
+        const aX = g.ly.areaX, aW = g.ly.areaW, aY = g.ly.areaY, aH = g.ly.areaH;
+        if (s.x < aX) { s.x = aX; s.ang = Math.PI - s.ang; s.bounces++; }
+        else if (s.x > aX + aW) { s.x = aX + aW; s.ang = Math.PI - s.ang; s.bounces++; }
+        if (s.y < aY) { s.y = aY; s.ang = -s.ang; s.bounces++; }
+        else if (s.y > aY + aH) { s.y = aY + aH; s.ang = -s.ang; s.bounces++; }
+        const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < (s.hitR || 30));
+        if (hitE) {
+          if (!s.hitIds[hitE.id]) {
+            s.hitIds[hitE.id] = true;
+            this.damage(hitE, s.dmg, 'boomerang');
+            this.fxFlash(hitE.x, hitE.y, '#c39bd3');
+            this.fxParticle(hitE.x, hitE.y, '#c39bd3', 3, 18, 0.3, 90, 4);
+          }
+          const nx = s.x - hitE.x, ny = s.y - hitE.y;
+          const nl = Math.hypot(nx, ny) || 1;
+          const vx = Math.cos(s.ang), vy = Math.sin(s.ang);
+          const dot = vx * (nx / nl) + vy * (ny / nl);
+          s.ang = Math.atan2(vy - 2 * dot * (ny / nl), vx - 2 * dot * (nx / nl));
+          s.bounces++;
+        }
+        if (s.bounces >= s.maxB || s.t >= s.dur) {
+          this.shots.splice(i, 1);
+        }
+        continue;
+      }
       if (s.scatter) {
         // v1.13.13：无目标散射弹道——沿途真实碰撞，命中即结算并消失；射界尽头（dur 耗尽）未命中也消失
         const hitE = this.scatterCheck(s);
@@ -1990,28 +2019,28 @@ class CombatSystem {
         }
       }
     }
-    // 回旋镖·镖阵（v1.16 周期）：每 10 秒投出环形镖阵（8 枚镖向四周穿透；A 增镖 +4/级；B 利刃 +25%/级；C 切割 25% 减速 30%）
-    const ringN = this.lv('boomerang', '镖阵');
+    // 回旋镖·弹力镖（v1.16.21 原镖阵重做，新单体）：每 8 秒射 2 枚十字飞镖，碰敌人或战斗区边缘反弹（60% 伤害，反弹 10 次结束）；A 增镖 +1/级；B 利刃 +25%/级；C 弹力增强 +5 次/级
+    const ringN = this.lv('boomerang', '弹力镖');
     if (ringN > 0) {
       this.timers.ringN = (this.timers.ringN || 0) + dt;
-      if (this.timers.ringN >= 10) {
+      if (this.timers.ringN >= 8) {
         this.timers.ringN = 0;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
+        const mus = this.towerMuzzle('boomerang');
+        const n = 2 + 1 * this.branchLv('boomerang', '弹力镖', 'A');
+        const perDmg = this.shotDmg('boomerang') * 0.60 * (1 + 0.25 * this.branchLv('boomerang', '弹力镖', 'B'));
+        const maxB = 10 + 5 * this.branchLv('boomerang', '弹力镖', 'C');
+        // 初始方向：射程内随机存活敌人方向 ± 散射（无敌人则全随机）
+        let baseAng = Math.random() * Math.PI * 2;
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
-          const n = 8 + 4 * this.branchLv('boomerang', '镖阵', 'A');
-          const perDmg = this.shotDmg('boomerang') * 0.44 * (1 + 0.25 * this.branchLv('boomerang', '镖阵', 'B'));
-          const mus = this.towerMuzzle('boomerang');
-          const dur = 1.2;
-          const R = 260;
-          this.fxRing(t.x, t.y, '#c39bd3', 90, 0.5, 4);
-          for (let i = 0; i < n; i++) {
-            const ang = (Math.PI * 2 * i) / n;
-            const ex = mus.x + Math.cos(ang) * R;
-            const ey = mus.y + Math.sin(ang) * R;
-            this.shots.push({ key: 'boomerang', dmg: perDmg, t: 0, dur, sx: mus.x, sy: mus.y, tx: ex, ty: ey, sweep: true, hitIds: {}, ring: true, cut: this.branchLv('boomerang', '镖阵', 'C') });
-            g.fx.push({ type: 'shot', kind: 'arc', color: '#c39bd3', x: mus.x, y: mus.y, tx: ex, ty: ey, t: 0, dur, key: 'boomerang' });
-          }
+          baseAng = Math.atan2(t.y - mus.y, t.x - mus.x);
+        }
+        for (let i = 0; i < n; i++) {
+          const ang = baseAng + (i - (n - 1) / 2) * 0.5;
+          const d = { key: 'boomerang', dmg: perDmg, t: 0, dur: 8, x: mus.x, y: mus.y, ang, speed: 400, bounce: true, bounces: 0, maxB, hitR: 30, hitIds: {} };
+          this.shots.push(d);
+          g.fx.push({ type: 'shot', kind: 'bounce', ref: d, t: 0, dur: 8, color: '#c39bd3' });
         }
       }
     }

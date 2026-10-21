@@ -844,12 +844,19 @@ t('回旋镖·风暴镖：每 12 秒召唤持续伤害旋风（A 扩域）', () 
   assert.ok(e.hp < hp0, '风暴内敌人应持续受伤');
 });
 
-t('回旋镖·镖阵：每 10 秒投出环形镖阵（A 增镖）', () => {
-  const g = mkGame({ boomerang: { 镖阵: { A: 1 } } }, ['boomerang']);
+t('回旋镖·弹力镖：每 8 秒射 2 枚十字镖（A 增镖 +1/级），遇敌反弹结算伤害、边缘反弹、反弹 10 次后消失', () => {
+  const g = mkGame({ boomerang: { 弹力镖: { A: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
-  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
-  c.update(10.01);
-  assert.ok(c.shots.filter((s) => s.ring).length >= 12, 'A1 应投出 12 枚环形镖');
+  // A1 → 3 枚；随机方向可能不立即命中 → 先验证发射数量
+  c.update(8.01);
+  assert.ok(c.shots.filter((s) => s.bounce).length >= 3, 'A1 应射出 3 枚弹力镖');
+  // 单枚镖碰敌结算：构造一枚直冲敌人的弹力镖（小步推进，途中碰撞不跳帧）
+  const e = mkEnemy(10000, 400, 1000); g.enemies.push(e);
+  const dmg = c.shotDmg('boomerang') * 0.60;
+  c.shots.push({ key: 'boomerang', dmg, t: 0, dur: 8, x: 375, y: 1103, ang: Math.atan2(1000 - 1103, 400 - 375), speed: 400, bounce: true, bounces: 0, maxB: 10, hitR: 30, hitIds: {} });
+  for (let i = 0; i < 20; i++) c.update(1 / 60);
+  assert.ok(e.hp < 10000, '弹力镖应命中敌人造成伤害');
+  assert.ok(Math.abs(10000 - e.hp - dmg) < 0.01, `单镖命中伤害应 = 60%×shotDmg（${dmg}），实际 ${10000 - e.hp}`);
 });
 
 t('回旋镖接镖机制：镖未接回不投下一个，接回后立即投', () => {
