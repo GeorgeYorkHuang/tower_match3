@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.15';       // v1.16.15 塔等级=已选次数 + 即时三选一（升级/得塔立即弹出，不攒波末）
+const GAME_VERSION = 'v1.16.16';       // v1.16.16 建塔不赠选择：首次升级(Lv2)起每升 1 级=1 次机会；即时三选一保留
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

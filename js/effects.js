@@ -55,28 +55,25 @@ class TowerBuild {
   get unlocked() { return this.level > 0; }
 
   expNeed() {
-    // v1.16.15 成长进度 = 已做选择（level）+ 待选（pending）；攒着不选需求变高，鼓励即时选择
-    const prog = this.level + this.pending;
-    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, Math.max(0, prog - 1));
+    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.level - 1);
   }
 
-  /** 获得经验；升级产出 1 次选择机会（v1.16.15 起塔等级 = 已做选择次数，经验不直接涨等级；机会即时消费不跨波攒）。未获得塔不吸收经验。 */
+  /** 获得经验；升级时 +1 待选（封顶 pendingCap）。未获得塔不吸收经验。
+   *  v1.16.16 建塔不赠选择：第一次升级（Lv1→Lv2）起每升 1 级 = 1 次选择机会；等级=升级次数（经验驱动） */
   gainExp(v) {
     if (this.level === 0) return;
     this.exp += v;
-    // 机会上限 = 剩余选择额度：已做（level）+ 待选（pending）封顶 towerMaxLevel（含建塔 1 次）
-    while (this.level + this.pending < CONFIG.EXP.towerMaxLevel && this.exp >= this.expNeed()) {
+    while (this.level < CONFIG.EXP.towerMaxLevel && this.exp >= this.expNeed()) {
       this.exp -= this.expNeed();
-      this.pending += 1;
+      this.level += 1;
+      this.pending = Math.min(this.pending + 1, CONFIG.EFFECT.pendingCap);
     }
   }
 
-  /** 解锁塔（先消先得，run 层调用）；得塔时补初始弹药，并给第 1 次建塔选择机会（该次不涨等级，计入等级基数 1） */
+  /** 解锁塔（先消先得，run 层调用）；得塔时补初始弹药。建塔（0→Lv1）不赠选择机会 */
   unlock() {
     if (this.level === 0) {
       this.level = 1;
-      this._firstPickFree = true;
-      this.pending = Math.min(this.pending + 1, CONFIG.EFFECT.pendingCap);
       this.ammo = CONFIG.GLOBAL_SKILL.startAmmo;
     }
   }
@@ -210,13 +207,8 @@ class TowerBuild {
         res.activated = true;
       }
     }
-    // 扣除触发升级塔（group.tower）的待升级次数；完成一次选择 → 塔等级 +1（v1.16.15 等级=已选次数；建塔那次免费选择不涨级）
+    // 扣除触发升级塔（group.tower）的待升级次数（v1.16.16 等级由经验升级驱动，选择不额外涨级）
     this.pending = Math.max(0, this.pending - 1);
-    if (this._firstPickFree) {
-      this._firstPickFree = false;
-    } else {
-      this.level = Math.min(this.level + 1, CONFIG.EXP.towerMaxLevel);
-    }
     return res;
   }
 
@@ -251,7 +243,7 @@ class TowerBuild {
     return ef ? ef.level : 0;
   }
 
-  /** run 间重置构筑（塔等级/金币跨 run 保留；v1.16.15 技能清零后补 1 次建塔选择机会） */
+  /** run 间重置构筑（塔等级/金币跨 run 保留；v1.16.16 重置后由首次升级再得选择机会） */
   resetRunBuild() {
     this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; ef.act = false; });
     this.activeNames = [];
@@ -260,8 +252,6 @@ class TowerBuild {
     this.exp = 0;
     this.ammo = 0;
     this.firstPickDone = false;
-    this._firstPickFree = true;
-    this.pending = Math.min(this.pending + 1, CONFIG.EFFECT.pendingCap); // 重开局补建塔选择机会
   }
 }
 

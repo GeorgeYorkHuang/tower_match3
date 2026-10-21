@@ -22,30 +22,34 @@ function seededRng(seed) {
 
 function freshManager(seed = 1) {
   const m = new EffectManager({ rng: seededRng(seed) });
-  Object.keys(m.towers).forEach((k) => { m.towers[k].unlock(); m.towers[k].pending = 0; }); // v1.16.15 清掉建塔赠的 1 次机会，测试手动控制
+  Object.keys(m.towers).forEach((k) => m.towers[k].unlock());
   return m;
 }
 
-/* 0. v1.16.15 等级=已选次数：得塔赠 1 次建塔选择（不涨级），后续每选一次 +1；经验升级只加机会 */
-t('v1.16.15 得塔赠建塔选择；等级=已选次数', () => {
+/* 0. v1.16.16 建塔不赠选择：Lv1 无机会，首次升级（Lv1→Lv2）起每升 1 级 = 1 次机会；选择扣机会不涨级 */
+t('v1.16.16 建塔不赠选择；升级产机会；选择不涨级', () => {
   const m = new EffectManager();
   const fire = m.tower('fire');
   assert.strictEqual(fire.level, 0, '未得塔 Lv0');
   fire.unlock();
   assert.strictEqual(fire.level, 1, '得塔 Lv1');
-  assert.strictEqual(fire.pending, 1, '得塔赠 1 次建塔选择');
+  assert.strictEqual(fire.pending, 0, '建塔不赠选择机会');
+  // 首次升级：Lv1→Lv2，给 1 次机会
+  fire.exp = 0; fire.gainExp(fire.expNeed());
+  assert.strictEqual(fire.level, 2, '升级到 Lv2');
+  assert.strictEqual(fire.pending, 1, '第一次升级获得第 1 次选择机会');
+  // 选择：扣机会，不涨等级
   const res = fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
   assert.ok(res.ok);
-  assert.strictEqual(fire.level, 1, '建塔选择计入等级基数 1（不涨级）');
   assert.strictEqual(fire.pending, 0, '选择消耗 1 次机会');
-  fire.pending = 1;
-  fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
-  assert.strictEqual(fire.level, 2, '第 2 次选择后 Lv2');
-  fire.exp = 0; fire.gainExp(fire.expNeed());      // 升到当前需求即得 1 次机会
-  assert.strictEqual(fire.pending, 1, '升级产 1 次机会');
-  assert.strictEqual(fire.level, 2, '经验不直接涨等级');
+  assert.strictEqual(fire.level, 2, '选择不额外涨级（等级=升级次数）');
+  // 二次升级：Lv2→Lv3
   fire.exp = 0; fire.gainExp(fire.expNeed());
-  assert.strictEqual(fire.pending, 2, '连续升级累积机会');
+  assert.strictEqual(fire.level, 3, '再升到 Lv3');
+  assert.strictEqual(fire.pending, 1, '再得 1 次机会');
+  // 连升多级：待选封顶 pendingCap（v1.16.16 恢复 cap 5）
+  fire.exp = 0; fire.gainExp(5000);
+  assert.strictEqual(fire.pending, CONFIG.EFFECT.pendingCap, '待选封顶 pendingCap=5');
 });
 
 /* 1. 候选生成：3 个、不重复、来自该塔池 */
