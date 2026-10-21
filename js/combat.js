@@ -130,12 +130,13 @@ class CombatSystem {
     return dps * iv;
   }
 
-  /** 毒·毒性强化（v1.16.14）：选择后中毒 DoT 伤害 +10%，A 分支每级再 +10% */
+  /** 毒·毒性强化（v1.16.21）：选择后中毒 DoT 由 10% 提升为 15%（+50% 单跳）；A 每级 18%/21%/24%（档位式）；B 时长 +2/+4/+6s（档位式） */
   dotBoost() {
     const n = this.lv('poison', '毒性强化');
+    const aLv = this.branchLv('poison', '毒性强化', 'A');
     return {
-      dmg: n > 0 ? 1.10 + 0.10 * this.branchLv('poison', '毒性强化', 'A') : 1,
-      ttl: 1 + 0.25 * this.branchLv('poison', '毒性强化', 'B'),
+      dmg: n > 0 ? [0.15, 0.18, 0.21, 0.24][aLv] || 0.15 : 0.10,   // 每层每秒伤害比例（单发×此比例）
+      ttlAdd: n > 0 ? [0, 2, 4, 6][this.branchLv('poison', '毒性强化', 'B')] : 0,
     };
   }
 
@@ -505,8 +506,8 @@ class CombatSystem {
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
-        // v1.15 毒爆重做：中毒目标死亡向周边 200px 传播 1 层（A 目标 +1/级；B 附带死亡时层数；C 留毒沼 4s 每秒 +1 层）
-        const n = 5 + this.branchLv('poison', '毒爆', 'A');
+        // v1.16.21 毒爆：中毒目标死亡向周边 200px 传播 1 层（基础 3 名；A 目标 +1/级；B 附带死亡时层数；C 留毒沼 4s 每秒 +1 层）
+        const n = 3 + this.branchLv('poison', '毒爆', 'A');
         const r = 200;
         const layers = this.branchLv('poison', '毒爆', 'B') > 0 ? this.poisonStack(e) : 1;
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r)
@@ -1224,8 +1225,8 @@ class CombatSystem {
    *  剧毒 B 时长 +2s/级（不变）；剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（1s → 0.9/0.8/0.7s） */
   applyPoison(e, dmg, src, layers) {
     const boost = this.dotBoost();
-    const perStackDps = dmg * 0.10 * boost.dmg;
-    const ttl = (5 + 2 * this.branchLv('poison', '剧毒', 'B')) * boost.ttl;
+    const perStackDps = dmg * boost.dmg;
+    const ttl = (5 + 2 * this.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
     const cap = 5 + 2 * this.branchLv('poison', '毒性强化', 'C');
     const add = Math.max(1, layers || 1);
     const freq = 1 / (1 - [0, 0.1, 0.2, 0.3][this.branchLv('poison', '剧毒', 'C')]);
@@ -1826,7 +1827,7 @@ class CombatSystem {
         });
       }
     }
-    // 毒·毒池（v1.15）：周期 5s 释放毒池（半径 130；A 伤 +40%/级；B 持续 +2s/级；C 范围 +30%/级），池内每秒毒伤并叠毒
+    // 毒·毒池（v1.15；v1.16.21 数值调整）：周期 5s 释放毒池（半径 130；A 伤 +40%/级；B 持续 +2s/级；C 范围 +20%/级），池内每秒毒伤并叠毒
     const pool = this.lv('poison', '毒池');
     if (pool > 0) {
       this.timers.pool = (this.timers.pool || 0) + dt;
@@ -1835,8 +1836,8 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;
         const tgt = alive[Math.floor(Math.random() * alive.length)];
-        const pr = 130 * (1 + 0.3 * this.branchLv('poison', '毒池', 'C'));
-        const dps = this.shotDmg('poison') * 0.28 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
+        const pr = 130 * (1 + 0.2 * this.branchLv('poison', '毒池', 'C'));
+        const dps = this.shotDmg('poison') * 0.20 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
         const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
         this.groundDots = this.groundDots || [];
         this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449' });

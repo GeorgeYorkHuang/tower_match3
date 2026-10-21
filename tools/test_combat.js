@@ -561,6 +561,17 @@ t('毒·中毒可叠层：多次命中叠到上限并刷新', () => {
   assert.ok(hp0 - e.hp > 0, 'DoT 应按层数持续掉血');
 });
 
+t('毒·毒性强化：基础 DoT 15%、A 18%/21%/24%、B 时长 +2/+4/+6s', () => {
+  const g = mkGame({ poison: { 毒性强化: { A: 1, B: 1 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0;
+  try { c.hit('poison', e, 100); } finally { Math.random = orig; }
+  const dot = e.dots.find((d) => d.type === 'poison');
+  assert.ok(Math.abs(dot.stackDps - 18) < 1e-6, `A1 每跳应 18%（100×18%），实际 ${dot.stackDps}`);
+  assert.ok(Math.abs(dot.ttl - 7) < 1e-6, `B1 时长应 5+2=7s，实际 ${dot.ttl}`);
+});
+
 t('回旋镖·折返增伤：命中后折返段追加伤害（A 增强）', () => {
   const g = mkGame({ boomerang: { '折返增伤': { A: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
