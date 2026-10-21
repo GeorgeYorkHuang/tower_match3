@@ -1204,13 +1204,13 @@ class CombatSystem {
         this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
       }
     }
-    // 麻痹（v1.16.18 调平）：电塔基础 20%；学麻痹技能 +15%；A 分支每级 +15%（满 80%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
+    // 麻痹（v1.16.19 调平）：电塔基础 20%；学麻痹技能 +15%；A 分支每级 +25%（满级封顶 100%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
     // C 传导：邻近敌人 20% 概率被麻痹（1s）
     const paraLv = this.lv('electric', '麻痹');
     const pA = this.branchLv('electric', '麻痹', 'A');
     const pB = this.branchLv('electric', '麻痹', 'B');
     const pC = this.branchLv('electric', '麻痹', 'C');
-    if (Math.random() < 0.20 + (paraLv > 0 ? 0.15 : 0) + 0.15 * pA) {
+    if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.15 : 0) + 0.25 * pA)) {
       const dur = 2 + 0.5 * pB;
       e.paralyzed = Math.max(e.paralyzed || 0, dur);
       this.applySlow(e, 0.5, dur);

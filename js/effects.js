@@ -14,7 +14,7 @@
  *   - 目标加权：targeting 时目标特效权重 ×targetWeight
  *   - 槽满可替换：抽到未激活技能且槽满 → 替换非目标特效（保留目标）
  *   - 待选可攒：pending 上限 pendingCap（跨波），波末逐次结算
- *   - 协同组：燃爆×毒爆、冰冻×电连锁；达成后 DPS ×(1+synergyBonus)
+ *   - 协同组：冰冻×电连锁、重炮×大火球；达成后 DPS ×(1+synergyBonus)
  *   - DPS = baseDps×grow^(L-1) × Π(1+bonusPerLv×ef.level) × 协同乘区
  */
 const CONFIG = require('./config.js');
