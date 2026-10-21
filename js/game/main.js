@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.12';       // v1.16.12 三塔普攻特效：火 20% 灼烧 / 炮 10%×100px 溅射 / 镖 20% 流血（随移动距离结算）
+const GAME_VERSION = 'v1.16.13';       // v1.16.13 战斗区右下角加速按钮（×1/×2/×3/×4）+ 三塔普攻特效（v1.16.12）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -45,6 +45,7 @@ class GameMain {
     this.testPanel = null;       // {key} 当前配置的塔
     this.testHits = {};          // 测试战场命中区（渲染时重建）
     this.testSpeed = 1;          // 倍速 ×1/×2/×4
+    this.runSpeed = 1;           // v1.16.13 主战斗加速 ×1/×2/×3/×4（战斗区右下角按钮）
     this.funcLayer = null;       // 底部功能弹层：{type:'shop'|'setting'|'tome'|'help', confirming?, version?}
     this.funcLayerHits = {};     // 功能弹层命中：{bg, close, confirm?}
     this.toasts = [];
@@ -279,6 +280,12 @@ class GameMain {
     this.toast(`倍速 ×${this.testSpeed}`, '#7cd6a6');
   }
 
+  /** 主战斗：切换倍速 ×1/×2/×3/×4（战斗区右下角按钮） */
+  cycleRunSpeed() {
+    this.runSpeed = this.runSpeed >= 4 ? 1 : this.runSpeed + 1;
+    this.toast(`加速 ×${this.runSpeed}`, '#7cd6a6');
+  }
+
   /* ---------- 帧循环 ---------- */
 
   loop(ts) {
@@ -331,10 +338,12 @@ class GameMain {
         this.toast('圣物宝箱 · 三选一', '#f7c948');
         return;
       }
-      this.waveTime += dt;
+      // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
+      const bdt = dt * this.runSpeed;
+      this.waveTime += bdt;
       // 陆续投放本波敌人（非一次性同屏）
-      this.wave.tick(dt);
-      this.stepEnemies(dt);
+      this.wave.tick(bdt);
+      this.stepEnemies(bdt);
       // v1.12.1 失败立即结算：城墙血量归零 → 直接进入失败界面（不再等当前波打完）
       if (this.run.broken) { this.waveEnd(); return; }
       // 波次完成标准 = 打完本波全部敌人（含未出场）；不再按波次时长提前结束
@@ -744,6 +753,7 @@ class GameMain {
       battleRelics: this.battleRelics || [],   // v1.9：本局获得的圣物（经验条下方图标展示）
       shuffleAmmo: run.shuffleAmmo, refillAmmo: run.refillAmmo,  // v1.12.4 全局技能累计弹药（发）
       chargePerUse: CONFIG.GLOBAL_SKILL.chargePerUse,
+      runSpeed: this.runSpeed,   // v1.16.13 主战斗倍速（底部功能栏右下角按钮显示）
     };
   }
 
@@ -1027,10 +1037,11 @@ class GameMain {
       if (h.bg && h.bg.hit(p.x, p.y)) { this.funcLayer = null; return true; }
       return true; // 面板内点击不处理其它
     }
-    // 底部功能键区：打开对应弹层
+    // 底部功能键区：打开对应弹层（加速按钮除外）
     if (this.funcHits.length) {
       for (const f of this.funcHits) {
         if (f.hit(p.x, p.y)) {
+          if (f.key === 'speed') { this.cycleRunSpeed(); return true; }
           this.funcLayer = { type: f.key, version: GAME_VERSION };
           return true;
         }

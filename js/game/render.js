@@ -250,9 +250,10 @@ class Renderer {
     fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
-    const labels = ['⚙ 设置', '📖 塔图鉴', '💰 商店', 'ℹ 帮助'];
-    const keys = ['setting', 'tome', 'shop', 'help'];
-    const kw = 150, kh = 78;
+    // v1.16.13 底部功能栏 5 键：设置/图鉴/商店/帮助/加速（右下角）
+    const labels = ['⚙ 设置', '📖 塔图鉴', '💰 商店', 'ℹ 帮助', `⏩×${s.runSpeed || 1}`];
+    const keys = ['setting', 'tome', 'shop', 'help', 'speed'];
+    const kw = 140, kh = 78;
     const gap = (750 - labels.length * kw) / (labels.length + 1);
     this.funcHits = [];
     for (let i = 0; i < labels.length; i++) {
@@ -260,7 +261,7 @@ class Renderer {
       const y = fy + (h - kh) / 2;
       fillRoundRect(ctx, x, y, kw, kh, 14, '#232a36');
       strokeRoundRect(ctx, x, y, kw, kh, 14, 'rgba(255,255,255,0.14)', 2);
-      text(ctx, labels[i], x + kw / 2, y + kh / 2, 26, '#d7dee6', 'center');
+      text(ctx, labels[i], x + kw / 2, y + kh / 2, 25, i === 4 ? '#7cd6a6' : '#d7dee6', 'center');
       this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
     }
   }
