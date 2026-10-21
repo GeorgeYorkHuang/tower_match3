@@ -1326,35 +1326,55 @@ class Renderer {
             ctx.beginPath(); ctx.arc(f.x, f.y, 10 + kf * 22, 0, Math.PI * 2); ctx.fill();
             ctx.globalAlpha = 1;
           }
-          // 火焰尾迹：沿弹道反向两段渐变椭圆（外橙 → 内亮黄），摆动 + 随飞行淡出
-          const trL = (18 + (1 - p) * 26);
-          const tailCols = ['#ff7043', '#ffd24a'];
-          const tailSegs = [[0.72, 6.0, 0.42], [0.42, 3.8, 0.6]];
-          for (let i = 0; i < 2; i++) {
-            ctx.globalAlpha = (1 - p) * tailSegs[i][2];
-            ctx.fillStyle = tailCols[i];
-            ctx.beginPath();
-            ctx.ellipse(mx - trL * tailSegs[i][0], my + (Math.random() - 0.5) * 4, trL * tailSegs[i][0], tailSegs[i][1], 0, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          // 尾迹火星（下降段更多，模拟下坠加速）
+          // 炮弹弹体（v1.16.21 美化：沿飞行方向的长胶囊炮弹 + 膛线自旋纹 + 弹头引信亮点 + 尾部曳光）
+          const rot = Math.atan2(my - f.y, mx - f.x);
+          ctx.save();
+          ctx.translate(mx, my);
+          ctx.rotate(rot);
+          // 尾部曳光焰（沿 -x 向后，双色收敛 + 随机摆动）
+          const trL = (16 + (1 - p) * 20);
+          const wob = (Math.random() - 0.5) * 3;
+          ctx.globalAlpha = (1 - p) * 0.7;
+          ctx.fillStyle = '#ff7043';
+          ctx.beginPath(); ctx.ellipse(-14, wob, trL * 0.75, 4.6, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = (1 - p) * 0.9;
+          ctx.fillStyle = '#ffd24a';
+          ctx.beginPath(); ctx.ellipse(-18, wob * 0.6, trL * 0.42, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          // 弹体辉光
+          ctx.fillStyle = f.color; ctx.globalAlpha = 0.35;
+          ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          // 炮弹本体（长胶囊：头部圆 + 柱身）
+          ctx.fillStyle = '#4a3b2e';
+          ctx.beginPath(); ctx.ellipse(0, 0, 16.5, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#2b2118';
+          ctx.beginPath(); ctx.ellipse(0, 0, 13, 5.8, 0, 0, Math.PI * 2); ctx.fill();
+          // 弹头（前方亮部，拉长 + 引信橙光）
+          ctx.fillStyle = '#5c4a38';
+          ctx.beginPath(); ctx.ellipse(8, 0, 8.5, 5.2, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
+          ctx.fillStyle = '#ff8c42';
+          ctx.beginPath(); ctx.arc(13.5, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffe08a'; ctx.globalAlpha = 0.85;
+          ctx.beginPath(); ctx.arc(13.5, 0, 1.2, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          // 高光弧（左上）
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.beginPath(); ctx.ellipse(4, -3, 7, 2, 0, 0, Math.PI * 2); ctx.fill();
+          // 膛线自旋纹（两条斜纹）
+          ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.3;
+          ctx.beginPath(); ctx.moveTo(-7, -4); ctx.lineTo(-2, 4); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(3, -4); ctx.lineTo(8, 4); ctx.stroke();
+          ctx.restore();
+          // 尾迹火星（下降段更多）
           for (let i = 0; i < 3; i++) {
             ctx.globalAlpha = (1 - p) * (0.2 + Math.random() * 0.3);
             ctx.fillStyle = Math.random() > 0.5 ? '#ffe08a' : '#ff8c42';
             ctx.beginPath();
-            ctx.arc(mx - trL * (0.2 + Math.random() * 0.7), my + (Math.random() - 0.5) * 8 * (0.4 + p), 1.6 + Math.random() * 1.8, 0, Math.PI * 2);
+            ctx.arc(mx - (10 + Math.random() * 22), my + (Math.random() - 0.5) * 7 * (0.4 + p), 1.5 + Math.random() * 1.7, 0, Math.PI * 2);
             ctx.fill();
           }
           ctx.globalAlpha = 1;
-          // 弹体辉光（外圈低透明度）
-          ctx.fillStyle = f.color; ctx.globalAlpha = 0.4;
-          ctx.beginPath(); ctx.arc(mx, my, 22.5, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-          // 弹体（黑壳 + 橙色亮点）
-          ctx.fillStyle = '#2b2118';
-          ctx.beginPath(); ctx.arc(mx, my, 15.75, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = f.color;
-          ctx.beginPath(); ctx.arc(mx, my, 10.1, 0, Math.PI * 2); ctx.fill();
           // 落地爆炸（双层：大辉光 + 亮心 + 冲击波扩散环 + 辐射火粒）
           if (p >= 0.88) {
             const ek = (1 - p) * 6;
