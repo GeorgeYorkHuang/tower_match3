@@ -363,12 +363,20 @@ class EffectManager {
   _synPairs() {    return CONFIG.SYNERGIES.map((s) => [s.a.tower, s.a.effect, s.b.tower, s.b.effect]);
   }
 
-  /** 协同检测：燃爆×毒爆、冰冻×电连锁 */
+  /** 协同检测：燃爆×毒爆、冰冻×电连锁；测试战场（_activeKeys 非空）只检测出战塔 */
   updateSynergies() {
+    const a = this._activeKeys;
+    const ok = (k) => !a || !a.length || a.includes(k);
     this._synPairs().forEach(([k1, e1, k2, e2], i) => {
       const t1 = this.towers[k1], t2 = this.towers[k2];
-      if (t1 && t2 && t1.hasActive(e1) && t2.hasActive(e2)) this.synergyDone[i] = true;
+      if (t1 && t2 && ok(k1) && ok(k2) && t1.hasActive(e1) && t2.hasActive(e2)) this.synergyDone[i] = true;
     });
+  }
+
+  /** 生效塔集合（v1.16.4）：测试战场切塔后只有出战塔生效；keys=null/[] 表示全部生效 */
+  setActiveKeys(keys) {
+    this._activeKeys = keys || null;
+    this.updateSynergies();
   }
 
   /** 当前协同状态：[{pair, done}] */

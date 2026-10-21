@@ -1893,6 +1893,10 @@ class Renderer {
     fillRoundRect(ctx, px, py, pw, ph, 16, '#1b2230');
     strokeRoundRect(ctx, px, py, pw, ph, 16, '#3b4b5e', 1.5);
     text(ctx, `${tower.icon} ${tower.name} · 技能配置`, px + 40, py + 48, 28, '#ffffff', 'left');
+    push('panel_done', null, px + pw - 152, py + 18, 72, 48);
+    fillRoundRect(ctx, px + pw - 146, py + 22, 66, 40, 10, 'rgba(46,204,113,0.2)');
+    strokeRoundRect(ctx, px + pw - 146, py + 22, 66, 40, 10, '#2ecc71', 1.2);
+    text(ctx, '✓ 确定', px + pw - 113, py + 50, 20, '#7ef0a3', 'center');
     push('panel_close', null, px + pw - 76, py + 18, 58, 48);
     fillRoundRect(ctx, px + pw - 70, py + 22, 46, 40, 10, 'rgba(255,255,255,0.1)');
     text(ctx, '✕', px + pw - 47, py + 50, 26, '#ffffff', 'center');

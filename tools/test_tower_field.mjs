@@ -198,6 +198,22 @@ t('切换钮更换出战塔并打开新塔面板', () => {
   assert.strictEqual(game.testPanel.key, 'fire', '面板切回火塔');
 });
 
+// 6c. v1.16.4：切塔后旧塔立即取消生效（战斗系统只认出战塔 + 协同断开）
+t('切塔后旧塔取消生效（单塔模式）', () => {
+  // 当前出战火塔，激活其技能
+  game.testSkillAll('fire', true);
+  // 切到冰塔 → 火塔在战斗系统内立即失效
+  game.switchTestTower('ice');
+  assert.ok(game.run.effects.tower('fire'), '火塔配置对象仍保留（不丢配置）');
+  assert.strictEqual(game.combat.tower('fire'), null, '非出战塔在战斗系统内不生效');
+  assert.strictEqual(game.combat.tower('ice'), game.run.effects.tower('ice'), '出战塔正常生效');
+  assert.ok(game.run.effects.synergyDone.every((d) => !d), '切塔后旧协同全部断开');
+  // 切回火塔 → 恢复生效
+  game.switchTestTower('fire');
+  assert.strictEqual(game.combat.tower('fire'), game.run.effects.tower('fire'), '切回后火塔恢复生效');
+  assert.ok(game.run.effects.tower('fire').activeNames.length > 0, '原技能配置保留');
+});
+
 // 7. 攻城不扣城墙血（测试战场城墙无敌）
 t('测试战场攻城不扣城墙血', () => {
   const lineHp0 = game.run.lineHp;

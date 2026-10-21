@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.3';        // v1.16.3 测试战场技能面板：分支按钮与等级行显示真实分支名（替代 A/B/C 代号）
+const GAME_VERSION = 'v1.16.4';        // v1.16.4 测试战场：切塔即旧塔取消生效（单塔生效集合+协同断开）+ 技能面板确定按钮
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -136,6 +136,8 @@ class GameMain {
     // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
     this.run.slotOrder = ['fire'];
     this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
+    // v1.16.4 单塔生效：测试战场只有出战塔参与战斗/协同，切塔即旧塔取消生效
+    this.run.effects.setActiveKeys(['fire']);
     // 城墙：测试战场不扣血（恒满）
     this.run.lineHp = CONFIG.LINE.hp;
     this.run.lineMaxHp = this.run.lineHp;
@@ -148,12 +150,13 @@ class GameMain {
     this.toast('测试战场 · 点塔位配置技能 · 点“更换”切塔', '#7cd6a6');
   }
 
-  /** 测试战场：更换出战塔（单塔模式，v1.14.1） */
+  /** 测试战场：更换出战塔（单塔模式，v1.14.1；v1.16.4 切塔后旧塔立即取消生效） */
   switchTestTower(key) {
     const t = this.run.effects.tower(key);
     if (!t) return;
     t.unlock();
     this.run.slotOrder = [key];
+    this.run.effects.setActiveKeys([key]);
     this.testPanel = { key }; // 切塔后直接打开该塔技能面板
     this.combat.reset();
     this.toast(`出战塔：${CONFIG.COLORS[CONFIG.TOWERS[key].color].name}`, '#7cd6a6');
@@ -538,6 +541,7 @@ class GameMain {
     this.relicPick = null;
     this.testPanel = null;   // v1.14 测试战场配置面板清理
     this.testSpeed = 1;
+    this.run.effects.setActiveKeys(null); // v1.16.4 离开测试战场恢复全部塔生效
     this.sfx.stopBgm();
     this.save.save();
   }
@@ -785,6 +789,7 @@ class GameMain {
         case 'tf_slot': this.testPanel = { key: it.data }; return true;
         case 'tf_switch': this.switchTestTower(it.data); return true;
         case 'panel_close': this.testPanel = null; return true;
+        case 'panel_done': this.testPanel = null; this.toast('技能配置已应用', '#7ef0a3'); return true;
         case 'panel_all': this.testSkillAll(this.testPanel.key, true); return true;
         case 'panel_clear': this.testSkillAll(this.testPanel.key, false); return true;
         case 'panel_branch': this.testSkillAction(this.testPanel.key, it.data.name, it.data.br); return true;

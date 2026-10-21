@@ -67,7 +67,13 @@ class CombatSystem {
   }
 
   /* ---------- 工具 ---------- */
-  tower(key) { return this.game.run.effects.tower(key); }
+  /** 出战塔对象（v1.16.4：测试战场单塔模式——仅 slotOrder 内塔生效，旧塔周期技/技能链立即停用） */
+  tower(key) {
+    const t = this.game.run.effects.tower(key);
+    const order = this.game.run.slotOrder;
+    if (t && order && order.length && !order.includes(key)) return null;
+    return t;
+  }
   lv(key, name) {
     const b = this.tower(key);
     if (!b) return 0;
