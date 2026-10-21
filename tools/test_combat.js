@@ -84,35 +84,30 @@ t('冰·冰冻：命中概率冻结（冻结后不能移动）', () => {
   // 冻结移动检查：moveEnemy 逻辑（main）以 frozen>0 停移，此处验证状态被正确设置
 });
 
-t('冰·寒霜：普攻减速概率提升至70%', () => {
-  const g = mkGame({ ice: { 寒霜: 1 } });
+t('冰·寒霜：冰缓 20%+25%+A极寒、B凝结时长、C深寒幅度', () => {
+  const g = mkGame({ ice: { 寒霜: 1 } });   // A1B1C1：概率 20+25+15=60%、幅度 30+10=40%、时长 3+1=4s
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  const orig = Math.random; Math.random = () => 0; // 必触发（0 < 0.70）
+  const orig = Math.random; Math.random = () => 0; // 必触发（0 < 0.60）
   try { c.hit('ice', e, 50); } finally { Math.random = orig; }
-  assert.ok(e.slow && e.slow.mult < 1 && e.slow.ttl > 0, '应有减速状态');
-  // mkGame 数字技能 → 全分支 1：幅度 = 30% + 15%×B1 = 45%
-  assert.ok(Math.abs(e.slow.mult - 0.55) < 1e-6, `减速幅度应为 45%，实际 ${(1 - e.slow.mult) * 100}%`);
+  assert.ok(e.slow && e.slow.mult < 1 && e.slow.ttl > 0, '应有冰缓状态');
+  assert.ok(Math.abs(e.slow.mult - 0.60) < 1e-6, `C1 深寒减速幅度应为 40%，实际 ${(1 - e.slow.mult) * 100}%`);
+  assert.ok(Math.abs(e.slow.ttl - 4) < 1e-6, `B1 凝结冰缓时长应为 4s，实际 ${e.slow.ttl}`);
 });
 
-t('冰·寒霜C：减速目标易伤+15%/级', () => {
-  const g = mkGame({ ice: { 寒霜: { C: 2 } } });
+t('冰·寒霜C：深寒减速幅度提升', () => {
+  const g = mkGame({ ice: { 寒霜: { C: 2 } } });   // C2 → 减速幅度 30%+20%=50%
   const c = new CombatSystem(g);
   const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
-  const orig = Math.random; Math.random = () => 0; // 触发减速
+  const orig = Math.random; Math.random = () => 0; // 0 < 0.45（20%+25%）
   try { c.hit('ice', e, 100); } finally { Math.random = orig; }
-  assert.ok(e.slow.ttl > 0, '应处于减速');
-  // 再次命中：寒霜C2 → 受伤 ×(1+0.15×2)=×1.3
-  const before = e.hp;
-  c.hit('ice', e, 100);
-  const lost = before - e.hp;
-  assert.ok(Math.abs(lost - 100 * 1.3) < 1e-6, `减速目标应受伤 130，实际 ${lost.toFixed(1)}`);
+  assert.ok(e.slow && e.slow.ttl > 0, '应处于冰缓');
+  assert.ok(Math.abs((1 - e.slow.mult) - 0.50) < 1e-6, `C2 深寒应减速 50%，实际 ${(1 - e.slow.mult) * 100}%`);
 });
 
-t('冰·多重冰锥：等角度扇形散射命中', () => {
-  const g = mkGame({ ice: { 多重冰锥: 1 } });
+t('冰·多重冰锥：等角度扇形散射命中（无 C）', () => {
+  const g = mkGame({ ice: { 多重冰锥: { A: 1 } } });   // A1、C0 → 4 枚 = 主 + 3 散射
   const c = new CombatSystem(g);
-  // 主目标 + 两侧散射弹道（基础 3 枚 = 主 + 2 散射；A=1 速记 → 4 枚 = 主 + 3 散射）
   const e1 = mkEnemy(1000, 330, 650); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
   const e3 = mkEnemy(1000, 420, 650); g.enemies.push(e3);
@@ -126,6 +121,23 @@ t('冰·多重冰锥：等角度扇形散射命中', () => {
   assert.ok(hurt >= 2, `主目标 + 至少 1 枚散射应命中，实际 ${hurt}`);
 });
 
+t('冰·多重冰锥C：增殖 10/14/18 枚超小型冰锥', () => {
+  const g = mkGame({ ice: { 多重冰锥: { C: 1 } } });   // C1 → 10 枚（无 A）
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 330, 650); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  const e3 = mkEnemy(1000, 420, 650); g.enemies.push(e3);
+  const orig = Math.random; Math.random = () => 0.5;
+  try {
+    c.hit('ice', e2, 100);
+    assert.ok(c.shots.filter((s) => s.scatter).length === 10, '应生成 10 枚超小型冰锥弹道');
+    assert.ok(c.shots.filter((s) => s.scatter).every((s) => s.hitR === 30), '超小冰锥碰撞半径应为 30');
+    c.update(1.0);   // 推进至弹道到达各自索敌目标
+  } finally { Math.random = orig; }
+  const hurt = g.enemies.filter((x) => x.hp < 1000).length;
+  assert.ok(hurt >= 2, `各自索敌应命中多个敌人，实际 ${hurt}`);
+});
+
 t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
   const g = mkGame({ ice: { 冰花: { A: 1 } } });
   const c = new CombatSystem(g);
@@ -137,6 +149,40 @@ t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
   c.update(0.9);       // v1.16.10：冰花改为延迟 0.8s（第 4 帧动画末尾）结算范围伤害
   const hurt = g.enemies.filter((x) => x.hp < 10000).length;
   assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
+});
+
+t('普攻·冰塔：无技能时 20% 概率冰缓（减速30%·3s）', () => {
+  const g = mkGame({ ice: {} }, ['ice']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 必触发
+  try { c.hit('ice', e, 50); } finally { Math.random = orig; }
+  assert.ok(e.slow && Math.abs((1 - e.slow.mult) - 0.30) < 1e-6 && Math.abs(e.slow.ttl - 3) < 1e-6, '冰缓应减速30%·3s');
+});
+
+t('冰·冰穿刺：弹道穿透 1 名敌人（基础实装）', () => {
+  const g = mkGame({ ice: { 冰穿刺: 1 } });   // A1B1C1：穿透 1+1=2 名、穿透伤 +30%
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(3000, 375, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(3000, 380, 730); g.enemies.push(e2);   // e1 身后（远离塔侧）
+  const e3 = mkEnemy(3000, 420, 800); g.enemies.push(e3);   // 同排侧向（投影≈0，非身后）
+  const orig = Math.random; Math.random = () => 0.5;
+  try { c.hit('ice', e1, 100); } finally { Math.random = orig; }
+  assert.ok(e2.hp < 3000, '穿透应命中目标身后第 1 名敌人');
+  assert.ok(Math.abs((3000 - e2.hp) - 100 * 1.3) < 1e-6, `B1 透射穿透伤害 +30%（应 130），实际 ${3000 - e2.hp}`);
+  assert.ok(e3.hp === 3000, '侧向同排敌人不应被穿透命中');
+});
+
+t('冰·冰穿刺C：身后 60px·90° 扇形区域伤害', () => {
+  const g = mkGame({ ice: { 冰穿刺: { C: 1 } } });   // C1 → 扇形 30% 伤害
+  const c = new CombatSystem(g);
+  const f1 = mkEnemy(3000, 375, 800); g.enemies.push(f1);
+  const f2 = mkEnemy(3000, 395, 740); g.enemies.push(f2);   // 身后 ~60px 内、±45° 扇形
+  const f3 = mkEnemy(3000, 375, 880); g.enemies.push(f3);   // 塔侧（不是身后）不应受扇形伤害
+  const o2 = Math.random; Math.random = () => 0.5;
+  try { c.hit('ice', f1, 100); } finally { Math.random = o2; }
+  assert.ok(f2.hp < 3000, 'C1 冰霜透射应命中身后扇形内敌人');
+  assert.ok(f3.hp === 3000, '扇形伤害不应命中塔侧敌人');
 });
 
 t('冰·碎冰：命中后碎裂碎冰穿透身后敌人', () => {
@@ -699,13 +745,20 @@ t('回旋镖·放血：强化流血伤害与时长（替换穿透，v1.16.14）'
   assert.ok(Math.round(hp0 - e.hp) === 30, '移动 100px 应结算 30 点流血伤害');
 });
 
-t('冰·冰冻：基础 30% 概率，A 分支每级 +15%', () => {
+t('冰·冰冻：基础 20% 概率，A 分支档位提升、B 深结时长', () => {
   const g = mkGame({ ice: { 冰冻: { A: 1 } } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  const orig = Math.random; Math.random = () => 0.40; // 0.30 < 0.40 < 0.45 → 基础30%不触发、A1(45%)触发
+  const orig = Math.random; Math.random = () => 0.30; // 0.20 < 0.30 < 0.35 → 基础20%不触发、A1(35%)触发
   try { c.hit('ice', e, 100); } finally { Math.random = orig; }
-  assert.ok(e.frozen > 0, 'A1 概率 45% 应冻结');
+  assert.ok(e.frozen > 0, 'A1 概率 35% 应冻结');
+  // B1 深结：冻结时长 2 + 1 = 3s
+  const g2 = mkGame({ ice: { 冰冻: { A: 1, B: 1 } } });
+  const c2 = new CombatSystem(g2);
+  const e2 = mkEnemy(1000, 375, 800); g2.enemies.push(e2);
+  const o2 = Math.random; Math.random = () => 0;
+  try { c2.hit('ice', e2, 100); } finally { Math.random = o2; }
+  assert.ok(Math.abs(e2.frozen - 3) < 1e-6, `B1 深结冻结时长应为 3s，实际 ${e2.frozen}`);
 });
 
 t('炮·军火库 C：双倍火力概率造成双倍伤害', () => {

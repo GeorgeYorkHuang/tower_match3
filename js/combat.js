@@ -6,7 +6,7 @@
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
  *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 烈焰墙 / 火雨（区域多段）
- *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
+ *       冰：寒霜 / 冰冻 / 冰穿刺 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
@@ -467,8 +467,7 @@ class CombatSystem {
     if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor));
     // 腐蚀增伤
     if (e.corrode) v *= e.corrode.mult;
-    // 冰·寒霜 C 易伤：被减速目标受伤 +15%/级
-    if (e.slow && e.slow.ttl > 0) v *= (1 + 0.15 * this.branchLv('ice', '寒霜', 'C'));
+    // （寒霜 C 原「易伤」已改「深寒：减速幅度」，v1.16.21 移除易伤乘区）
     // 火·灼烧 C 真火：每层灼烧使目标受到的伤害 +10%（全来源，按层数）
     const trueLv = this.branchLv('fire', '灼烧', 'C');
     if (trueLv > 0) {
@@ -539,10 +538,10 @@ class CombatSystem {
           }
         }
       }
-      // 冰·冰冻 C 碎冰爆（v1.16.14）：击杀冰冻敌人 → 100px 范围爆炸（40%×攻击力，每级 +10%）并减速
+      // 冰·冰冻 C 碎冰（v1.16.21）：击杀冰冻敌人 → 120px 范围爆炸（30%/40%/50%×攻击力，档位式）并减速 30%
       if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
         const frzC = this.branchLv('ice', '冰冻', 'C');
-        this.explode(e.x, e.y, 100, this.shotDmg('ice') * (0.40 + 0.10 * frzC), 'ice', 0, true);
+        this.explode(e.x, e.y, 120, this.shotDmg('ice') * [0, 0.30, 0.40, 0.50][frzC], 'ice', 0, true);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16）：标记目标死亡向 100px 内 2 个敌人扩散 1 层标记
@@ -1026,22 +1025,24 @@ class CombatSystem {
     this.fxParticle(e.x, e.y, '#eaf6ff', 6, 44, 0.30, 130, 5);
     this.fxParticle(e.x, e.y, '#a9d6f5', 4, 62, 0.35, 90, 4);
     this.fxRing(e.x, e.y, '#d6f0ff', 16, 0.2, 2);
-    // 普攻减速（v1.13.23）：基础 20% 概率减速；学寒霜后概率提升至 70%
-    // 寒霜 A 凝时：减速时长 +0.5s/级；B 深寒：减速幅度 +15%/级；C 易伤在 damage 内处理
+    // 普攻冰缓（v1.16.21）：基础 20% 概率造成冰缓（减速30%·持续3s）；学寒霜后 +25% 并 A 极寒每级 +15%（45→60→75→90%）
+    //   B 凝结 冰缓时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
     const frost = this.lv('ice', '寒霜');
-    if (Math.random() < (frost > 0 ? 0.70 : 0.20)) {
-      const mult = 0.30 + 0.15 * this.branchLv('ice', '寒霜', 'B');
-      const ttl = 1.5 + 0.5 * this.branchLv('ice', '寒霜', 'A');
+    const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0);
+    if (Math.random() < probSlow) {
+      const mult = 0.30 + [0, 0.1, 0.2, 0.3][this.branchLv('ice', '寒霜', 'C')];
+      const ttl = 3 + [0, 1, 2, 3][this.branchLv('ice', '寒霜', 'B')];
       this.applySlow(e, mult, ttl);
-      // 减速视觉：浅蓝冰雾粒子
+      // 冰缓视觉：浅蓝冰雾粒子
       this.fxParticle(e.x, e.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
     }
-    // 冰冻（v1.16.14）：基础 30% 概率冻结；仅 A 分支每级 +15% 提高概率
+    // 冰冻（v1.16.21）：基础 20% 概率冻结（冻结不能移动·2s）；A 冻结 +15%/30%/45%；B 深结 时长 +1/1.5/2s；C 碎冰在死亡时结算
     const frzLv = this.lv('ice', '冰冻');
     if (frzLv > 0) {
-      const prob = 0.30 + 0.15 * this.branchLv('ice', '冰冻', 'A');
+      const prob = 0.20 + [0, 0.15, 0.30, 0.45][this.branchLv('ice', '冰冻', 'A')];
       if (Math.random() < prob) {
-        e.frozen = Math.max(e.frozen || 0, 1 + 0.5 * (frzLv - 1));
+        const dur = 2 + [0, 1, 1.5, 2][this.branchLv('ice', '冰冻', 'B')];
+        e.frozen = Math.max(e.frozen || 0, dur);
         // 冰冻视觉：冻结凝固闪光 + 冰蓝扩散环 + 冰晶粒子
         this.fxFlash(e.x, e.y, '#d6f0ff', 0.28);
         this.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
@@ -1049,7 +1050,7 @@ class CombatSystem {
       }
     }
     // 多重冰锥（v1.13.23 仿多重火球）：主目标直瞄 + 额外冰锥等角度扇形散射（无目标，射界消失或命中即止）
-    //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 分击 25% 概率减速
+    //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 增殖（v1.16.21）：10/14/18 枚超小型冰锥（1/3大小·每枚10%·各自索敌·20%冰缓）
     const multi = this.lv('ice', '多重冰锥');
     if (multi > 0) {
       const g = this.game;
@@ -1060,31 +1061,54 @@ class CombatSystem {
       const idx = g.run.slotOrder.indexOf('ice');
       const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
       const msy = ly0.slotY + ly0.slotSize / 2;
-      const n = 3 + this.branchLv('ice', '多重冰锥', 'A');          // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
-      const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('ice', '多重冰锥', 'B'));
-      const slowProb = this.branchLv('ice', '多重冰锥', 'C') > 0 ? 0.25 : 0;
+      const aLv = this.branchLv('ice', '多重冰锥', 'A');
+      const bLv = this.branchLv('ice', '多重冰锥', 'B');
+      const cLv = this.branchLv('ice', '多重冰锥', 'C');
       const dur = CONFIG.TOWERS.ice.shot.dur;
       const R = this.range('ice');                 // 射界半径（= 塔射程）
-      const hitR = 45;                              // 散射冰锥碰撞半径
-      const strike = (o, d) => {                    // 命中结算（主目标直瞄与散射弹道共用）
-        this.damage(o, d, 'ice');
-        this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
-        this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
-        this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
-        if (slowProb > 0 && Math.random() < slowProb) this.applySlow(o, 0.3, 1.5);
-      };
-      // 主目标：立即伤害 + 一枚可见直瞄冰锥弹道
-      this.damage(e, perDmg, 'ice');
-      g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, tx: e.x, ty: e.y, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
-      // 额外冰锥：等角度扇形（均匀分布在 ±maxOff，主目标角度 0 两侧）
-      const maxOff = (n - 2) * 0.08;
-      for (let i = 0; i < n - 1; i++) {
-        const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
-        const tx = msx + Math.sin(off) * R;
-        const ty = msy - Math.cos(off) * R;
-        const icicle = { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx, ty };
-        this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx, ty, hitR, onHit: strike });
-        g.fx.push(icicle);
+      if (cLv > 0) {
+        // C 增殖：10/14/18 枚超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
+        const n = [0, 10, 14, 18][cLv] + aLv;
+        const perDmg = dmg * 0.10 * (1 + 0.15 * bLv);
+        const hitR = 30;                             // 超小冰锥碰撞半径更小
+        const strike = (o, d) => {
+          this.damage(o, d, 'ice');
+          this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
+          this.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
+          if (Math.random() < 0.20) this.applySlow(o, 0.3, 3);   // 20% 冰缓（减速30%·3s）
+        };
+        const targets = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('ice', o.x, o.y));
+        for (let i = 0; i < n; i++) {
+          const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
+          this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike });
+          g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+        }
+        // 主目标也受一枚小冰锥伤害（增殖时无直瞄主目标概念，主目标被环形索敌覆盖）
+        this.damage(e, perDmg, 'ice');
+        this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
+      } else {
+        const n = 3 + aLv;                                  // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
+        const perDmg = dmg * 0.55 * (1 + 0.15 * bLv);
+        const hitR = 45;                                     // 散射冰锥碰撞半径
+        const strike = (o, d) => {                           // 命中结算（主目标直瞄与散射弹道共用）
+          this.damage(o, d, 'ice');
+          this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
+          this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
+          this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
+        };
+        // 主目标：立即伤害 + 一枚可见直瞄冰锥弹道
+        this.damage(e, perDmg, 'ice');
+        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, tx: e.x, ty: e.y, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
+        // 额外冰锥：等角度扇形（均匀分布在 ±maxOff，主目标角度 0 两侧）
+        const maxOff = (n - 2) * 0.08;
+        for (let i = 0; i < n - 1; i++) {
+          const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
+          const tx = msx + Math.sin(off) * R;
+          const ty = msy - Math.cos(off) * R;
+          const icicle = { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx, ty };
+          this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx, ty, hitR, onHit: strike });
+          g.fx.push(icicle);
+        }
       }
     }
     // 碎冰（v1.13.24 原低温全塔改）：冰锥命中目标后碎裂成 3 枚碎冰，沿弹道方向越过目标，继续向敌人身后飞行命中后续敌人
@@ -1127,21 +1151,46 @@ class CombatSystem {
         g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale: 0.85, tx, ty });
       }
     }
-    // 永冻 a：冰冻不随时间解除（命中刷新）
-    if (this.has('ice', '永冻') && e.frozen > 0) e.frozen = Math.max(e.frozen, 1.5);
-    // 冰锥穿透
-    const pierce = this.lv('ice', '冰锥穿透');
+    // 冰穿刺（v1.16.21 重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）
+    //   A 冰穿 穿透目标 +1/+2/+3（1→2/3/4 名）；B 透射 穿透后伤害 +30%/60%/90%；C 冰霜透射 命中后对敌人身后 60px·90° 扇形造成 30%/40%/50% 伤害
+    const pierce = this.lv('ice', '冰穿刺');
     if (pierce > 0) {
-      const n = 2 * pierce;
-      const pDmg = dmg * (1 + 0.3 * (pierce - 1));
-      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 50 && Math.abs(o.x - e.x) < 70)
-        .sort((a, b) => b.y - a.y);
-      for (let i = 0; i < Math.min(n, cands.length); i++) {
-        this.damage(cands[i], pDmg, 'ice');
-        this.applySlow(cands[i], 0.2, 1);
-        // v1.13.26 穿透特效：被穿透敌人爆出冰晶碎片 + 小冰环（沿弹道方向的贯穿感）
-        this.fxParticle(cands[i].x, cands[i].y, '#b8e6ff', 5, 40, 0.3, 110, 4);
-        this.fxRing(cands[i].x, cands[i].y, '#a9d6f5', 20, 0.2, 2);
+      const g = this.game;
+      const ly0 = this.ly();
+      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
+      const startX = (750 - rowW) / 2;
+      const slotW = ly0.slotSize + ly0.slotGap;
+      const idx = g.run.slotOrder.indexOf('ice');
+      const psx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
+      const psy = ly0.slotY + ly0.slotSize / 2;
+      const dirLen = Math.hypot(e.x - psx, e.y - psy) || 1;
+      const ddx = (e.x - psx) / dirLen, ddy = (e.y - psy) / dirLen;   // 弹道方向（塔→目标）
+      const aLv = this.branchLv('ice', '冰穿刺', 'A');
+      const bLv = this.branchLv('ice', '冰穿刺', 'B');
+      const cLv = this.branchLv('ice', '冰穿刺', 'C');
+      const pierceN = 1 + aLv;   // 基础 1 名 + A 每级 1 → 1/2/3/4
+      // 穿透目标：沿弹道方向位于目标身后（远离塔侧）的敌人，按投影距离排序
+      const cands = this.enemies().filter((o) => o.hp > 0 && o !== e
+          && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > 20)
+        .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
+      for (let i = 0; i < Math.min(pierceN, cands.length); i++) {
+        const pT = cands[i];
+        const pDmg = dmg * (1 + [0, 0.3, 0.6, 0.9][bLv]);   // B 透射 +30/60/90%
+        this.damage(pT, pDmg, 'ice');
+        this.fxParticle(pT.x, pT.y, '#b8e6ff', 5, 40, 0.3, 110, 4);
+        this.fxRing(pT.x, pT.y, '#a9d6f5', 20, 0.2, 2);
+      }
+      // C 冰霜透射：对敌人身后 60px·90° 扇形区域（以弹道方向为中轴 ±45°）造成伤害
+      if (cLv > 0) {
+        const fDmg = this.shotDmg('ice') * [0, 0.3, 0.4, 0.5][cLv];
+        this.enemies().forEach((o) => {
+          if (o.hp <= 0 || o === e) return;
+          const proj = (o.x - e.x) * ddx + (o.y - e.y) * ddy;          // 沿弹道方向投影（正=身后）
+          const side = Math.abs((o.x - e.x) * ddy - (o.y - e.y) * ddx); // 侧向距离
+          if (proj > 0 && proj <= 60 && side <= proj) this.damage(o, fDmg, 'ice');   // ±45°（90° 扇形）
+        });
+        this.fxParticle(e.x, e.y, '#d6f0ff', 8, 70, 0.35, 130, 5);
+        this.fxRing(e.x, e.y, '#b8e6ff', 42, 0.3, 3);
       }
     }
   }
