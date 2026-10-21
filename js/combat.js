@@ -1111,8 +1111,9 @@ class CombatSystem {
         }
       }
     }
-    // 碎冰（v1.13.24 原低温全塔改）：冰锥命中目标后碎裂成 3 枚碎冰，沿弹道方向越过目标，继续向敌人身后飞行命中后续敌人
-    //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害+15%/级、C 冻裂 25% 概率减速 30%
+    // 碎冰（v1.13.24 原低温全塔改；v1.16.21 分支重做）：冰锥命中目标后碎裂成 3 枚小碎冰，飞行速度与原冰锥一致，
+    //   沿弹道方向呈 60° 角散射（±30°），碎冰命中敌人即止（不穿透）
+    //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害档位 +15%/30%/45%、C 冻结 命中 5%/10%/15% 几率冻结 2s
     const shard = this.lv('ice', '碎冰');
     if (shard > 0) {
       const g = this.game;
@@ -1126,8 +1127,8 @@ class CombatSystem {
       const len = Math.hypot(e.x - msx, e.y - msy) || 1;
       const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
       const n = 3 + this.branchLv('ice', '碎冰', 'A');
-      const dmg = this.shotDmg('ice') * 0.45 * (1 + 0.15 * this.branchLv('ice', '碎冰', 'B'));
-      const slowP = this.branchLv('ice', '碎冰', 'C') > 0 ? 0.25 : 0;
+      const dmg = this.shotDmg('ice') * 0.45 * (1 + [0, 0.15, 0.30, 0.45][this.branchLv('ice', '碎冰', 'B')]);
+      const frzP = [0, 0.05, 0.10, 0.15][this.branchLv('ice', '碎冰', 'C')];
       const sx = e.x + dx * 55, sy = e.y + dy * 55;   // 越过主目标，避免立即重复命中
       const R = this.range('ice');
       const dur = CONFIG.TOWERS.ice.shot.dur;
@@ -1138,10 +1139,15 @@ class CombatSystem {
         this.fxFlash(o.x, o.y, '#d6f0ff', 0.22);
         this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
-        if (slowP > 0 && Math.random() < slowP) this.applySlow(o, 0.3, 1.5);
+        // C 冻结：命中 5%/10%/15% 几率冻结 2s
+        if (frzP > 0 && Math.random() < frzP) {
+          o.frozen = Math.max(o.frozen || 0, 2);
+          this.fxFlash(o.x, o.y, '#d6f0ff', 0.3);
+          this.fxRing(o.x, o.y, '#7fd4ff', 40, 0.35, 3);
+        }
       };
       const baseA = Math.atan2(dy, dx);
-      const spread = 0.06;
+      const spread = Math.PI / 6;   // 60° 总散射角（±30°）
       for (let i = 0; i < n; i++) {
         const off = n > 1 ? (i / (n - 1) - 0.5) * 2 * spread : 0;
         const a = baseA + off;

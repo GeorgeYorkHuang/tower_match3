@@ -187,20 +187,28 @@ t('冰·冰穿刺C：身后 60px·90° 扇形区域伤害', () => {
   assert.ok(f3.hp === 3000, '扇形伤害不应命中塔侧敌人');
 });
 
-t('冰·碎冰：命中后碎裂碎冰穿透身后敌人', () => {
-  const g = mkGame({ ice: { 碎冰: 1 } });
+t('冰·碎冰：命中后碎裂碎冰 60° 散射 + B伤害/C冻结', () => {
+  const g = mkGame({ ice: { 碎冰: 1 } });   // A1B1C1：4 枚、伤害 +15%、冻结 5%
   const c = new CombatSystem(g);
-  // 主目标 + 身后（更靠近远处）敌人：碎冰沿弹道方向越过主目标后命中
+  // 主目标 + 身后（更靠近远处）敌人：碎冰沿弹道方向 ±30° 散射
   const e1 = mkEnemy(1000, 375, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 370, 680); g.enemies.push(e2);
   const orig = Math.random; Math.random = () => 0.5;
   try {
     c.hit('ice', e1, 100);
     assert.ok(c.shots.filter((s) => s.scatter).length === 4, '应生成 4 枚碎冰弹道（基础3 + A速记1）');
-    c.update(0.1);   // 推进碎冰越过主目标飞向身后
+    c.update(0.1);
   } finally { Math.random = orig; }
   const hurt = g.enemies.filter((x) => x.hp < 1000).length;
   assert.ok(hurt >= 2, `主目标 + 身后敌人应被命中，实际 ${hurt}`);
+  // C1 冻结：5% 概率 → Math.random=0 必触发
+  const g2 = mkGame({ ice: { 碎冰: { C: 1 } } });
+  const c2 = new CombatSystem(g2);
+  const f1 = mkEnemy(1000, 375, 800); g2.enemies.push(f1);
+  const f2 = mkEnemy(1000, 370, 680); g2.enemies.push(f2);
+  const o2 = Math.random; Math.random = () => 0;
+  try { c2.hit('ice', f1, 100); c2.update(0.1); } finally { Math.random = o2; }
+  assert.ok(f2.frozen > 0, 'C1 碎冰命中 5% 冻结应生效');
 });
 
 t('冰·冰墙：周期附魔城墙 + 结束回血', () => {
