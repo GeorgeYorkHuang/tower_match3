@@ -292,6 +292,9 @@ class CombatSystem {
             this.damage(tgt, tu.dmg, 'cannon');
             this.explode(tgt.x, tgt.y, tu.r, tu.dmg * 0.6, 'cannon', 0, false);
             this.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
+            // v1.16.6 炮台开火炮口闪光 + 后坐火星
+            this.fxFlash(tu.x, tu.y - 8, '#ffd24a', 0.15);
+            this.fxParticle(tu.x, tu.y - 6, '#d89e63', 2, 18, 0.2, 60, 3);
           }
         }
       }
@@ -1744,6 +1747,7 @@ class CombatSystem {
           this.mines = this.mines || [];
           this.mines.push({ x: mx, y: my, r: 100, dmg: this.shotDmg('cannon') * 1.5 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')), armed: 0.3, ttl: 12, chain: this.branchLv('cannon', '地雷阵', 'C') });
           g.fx.push({ type: 'mine', x: mx, y: my, t: 0, dur: 12, seed: Math.random() * 100 });
+          this.fxParticle(mx, my, '#b5651d', 4, 22, 0.35, 70, 4);
         }
       }
     }

@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.6';        // v1.16.6 回旋镖·接镖 A 分支改为「疾飞：镖飞行速度 +20%/级」（替代原攻速加成）
+const GAME_VERSION = 'v1.16.7';        // v1.16.7 炮/镖塔技能特效优化：炮弹尾焰冲击波、爆炸增强、地雷脉冲、炮台光环开火、镖折返发光、风痕渲染、风暴镖风眼、镖阵光晕
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
