@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.7';        // v1.16.7 炮/镖塔技能特效优化：炮弹尾焰冲击波、爆炸增强、地雷脉冲、炮台光环开火、镖折返发光、风痕渲染、风暴镖风眼、镖阵光晕
+const GAME_VERSION = 'v1.16.8';        // v1.16.8 三选一界面美化：三卡错峰上浮入场、六边形徽章图标+旋转光环+流光、渐变描边、暗纹、呼吸光晕、目标金脉动、塔色按钮
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

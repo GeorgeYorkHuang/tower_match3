@@ -1656,13 +1656,19 @@ class Renderer {
     });
   }
 
-  /** 三选一弹层（波末/升级强化）v4：横向三卡；半透明底板 + 立体投影（v1.13.22 美化） */
+  /** 三选一弹层（波末/升级强化）v5：横向三卡；入场错峰上浮 + 徽章图标 + 渐变描边 + 呼吸光晕（v1.16.7 美化） */
   pickLayer(ctx, group, pending, onPick) {
     const w = L.pickLayer.w, h = L.pickLayer.h;
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
+    // v1.16.7 入场动效：面板淡入 + 三卡错峰上浮（首次渲染锁定时间基准）
+    if (!group._pickT0) group._pickT0 = Date.now();
+    const now = Date.now();
+    const inT = (now - group._pickT0) / 1000;
+    const inK = Math.min(1, inT / 0.28);          // 面板整体淡入
     // 遮罩（半透明，露出战场背景）
     ctx.fillStyle = 'rgba(0,0,0,0.42)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
+    ctx.globalAlpha = inK;
     // 中央面板：投影厚度 + 半透明玻璃底 + 高光描边（立体感）
     fillRoundRect(ctx, x + 4, y + 6, w, h, 20, 'rgba(0,0,0,0.38)');       // 右下投影
     const panelGrad = ctx.createLinearGradient(0, y, 0, y + h);
@@ -1713,6 +1719,14 @@ class Renderer {
       const isTarget = i === 0 && !isBranch && ef.name === group.target;
       const upgrading = isBranch;
       const targetLv = isBranch ? (ef.branchLv + 1) : 1;   // 选择后达到的等级
+      // v1.16.7 卡片入场：错峰上浮 + 淡入 + 轻微放大（0.05s + i*0.09s 依次浮现）
+      const cd = 0.05 + i * 0.09;
+      const ck = Math.min(1, Math.max(0, (inT - cd) / 0.22));
+      const cOff = (1 - ck) * 34;
+      const cScale = 0.92 + 0.08 * ck;
+      const cAlpha = Math.max(0, Math.min(1, ck * 1.6 - 0.3));
+      // v1.16.7 卡片呼吸：轻微光晕明暗脉动
+      const breathe = 0.5 + 0.5 * Math.sin(now / 420 + i * 2.1);
       const cx = x + 28 + i * (cardW + gap);
       // 来源塔（升级三选一候选可能来自不同塔）：每张卡按各自来源塔独立取色（v1.10.2）
       const fromKey = ef.fromTower || tk;
@@ -1720,14 +1734,40 @@ class Renderer {
         ? (CONFIG.COLORS[CONFIG.TOWERS[fromKey] && CONFIG.TOWERS[fromKey].color] || {}).name || fromKey
         : tName;
       const fromTint = TOWER_TINT[fromKey] || tint;
-      // 卡片框：投影厚度 + 半透明玻璃底 + 描边=该卡来源塔色（波末强化三卡同塔；升级三选一各自独立）
+      // v1.16.7 卡片外发光（呼吸脉动；目标卡金色强呼吸）
+      const glowCol = (isTarget && !upgrading) ? '#f7c948' : fromTint;
+      const glowA = (isTarget && !upgrading) ? 0.16 + 0.14 * breathe : 0.08 + 0.05 * breathe;
+      ctx.globalAlpha = cAlpha * glowA;
+      ctx.fillStyle = glowCol;
+      ctx.beginPath(); ctx.arc(cx + cardW / 2, topY + cardH / 2, cardW * 0.78, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = cAlpha;
+      // 卡片框：投影厚度 + 半透明玻璃底
       fillRoundRect(ctx, cx + 3, topY + 5, cardW, cardH, 16, 'rgba(0,0,0,0.32)');              // 卡片投影
       const cardGrad = ctx.createLinearGradient(0, topY, 0, topY + cardH);
       cardGrad.addColorStop(0, 'rgba(38,50,66,0.75)');
       cardGrad.addColorStop(1, 'rgba(24,33,44,0.72)');
       fillRoundRect(ctx, cx, topY, cardW, cardH, 16, cardGrad);
-      strokeRoundRect(ctx, cx, topY, cardW, cardH, 16, fromTint, 2.5);
+      // v1.16.7 渐变描边：上亮（塔色）→ 下隐（透明），替代单色描边
+      const edgeGrad = ctx.createLinearGradient(0, topY, 0, topY + cardH);
+      edgeGrad.addColorStop(0, fromTint);
+      edgeGrad.addColorStop(0.55, fromTint + '99');
+      edgeGrad.addColorStop(1, fromTint + '22');
+      ctx.strokeStyle = edgeGrad; ctx.lineWidth = 2.5;
+      roundRect(ctx, cx, topY, cardW, cardH, 16); ctx.stroke();
       strokeRoundRect(ctx, cx + 1.5, topY + 1.5, cardW - 3, cardH - 3, 14, 'rgba(255,255,255,0.10)', 1);  // 卡内高光
+      // v1.16.7 卡片暗纹：斜向交叉细线（低透明度，打破大面积纯色）
+      ctx.save();
+      ctx.globalAlpha = cAlpha * 0.045;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let d = -cardH; d < cardW + cardH; d += 22) {
+        ctx.moveTo(cx + d, topY + cardH); ctx.lineTo(cx + d + cardH, topY);
+      }
+      for (let d = -cardH; d < cardW + cardH; d += 22) {
+        ctx.moveTo(cx + cardW + cardH - d, topY + cardH); ctx.lineTo(cx + cardW - d, topY);
+      }
+      ctx.stroke();
+      ctx.restore();
       // 顶部玻璃高光条
       const hiGrad = ctx.createLinearGradient(0, topY, 0, topY + 34);
       hiGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
@@ -1744,23 +1784,64 @@ class Renderer {
       ctx.beginPath(); ctx.arc(cx + cardW / 2 - 34, topY + 28, 6, 0, Math.PI * 2);
       ctx.fillStyle = fromTint; ctx.fill();
       text(ctx, fromName, cx + cardW / 2 + 2, topY + 33, 20, '#dbe4ee', 'center');
-      // 上 1/3：技能图标（大圆底 = 来源塔色渐变 + 光晕 + 等级角标）
+      // 上 1/3：技能图标（v1.16.7 六边形徽章：渐变填充 + 白描边 + 旋转虚线光环 + 流光 + 等级角标）
       const iconCx = cx + cardW / 2, iconCy = topY + 118, ir = 52;
-      ctx.globalAlpha = 0.3;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, ir + 13, 0, Math.PI * 2);
-      ctx.fillStyle = fromTint; ctx.fill();
-      ctx.globalAlpha = 1;
+      // 旋转虚线光环（缓慢公转，提示"可选/可强化"）
+      ctx.save();
+      ctx.translate(iconCx, iconCy);
+      ctx.rotate(now / 900 + i * 1.7);
+      ctx.setLineDash([7, 9]);
+      ctx.globalAlpha = cAlpha * (0.4 + 0.25 * breathe);
+      ctx.strokeStyle = fromTint; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, ir + 15, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      // 徽章外光晕（呼吸）
+      ctx.globalAlpha = cAlpha * (0.16 + 0.12 * breathe);
+      ctx.fillStyle = fromTint;
+      ctx.beginPath(); ctx.arc(iconCx, iconCy, ir + 13, 0, Math.PI * 2); ctx.fill();
+      // 六边形徽章体（渐变填充）
+      ctx.globalAlpha = cAlpha;
+      const hex = (cxx, cyy, rr, rot) => {
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = rot + k * Math.PI / 3;
+          const px = cxx + Math.cos(a) * rr, py = cyy + Math.sin(a) * rr;
+          if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      };
       const grad = ctx.createLinearGradient(iconCx - ir, iconCy - ir, iconCx + ir, iconCy + ir);
       grad.addColorStop(0, lighten(fromTint, 1.35)); grad.addColorStop(1, fromTint);
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, ir, 0, Math.PI * 2);
+      hex(iconCx, iconCy, ir * cScale, Math.PI / 6);
       ctx.fillStyle = grad; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(iconCx, iconCy, ir, 0, Math.PI * 2); ctx.stroke();
-      text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx, iconCy + 8, 56, '#ffffff', 'center');
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 3;
+      ctx.stroke();
+      // 徽章内玻璃高光（上半部）
+      ctx.globalAlpha = cAlpha * 0.22;
+      ctx.fillStyle = '#ffffff';
+      hex(iconCx, iconCy - ir * 0.28 * cScale, ir * 0.72 * cScale, Math.PI / 6);
+      ctx.fill();
+      ctx.globalAlpha = cAlpha;
+      // 徽章内流光（斜向亮带缓缓扫过）
+      const streak = ((now / 1600 + i * 0.33) % 1);
+      ctx.save();
+      hex(iconCx, iconCy, (ir - 3) * cScale, Math.PI / 6);
+      ctx.clip();
+      ctx.globalAlpha = cAlpha * 0.28;
+      ctx.fillStyle = '#ffffff';
+      const sx0 = iconCx - ir * 2 + streak * ir * 4;
+      ctx.beginPath();
+      ctx.moveTo(sx0 - 14, iconCy - ir * 1.4); ctx.lineTo(sx0 + 14, iconCy - ir * 1.4);
+      ctx.lineTo(sx0 - 4, iconCy + ir * 1.4); ctx.lineTo(sx0 - 32, iconCy + ir * 1.4);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = cAlpha;
+      text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx, iconCy + 8, 52, '#ffffff', 'center');
       // 等级角标（选择后达到的等级）
-      fillRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, upgrading ? '#f7c948' : '#2c3542');
-      strokeRoundRect(ctx, iconCx + ir - 18, iconCy - ir + 2, 38, 38, 19, 'rgba(255,255,255,0.6)', 1.5);
-      text(ctx, `Lv${targetLv}`, iconCx + ir + 1, iconCy - ir + 22, 18, upgrading ? '#1a1a1a' : '#ffffff', 'center');
+      fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
+      strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
+      text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
       // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范）
       const nameY = topY + 224;
       // v1.14 提示优化：分支卡 = 金色胶囊标签（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
@@ -1791,12 +1872,12 @@ class Renderer {
         const fn = (CONFIG.COLORS[CONFIG.TOWERS[ef.fromTower] && CONFIG.TOWERS[ef.fromTower].color] || {}).name || ef.fromTower;
         text(ctx, `来自${fn}`, cx + cardW / 2, topY + 268 + lines.length * 26 + 24, 17, '#8ea3b8', 'center');
       }
-      // 选择按钮（卡底部；渐变立体：投影 + 高光）
+      // 选择按钮（卡底部；v1.16.7 塔色渐变立体：投影 + 高光）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
       fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
       const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
-      btnGrad.addColorStop(0, '#4a8ac4');
-      btnGrad.addColorStop(1, '#2c5f8f');
+      btnGrad.addColorStop(0, lighten(fromTint, 1.28));
+      btnGrad.addColorStop(1, fromTint);
       fillRoundRect(ctx, btnX, btnY, btnW, btnH, 14, btnGrad);
       strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 14, 'rgba(255,255,255,0.30)', 1.5);
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
@@ -1804,6 +1885,7 @@ class Renderer {
       text(ctx, '选择', btnX + btnW / 2, btnY + btnH / 2, 28, '#ffffff', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
+    ctx.globalAlpha = 1;
   }
 
   /** 波次结束弹窗：展示奖励，点击「继续」进入三选一或下一波；返回按钮命中检测 */
