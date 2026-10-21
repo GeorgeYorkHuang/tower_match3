@@ -1007,15 +1007,13 @@ class CombatSystem {
     }
   }
 
-  /* 普攻流血（v1.16.12 回旋镖塔）：随移动距离结算伤害；「放血」强化（v1.16.14：基础每跳翻倍 / A +50%/级 / B 时长+1s/级 / C 流血减速 20%） */
+  /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
   applyBleed(e, dmg) {
-    const bLv = this.lv('boomerang', '放血');
     e.bleedT = 4 + 1 * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
-    e._bleedDmg = dmg * 0.10 * (bLv > 0 ? 2 * (1 + 0.5 * this.branchLv('boomerang', '放血', 'A')) : 1); // 每移动100px结算
+    const cLv = this.branchLv('boomerang', '放血', 'C');
+    e._bleedDmg = dmg * (0.40 + 0.20 * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
     e._bleedDist = 0;
     e._bleedLastY = e.y;
-    // 放血 C 血迟：流血敌人减速 20%
-    if (this.branchLv('boomerang', '放血', 'C') > 0) this.applySlow(e, 0.20, 1.5);
     // 流血视觉：暗红血珠粒子
     this.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
   }
@@ -1398,8 +1396,10 @@ class CombatSystem {
       this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
     this.damage(e, v, 'boomerang');
-    // 普攻流血（v1.16.12）：20% 概率施加流血，随移动距离结算伤害（持续 4s，每移动 100px 跳一次）
-    if (Math.random() < 0.20) this.applyBleed(e, v);
+    // 普攻流血（v1.16.21）：20% 概率；「放血」+25%（20→45%）、A 刺骨 +15%/级（45→90%）
+    const bleedLv = this.lv('boomerang', '放血');
+    const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0);
+    if (Math.random() < bleedChance) this.applyBleed(e, v);
     // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
     const fold = this.lv('boomerang', '折返增伤');
     if (fold > 0) {

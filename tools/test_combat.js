@@ -765,17 +765,17 @@ t('回旋镖·多镖：多投且单镖衰减（B 稳镖减半）', () => {
   sweeps.forEach((s) => assert.ok(Math.abs(s.dmg - dmg * (1 - 0.12 * 0.5)) < 0.01, 'B 稳镖：单镖衰减减半为 6%'));
 });
 
-t('回旋镖·放血：强化流血伤害与时长（替换穿透，v1.16.14）', () => {
+t('回旋镖·放血：强化流血（v1.16.21：+25% 概率 / A 刺骨 +15%/级 / B 时长 / C 溃烂）', () => {
   const g = mkGame({ boomerang: { 放血: { A: 1, B: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
   const e = mkEnemy(10000, 375, 700); g.enemies.push(e);
   const orig = Math.random; Math.random = () => 0; // 必触发流血
   try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
   assert.strictEqual(e.bleedT, 5, 'B1 流血时间应为 4+1=5s');
-  assert.ok(Math.abs(e._bleedDmg - (100 * 0.10 * 2 * 1.5)) < 0.01, 'A1 每跳 = 10%×2×(1+0.5) = 30 点');
+  assert.ok(Math.abs(e._bleedDmg - 40) < 0.01, '每 100px 应 40%（每10px 4%，A 不影响伤害）');
   const hp0 = e.hp;
   e.y += 100; c.tickStatus(e, 0.1);
-  assert.ok(Math.round(hp0 - e.hp) === 30, '移动 100px 应结算 30 点流血伤害');
+  assert.ok(Math.round(hp0 - e.hp) === 40, '移动 100px 应结算 40 点流血伤害');
 });
 
 t('冰·冰冻：基础 20% 概率，A 分支档位提升、B 深结时长', () => {
@@ -967,12 +967,32 @@ t('普攻·镖塔：20% 概率流血，随移动距离结算伤害', () => {
   const orig = Math.random; Math.random = () => 0; // 必触发
   try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
   assert.ok(e.bleedT === 4, '应施加 4s 流血');
-  assert.ok(Math.abs(e._bleedDmg - 10) < 0.01, '每 100px 应结算 10%×命中伤害');
+  assert.ok(Math.abs(e._bleedDmg - 40) < 0.01, '每 100px 应结算 40%×命中伤害（每10px 4%）');
   const hp0 = e.hp;
   e.y += 100;                      // 敌人移动 100px
   c.tickStatus(e, 0.1);
   assert.ok(e.hp < hp0, '移动 100px 后应结算一次流血伤害');
-  assert.strictEqual(Math.round(hp0 - e.hp), 10, '本次跳伤应等于 10 点');
+  assert.strictEqual(Math.round(hp0 - e.hp), 40, '本次跳伤应等于 40 点');
+});
+
+t('放血·镖塔：+25% 概率（20→45）、A 刺骨 +15%/级、C 溃烂每10px 4%→6/8/10%', () => {
+  const g = mkGame({ boomerang: { 放血: { A: 1, B: 1, C: 2 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  // 概率：20+25+15 = 60% → Math.random 0.99 不触发
+  const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
+  const orig = Math.random; Math.random = () => 0.99;
+  try { c.hit('boomerang', e1, 100); } finally { Math.random = orig; }
+  assert.ok(!e1.bleedT, '60% 概率下 0.99 不应触发');
+  // Math.random 0 → 触发；C2 → 每100px 40%+40%=80%
+  const e2 = mkEnemy(1000, 375, 700); g.enemies.push(e2);
+  Math.random = () => 0;
+  try { c.hit('boomerang', e2, 100); } finally { Math.random = orig; }
+  assert.ok(e2.bleedT === 5, 'B1 时长应 4+1=5s');
+  assert.ok(Math.abs(e2._bleedDmg - 80) < 0.01, `C2 每100px 应 80%（40%+2×20%），实际 ${e2._bleedDmg}`);
+  const hp0 = e2.hp;
+  e2.y += 100;
+  c.tickStatus(e2, 0.1);
+  assert.strictEqual(Math.round(hp0 - e2.hp), 80, '本次跳伤应等于 80 点');
 });
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
