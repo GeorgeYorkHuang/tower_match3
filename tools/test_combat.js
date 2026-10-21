@@ -822,12 +822,16 @@ t('炮·地雷阵：每 15 秒城墙前布雷，踩中爆炸', () => {
   assert.ok(e.hp < 2000, '敌人踩中地雷应爆炸受伤');
 });
 
-t('炮·炮台：周期召唤自动炮台独立炮击', () => {
+t('炮·炮台：周期召唤自动炮台独立炮击（v1.16.18 无敌人不部署）', () => {
   const g = mkGame({ cannon: { 炮台: { A: 1 } } }, ['cannon']);
   const c = new CombatSystem(g);
+  // 无敌人：CD 到点不部署
+  c.update(20.02);
+  assert.ok(!c.turrets || c.turrets.length === 0, '场上无敌人时不部署炮台');
+  // 有敌人：CD 到点部署
+  const e = mkEnemy(2000, 375, 700); g.enemies.push(e);
   c.update(10.01);
   assert.ok(c.turrets.length >= 2, 'A1 应部署 2 门炮台');
-  const e = mkEnemy(2000, 375, 700); g.enemies.push(e);
   for (let i = 0; i < 120 && e.hp > 0; i++) c.update(1 / 60);
   assert.ok(e.hp < 2000, '炮台应独立炮击敌人');
 });

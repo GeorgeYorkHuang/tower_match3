@@ -189,7 +189,7 @@ t('进入战斗：0 塔开局，最先消除的颜色解锁出战塔（跨局解
   assert.strictEqual(game.state, 'menu', '应能返回主界面');
 });
 
-t('跨塔升级三选一：候选跨池 + 应用扣触发塔 pending', () => {
+t('升级三选一：单塔池候选 + 应用扣触发塔 pending（v1.16.18）', () => {
   game.meta.towerUnlocks = ['fire', 'ice'];
   game.newRun(true);
   // v1.6：塔位由本局消除决定——此处模拟本局已解锁两塔
@@ -203,12 +203,13 @@ t('跨塔升级三选一：候选跨池 + 应用扣触发塔 pending', () => {
   assert.ok(q.length >= 1, '应有升级队列');
   const g0 = q.find((x) => x.tower === 'fire');
   assert.ok(g0 && g0.candidates.length === 3, '每组 3 候选');
-  const hasCross = q.some((x) => x.candidates.some((c) => c.fromTower !== x.tower));
-  console.log(`      跨塔候选出现：${hasCross}`);
+  const crossOk = q.every((x) => x.candidates.every((c) => c.fromTower === x.tower));
+  assert.ok(crossOk, '候选只出本塔自己的技能（单塔池，不再跨塔混池）');
   const beforeFire = eff.tower('fire').pending;
   const res = eff.tower('fire').applyChoice(g0.candidates[0]);
   assert.ok(res.ok, '应用应成功');
   assert.strictEqual(eff.tower('fire').pending, beforeFire - 1, '触发塔 pending 应 -1');
+  assert.strictEqual(eff.tower('fire').level, 2, '升级的是哪个塔 → 哪个塔涨 1 级');
   eff.tower('fire').pending = 0;
   eff.tower('ice').pending = 0;
 });

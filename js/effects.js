@@ -171,8 +171,8 @@ class TowerBuild {
   }
 
   /**
-   * 应用一次选择（玩家从 pickChoices/upgradeChoices 结果中选中一项）。
-   * 同塔候选（池内引用）作用于本塔；跨塔候选（upgradeChoices 带 fromTower）作用于来源塔。
+   * 应用一次选择（玩家从 pickChoices 结果中选中一项）。
+   * v1.16.18 三选一候选为单塔池：候选来自触发塔（group.tower），选中后作用于本塔并涨 1 级。
    * 技能卡（未激活）：激活（默认分支 A Lv1；槽满且 SWAP_ON_FULL → 替换非目标特效）；
    * 分支卡（已激活技能未满分支）：该分支 Lv+1（封顶 maxLevel）。
    * 返回 {ok, activated, replaced, leveled}。
@@ -329,22 +329,9 @@ class EffectManager {
   }
 
   /**
-   * 升级三选一候选（v1.11）：跨塔混池——从所有已拥有塔（ownedKeys）收集
-   * 未激活技能（技能卡）与已激活技能未满分支（分支卡），随机 pickSize 个。
-   * 返回候选对象数组（带 fromTower；applyChoice 按 fromTower 定位真实池）。
+   * 生成升级三选一队列：按塔序，每 pending 一组（v1.16.18 候选为该塔自己的技能池——
+   * 「这次机会属于哪个塔就出哪个塔的卡，选中后该塔涨 1 级」）。
    */
-  upgradeChoices(ownedKeys) {
-    const cands = [];
-    ownedKeys.forEach((k) => {
-      const t = this.towers[k];
-      if (!t || t.level === 0) return;
-      t._choices().forEach((e) => cands.push(e));
-    });
-    shuffle(cands);
-    return cands.slice(0, CONFIG.EFFECT.pickSize);
-  }
-
-  /** 生成升级三选一队列：按塔序，每 pending 一组（跨塔候选） */
   buildUpgradeQueue(ownedKeys) {
     const queue = [];
     ownedKeys.forEach((k) => {
@@ -352,7 +339,7 @@ class EffectManager {
       if (!t) return;
       const total = t.pending;
       for (let i = 0; i < total; i++) {
-        const cands = this.upgradeChoices(ownedKeys);
+        const cands = t.pickChoices(false);
         if (!cands.length) { t.pending = 0; break; }
         queue.push({ tower: k, candidates: cands, target: null });
       }

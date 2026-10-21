@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.17';       // v1.16.17 塔详情/塔位条显示塔自身等级（选择次数+1），不再显示整体总等级
+const GAME_VERSION = 'v1.16.18';       // v1.16.18 三选一候选单塔池（升级哪个塔→哪个塔涨级）+ 毒棒/炮台无敌人不释放
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

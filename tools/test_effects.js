@@ -229,8 +229,8 @@ t('v1.11 分支独立升级：只升对应分支', () => {
   assert.strictEqual(ef.level, 2, '分支 Lv1 → 技能 Lv2（1+分支）');
 });
 
-/* 13. v1.11 升级三选一跨塔混池：候选带来源塔，含两级类型 */
-t('v1.11 升级三选一跨塔混池', () => {
+/* 13. v1.16.18 升级三选一单塔池：候选只出本塔技能（不再跨塔混池） */
+t('v1.16.18 升级三选一单塔池', () => {
   const m = freshManager();
   m.tower('fire').applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' });
   m.tower('ice').applyChoice({ name: '冰冻', type: 'skill', fromTower: 'ice' });
@@ -239,9 +239,9 @@ t('v1.11 升级三选一跨塔混池', () => {
   assert.ok(all.some((e) => e.fromTower === 'ice' && e.type === 'branch'), '应含冰塔已激活技能分支卡');
   m.tower('fire').pending = 1;
   const q = m.buildUpgradeQueue(['fire', 'ice']);
-  assert.strictEqual(q.length, 1, '1 次待选 1 组');
+  assert.strictEqual(q.length, 1, '1 次待选 1 组（fire）');
   q[0].candidates.forEach((e) => {
-    assert.ok(['fire', 'ice'].includes(e.fromTower), '候选带来源塔');
+    assert.strictEqual(e.fromTower, 'fire', '候选全部来自本塔 fire（单塔池）');
   });
 });
 

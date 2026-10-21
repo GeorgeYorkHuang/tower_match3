@@ -1722,10 +1722,11 @@ class CombatSystem {
         this.timers.stick = 0;
         const n = 1 + this.branchLv('poison', '毒棒', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0);
+        if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
         for (let i = 0; i < n; i++) {
-          const near = alive.length ? alive[Math.floor(Math.random() * alive.length)] : null;
-          const px = near ? near.x + (Math.random() - 0.5) * 60 : 375;
-          const py = near ? near.y + (Math.random() - 0.5) * 60 : 600;
+          const near = alive[Math.floor(Math.random() * alive.length)];
+          const px = near.x + (Math.random() - 0.5) * 60;
+          const py = near.y + (Math.random() - 0.5) * 60;
           const ttl = 10 + 2 * this.branchLv('poison', '毒棒', 'B');
           this.poisonSticks = this.poisonSticks || [];
           this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.24, targets: 1 + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
@@ -1804,10 +1805,11 @@ class CombatSystem {
         this.timers.turret = 0;
         const n = 1 + this.branchLv('cannon', '炮台', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0);
+        if (!alive.length) return;   // v1.16.18 没有敌人时不部署炮台
         for (let i = 0; i < n; i++) {
-          const near = alive.length ? alive[Math.floor(Math.random() * alive.length)] : null;
-          const px = near ? near.x + (Math.random() - 0.5) * 90 : 375;
-          const py = near ? near.y + (Math.random() - 0.5) * 90 : 600;
+          const near = alive[Math.floor(Math.random() * alive.length)];
+          const px = near.x + (Math.random() - 0.5) * 90;
+          const py = near.y + (Math.random() - 0.5) * 90;
           const ttl = 8 + 2 * this.branchLv('cannon', '炮台', 'B');
           this.turrets = this.turrets || [];
           this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: 0.9, dmg: this.shotDmg('cannon') * 0.68, r: 100 * (1 + 0.3 * this.branchLv('cannon', '炮台', 'C')) });
