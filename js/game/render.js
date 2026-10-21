@@ -1871,7 +1871,7 @@ class Renderer {
         text(ctx, b[1], bx + btnW / 2, by + 38, 24, '#ffffff', 'center');
       });
     });
-    text(ctx, '点上方“出战塔”配技能 · 点“更换”切塔 · A/B/C 分支循环 0→3', 375, cY + 216, 16, '#5b6b7c', 'center');
+    text(ctx, '点上方“出战塔”配技能 · 点“更换”切塔 · 分支按钮循环 0→3', 375, cY + 216, 16, '#5b6b7c', 'center');
     // 返回主界面
     push('tf_back', null, 100, 1490, 550, 76);
     fillRoundRect(ctx, 100, 1490, 550, 76, 18, 'rgba(255,255,255,0.06)');
@@ -1898,13 +1898,22 @@ class Renderer {
     text(ctx, '✕', px + pw - 47, py + 50, 26, '#ffffff', 'center');
     // 8 技能行
     const rowH = 108, rY0 = py + 84;
+    const pool = CONFIG.EFFECT_POOLS[key] || [];
     tower.skills.forEach((sk, i) => {
       const ry = rY0 + i * rowH;
       if (i > 0) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(px + 24, ry - 6, pw - 48, 1); }
       fillRoundRect(ctx, px + 24, ry + 14, 52, 52, 10, sk.level > 0 ? sk.color : 'rgba(255,255,255,0.06)');
       text(ctx, sk.icon, px + 50, ry + 48, 26, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'center');
       text(ctx, sk.name, px + 92, ry + 34, 22, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'left');
-      text(ctx, `A${sk.branches.A}B${sk.branches.B}C${sk.branches.C}${sk.level > 0 ? ' · Lv' + sk.level : ' · 未激活'}`, px + 92, ry + 62, 16, sk.level > 0 ? '#7ef0a3' : '#5b6b7c', 'left');
+      // v1.16.3：分支等级行用真实分支名（branchName 提取 config 文案冒号前名称），不再用 A/B/C 代号
+      const cfg = pool.find((q) => q.name === sk.name) || null;
+      const bn = (br) => this.branchName(cfg, br);
+      const parts = [];
+      ['A', 'B', 'C'].forEach((br) => {
+        const lv = sk.branches[br];
+        parts.push(`${bn(br)}${lv > 0 ? '·Lv' + lv : ''}`);
+      });
+      text(ctx, `${parts.join('  ')}${sk.level > 0 ? ' · 技能Lv' + sk.level : ' · 未激活'}`, px + 92, ry + 62, 15, sk.level > 0 ? '#7ef0a3' : '#5b6b7c', 'left');
       const bW = 96, bH = 52, bGap = 8;
       const b0 = px + pw - 24 - (bW * 4 + bGap * 3);
       [['A', '#ff6b6b'], ['B', '#f7c948'], ['C', '#7ca8ff']].forEach(([br, col], bi) => {
@@ -1913,7 +1922,9 @@ class Renderer {
         push('panel_branch', { name: sk.name, br }, bx, ry + 24, bW, bH);
         fillRoundRect(ctx, bx, ry + 24, bW, bH, 10, lv > 0 ? col : 'rgba(255,255,255,0.06)');
         strokeRoundRect(ctx, bx, ry + 24, bW, bH, 10, col, lv > 0 ? 1.5 : 0.8);
-        text(ctx, `${br}${lv > 0 ? '·Lv' + lv : ''}`, bx + bW / 2, ry + 58, 20, lv > 0 ? '#ffffff' : col, 'center');
+        // 按钮显示真实分支名（短名），激活时附 Lv
+        const bTxt = `${bn(br)}${lv > 0 ? '·Lv' + lv : ''}`;
+        text(ctx, bTxt, bx + bW / 2, ry + 58, bTxt.length > 4 ? 16 : 20, lv > 0 ? '#ffffff' : col, 'center');
       });
       // 清除按钮（第 4 位）
       const bx0 = b0 + 3 * (bW + bGap);
@@ -1927,7 +1938,7 @@ class Renderer {
     push('panel_all', null, px + 40, by, 250, 48);
     fillRoundRect(ctx, px + 40, by, 250, 48, 12, 'rgba(46,204,113,0.2)');
     strokeRoundRect(ctx, px + 40, by, 250, 48, 12, '#2ecc71', 1.2);
-    text(ctx, '⚡ 全部激活（A·Lv3）', px + 165, by + 32, 20, '#7ef0a3', 'center');
+    text(ctx, '⚡ 全部激活（各分支 Lv3）', px + 165, by + 32, 20, '#7ef0a3', 'center');
     push('panel_clear', null, px + pw - 290, by, 250, 48);
     fillRoundRect(ctx, px + pw - 290, by, 250, 48, 12, 'rgba(255,255,255,0.06)');
     strokeRoundRect(ctx, px + pw - 290, by, 250, 48, 12, '#5b6b7c', 1.2);

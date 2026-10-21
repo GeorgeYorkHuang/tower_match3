@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.2';        // v1.16.2 中毒层数标识：敌人身上毒泡数量=叠层层数 + 头顶层数数字
+const GAME_VERSION = 'v1.16.3';        // v1.16.3 测试战场技能面板：分支按钮与等级行显示真实分支名（替代 A/B/C 代号）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
