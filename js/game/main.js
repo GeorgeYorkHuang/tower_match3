@@ -403,15 +403,15 @@ class GameMain {
     for (const e of this.enemies) {
       if (e.y < wallLine) continue;
       if (e.frozen > 0 || e.paralyzed > 0) continue;
-      // 毒·瘴气环境：环内敌人命中率下降（15% 概率攻击落空，v1.15）
-      if (e._miasma && Math.random() < 0.15) continue;
+      // 毒·瘴气：环内敌人命中率下降（20% 概率攻击落空，v1.16.21）
+      if (e._miasma && Math.random() < 0.20) continue;
       // 冰墙攻击间隔迟缓计时（v1.16.21：被冰墙迟缓的敌人攻击间隔 +0.5s）
       if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowAdd = 0; }
       const eAtkInt = (e.attackInterval || 1) + (e.atkSlowAdd || 0);
       e.attackT = (e.attackT || 0) + dt;
       if (e.attackT >= eAtkInt) {
         e.attackT -= eAtkInt;
-        // 毒·瘴气环境 C：环内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）
+        // 毒·瘴气 C：瘴内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）
         const atkDmg = e.attack * (e._miasmaAtkMult || 1);
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {

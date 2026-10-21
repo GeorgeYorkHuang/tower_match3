@@ -437,22 +437,23 @@ class CombatSystem {
         this.fxParticle(e.x, e.y - 10, '#7dcea0', 3, 24, 0.4, 80, 4);
       }
     }
-    // 毒·瘴气环境（v1.15）：塔口常驻光环——范围内敌人每秒叠毒 + 命中率下降标记；C 环内中毒敌攻击降低
-    const miasma = this.lv('poison', '瘴气环境');
+    // 毒·瘴气（v1.16.21 重做）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——每 2s 叠毒 1 层 + 命中率下降标记；B 中毒 dot 伤 +30%；C 瘴内中毒敌攻击降低
+    const miasma = this.lv('poison', '瘴气');
     if (miasma > 0) {
-      const mr = 220 * (1 + 0.4 * this.branchLv('poison', '瘴气环境', 'A'));
-      const mus = this.towerMuzzle('poison');
-      const inM = Math.hypot(e.x - mus.x, e.y - mus.y) <= mr;
+      const wallY = (this.game.ly && this.game.ly.wallY) ? this.game.ly.wallY : 967;
+      const half = 20 * (1 + 0.2 * this.branchLv('poison', '瘴气', 'A'));
+      const inM = Math.abs(e.y - (wallY - 50)) <= half;
       e._miasma = inM;
       if (inM) {
         e._miaT = (e._miaT || 0) + dt;
-        if (e._miaT >= 1) {
-          e._miaT -= 1;
-          this.applyPoison(e, this.shotDmg('poison') * (1 + 0.3 * this.branchLv('poison', '瘴气环境', 'B')), 'poison', 1);
+        if (e._miaT >= 2) {
+          e._miaT -= 2;
+          const bOn = this.branchLv('poison', '瘴气', 'B') > 0 ? 1.3 : 1;
+          this.applyPoison(e, this.shotDmg('poison') * bOn, 'poison', 1);
         }
         if (Math.random() < 0.4) this.fxParticle(e.x, e.y - 6, '#7ee2a8', 1, 16, 0.6, 50, 4);
       }
-      const cLv = this.branchLv('poison', '瘴气环境', 'C');
+      const cLv = this.branchLv('poison', '瘴气', 'C');
       e._miasmaAtkMult = (cLv > 0 && inM && this.hasDot(e, 'poison')) ? (1 - [0, 0.2, 0.35, 0.5][cLv]) : 1;
     } else {
       e._miasma = false;
@@ -1208,7 +1209,7 @@ class CombatSystem {
     e.slow.mult = 1 - mult;
   }
 
-  /* ============ 毒塔（v1.15 重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气环境） ============ */
+  /* ============ 毒塔（v1.15 重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气） ============ */
   hitPoison(e, dmg) {
     // v1.16.21 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）
     let prob = 0.20;

@@ -702,18 +702,18 @@ t('毒·瘟疫：中毒敌人减速 20% + 周期传染判定', () => {
   assert.ok(e2.dots.find((d) => d.type === 'poison'), '应传染给周边敌人');
 });
 
-t('毒·瘴气环境：光环内敌人持续叠毒 + 标记命中率下降 + C 攻击力降低', () => {
-  const g = mkGame({ poison: { '瘴气环境': { C: 2 } } });
+t('毒·瘴气：城墙上方毒瘴区域内敌人 2s 叠毒 + 标记命中率下降 + C 攻击力降低', () => {
+  const g = mkGame({ poison: { '瘴气': { C: 2 } } });
   const c = new CombatSystem(g);
-  const e = mkEnemy(5000, 375, 1079); g.enemies.push(e); // 塔口附近
-  const e2 = mkEnemy(5000, 700, 300); g.enemies.push(e2); // 光环外
+  const e = mkEnemy(5000, 375, 917); g.enemies.push(e); // 城墙上方 50px 毒瘴条带内（wallY=967 → 中心 917）
+  const e2 = mkEnemy(5000, 700, 300); g.enemies.push(e2); // 毒瘴外
   const orig = Math.random; Math.random = () => 0; // 上毒必中
-  try { c.update(1.1); } finally { Math.random = orig; }
-  assert.ok(e._miasma === true, '光环内敌人应标记瘴气');
+  try { c.update(2.1); } finally { Math.random = orig; }
+  assert.ok(e._miasma === true, '毒瘴内敌人应标记瘴气');
   assert.ok(e._miasmaAtkMult === 0.65, '瘴气 C 级 2 → 攻击力 -35%');
-  assert.ok(!e2._miasma, '光环外敌人不应标记');
+  assert.ok(!e2._miasma, '毒瘴外敌人不应标记');
   const dot = e.dots.find((d) => d.type === 'poison');
-  assert.ok(dot && dot.stack >= 1, '光环内应每秒叠毒');
+  assert.ok(dot && dot.stack >= 1, '毒瘴内应每 2s 叠毒');
 });
 
 t('毒·毒爆 C：死亡后留毒沼（4s 每秒 +1 层）', () => {
