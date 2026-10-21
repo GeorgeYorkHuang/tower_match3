@@ -395,17 +395,18 @@ t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰
   assert.ok(!c.shots.some((s) => s.scatter), '散射弹道命中后消失（或射界耗尽）');
 });
 
-t('火·火焰鹰眼两极反转：越近伤害越高', () => {
-  const g = mkGame({ fire: { 火焰鹰眼: { C: 2 } } });
+t('火·烈焰墙：周期在最近怪物处释放火墙（释放伤害 + 灼烧 + C迟滞减速）', () => {
+  const g = mkGame({ fire: { 烈焰墙: 2 } });   // lv2 速记：A/B/C 全 2
   const c = new CombatSystem(g);
-  const near = mkEnemy(10000, 370, 950); g.enemies.push(near);  // 距塔行 1079 → 129（近）
-  const far = mkEnemy(10000, 370, 820); g.enemies.push(far);    // 距塔行 1079 → 259（远）
-  const hpN0 = near.hp, hpF0 = far.hp;
-  c.hit('fire', near, 100);
-  c.hit('fire', far, 100);
-  const dNear = hpN0 - near.hp, dFar = hpF0 - far.hp;
-  assert.ok(dNear > 0 && dFar > 0, '两目标都应受伤害');
-  assert.ok(dNear > dFar, '距塔越近伤害越高（两极反转）');
+  const e1 = mkEnemy(3000, 370, 800); g.enemies.push(e1);   // 最近的怪（y=800，作为墙心）
+  const e2 = mkEnemy(3000, 420, 800); g.enemies.push(e2);   // x 差 50 < 墙半宽 70（B2 宽 140）→ 墙内
+  c.tickPeriodic(15);   // 触发火墙释放
+  assert.ok(e1.hp < 3000 && e2.hp < 3000, '释放瞬间墙内敌人应受 50%×1.4 伤害');
+  assert.ok(c.fireWalls && c.fireWalls.length === 1, '应生成持续火墙');
+  // 墙持续期间：推进 0.6s → 墙内灼烧 + C2 迟滞减速 20%
+  c.update(0.6);
+  assert.ok(e1.dots.some((d) => d.type === 'burn'), '墙内敌人应被灼烧');
+  assert.ok(e1.slow && e1.slow.mult === 0.8, 'C2 迟滞应减速 20%');
 });
 
 t('火·火柱：周期技对随机敌人范围爆炸', () => {
@@ -419,24 +420,24 @@ t('火·火柱：周期技对随机敌人范围爆炸', () => {
   assert.ok(e2.hp < 2000, '火柱范围应波及邻近敌人');
 });
 
-t('火·火雨：每波 3 批×2-5 颗独立落下，落地结算伤害+灼烧', () => {
+t('火·火雨：分波结算伤害（每 0.5s 一波·每波 24%）', () => {
   const g = mkGame({ fire: { 火雨: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(5000, 370, 800); g.enemies.push(e1);
-  c.tickPeriodic(12); // 触发火雨（3 波 × 3 批 × 每批 2-5 颗）
+  c.tickPeriodic(12); // 触发火雨（A 速记 1 → 4 波 × 3 批 × 每批 2-5 颗）
   const drops = g.fx.filter((f) => f.type === 'raindrop');
-  assert.ok(drops.length >= 18, `基础 3 波×3 批×2 颗 → 至少 18 颗火雨点（实际 ${drops.length}）`);
-  assert.ok(drops.length <= 45, `每批至多 5 颗 → 至多 45 颗（实际 ${drops.length}）`);
+  assert.ok(drops.length >= 24, `4 波×3 批×2 颗 → 至少 24 颗火雨点（实际 ${drops.length}）`);
+  assert.ok(drops.length <= 60, `每批至多 5 颗 → 至多 60 颗（实际 ${drops.length}）`);
   drops.forEach((d) => {
     assert.ok(d.ty - d.y === 260, '火雨点起点应在落点上方 260px（平行圈内）');
     assert.ok(d.tx === d.x, '火雨点垂直落下（起点/落点同列）');
   });
-  // 落地结算：把一发火雨点放到敌人身上，推进后敌人受伤并带灼烧
+  // 波结算：第一波在全部颗落地后（t≈0.6s）对火雨圈内敌人结算 24%×1.4 伤害并灼烧
   c.rainWaves = c.rainWaves || [];
-  c.rainWaves.push({ t: 0.01, dx: e1.x, dy: e1.y, r: 80, dmg: 60, ignite: 0 });
+  c.rainWaves.push({ t: 0.01, px: e1.x, py: e1.y, r: 168, dmg: 60 });
   c.update(1 / 60);
-  assert.ok(e1.hp < 5000, '落地结算：落点半径内敌人受火雨伤害（30% 段伤）');
-  assert.ok(e1.dots.some((d) => d.type === 'burn'), '落地结算：火雨造成灼烧效果');
+  assert.ok(e1.hp < 5000, '波结算：火雨圈内敌人受每波 24% 伤害');
+  assert.ok(e1.dots.some((d) => d.type === 'burn'), '波结算：火雨造成灼烧效果');
 });
 
 t('死亡触发：爆燃（灼烧敌人死亡时概率爆炸波及邻近）', () => {

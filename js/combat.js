@@ -5,7 +5,7 @@
  *   - 每座塔按自己的 atkInterval 独立攻击（真实节奏、真实目标、真实弹道）
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
- *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
+ *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 烈焰墙 / 火雨（区域多段）
  *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
@@ -120,11 +120,7 @@ class CombatSystem {
   /** 塔当前射程（射程/技能叠加） */
   range(key) {
     const cfg = CONFIG.TOWERS[key];
-    let r = cfg.range;
-    // 火·火焰鹰眼：学技能基础射程 +25%（鹰眼索敌）；A（延伸）每级再 +30%（v1.16.20 补回基础加成）
-    const hawkLv = this.lv('fire', '火焰鹰眼');
-    if (key === 'fire' && hawkLv > 0) r *= 1.25 * (1 + 0.30 * this.branchLv('fire', '火焰鹰眼', 'A'));
-    return r;
+    return cfg.range;   // v1.16.21：火焰鹰眼重做为「烈焰墙」，不再提供射程加成
   }
 
   /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径） */
@@ -861,22 +857,10 @@ class CombatSystem {
     this.fxFlash(e.x, e.y, '#ffffff', 0.25);
   }
 
-  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/火焰鹰眼/火雨） ============ */
+  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
   hitFire(e, dmg) {
     const g = this.game;
-    // 火焰鹰眼：B 锐目伤害 +15%/级；C 两极反转——伤害随距离反比（最近 100% → 最远 40%，每级反转加大）
-    let mult = 1;
-    const hawkB = this.branchLv('fire', '火焰鹰眼', 'B');
-    if (hawkB > 0) mult *= (1 + 0.15 * hawkB);
-    const hawkC = this.branchLv('fire', '火焰鹰眼', 'C');
-    if (hawkC > 0) {
-      const sy = this.ly().slotY + this.ly().slotSize / 2;
-      const r = this.range('fire');
-      const dist = Math.min(r, Math.abs(sy - e.y));
-      const minMult = 0.40 - 0.10 * (hawkC - 1);   // Lv1 0.40 → Lv2 0.30 → Lv3 0.20
-      mult *= (minMult + (1 - minMult) * (1 - dist / r));
-    }
-    dmg *= mult;
+    // v1.16.21：火焰鹰眼已重做为「烈焰墙」（周期技），此处不再有普攻乘区
 
     // 普攻灼烧（v1.16.21）：基础 20% 概率灼烧；学「点燃」后命中附加灼烧几率 +25%（A 炽焰每级再 +15%）
     const ignite = this.lv('fire', '点燃');
@@ -1462,10 +1446,59 @@ class CombatSystem {
         this.pillarWaves = remaining;
       }
     }
+    // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长100px·宽30px·持续6s）
+    //   释放瞬间对墙区域敌人造成 50% 攻击伤害（A 神火 +20/40/60%）；墙持续期间每 0.5s 灼烧 + C 迟滞减速 10/20/30%
+    const wall = this.lv('fire', '烈焰墙');
+    if (wall > 0) {
+      this.timers.fireWall = (this.timers.fireWall || 0) + dt;
+      if (this.timers.fireWall >= 15) {
+        this.timers.fireWall = 0;
+        const alive = this.enemies().filter((e) => e.hp > 0);
+        if (alive.length) {
+          const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
+          const aLv = this.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
+          const bLv = this.branchLv('fire', '烈焰墙', 'B');   // 引燃 范围 +20/40/60%
+          const cLv = this.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
+          const w = 100 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
+          const h = 30 * (1 + [0, 0.2, 0.4, 0.6][bLv]);
+          const wDmg = this.shotDmg('fire') * 0.50 * (1 + [0, 0.2, 0.4, 0.6][aLv]);
+          this.enemies().forEach((o) => {
+            if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) this.damage(o, wDmg, 'fire');
+          });
+          this.fireWalls = this.fireWalls || [];
+          this.fireWalls.push({ x: tgt.x, y: tgt.y, w, h, ttl: 6, cLv, tick: 0 });
+          g.fx.push({ type: 'fireWall', x: tgt.x, y: tgt.y, w, h, t: 0, dur: 6, seed: Math.random() * 100 });
+        }
+      } else {
+        // 墙持续（触发帧不扣 ttl，从下一帧开始计时）：每 0.5s 对墙内敌人灼烧；C 迟滞减速（10/20/30%）
+        if (this.fireWalls && this.fireWalls.length) {
+          const rem = [];
+          for (const wl of this.fireWalls) {
+            wl.ttl -= dt;
+            wl.tick -= dt;
+            if (wl.ttl <= 0) continue;
+            if (wl.tick <= 0) {
+              wl.tick = 0.5;
+              this.enemies().forEach((o) => {
+                if (o.hp <= 0) return;
+                if (Math.abs(o.x - wl.x) <= wl.w / 2 && o.y >= wl.y - wl.h / 2 && o.y <= wl.y + wl.h / 2) {
+                  this.applyBurn(o, this.shotDmg('fire'), 'fire');
+                  if (wl.cLv > 0) {
+                    const sm = 1 - [0, 0.1, 0.2, 0.3][wl.cLv];
+                    if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: 0.6 };
+                  }
+                }
+              });
+            }
+            rem.push(wl);
+          }
+          this.fireWalls = rem;
+        }
+      }
+    }
     // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨
-    // v1.13.14 动画+机制重做：每波 0.1s 内随机生成 3 批（每批 2-5 颗）火雨点，起点在区域圈上方 260px 平行圈内随机，
-    //   独立落下（下落 0.5s），每 0.3s 一波（基础 3 波，A 波次+1）；火雨点落地瞬间才结算伤害（30%）并造成灼烧；
-    //   B 猛烈 +50%/级、C 引燃 50% 概率灼烧加深
+    // v1.16.21 机制重做：分 3 波结算伤害，每 0.5s 一波，每波对火雨圈内敌人造成 24% 伤害（B 猛烈 +40/80/120%·档位）；
+    //   C 由「引燃」改为「扩张」范围 +20/40/60%；波内动画保留（3 批×2-5 颗独立落下），伤害在整波落地后结算一次并灼烧
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
@@ -1473,13 +1506,14 @@ class CombatSystem {
         this.timers.fireRain = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
-          const segR = 140;                        // 火雨圈半径（区域标识 + 落点采样范围）
-          const perR = 80;                         // 单发落点伤害半径
-          const segDmg = this.shotDmg('fire') * 0.24 * (1 + 0.5 * this.branchLv('fire', '火雨', 'B'));
-          const igniteLv = this.branchLv('fire', '火雨', 'C');
-          const waves = 3 + this.branchLv('fire', '火雨', 'A');
-          const gap = 0.3;                         // 每 0.3s 一波
-          const FALL = 0.5;                        // 单颗下落时长（与 render raindrop 同步）
+          const bLv = this.branchLv('fire', '火雨', 'B');
+          const cLv = this.branchLv('fire', '火雨', 'C');
+          const segR = 140 * (1 + [0, 0.2, 0.4, 0.6][cLv]);       // 火雨圈半径（C 扩张 +20/40/60%）
+          const perR = 80;                                        // 火雨点视觉落点半径
+          const segDmg = this.shotDmg('fire') * 0.24 * (1 + [0, 0.4, 0.8, 1.2][bLv]);   // 每波 24% 伤害（B +40/80/120%）
+          const waves = 3 + this.branchLv('fire', '火雨', 'A');   // 基础 3 波，A 波次 +1
+          const gap = 0.5;                                        // 每 0.5s 一波
+          const FALL = 0.5;                                        // 单颗下落时长（与 render raindrop 同步）
           const tgt = alive[Math.floor(Math.random() * alive.length)];
           const px = tgt.x + (Math.random() - 0.5) * 20;
           const py = tgt.y + (Math.random() - 0.5) * 20;
@@ -1488,7 +1522,7 @@ class CombatSystem {
             const w0 = w * gap;
             // 区域圈 fx：整波持续（生成 0.1s + 下落 0.5s + 落地余焰）
             g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w0, dur: 0.1 + FALL + 0.25, seed: Math.random() * 100 });
-            // 每波 3 批，0.1s 内随机时刻生成，每批 2-5 颗，独立落下
+            // 波内视觉：3 批，0.1s 内随机时刻生成，每批 2-5 颗，独立落下（伤害按整波在最后落地时刻结算一次）
             for (let b = 0; b < 3; b++) {
               const cnt = 2 + Math.floor(Math.random() * 4);   // 2-5 颗
               for (let k = 0; k < cnt; k++) {
@@ -1497,36 +1531,30 @@ class CombatSystem {
                 const dx = px + Math.cos(ang) * rr;
                 const dy = py + Math.sin(ang) * rr;
                 const s = Math.random() * 0.1;            // 0.1s 内随机生成时刻
-                const t0 = w0 + s + FALL;                 // 落地（结算）时刻
-                this.rainWaves.push({ t: t0, dx, dy, r: perR, dmg: segDmg, ignite: igniteLv });
-                // 火雨点 fx：起点 = 落点正上方 260px（与火雨圈平行的圈内），独立落下
                 g.fx.push({ type: 'raindrop', x: dx, y: dy - 260, tx: dx, ty: dy, t: -(w0 + s), dur: FALL + 0.25, r: perR, seed: Math.random() * 100 });
               }
             }
+            // 每波一次结算：全部颗落地后（t = w0 + 0.1 + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
+            this.rainWaves.push({ t: w0 + 0.1 + FALL, px, py, r: segR, dmg: segDmg });
           }
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
       }
-      // 延迟结算：火雨点落地瞬间造成伤害 + 灼烧（v1.13.14 每发独立结算，替换整波 explode）
+      // 延迟结算：每波在全部颗落地后对火雨圈内敌人结算 24% 伤害 + 灼烧（v1.16.21 由每颗结算改为每波结算）
       if (this.rainWaves && this.rainWaves.length) {
         const remaining = [];
         for (const wv of this.rainWaves) {
           wv.t -= dt;
           if (wv.t <= 0) {
             this.enemies().forEach((o) => {
-              if (o.hp > 0 && Math.hypot(o.x - wv.dx, o.y - wv.dy) <= wv.r) {
+              if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r) {
                 this.damage(o, wv.dmg, 'fire');
                 this.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
               }
             });
-            if (wv.ignite > 0) {
-              this.enemies().forEach((o) => {
-                if (o.hp > 0 && Math.hypot(o.x - wv.dx, o.y - wv.dy) <= wv.r && Math.random() < 0.50) this.applyBurn(o, wv.dmg, 'fire');
-              });
-            }
-            // 落地小爆焰（轻量，替代 explode 重特效）
-            this.fxParticle(wv.dx, wv.dy, '#ff7043', 5, wv.r * 0.5, 0.3, 120, 4);
-            this.fxRing(wv.dx, wv.dy, '#ff9f43', wv.r, 0.25, 2);
+            // 落地余焰（轻量，替代 explode 重特效）
+            this.fxParticle(wv.px, wv.py, '#ff7043', 5, wv.r * 0.5, 0.3, 120, 4);
+            this.fxRing(wv.px, wv.py, '#ff9f43', wv.r, 0.35, 3);
           } else {
             remaining.push(wv);
           }

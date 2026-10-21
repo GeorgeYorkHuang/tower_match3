@@ -1754,6 +1754,41 @@ class Renderer {
           }
           ctx.globalAlpha = 1;
         }
+      } else if (f.type === 'fireWall') {
+        // 火焰墙（v1.16.21 烈焰墙）：长条可穿越火墙（长 w·宽 h·持续 6s），火焰上下跳动 + 地面余焰 + 上升火花
+        const p = Math.min(1, f.t / f.dur);
+        const cx = f.x, cy = f.y, w = f.w || 100, h = f.h || 30, seed = f.seed || 0;
+        const fade = p < 0.1 ? p / 0.1 : (p > 0.85 ? (1 - p) / 0.15 : 1);
+        // 地面红晕（墙体底缘）
+        ctx.globalAlpha = 0.25 * fade;
+        ctx.fillStyle = 'rgba(255,112,67,0.4)';
+        ctx.beginPath(); ctx.ellipse(cx, cy + h / 2, w * 0.55, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        // 主火焰条：N 段竖火焰沿 x 排列，上下跳动
+        const segs = Math.max(4, Math.round(w / 14));
+        for (let i = 0; i < segs; i++) {
+          const s = ((i * 5171 + seed * 13) % 97) / 97;
+          const fx = cx - w / 2 + (i + 0.5) * (w / segs);
+          const sway = Math.sin(p * 18 + i * 1.7 + seed) * 4;
+          const hh = h * (0.75 + 0.35 * s) + Math.sin(p * 24 + i * 2.1) * 4;
+          const col = i % 3 === 0 ? '#e74c3c' : (i % 3 === 1 ? '#ff7043' : '#ff9f43');
+          ctx.globalAlpha = (0.55 + 0.3 * s) * fade;
+          ctx.fillRect(fx - (w / segs) * 0.34, cy + h / 2 - hh, (w / segs) * 0.68, hh);
+          drawFlameTongue(ctx, fx, cy + h / 2 - hh, (w / segs) * 0.9, 8 + 4 * s, sway, col, 0.9 * fade);
+        }
+        // 内部亮芯（发光跳动）
+        ctx.globalAlpha = (0.35 + 0.25 * Math.sin(p * 26 + seed)) * fade;
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(cx - w * 0.32, cy + h / 2 - h * 0.55, w * 0.64, h * 0.55);
+        // 上升火花
+        for (let i = 0; i < 5; i++) {
+          const s = ((i * 8191 + seed * 7) % 89) / 89;
+          const ex = cx - w / 2 + (s - 0.2) * w * 0.9;
+          const ey = cy + h / 2 - (0.2 + s * 0.8) * h * 1.4 - Math.sin(p * 22 + i * 1.3) * 6;
+          ctx.fillStyle = s < 0.6 ? '#ff7043' : '#ffd24a';
+          ctx.globalAlpha = (0.3 + s * 0.5) * fade;
+          ctx.beginPath(); ctx.arc(ex, ey, 1.6 + s * 2.4, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       } else if (f.type === 'rain') {
         // 火雨区域标识（v1.13.14）：双环 + 半透明红晕，标注火雨覆盖圈（火雨点由独立 raindrop fx 绘制）
         const p = Math.min(1, f.t / f.dur);
