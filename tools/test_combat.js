@@ -850,7 +850,8 @@ t('回旋镖·弹力镖：每 8 秒射 2 枚十字镖（A 增镖 +1/级），遇
   // A1 → 3 枚；随机方向可能不立即命中 → 先验证发射数量
   c.update(8.01);
   assert.ok(c.shots.filter((s) => s.bounce).length >= 3, 'A1 应射出 3 枚弹力镖');
-  // 单枚镖碰敌结算：构造一枚直冲敌人的弹力镖（小步推进，途中碰撞不跳帧）
+  // 清掉系统随机镖，只保留构造的直冲镖做单镖命中断言
+  c.shots = c.shots.filter((s) => !s.bounce);
   const e = mkEnemy(10000, 400, 1000); g.enemies.push(e);
   const dmg = c.shotDmg('boomerang') * 0.60;
   c.shots.push({ key: 'boomerang', dmg, t: 0, dur: 8, x: 375, y: 1103, ang: Math.atan2(1000 - 1103, 400 - 375), speed: 400, bounce: true, bounces: 0, maxB: 10, hitR: 30, hitIds: {} });
