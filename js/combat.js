@@ -99,8 +99,7 @@ class CombatSystem {
     // 冰·低温全塔：全塔 +10%/级，冰塔额外 +15%/级
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
-    // 回旋镖·接镖 A 疾投：攻速 +15%/级（v1.16 重做）
-    if (key === 'boomerang') iv /= (1 + 0.15 * this.branchLv('boomerang', '接镖', 'A'));
+    // 回旋镖·接镖 A 已改为飞行速度提升（v1.16.5，见发射段 bDur），不再提供攻速加成
     // 炮·双管齐射 C 速射：+12%/级；军火库 A 速填：+15%/级（v1.16 重做）
     if (key === 'cannon') iv /= (1 + 0.12 * this.branchLv('cannon', '双管齐射', 'C') + 0.15 * this.branchLv('cannon', '军火库', 'A'));
     // 炮·军火库 B 协同：全塔攻速 +8%/级（炮塔在场即全塔生效）
@@ -683,9 +682,12 @@ class CombatSystem {
       const nextBoost = this._nextDmg[key] || 0;   // 接镖 C 续投：下镖伤害 +10%/级
       this._nextDmg[key] = 0;
       // 怪物只沿 +y 走向城墙（main.moveEnemy），预测位移 = speed × 减速系数 × 到达弧顶时间（dur×0.53）
+      // v1.16.5 接镖 A 疾飞：镖飞行速度 +20%/级 → 飞行时长缩短、命中与接回更快
+      const flyBoost = 1 + 0.20 * this.branchLv('boomerang', '接镖', 'A');
+      const bDur = dur / flyBoost;
       const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
       const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
-      const aimY = Math.min(target.y + target.speed * slowMult * dur * 0.53, wallY);
+      const aimY = Math.min(target.y + target.speed * slowMult * bDur * 0.53, wallY);
       const n = 1 + multi;
       const decay = multi > 0 ? (0.12 * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? 0.5 : 1) : 0;
       const perDmg = dmg * (1 - decay) * (1 + nextBoost);
@@ -704,8 +706,8 @@ class CombatSystem {
         const rx = ex0 - sx, ry = ey0 - sy;
         const ex = sx + rx * cos - ry * sin;
         const ey = sy + rx * sin + ry * cos;
-        this.shots.push({ key, dmg: perDmg, t: 0, dur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
-        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur, key });
+        this.shots.push({ key, dmg: perDmg, t: 0, dur: bDur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
+        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key });
       }
     } else {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });

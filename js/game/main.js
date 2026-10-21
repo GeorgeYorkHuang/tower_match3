@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.5';        // v1.16.5 技能等级口径：激活=技能Lv1(分支0)、选分支=技能Lv2(分支1)、满级Lv4；数值与原版等价；sim 确定性修复
+const GAME_VERSION = 'v1.16.6';        // v1.16.6 回旋镖·接镖 A 分支改为「疾飞：镖飞行速度 +20%/级」（替代原攻速加成）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
