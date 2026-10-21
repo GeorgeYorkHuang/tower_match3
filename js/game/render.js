@@ -1665,48 +1665,26 @@ class Renderer {
           ctx.globalAlpha = 1;
         }
       } else if (f.type === 'cyclone') {
-        // 回旋镖·风暴镖（v1.16）：紫色旋风（旋转风轨 + 中心涡眼 + 飘散镖影）
-        const p = Math.min(1, f.t / f.dur);
-        const R = f.r || 130;
-        const seed = f.seed || 0;
-        ctx.globalAlpha = 0.65;
-        ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 3;
-        for (let ringI = 0; ringI < 3; ringI++) {
-          const rr = R * (0.4 + 0.3 * ringI);
-          ctx.beginPath();
-          for (let a = 0; a <= Math.PI * 2.2; a += 0.35) {
-            const wob = 1 + 0.12 * Math.sin(a * 3 + p * 10 + ringI * 2);
-            const px = f.x + Math.cos(a + p * (2.2 + ringI * 0.8)) * rr * wob;
-            const py = f.y + Math.sin(a + p * (2.2 + ringI * 0.8)) * rr * wob;
-            if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-          }
-          ctx.stroke();
+        // v1.16.21 风暴镖重做：三同心圈（不可见）沿圈旋转的小飞镖（10px），引用 combat 实时 darts（命中消失同步）
+        const darts = f.darts || [];
+        for (const d of darts) {
+          const px = f.x + Math.cos(d.a) * d.r;
+          const py = f.y + Math.sin(d.a) * d.r;
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(d.a);
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = '#8e44ad';
+          ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = '#c39bd3'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(-4.5, 0); ctx.lineTo(4.5, 0); ctx.stroke();
+          ctx.lineCap = 'butt';
+          ctx.restore();
         }
-        ctx.fillStyle = 'rgba(142,68,173,0.35)';
-        ctx.beginPath(); ctx.arc(f.x, f.y, R * 0.25, 0, Math.PI * 2); ctx.fill();
-        // v1.16.6 风眼旋转闪光（白色亮心 + 高速旋转高光）
-        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(p * 24 + (f.seed || 0));
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(f.x, f.y, 6 + 3 * Math.sin(p * 18), 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#e8daef'; ctx.lineWidth = 2;
-        for (let k = 0; k < 3; k++) {
-          const a = p * 14 + k * 2.094;
-          ctx.beginPath();
-          ctx.moveTo(f.x, f.y);
-          ctx.lineTo(f.x + Math.cos(a) * R * 0.4, f.y + Math.sin(a) * R * 0.4);
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 0.9;
-        for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * Math.PI * 2 + p * 5;
-          const px = f.x + Math.cos(a) * R * 0.5;
-          const py = f.y + Math.sin(a) * R * 0.5;
-          ctx.fillStyle = i % 2 ? '#c39bd3' : '#d2b4de';
-          ctx.beginPath();
-          ctx.arc(px, py, 3 + (i % 2) * 1.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
       } else if (f.type === 'pillar') {
         // 火柱帧动画（v1.13.9）：地上火圈标记(0~25%) → 冲天圆柱火柱(25~70%) → 白热冲击(70~82%) → 余烬消散
         // dur 2.4s（v1.13.9 放慢一倍）；伤害在地面圈画完后由 combat 延迟结算，动画与伤害一致

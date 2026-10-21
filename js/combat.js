@@ -331,21 +331,26 @@ class CombatSystem {
         }
       }
     }
-    // 3.9 回旋镖·风暴镖（v1.16）：持续伤害圈（每秒 dps），C 卷风减速 20%
+    // 3.9 回旋镖·风暴镖（v1.16.21 重做）：三同心圈旋转小飞镖（圈不可见），内/中/外圈 4/6/8 枚，每镖独立命中造成 10% 伤害，命中即消失
     if (this.storms && this.storms.length) {
       for (let i = this.storms.length - 1; i >= 0; i--) {
         const st = this.storms[i];
         st.ttl -= dt;
         if (st.ttl <= 0) { this.storms.splice(i, 1); continue; }
-        this.enemies().forEach((o) => {
-          if (o.hp <= 0 || Math.hypot(o.x - st.x, o.y - st.y) > st.r) return;
-          this.damage(o, st.dps * dt, 'boomerang');
-          if (st.slow) this.applySlow(o, 0.20, 0.2);
-        });
-        if (Math.random() < 0.6) {
-          const ang = Math.random() * Math.PI * 2;
-          const rr = Math.sqrt(Math.random()) * st.r;
-          this.fxParticle(st.x + Math.cos(ang) * rr, st.y + Math.sin(ang) * rr, '#c39bd3', 2, 20, 0.4, 90, 4);
+        const ds = st.darts;
+        for (let j = ds.length - 1; j >= 0; j--) {
+          const d = ds[j];
+          d.a += st.spd * dt;
+          const dx = st.x + Math.cos(d.a) * d.r;
+          const dy = st.y + Math.sin(d.a) * d.r;
+          const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - dx, o.y - dy) < 14);
+          if (hitE && !d.hitIds[hitE.id]) {
+            d.hitIds[hitE.id] = true;
+            this.damage(hitE, st.perDmg, 'boomerang');
+            this.fxFlash(dx, dy, '#c39bd3');
+            this.fxParticle(dx, dy, '#c39bd3', 3, 16, 0.25, 80, 4);
+            ds.splice(j, 1);
+          }
         }
       }
     }
@@ -2003,7 +2008,7 @@ class CombatSystem {
         }
       }
     }
-    // 回旋镖·风暴镖（v1.16 周期）：每 12 秒在敌人密集区召唤回旋镖风暴（持续3s，圈内每秒 45%×烈风 伤害；A 扩域 +30%/级；C 卷风减速 20%）
+    // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖 10% 伤害，命中即消失；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
     const cyclone = this.lv('boomerang', '风暴镖');
     if (cyclone > 0) {
       this.timers.storm = (this.timers.storm || 0) + dt;
@@ -2012,10 +2017,19 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
-          const sr = 145 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'A'));
-          const dps = this.shotDmg('boomerang') * 0.44 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'B'));
+          const rings = [40, 80, 120];
+          const baseN = [4, 6, 8];
+          const nAdd = this.branchLv('boomerang', '风暴镖', 'C');
+          const perDmg = this.shotDmg('boomerang') * 0.10 * (1 + 0.2 * this.branchLv('boomerang', '风暴镖', 'B'));
+          const spd = 2.4 * (1 + 0.25 * this.branchLv('boomerang', '风暴镖', 'A'));
+          const darts = [];
+          rings.forEach((r, ri) => {
+            const n = baseN[ri] + nAdd;
+            for (let i = 0; i < n; i++) darts.push({ r, a: (Math.PI * 2 * i) / n, hitIds: {} });
+          });
           this.storms = this.storms || [];
-          this.storms.push({ x: t.x, y: t.y, r: sr, ttl: 3, dps, slow: this.branchLv('boomerang', '风暴镖', 'C') > 0 });          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: sr, t: 0, dur: 3, seed: Math.random() * 100 });
+          this.storms.push({ x: t.x, y: t.y, r: 120, ttl: 3, spd, darts, perDmg });
+          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts, spd });
         }
       }
     }

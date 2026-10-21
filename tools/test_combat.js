@@ -833,15 +833,23 @@ t('回旋镖·风痕：镖路径留痕（A 久痕）', () => {
   assert.ok(c.windTrails && c.windTrails.length > 0, '镖路径应留下风痕');
 });
 
-t('回旋镖·风暴镖：每 12 秒召唤持续伤害旋风（A 扩域）', () => {
-  const g = mkGame({ boomerang: { 风暴镖: { A: 1 } } }, ['boomerang']);
+t('回旋镖·风暴镖：每 12 秒召唤三圈旋转小飞镖（C 增镖每圈 +1）', () => {
+  const g = mkGame({ boomerang: { 风暴镖: { C: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
-  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
+  const e = mkEnemy(10000, 375, 700); g.enemies.push(e);
   c.update(12.01);
   assert.strictEqual(c.storms.length, 1, '应生成 1 个风暴镖');
-  const hp0 = e.hp;
-  for (let i = 0; i < 30; i++) c.update(1 / 60); // 0.5s 圈内 DoT
-  assert.ok(e.hp < hp0, '风暴内敌人应持续受伤');
+  const s = c.storms[0];
+  assert.strictEqual(s.darts.length, 21, 'C1 应 21 枚镖（4/6/8 + 每圈1）');
+  assert.strictEqual(s.darts.filter((d) => d.r === 40).length, 5, '内圈 5 枚');
+  assert.strictEqual(s.darts.filter((d) => d.r === 80).length, 7, '中圈 7 枚');
+  assert.strictEqual(s.darts.filter((d) => d.r === 120).length, 9, '外圈 9 枚');
+  // 敌人放在内圈镖初始轨道上（释放即命中）
+  const e2 = mkEnemy(10000, 375 + 40, 700); g.enemies.push(e2);
+  const hp0 = e2.hp;
+  for (let i = 0; i < 30; i++) c.update(1 / 60); // 0.5s 旋转
+  assert.ok(e2.hp < hp0, '旋转小飞镖应独立命中敌人造成伤害');
+  assert.ok(e.hp === 10000, '圆心处敌人不应被镖扫到（圈轨道外）');
 });
 
 t('回旋镖·弹力镖：每 8 秒射 2 枚十字镖（A 增镖 +1/级），遇敌反弹结算伤害、边缘反弹、反弹 10 次后消失', () => {
