@@ -771,13 +771,14 @@ class CombatSystem {
     return null;
   }
 
-  /** 回旋镖轨迹点（v1.9）：椭圆大弧——镖从塔出发，划弧越过投掷方向最远点后继续绕回塔（非原路径折返） */
+  /** 回旋镖轨迹点（v1.9）：椭圆大弧——镖从塔出发，划弧越过投掷方向最远点后继续绕回塔（非原路径折返）
+   *  v1.16.21 去程命中点提前：长半轴 a = dist×5/6 → 顶点位于目标后 dist/3 处，目标恰在塔到弧线顶点距离的 3/4 位置被命中（原 a = dist/2+20，目标几乎在顶点处命中） */
   sweepPos(s, p) {
     const dx = s.tx - s.sx, dy = s.ty - s.sy;
     const dist = Math.hypot(dx, dy) || 1;
     const cxn = dx / dist, cyn = dy / dist;          // 投掷方向单位向量
     const arcH = 160;                                 // 椭圆短半轴（弧高，垂直投掷方向）
-    const a = dist / 2 + 20;                          // 长半轴（沿投掷方向，保证越过怪物）
+    const a = dist * 5 / 6;                          // 长半轴（沿投掷方向；0.75×(dist/2+a) = dist → 目标在去程 3/4 处）
     const cx = s.sx + cxn * (dist / 2);               // 椭圆中心（塔与怪物中点）
     const cy = s.sy + cyn * (dist / 2);
     const total = Math.PI * 1.9;                      // 342°：从塔端绕 0.95 圈回塔
