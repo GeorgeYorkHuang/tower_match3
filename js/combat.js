@@ -404,7 +404,7 @@ class CombatSystem {
       }
       if (e.bleedT <= 0) { e.bleedT = 0; e._bleedDist = 0; }
     }
-    // 瘟疫传染（毒·瘟疫 v1.15）：中毒敌人减速 20% + 周期判定传染（A 判定 1.7/1.5/1.3s；B 范围 +25px/级；C 概率 +30pp/级 cap 100%）
+    // 瘟疫传染（毒·瘟疫 v1.15；v1.16.21 C 概率调整）：中毒敌人减速 20% + 周期判定传染（A 判定 1.7/1.5/1.3s；B 范围 +25px/级；C 概率 +10pp/级 30→40/50/60%）
     const plague = this.lv('poison', '瘟疫');
     if (plague > 0 && this.hasDot(e, 'poison')) {
       // 减速：中毒敌人移速 ×0.8（与冰减速并存取更慢）
@@ -415,7 +415,7 @@ class CombatSystem {
       const ivP = [0, 2, 1.7, 1.5, 1.3][this.branchLv('poison', '瘟疫', 'A')] || 2;
       if (e._plagueT >= ivP) {
         e._plagueT -= ivP;
-        const prob = Math.min(1, 0.30 + 0.30 * this.branchLv('poison', '瘟疫', 'C'));
+        const prob = Math.min(1, 0.30 + 0.10 * this.branchLv('poison', '瘟疫', 'C'));
         if (Math.random() < prob) {
           const rP = 50 + 25 * this.branchLv('poison', '瘟疫', 'B');
           const near = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= rP);
