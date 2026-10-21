@@ -120,7 +120,7 @@ class CombatSystem {
   /** 塔当前射程（射程/技能叠加） */
   range(key) {
     const cfg = CONFIG.TOWERS[key];
-    return cfg.range;   // v1.16.21：火焰鹰眼重做为「烈焰墙」，不再提供射程加成
+    return Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
   }
 
   /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径） */
@@ -1203,6 +1203,11 @@ class CombatSystem {
     return { x: startX + Math.max(0, idx) * slotW + ly.slotSize / 2, y: ly.slotY + ly.slotSize / 2 };
   }
 
+  /** 某点是否在当前塔攻击范围内（与普攻 pickTarget 同口径：行距离 ≤ 射程；v1.16.21 技能释放限定用） */
+  inTowerRange(key, x, y) {
+    return Math.abs(this.towerMuzzle(key).y - y) <= this.range(key);
+  }
+
   hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
 
   /* ============ 电塔 ============ */
@@ -1415,7 +1420,7 @@ class CombatSystem {
       this.timers.firePillar = (this.timers.firePillar || 0) + dt;
       if (this.timers.firePillar >= 10) {
         this.timers.firePillar = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
           const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.30 * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
@@ -1453,7 +1458,7 @@ class CombatSystem {
       this.timers.fireWall = (this.timers.fireWall || 0) + dt;
       if (this.timers.fireWall >= 15) {
         this.timers.fireWall = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
           const aLv = this.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
@@ -1504,7 +1509,7 @@ class CombatSystem {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
       if (this.timers.fireRain >= 12) {
         this.timers.fireRain = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const bLv = this.branchLv('fire', '火雨', 'B');
           const cLv = this.branchLv('fire', '火雨', 'C');
@@ -1568,7 +1573,7 @@ class CombatSystem {
       this.timers.iceFlower = (this.timers.iceFlower || 0) + dt;
       if (this.timers.iceFlower >= 8) {
         this.timers.iceFlower = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
           const n = 1 + this.branchLv('ice', '冰花', 'C');
           const dmg = this.shotDmg('ice') * 0.8 * (1 + 0.4 * this.branchLv('ice', '冰花', 'B'));
@@ -1612,7 +1617,7 @@ class CombatSystem {
       this.timers.frostOrb = (this.timers.frostOrb || 0) + dt;
       if (this.timers.frostOrb >= 10) {
         this.timers.frostOrb = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
           const orbN = 1 + this.branchLv('ice', '冬珠', 'C');
           const r = 110 * (1 + 0.3 * this.branchLv('ice', '冬珠', 'B'));
@@ -1704,7 +1709,7 @@ class CombatSystem {
         const idx = (this.game.run.slotOrder || []).indexOf('electric');
         const tx = startX + (idx < 0 ? 0 : idx) * slotW + ly.slotSize / 2;
         const ty = ly.slotY + ly.slotSize / 2;
-        const range = CONFIG.TOWERS.electric.range;
+        const range = this.range('electric');
         const targets = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range).sort((a, b) => b.y - a.y).slice(0, 3);
         targets.forEach((e) => {
           this.damage(e, dmg, 'electric');
@@ -1739,7 +1744,7 @@ class CombatSystem {
         const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（v1.16.20 修正偏移）
         const dmg = this.shotDmg('electric') * 0.64 * (1 + 0.25 * (storm - 1));
         // 全图随机 N 个存活目标（Fisher-Yates）
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('electric', e.x, e.y));
         const pool = alive.slice();
         for (let i = pool.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -1779,8 +1784,9 @@ class CombatSystem {
       this.timers.pool = (this.timers.pool || 0) + dt;
       if (this.timers.pool >= 5) {
         this.timers.pool = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
-        const tgt = alive.length ? alive[Math.floor(Math.random() * alive.length)] : { x: 375, y: 600 };
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
+        if (!alive.length) return;
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
         const pr = 130 * (1 + 0.3 * this.branchLv('poison', '毒池', 'C'));
         const dps = this.shotDmg('poison') * 0.28 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
         const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
@@ -1798,7 +1804,7 @@ class CombatSystem {
       if (this.timers.stick >= cd) {
         this.timers.stick = 0;
         const n = 1 + this.branchLv('poison', '毒棒', 'A');
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
         for (let i = 0; i < n; i++) {
           const near = alive[Math.floor(Math.random() * alive.length)];
@@ -1820,7 +1826,7 @@ class CombatSystem {
         this.timers.vine = 0;
         const n = 1 + this.branchLv('poison', '毒藤', 'A');
         const dur = 3 + this.branchLv('poison', '毒藤', 'B');
-        const alive = this.enemies().filter((e) => e.hp > 0).sort((a, b) => b.y - a.y);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y)).sort((a, b) => b.y - a.y);
         const picks = alive.slice(0, n);
         const mus = this.towerMuzzle('poison');
         picks.forEach((e) => {
@@ -1838,7 +1844,7 @@ class CombatSystem {
       this.timers.support = (this.timers.support || 0) + dt;
       if (this.timers.support >= 12) {
         this.timers.support = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (alive.length) {
           const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
           const dmg = this.shotDmg('cannon') * 0.72 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
@@ -1881,7 +1887,7 @@ class CombatSystem {
       if (this.timers.turret >= cd) {
         this.timers.turret = 0;
         const n = 1 + this.branchLv('cannon', '炮台', 'A');
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不部署炮台
         for (let i = 0; i < n; i++) {
           const near = alive[Math.floor(Math.random() * alive.length)];
@@ -1901,7 +1907,7 @@ class CombatSystem {
       this.timers.storm = (this.timers.storm || 0) + dt;
       if (this.timers.storm >= 12) {
         this.timers.storm = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
           const sr = 145 * (1 + 0.3 * this.branchLv('boomerang', '风暴镖', 'A'));
@@ -1917,7 +1923,7 @@ class CombatSystem {
       this.timers.ringN = (this.timers.ringN || 0) + dt;
       if (this.timers.ringN >= 10) {
         this.timers.ringN = 0;
-        const alive = this.enemies().filter((e) => e.hp > 0);
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
           const n = 8 + 4 * this.branchLv('boomerang', '镖阵', 'A');
