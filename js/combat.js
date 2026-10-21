@@ -240,8 +240,10 @@ class CombatSystem {
           picks.forEach((o) => {
             this.damage(o, st.dmg, 'poison');
             this.applyPoison(o, this.shotDmg('poison'), 'poison', 1);
-            this.fxBeam(st.x, st.y, o.x, o.y, '#58d68d', 0.25, 2.5);
-            this.fxParticle(o.x, o.y, '#7ee2a8', 4, 30, 0.3, 90, 4);
+            // 毒棒攻击弹道（v1.16.1）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
+            g.fx.push({ type: 'thorn', x: st.x, y: st.y, tx: o.x, ty: o.y, t: 0, dur: 0.25, color: '#2e7d32' });
+            this.fxParticle(o.x, o.y, '#2e7d32', 4, 30, 0.3, 90, 4);
+            this.fxParticle(o.x, o.y, '#6fcf97', 2, 20, 0.25, 70, 3);
           });
         }
       }
@@ -1650,9 +1652,9 @@ class CombatSystem {
         const dps = this.shotDmg('poison') * 0.35 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
         const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
         this.groundDots = this.groundDots || [];
-        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1 });
-        this.fxRing(tgt.x, tgt.y, '#52be80', pr, 0.8, 5);
-        this.fxParticle(tgt.x, tgt.y, '#2ecc71', 8, 60, 0.6, 60, 5);
+        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449' });
+        this.fxRing(tgt.x, tgt.y, '#1e8449', pr, 0.8, 5);
+        this.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
       }
     }
     // 毒·毒棒（v1.15）：周期 4s 召唤毒棒（A 数量 +1/级；B 持续 +2s 且 CD -0.5s/级），毒棒继承 30% 攻击独立攻击 200px 内敌人（C 目标 +1/级）
@@ -1670,9 +1672,9 @@ class CombatSystem {
           const py = near ? near.y + (Math.random() - 0.5) * 60 : 600;
           const ttl = 10 + 2 * this.branchLv('poison', '毒棒', 'B');
           this.poisonSticks = this.poisonSticks || [];
-          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.30, targets: 1 + this.branchLv('poison', '毒棒', 'C') });
-          this.fxRing(px, py, '#52be80', 40, 0.5, 4);
-          this.fxParticle(px, py - 6, '#58d68d', 6, 30, 0.5, 80, 4);
+          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.30, targets: 1 + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+          this.fxRing(px, py, '#1e8449', 40, 0.5, 4);
+          this.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
         }
       }
     }
@@ -1690,8 +1692,9 @@ class CombatSystem {
         picks.forEach((e) => {
           e.frozen = Math.max(e.frozen || 0, dur);
           e._vineT = Math.max(e._vineT || 0, dur);
-          this.fxBeam(mus.x, mus.y, e.x, e.y, '#2ecc71', dur, 4);
-          this.fxRing(e.x, e.y, '#7dcea0', 26, dur, 3);
+          // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
+          g.fx.push({ type: 'vine', x: mus.x, y: mus.y, tx: e.x, ty: e.y, t: 0, dur: 0.55, seed: Math.random() * 100 });
+          this.fxRing(e.x, e.y, '#1e8449', 26, dur, 3);
         });
       }
     }

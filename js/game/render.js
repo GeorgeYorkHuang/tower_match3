@@ -681,6 +681,40 @@ class Renderer {
           }
         });
       }
+      // v1.16.1 毒藤持续缠绕：被缠敌人（_vineT>0）身上绿色藤蔓螺旋缠绕 + 叶片脉动，缠绕越久越紧
+      if (e._vineT > 0) {
+        const cx = x + size / 2, cy = y + size / 2;
+        const tNow = Date.now();
+        const iv = Math.max(0, Math.min(1, e._vineT / 3)); // 剩余比例（基准 3s）
+        const pulse = 1 + 0.06 * Math.sin(tNow / 260 + (e.id || 0) % 7);
+        const spin = tNow / 500 + (e.id || 0);
+        ctx.strokeStyle = '#27ae60'; ctx.globalAlpha = 0.55 + 0.3 * Math.sin(tNow / 150);
+        ctx.lineWidth = 3 * pulse;
+        for (let k = 0; k < 3; k++) {
+          ctx.beginPath();
+          const ph0 = spin + k * 2.094;
+          for (let s = 0; s <= 12; s++) {
+            const ph = ph0 + s * 0.52;
+            const wob = 1 + 0.14 * Math.sin(ph * 2.2 + (e.id || 0));
+            const px = cx + Math.cos(ph) * size * 0.5 * wob * (1 - s / 14);
+            const py = cy + Math.sin(ph) * size * 0.34 * wob - size * 0.12 + (s / 12) * size * 0.55;
+            if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+        // 叶片：沿缠绕藤随机分布的绿色小叶（确定性相位）
+        for (let k = 0; k < 6; k++) {
+          const ph = tNow / 300 + k * 1.047 + (e.id || 0);
+          const lx = cx + Math.cos(ph) * size * 0.52;
+          const ly = cy + Math.sin(ph) * size * 0.36;
+          ctx.fillStyle = k % 2 ? '#2ecc71' : '#27ae60';
+          ctx.globalAlpha = 0.5 + 0.35 * Math.sin(tNow / 190 + k * 1.9);
+          ctx.beginPath();
+          ctx.arc(lx, ly, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       // 个体血条：实色当前血量 + 浅色延迟尾条（直接伤害后尾条缓慢收缩，一眼区分
       // 「直接伤一跳」（hp 瞬掉 + 尾条明显）与「持续伤平滑掉」（尾条几乎贴合））
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
@@ -696,6 +730,95 @@ class Renderer {
       ctx.fillStyle = '#ff6b6b';
       ctx.fillRect(bx, by, bw * ratio, bh);
     });
+  }
+
+  /** 地面持续效果（v1.16.1）：毒池毒液池（深绿帧动画冒泡）+ 毒棒召唤物（帧动画图标）——画在敌人下层 */
+  groundFx(ctx, combat) {
+    if (!combat) return;
+    const tNow = Date.now();
+    // 毒池：半透明深绿毒液池（多层椭圆呼吸）+ 边缘泡沫 + 气泡上升帧动画
+    if (combat.groundDots && combat.groundDots.length) {
+      combat.groundDots.forEach((gd) => {
+        if (gd.key !== 'poison' || gd.ttl <= 0) return;
+        const seed = gd.seed || 0;
+        const fade = Math.min(1, gd.ttl / 1.2); // 接近结束淡出
+        const R = gd.r || 130;
+        const breathe = 1 + 0.05 * Math.sin(tNow / 320 + seed);
+        // 外圈深绿液池
+        ctx.fillStyle = '#145a32'; ctx.globalAlpha = 0.45 * fade;
+        ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.62 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+        // 内圈稍亮毒液
+        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.38 * fade;
+        ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * 0.66 * breathe, R * 0.42 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+        // 高光毒斑
+        ctx.fillStyle = '#28b463'; ctx.globalAlpha = 0.22 * fade;
+        ctx.beginPath(); ctx.ellipse(gd.x - R * 0.18, gd.y - R * 0.08, R * 0.28, R * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+        // 边缘泡沫（绕池边抖动）
+        ctx.fillStyle = '#58d68d'; ctx.globalAlpha = 0.5 * fade;
+        for (let k = 0; k < 14; k++) {
+          const ph = ((tNow / 700 + k / 14 + seed) % 1);
+          const a = ph * Math.PI * 2;
+          const rr = R * (0.94 + 0.04 * Math.sin(tNow / 220 + k * 1.7));
+          const bx = gd.x + Math.cos(a) * rr;
+          const by = gd.y + Math.sin(a) * rr * 0.62;
+          const br = 2 + ph * 2;
+          ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+        }
+        // 气泡上升帧动画（池内随机点冒泡）
+        for (let k = 0; k < 5; k++) {
+          const ph = ((tNow / 900 + k / 5 + seed * 0.013) % 1);
+          const bx = gd.x + Math.sin((tNow / 600 + k * 2.1) * 2) * R * 0.35;
+          const by = gd.y + R * 0.3 - ph * R * 0.75;
+          ctx.fillStyle = '#a9dfbf'; ctx.globalAlpha = (0.55 - 0.35 * ph) * fade;
+          ctx.beginPath(); ctx.arc(bx, by, 1.6 + ph * 2.4, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      });
+    }
+    // 毒棒：帧动画图标（木柄 + 顶部毒液囊脉动 + 根部毒圈 + 呼吸光晕）
+    if (combat.poisonSticks && combat.poisonSticks.length) {
+      combat.poisonSticks.forEach((st) => {
+        if (st.ttl <= 0) return;
+        const seed = st.seed || 0;
+        const fade = Math.min(1, st.ttl / 1.5);
+        const pulse = 1 + 0.08 * Math.sin(tNow / 280 + seed);
+        const x = st.x, y = st.y;
+        // 根部毒圈（微光 + 呼吸）
+        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.22 * fade * pulse;
+        ctx.beginPath(); ctx.arc(x, y, 13 * pulse, 0, Math.PI * 2); ctx.fill();
+        // 木柄（斜立，深棕 + 纹理）
+        ctx.save();
+        ctx.translate(x, y - 4); ctx.rotate(-0.18);
+        ctx.fillStyle = '#6d4c41'; ctx.globalAlpha = 0.95 * fade;
+        ctx.fillRect(-3, -22, 6, 24);
+        ctx.fillStyle = '#5d4037';
+        ctx.fillRect(-3, -16, 6, 2);
+        ctx.fillRect(-3, -9, 6, 2);
+        // 顶部毒液囊（深绿圆囊脉动 + 高光）
+        const sacR = 6.5 * pulse;
+        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.95 * fade;
+        ctx.beginPath(); ctx.arc(0, -26, sacR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#28b463';
+        ctx.beginPath(); ctx.arc(-1.5, -28, sacR * 0.45, 0, Math.PI * 2); ctx.fill();
+        // 毒刺（囊顶小三角刺，朝向斜上）
+        ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = 0.9 * fade;
+        ctx.beginPath();
+        ctx.moveTo(3, -27); ctx.lineTo(9, -31); ctx.lineTo(2, -31);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // 毒液滴（囊顶渗出，周期性滴落）
+        const drip = (tNow / 620 + seed * 0.01) % 1;
+        if (drip > 0.55) {
+          const dy = -26 - (drip - 0.55) / 0.45 * 14;
+          ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = (0.9 - drip * 0.4) * fade;
+          ctx.beginPath(); ctx.arc(x, y + dy, 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+        // 呼吸光晕
+        ctx.strokeStyle = '#58d68d'; ctx.lineWidth = 1.5; ctx.globalAlpha = (0.3 + 0.2 * Math.sin(tNow / 300 + seed)) * fade;
+        ctx.beginPath(); ctx.arc(x, y - 4, 16 * pulse, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      });
+    }
   }
 
   /** 打击特效：子弹 / 爆炸帧动画 / 命中闪光（无图回退几何形状） */
@@ -1080,6 +1203,86 @@ class Renderer {
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.fillStyle = f.color || '#ffffff';
         ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (f.type === 'vine') {
+        // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（dur 0.55s）——主藤弯曲生长 + 叶片 + 末端毒花苞绽放
+        const p = Math.min(1, f.t / f.dur);
+        const seed = f.seed || 0;
+        const wobDir = (seed % 2 ? 1 : -1);
+        const dist = Math.hypot(f.tx - f.x, f.ty - f.y) || 1;
+        const grow = Math.min(1, p * 1.35); // 生长进度（略快于总时长，先到位后绽放）
+        // 主藤（贝塞尔弯曲，只画到生长进度）
+        ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        const mx = (f.x + f.tx) / 2 + wobDir * 22 * Math.sin(p * 2 + seed);
+        const my = (f.y + f.ty) / 2 - 8;
+        ctx.quadraticCurveTo(mx, my, f.x + (f.tx - f.x) * grow, f.y + (f.ty - f.y) * grow);
+        ctx.stroke();
+        // 内亮线（藤蔓质感）
+        ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.quadraticCurveTo(mx, my, f.x + (f.tx - f.x) * grow, f.y + (f.ty - f.y) * grow);
+        ctx.stroke();
+        // 叶片（沿藤分布，随生长出现）
+        ctx.fillStyle = '#2ecc71'; ctx.globalAlpha = 0.75;
+        for (let k = 0; k < 4; k++) {
+          const tp = k / 4;
+          if (tp > grow) break;
+          const lx = f.x + (f.tx - f.x) * tp;
+          const ly = f.y + (f.ty - f.y) * tp;
+          const lwob = wobDir * (1 + tp);
+          ctx.beginPath();
+          ctx.ellipse(lx + lwob * 3, ly + Math.sin(tp * 5 + seed) * 4, 3.2, 1.8, tp * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // 末端毒花苞（到达后绽放 + 毒液溅点）
+        if (p > 0.75) {
+          const bloom = (p - 0.75) / 0.25;
+          const bx = f.tx, by = f.ty;
+          ctx.fillStyle = '#28b463'; ctx.globalAlpha = 0.9;
+          ctx.beginPath(); ctx.arc(bx, by, 3 + bloom * 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#58d68d'; ctx.globalAlpha = (1 - bloom) * 0.8;
+          for (let k = 0; k < 6; k++) {
+            const a = k * 1.047 + seed;
+            ctx.beginPath(); ctx.arc(bx + Math.cos(a) * (7 + bloom * 8), by + Math.sin(a) * 4, 1.6, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+      } else if (f.type === 'thorn') {
+        // 毒棒攻击弹道（v1.16.1）：绿色毒刺飞射目标 + 尾随毒粒 + 命中溅射
+        const p = Math.min(1, f.t / f.dur);
+        const x = f.x + (f.tx - f.x) * p;
+        const y = f.y + (f.ty - f.y) * p;
+        const ang = Math.atan2(f.ty - f.y, f.tx - f.x);
+        // 尾随毒粒
+        for (let k = 0; k < 3; k++) {
+          const tp = Math.max(0, p - 0.06 * (k + 1));
+          const px = f.x + (f.tx - f.x) * tp;
+          const py = f.y + (f.ty - f.y) * tp;
+          ctx.fillStyle = '#58d68d'; ctx.globalAlpha = 0.5 * (1 - k / 3) * (1 - p * 0.4);
+          ctx.beginPath(); ctx.arc(px + (Math.random() - 0.5) * 3, py + (Math.random() - 0.5) * 3, 2.2 - k * 0.5, 0, Math.PI * 2); ctx.fill();
+        }
+        // 毒针体（细长三角朝向目标）
+        ctx.save();
+        ctx.translate(x, y); ctx.rotate(ang);
+        ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = 0.95;
+        ctx.beginPath();
+        ctx.moveTo(8, 0); ctx.lineTo(-4, -2.4); ctx.lineTo(-4, 2.4);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#6fcf97'; ctx.globalAlpha = 0.8;
+        ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        // 命中溅射（末尾帧毒液四溅）
+        if (p > 0.85) {
+          const sp = (p - 0.85) / 0.15;
+          ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = (1 - sp) * 0.7;
+          for (let k = 0; k < 5; k++) {
+            const a = k * 1.257 + f.t;
+            ctx.beginPath(); ctx.arc(f.tx + Math.cos(a) * sp * 9, f.ty + Math.sin(a) * sp * 7, 1.6, 0, Math.PI * 2); ctx.fill();
+          }
+        }
         ctx.globalAlpha = 1;
       } else if (f.type === 'mine') {
         // 炮·地雷（v1.16）：城墙前地雷（暗色弹体 + 警示闪光 + 引信），驻留期间闪烁
@@ -1560,7 +1763,7 @@ class Renderer {
 
   /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（v1.4：无配置页） ================= */
   /** v1.14 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
-  testFieldLayer(ctx, s, hits, enemies, fx) {
+  testFieldLayer(ctx, s, hits, enemies, fx, combat) {
     const items = [];
     const push = (id, data, x, y, w, h) => items.push({ id, data, rect: { x, y, w, h }, hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h });
     // 背景
@@ -1590,7 +1793,8 @@ class Renderer {
     text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
     // 城墙（测试战场恒满）
     this.wall(ctx, s.lineHp, s.lineMaxHp);
-    // 敌人与特效（位于战场区，不被控制条覆盖）
+    // 敌人与特效（位于战场区，不被控制条覆盖）；地面持续效果（毒池/毒棒）画在敌人下层
+    if (combat) this.groundFx(ctx, combat);
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
     // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）

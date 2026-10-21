@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.0';        // v1.16.0 炮塔与回旋镖塔技能重做：8技能×3分支（重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库；折返增伤/穿透/多镖/接镖/猎手标记/风暴镖/镖阵/风痕）+ 新特效 + 数值平衡（溅射→重炮协同更名）
+const GAME_VERSION = 'v1.16.1';        // v1.16.1 毒塔特效优化：毒池深绿毒液池（冒泡帧动画）、毒棒帧动画图标+毒刺弹道、毒藤生长动画+持续缠绕
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -629,7 +629,7 @@ class GameMain {
     }
     // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）
     if (this.state === 'testfield') {
-      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx);
+      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
       this.renderer.toast(ctx, this.toasts);
       return;
     }
@@ -638,6 +638,8 @@ class GameMain {
     this.renderer.actionArea(ctx, st);
     // 底部功能键命中区由渲染器生成（renderer.funcHits），同步到 game 供触摸判定
     this.funcHits = this.renderer.funcHits || [];
+    // v1.16.1 地面持续效果（毒池毒液池/毒棒召唤物）画在敌人下层
+    this.renderer.groundFx(ctx, this.combat);
     this.renderer.enemies(ctx, this.enemies);
     this.renderer.fx(ctx, this.fx);
     this.renderer.toast(ctx, this.toasts);
