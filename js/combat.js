@@ -5,7 +5,7 @@
  *   - 每座塔按自己的 atkInterval 独立攻击（真实节奏、真实目标、真实弹道）
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
- *       火：点燃 DoT（燎原/炽热/焚魂）/ 灼烧叠层 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
+ *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
  *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
@@ -353,9 +353,9 @@ class CombatSystem {
         const d = e.dots[i];
         d.ttl -= dt;
         if (d.ttl <= 0) {
-          // 火·点燃 A 燎原：灼烧结束瞬间「余烬爆发」= 期间总灼烧伤害的 30%/级 立即结算
-          if (d.type === 'burn' && this.branchLv('fire', '点燃', 'A') > 0 && d.totalDealt > 0) {
-            this.damage(e, d.totalDealt * 0.30 * this.branchLv('fire', '点燃', 'A'), 'fire');
+          // 火·点燃 C 余烬：灼烧结束瞬间「余烬爆发」= 期间总灼烧伤害的 30% 立即结算
+          if (d.type === 'burn' && this.branchLv('fire', '点燃', 'C') > 0 && d.totalDealt > 0) {
+            this.damage(e, d.totalDealt * 0.30, 'fire');
             this.fxFlash(e.x, e.y, '#ff7043', 0.3);
             this.fxRing(e.x, e.y, '#ff7043', 36, 0.3, 3);
           }
@@ -473,9 +473,12 @@ class CombatSystem {
     if (e.corrode) v *= e.corrode.mult;
     // 冰·寒霜 C 易伤：被减速目标受伤 +15%/级
     if (e.slow && e.slow.ttl > 0) v *= (1 + 0.15 * this.branchLv('ice', '寒霜', 'C'));
-    // 火·点燃 C 焚魂：被灼烧目标受到的伤害 +15%/级（全来源）
-    const vuln = this.branchLv('fire', '点燃', 'C');
-    if (vuln > 0 && this.hasDot(e, 'burn')) v *= (1 + 0.15 * vuln);
+    // 火·灼烧 C 真火：每层灼烧使目标受到的伤害 +10%（全来源，按层数）
+    const trueLv = this.branchLv('fire', '灼烧', 'C');
+    if (trueLv > 0) {
+      const bd = e.dots.find((d) => d.type === 'burn');
+      if (bd) v *= (1 + 0.10 * bd.stack);
+    }
     // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
     const ovB = this.branchLv('electric', '过载', 'B');
     if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
@@ -858,7 +861,7 @@ class CombatSystem {
     this.fxFlash(e.x, e.y, '#ffffff', 0.25);
   }
 
-  /* ============ 火塔（v1.13 重构：点燃/灼烧叠层/火柱/大火球/燃爆/多重火球/火焰鹰眼/火雨） ============ */
+  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/燃爆/多重火球/火焰鹰眼/火雨） ============ */
   hitFire(e, dmg) {
     const g = this.game;
     // 火焰鹰眼：B 锐目伤害 +15%/级；C 两极反转——伤害随距离反比（最近 100% → 最远 40%，每级反转加大）
@@ -875,9 +878,11 @@ class CombatSystem {
     }
     dmg *= mult;
 
-    // 普攻灼烧（v1.16.12）：基础 20% 概率灼烧；学「点燃」后每次命中必灼烧（技能强化）
+    // 普攻灼烧（v1.16.21）：基础 20% 概率灼烧；学「点燃」后命中附加灼烧几率 +25%（A 炽焰每级再 +15%）
     const ignite = this.lv('fire', '点燃');
-    if (ignite > 0 || Math.random() < 0.20) this.applyBurn(e, dmg, 'fire');
+    let burnProb = 0.20;
+    if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
+    if (Math.random() < burnProb) this.applyBurn(e, dmg, 'fire');
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
     const mainMult = big > 0 ? 1.1 : 1;
@@ -930,11 +935,11 @@ class CombatSystem {
     } else {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
     }
-    // 大火球：爆炸范围溅射（扩大 +40%/级、强化 +50%/级、引燃 50% 概率点燃）
+    // 大火球：爆炸范围溅射（扩大 +30%/级、强化 +20%/级、引燃 50%/75%/100% 概率点燃）
     if (big > 0) {
-      const r = 130 * (1 + 0.4 * this.branchLv('fire', '大火球', 'A'));
-      const splDmg = dmg * 0.48 * (1 + 0.5 * this.branchLv('fire', '大火球', 'B'));
-      const igniteProb = this.branchLv('fire', '大火球', 'C') > 0 ? 0.50 : 0;
+      const r = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A'));
+      const splDmg = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
+      const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
       this.enemies().forEach((o) => {
         if (o === e || o.hp <= 0) return;
         if (Math.hypot(o.x - e.x, o.y - e.y) <= r) {
@@ -950,15 +955,18 @@ class CombatSystem {
   }
 
   applyBurn(e, dmg, src) {
-    const aLv = this.branchLv('fire', '点燃', 'A');       // 燎原：时间 + 余烬爆发
-    const bLv = this.branchLv('fire', '点燃', 'B');       // 炽热：伤害 + 跳伤间隔减半
-    const stackCap = this.branchLv('fire', '灼烧叠层', 'A');  // 叠层上限 +2/级
-    const deepLv = this.branchLv('fire', '灼烧叠层', 'C');    // 加深：每层伤害 +5%/级
-    const maxStack = 1 + 2 * stackCap;
+    const bLv = this.branchLv('fire', '点燃', 'B');       // 炽热：灼烧时间 +2/+3/+4s
+    const cLv = this.branchLv('fire', '点燃', 'C');       // 余烬：伤害 +20/40/60%、时长 -0.5/1/1.5s、结束爆炸
+    const stackCap = this.branchLv('fire', '灼烧', 'A');  // 业火：叠层上限 +1/级
+    const hasBurn = this.lv('fire', '灼烧');
+    const maxStack = hasBurn > 0 ? 2 + stackCap : 1;      // 学「灼烧」后基础上限 +2 层
     let dot = e.dots.find((d) => d.type === 'burn');
-    const tickI = 0.5 / (1 + bLv);                        // 炽热：间隔减半（0.5 → 0.25s）
-    const dps = dmg * 0.20 * (1 + 0.5 * bLv) * (1 + 0.05 * deepLv);
-    const ttl = 3 * (1 + 0.5 * aLv);
+    const tickI = 0.5;
+    const cBoost = cLv > 0 ? [0, 0.20, 0.40, 0.60][cLv] : 0;
+    const dps = dmg * 0.20 * (1 + cBoost);
+    let ttl = 3 + (bLv > 0 ? [0, 2, 3, 4][bLv] : 0);
+    if (cLv > 0) ttl -= [0, 0.5, 1, 1.5][cLv];
+    if (ttl < 0.5) ttl = 0.5;
     if (!dot) {
       e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI });
       dot = e.dots[e.dots.length - 1];
@@ -968,10 +976,14 @@ class CombatSystem {
       dot.ttl = ttl;
       dot.tickI = tickI;
     }
-    // 灼烧叠层 B 满层 → 小爆炸
-    if (this.branchLv('fire', '灼烧叠层', 'B') > 0 && dot.stack >= maxStack) {
+    // 灼烧 B 燃尽：满层 → 小爆炸（60% 攻击伤害，范围 30/60/90px）
+    const burnLv = this.branchLv('fire', '灼烧', 'B');
+    if (burnLv > 0 && dot.stack >= maxStack) {
       dot.stack = 1;
-      this.explode(e.x, e.y, 60, dmg * 0.6, 'fire');
+      const rB = [0, 30, 60, 90][burnLv];
+      this.explode(e.x, e.y, rB, dmg * 0.6, 'fire');
+      this.fxRing(e.x, e.y, '#ff7043', rB, 0.4, 4);
+      this.fxFlash(e.x, e.y, '#ff9f43');
     }
   }
 
@@ -1387,8 +1399,8 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
-          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.5 * this.branchLv('fire', '火柱', 'A'));
-          const pR = 120 * (1 + 0.4 * this.branchLv('fire', '火柱', 'B'));
+          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.30 * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
+          const pR = 120 * (1 + 0.20 * this.branchLv('fire', '火柱', 'B'));                            // 燎原 20%/级
           const emberLv = this.branchLv('fire', '火柱', 'C');
           this.pillarWaves = this.pillarWaves || [];
           this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv });
@@ -1406,7 +1418,7 @@ class CombatSystem {
             this.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
             if (wv.ember > 0) {
               this.groundDots = this.groundDots || [];
-              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.24 * wv.ember, key: 'fire' });
+              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.15 * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
             }
           } else {
             remaining.push(wv);

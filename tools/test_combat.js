@@ -61,10 +61,11 @@ function t(name, fn) {
 /* ---------- 用例 ---------- */
 
 t('火·点燃：命中附加灼烧 DoT 并持续掉血', () => {
-  const g = mkGame({ fire: { 点燃: 2 } });
+  const g = mkGame({ fire: { 点燃: 2 } });   // 点燃 Lv2：A1 → 灼烧几率 20%+25%+15%=60%
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
-  c.hit('fire', e, 100);
+  const orig = Math.random; Math.random = () => 0; // 必触发 60%
+  try { c.hit('fire', e, 100); } finally { Math.random = orig; }
   const dot = e.dots.find((d) => d.type === 'burn');
   assert.ok(dot, '应有灼烧 DoT');
   assert.ok(dot.dps > 0, 'DoT dps 应为正');
@@ -341,17 +342,18 @@ t('电·电磁场C：扩磁命中多目标', () => {
   assert.ok(hurt >= 3, `C2 应命中主目标+3 微型连锁（110px 内），实际受伤 ${hurt}`);
 });
 
-t('火·点燃A：余烬爆发结束结算', () => {
-  const g = mkGame({ fire: { 点燃: { A: 1 } } });
+t('火·点燃C：余烬爆发结束结算', () => {
+  const g = mkGame({ fire: { 点燃: { C: 1 } } });   // 余烬 C1：伤害+20%、时长 3-0.5=2.5s
   const c = new CombatSystem(g);
   const e = mkEnemy(10000, 375, 800); g.enemies.push(e);
-  c.hit('fire', e, 100);
+  const orig = Math.random; Math.random = () => 0; // 必触发（20%+25%=45%）
+  try { c.hit('fire', e, 100); } finally { Math.random = orig; }
   const dot = e.dots.find((d) => d.type === 'burn');
   assert.ok(dot, '应有灼烧 DoT');
-  c.update(3.2);   // ttl=3×1.5=4.5s，跑到 3.2s 时灼烧跳了多轮但未结束
+  c.update(1.8);   // ttl=2.5s，跑到 1.8s 时灼烧跳了多轮但未结束
   assert.ok(e.hp < 10000, '灼烧应持续掉血');
-  c.update(2.0);   // 总计 5.2s > 4.5s：dot 到期 → 余烬爆发
-  assert.ok(e.hp < 10000 - 100 * 0.2 * 0.5 * 3, '余烬爆发应造成额外立即伤害');
+  c.update(1.0);   // 总计 2.8s > 2.5s：dot 到期 → 余烬爆发
+  assert.ok(e.hp < 10000 - 30, '余烬爆发应造成额外立即伤害');
 });
 
 t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰撞）', () => {

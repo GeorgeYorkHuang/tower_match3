@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.20';       // v1.16.20 缺陷修复：22处分支加成去偏移、连锁A/B与过载B接入、协同索引修正、鹰眼基础射程+25%、多重火球/冰锥基础3枚
+const GAME_VERSION = 'v1.16.21';       // v1.16.21 火塔4技能重做：点燃/灼烧/火柱/大火球新分支数值口径（config↔SKILLS双写）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

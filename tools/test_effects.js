@@ -97,7 +97,7 @@ t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升�
   fire.applyChoice(fire.pool.find((e) => e.name === '火柱'));
   assert.strictEqual(fire.activeNames.length, 3);
   // 槽满后激活未激活技能应被拒绝（防御）
-  const newEf = fire.pool.find((e) => e.name === '灼烧叠层');
+  const newEf = fire.pool.find((e) => e.name === '灼烧');
   const res = fire.applyChoice(newEf);
   assert.ok(!res.ok, '槽满后激活新技能应被拒绝');
   assert.strictEqual(fire.activeNames.length, 3, '槽数保持 3');
@@ -107,7 +107,7 @@ t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升�
   const cands = q[0].candidates;
   assert.ok(cands.length > 0, '槽满后仍有升级候选');
   cands.forEach((c) => assert.strictEqual(c.type, 'branch', '槽满后只出升级分支卡'));
-  assert.ok(cands.every((c) => c.name !== '灼烧叠层'), '未激活技能不应出现');
+  assert.ok(cands.every((c) => c.name !== '灼烧'), '未激活技能不应出现');
   const names = cands.map((c) => c.name);
   assert.strictEqual(new Set(names).size, names.length, '同一技能每轮升级最多 1 张卡');
 });
