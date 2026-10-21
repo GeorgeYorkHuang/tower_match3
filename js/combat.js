@@ -1984,7 +1984,8 @@ class CombatSystem {
   // ===== tickCannon =====
   tickCannon(dt) {
     const g = this.game;
-    // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（90%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
+    // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（40%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
+    // v1.16.22：先在地面形成醒目炮击圈预警（0.5s），再炮击结算
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
       this.timers.support = (this.timers.support || 0) + dt;
@@ -1993,14 +1994,14 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (alive.length) {
           const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
-          const dmg = this.shotDmg('cannon') * 0.72 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          const dmg = this.shotDmg('cannon') * 0.40 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
           for (let i = 0; i < n; i++) {
             const t = alive[Math.floor(Math.random() * alive.length)];
             const px = t.x + (Math.random() - 0.5) * 40;
             const py = t.y + (Math.random() - 0.5) * 40;
-            // 落点预兆圈 → 延迟爆炸（0.45s），C 焦土留地面
-            this.fxRing(px, py, '#f39c12', 130, 0.45, 3);
-            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 0.45, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
+            // 地面炮击圈预警（明显）：实心橙圆 + 双环 + 瞄准点 + 旋转刻度，0.5s 后爆炸
+            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur: 0.5, seed: Math.random() * 100 });
+            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 0.5, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
             this.fxParticle(px, py - 10, '#f39c12', 3, 30, 0.4, 90, 4);
           }
         }

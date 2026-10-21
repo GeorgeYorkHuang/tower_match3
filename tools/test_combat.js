@@ -940,12 +940,15 @@ t('炮·贯穿弹：爆炸后弹片贯穿身后敌人', () => {
   assert.ok(e2.hp < 1000, '贯穿弹应命中身后敌人');
 });
 
-t('炮·炮火支援：每 12 秒降下炮击（延迟爆炸落点）', () => {
+t('炮·炮火支援：每 12 秒降下炮击（延迟爆炸落点，伤害 40%）', () => {
   const g = mkGame({ cannon: { 炮火支援: { A: 1 } } }, ['cannon']);
   const c = new CombatSystem(g);
   g.enemies.push(mkEnemy(1000, 375, 700));
   c.update(12.01);
   assert.ok(c.delayed.length >= 4, 'A1 应降下 4 发延迟落点');
+  assert.ok(c.delayed.every((d) => d.delay === 0.5), '落点应延迟 0.5s（炮击圈预警后爆炸）');
+  assert.ok(Math.abs(c.delayed[0].dmg / c.shotDmg('cannon') - 0.40) < 0.001, '每发伤害 = 普攻 × 40%');
+  assert.ok(g.fx.some((f) => f.type === 'strike'), '应生成地面炮击圈预警特效');
 });
 
 t('炮·地雷阵：每 15 秒城墙前布雷，踩中爆炸', () => {

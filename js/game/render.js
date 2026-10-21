@@ -1506,6 +1506,39 @@ class Renderer {
           ctx.fillStyle = f.color || '#ffd24a';
           ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
         }
+      } else if (f.type === 'strike') {
+        // v1.16.22 炮火支援：地面炮击圈预警（实心橙圆 + 白描边双环 + 中心瞄准点 + 旋转刻度，淡入至爆炸）
+        const p = Math.min(1, f.t / f.dur);
+        const a = 0.25 + 0.55 * p;   // 淡入
+        ctx.globalAlpha = a * 0.32;
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = a * 0.85;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.34, 0, Math.PI * 2); ctx.stroke();
+        // 中心瞄准点（十字 + 圆点）
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+        const c = 7;
+        ctx.beginPath();
+        ctx.moveTo(f.x - c, f.y); ctx.lineTo(f.x + c, f.y);
+        ctx.moveTo(f.x, f.y - c); ctx.lineTo(f.x, f.y + c);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2); ctx.fill();
+        // 旋转刻度（8 根短线绕外圈）
+        ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
+        for (let k = 0; k < 8; k++) {
+          const ang = k * 0.785 + (f.seed || 0) + f.t * 3;
+          const r1 = f.r * 0.66, r2 = f.r * 0.72;
+          ctx.beginPath();
+          ctx.moveTo(f.x + Math.cos(ang) * r1, f.y + Math.sin(ang) * r1);
+          ctx.lineTo(f.x + Math.cos(ang) * r2, f.y + Math.sin(ang) * r2);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
       } else if (f.type === 'boom') {
         const p = Math.min(1, f.t / f.dur);
         const n = 1 + Math.floor(p * 18); // explosion1..19
