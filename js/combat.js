@@ -121,8 +121,9 @@ class CombatSystem {
   range(key) {
     const cfg = CONFIG.TOWERS[key];
     let r = cfg.range;
-    // 火·火焰鹰眼 A（延伸）：射程 +30%/级
-    if (key === 'fire') r *= (1 + 0.30 * this.branchLv('fire', '火焰鹰眼', 'A'));
+    // 火·火焰鹰眼：学技能基础射程 +25%（鹰眼索敌）；A（延伸）每级再 +30%（v1.16.20 补回基础加成）
+    const hawkLv = this.lv('fire', '火焰鹰眼');
+    if (key === 'fire' && hawkLv > 0) r *= 1.25 * (1 + 0.30 * this.branchLv('fire', '火焰鹰眼', 'A'));
     return r;
   }
 
@@ -369,10 +370,10 @@ class CombatSystem {
           const dealt = d.stackDps ? (d.stack || 1) * d.stackDps * tickI : d.dps * boost.dmg * tickI;
           this.damage(e, dealt, d.src);
           d.totalDealt = (d.totalDealt || 0) + dealt;
-          // 火·燃爆 C 灼烧爆裂：灼烧每跳 15% 概率向外爆炸（40% 范围伤害）
+          // 火·燃爆 C 灼烧爆裂：灼烧每跳 15%+10%/级 概率向外爆炸（40% 范围伤害）
           const burstLv = this.branchLv('fire', '燃爆', 'C');
           if (d.type === 'burn' && burstLv > 0 && Math.random() < 0.15 + 0.10 * (burstLv - 1)) {
-            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.32 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '燃爆', 'A') - 1)), 'fire');
+            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.32 * (1 + 0.5 * this.branchLv('fire', '燃爆', 'A')), 'fire');
           }
           // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.7) {
@@ -475,8 +476,9 @@ class CombatSystem {
     // 火·点燃 C 焚魂：被灼烧目标受到的伤害 +15%/级（全来源）
     const vuln = this.branchLv('fire', '点燃', 'C');
     if (vuln > 0 && this.hasDot(e, 'burn')) v *= (1 + 0.15 * vuln);
-    // 电·过载层数增伤
-    if (srcKey === 'electric' && e.overload) v *= (1 + 0.15 * e.overload.n);
+    // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
+    const ovB = this.branchLv('electric', '过载', 'B');
+    if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
     // 圣物·利刃符：全塔伤害 +8%/级
     const g = this.game;
     const m = g.meta;
@@ -501,7 +503,7 @@ class CombatSystem {
         if (Math.random() < 0.40) {
           const aLv = this.branchLv('fire', '燃爆', 'A');
           const bLv = this.branchLv('fire', '燃爆', 'B');
-          this.explode(e.x, e.y, 80 * (1 + 0.4 * Math.max(0, bLv - 1)), this.shotDmg('fire') * 0.96 * (1 + 0.5 * Math.max(0, aLv - 1)), 'fire');
+          this.explode(e.x, e.y, 80 * (1 + 0.4 * bLv), this.shotDmg('fire') * 0.96 * (1 + 0.5 * aLv), 'fire');
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -527,7 +529,7 @@ class CombatSystem {
       if (key === 'poison' && this.lv('poison', '毒藤') > 0 && e._vineT > 0) {
         const vc = this.branchLv('poison', '毒藤', 'C');
         if (vc > 0) {
-          const vr = 100 + 50 * (vc - 1);
+          const vr = 100 + 50 * vc;
           const next = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= vr)
             .sort((a, b) => b.y - a.y)[0];
           if (next) {
@@ -541,7 +543,7 @@ class CombatSystem {
       // 冰·冰冻 C 碎冰爆（v1.16.14）：击杀冰冻敌人 → 100px 范围爆炸（40%×攻击力，每级 +10%）并减速
       if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
         const frzC = this.branchLv('ice', '冰冻', 'C');
-        this.explode(e.x, e.y, 100, this.shotDmg('ice') * (0.40 + 0.10 * (frzC - 1)), 'ice', 0, true);
+        this.explode(e.x, e.y, 100, this.shotDmg('ice') * (0.40 + 0.10 * frzC), 'ice', 0, true);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16）：标记目标死亡向 100px 内 2 个敌人扩散 1 层标记
@@ -891,7 +893,7 @@ class CombatSystem {
       const idx = g.run.slotOrder.indexOf('fire');
       const fsx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
       const fsy = ly0.slotY + ly0.slotSize / 2;
-      const n = 2 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 额外
+      const n = 3 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
       const perDmg = dmg * 0.44 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.fire.shot.dur;
@@ -930,8 +932,8 @@ class CombatSystem {
     }
     // 大火球：爆炸范围溅射（扩大 +40%/级、强化 +50%/级、引燃 50% 概率点燃）
     if (big > 0) {
-      const r = 130 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '大火球', 'A') - 1));
-      const splDmg = dmg * 0.48 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '大火球', 'B') - 1));
+      const r = 130 * (1 + 0.4 * this.branchLv('fire', '大火球', 'A'));
+      const splDmg = dmg * 0.48 * (1 + 0.5 * this.branchLv('fire', '大火球', 'B'));
       const igniteProb = this.branchLv('fire', '大火球', 'C') > 0 ? 0.50 : 0;
       this.enemies().forEach((o) => {
         if (o === e || o.hp <= 0) return;
@@ -1027,7 +1029,7 @@ class CombatSystem {
       const idx = g.run.slotOrder.indexOf('ice');
       const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
       const msy = ly0.slotY + ly0.slotSize / 2;
-      const n = 2 + this.branchLv('ice', '多重冰锥', 'A');          // 基础 3 枚 = 主 + 2 额外
+      const n = 3 + this.branchLv('ice', '多重冰锥', 'A');          // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
       const perDmg = dmg * 0.55 * (1 + 0.15 * this.branchLv('ice', '多重冰锥', 'B'));
       const slowProb = this.branchLv('ice', '多重冰锥', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.ice.shot.dur;
@@ -1068,8 +1070,8 @@ class CombatSystem {
       const msy = ly0.slotY + ly0.slotSize / 2;
       const len = Math.hypot(e.x - msx, e.y - msy) || 1;
       const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
-      const n = 3 + Math.max(0, this.branchLv('ice', '碎冰', 'A') - 1);
-      const dmg = this.shotDmg('ice') * 0.45 * (1 + 0.15 * Math.max(0, this.branchLv('ice', '碎冰', 'B') - 1));
+      const n = 3 + this.branchLv('ice', '碎冰', 'A');
+      const dmg = this.shotDmg('ice') * 0.45 * (1 + 0.15 * this.branchLv('ice', '碎冰', 'B'));
       const slowP = this.branchLv('ice', '碎冰', 'C') > 0 ? 0.25 : 0;
       const sx = e.x + dx * 55, sy = e.y + dy * 55;   // 越过主目标，避免立即重复命中
       const R = this.range('ice');
@@ -1231,9 +1233,9 @@ class CombatSystem {
     // 活电（v1.13.18 改电球，v1.13.19 更名）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
     const bounce = this.lv('electric', '活电');
     if (bounce > 0 && e.paralyzed > 0) {
-      const n = 5 + 2 * Math.max(0, this.branchLv('electric', '活电', 'A') - 1);
-      const orbDmg = dmg * 0.5 * (1 + 0.2 * Math.max(0, this.branchLv('electric', '活电', 'B') - 1));
-      const oDur = 1.4 + 0.4 * Math.max(0, this.branchLv('electric', '活电', 'C') - 1);   // v1.13.21 游走时长 0.8→1.4s
+      const n = 5 + 2 * this.branchLv('electric', '活电', 'A');
+      const orbDmg = dmg * 0.5 * (1 + 0.2 * this.branchLv('electric', '活电', 'B'));
+      const oDur = 1.4 + 0.4 * this.branchLv('electric', '活电', 'C');   // v1.13.21 游走时长 0.8→1.4s
       for (let i = 0; i < n; i++) {
         const orb = {
           key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
@@ -1246,12 +1248,14 @@ class CombatSystem {
       }
       this.fxRing(e.x, e.y, '#f4d03f', 44, 0.3, 3);
     }
-    // 连锁弹跳（v1.13.18：不再叠加弹跳——弹跳已改活电电球机制；C 回能：每次连锁命中缩短攻击间隔）
+    // 连锁弹跳（v1.16.20 接入 A/B：A 扩展每级 +2 弹跳、B 稳流每级衰减 -20%；C 回能：每次连锁命中缩短攻击间隔）
     const chainLv = this.lv('electric', '连锁');
+    const chainA = this.branchLv('electric', '连锁', 'A');
+    const chainB = this.branchLv('electric', '连锁', 'B');
     const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
-      const extra = 1 + 2 * Math.max(0, chainLv - 1);
-      let decay = 0.30 * (1 - 0.2 * Math.max(0, chainLv - 1));
+      const extra = 1 + 2 * chainA;      // 基础 1 个额外（主+1=共 2 目标）+ A 扩展每级 +2
+      let decay = 0.30 * (1 - 0.2 * chainB);   // 基础衰减 30% - B 稳流每级 20%
       decay = Math.max(0.10, decay);
       const hitSet = [e];
       let cur = e;
@@ -1315,9 +1319,7 @@ class CombatSystem {
     const heavy = this.lv('cannon', '重炮');
     const r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
     const splDmg = dmg * 0.10 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
-    // 协同：炮溅射×火溅射 → 爆炸伤害 ×1.5（保持）
-    let boomMult = 1;
-    if (this.game.run.effects.synergyDone[2]) boomMult *= 1.5;
+    // 协同（爆炸类 +50%）在 explode() 内按 SYNERGIES[1] 统一结算（v1.16.20 修正越界索引）
     // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1s
     const shock = this.lv('cannon', '震击');
     let knock = 0, slowAfter = false;
@@ -1327,7 +1329,7 @@ class CombatSystem {
     }
     this.damage(e, dmg, 'cannon');
     // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
-    this.explode(e.x, e.y, r, splDmg * boomMult, 'cannon', knock, slowAfter, e);
+    this.explode(e.x, e.y, r, splDmg, 'cannon', knock, slowAfter, e);
     if (this.branchLv('cannon', '重炮', 'C') > 0) {
       this.enemies().forEach((o) => {
         if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20) this.applySlow(o, 0.30, 1);
@@ -1351,9 +1353,9 @@ class CombatSystem {
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
   explode(x, y, r, dmg, key, knock, slowAfter, exclude) {
     const g = this.game;
-    // 燃爆×毒爆 协同：双爆炸伤害 +50%
+    // 协同（v1.16.20 修正）：重炮×大火球（SYNERGIES[1]）达成 → 爆炸类伤害 +50%（原引用 [0]/[2] 错位已修正）
     let mult = 1;
-    if (g.run.effects.synergyDone[0] && (key === 'fire' || key === 'poison')) mult *= 1.5;
+    if (g.run.effects.synergyDone && g.run.effects.synergyDone[1]) mult *= 1.5;
     const entryY = this.ly().areaY + this.ly().entryH;
     this.enemies().forEach((o) => {
       if (o.hp <= 0) return;
@@ -1385,8 +1387,8 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
-          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火柱', 'A') - 1));
-          const pR = 120 * (1 + 0.4 * Math.max(0, this.branchLv('fire', '火柱', 'B') - 1));
+          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.5 * this.branchLv('fire', '火柱', 'A'));
+          const pR = 120 * (1 + 0.4 * this.branchLv('fire', '火柱', 'B'));
           const emberLv = this.branchLv('fire', '火柱', 'C');
           this.pillarWaves = this.pillarWaves || [];
           this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv });
@@ -1426,9 +1428,9 @@ class CombatSystem {
         if (alive.length) {
           const segR = 140;                        // 火雨圈半径（区域标识 + 落点采样范围）
           const perR = 80;                         // 单发落点伤害半径
-          const segDmg = this.shotDmg('fire') * 0.24 * (1 + 0.5 * Math.max(0, this.branchLv('fire', '火雨', 'B') - 1));
+          const segDmg = this.shotDmg('fire') * 0.24 * (1 + 0.5 * this.branchLv('fire', '火雨', 'B'));
           const igniteLv = this.branchLv('fire', '火雨', 'C');
-          const waves = 3 + Math.max(0, this.branchLv('fire', '火雨', 'A') - 1);
+          const waves = 3 + this.branchLv('fire', '火雨', 'A');
           const gap = 0.3;                         // 每 0.3s 一波
           const FALL = 0.5;                        // 单颗下落时长（与 render raindrop 同步）
           const tgt = alive[Math.floor(Math.random() * alive.length)];
@@ -1493,8 +1495,8 @@ class CombatSystem {
         this.timers.iceFlower = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
-          const n = 1 + Math.max(0, this.branchLv('ice', '冰花', 'C') - 1);
-          const dmg = this.shotDmg('ice') * 0.8 * (1 + 0.4 * Math.max(0, this.branchLv('ice', '冰花', 'B') - 1));
+          const n = 1 + this.branchLv('ice', '冰花', 'C');
+          const dmg = this.shotDmg('ice') * 0.8 * (1 + 0.4 * this.branchLv('ice', '冰花', 'B'));
           const r = 100;
           const aLv = this.branchLv('ice', '冰花', 'A');
           const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
@@ -1537,9 +1539,9 @@ class CombatSystem {
         this.timers.frostOrb = 0;
         const alive = this.enemies().filter((e) => e.hp > 0);
         if (alive.length) {
-          const orbN = 1 + Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1);
-          const r = 110 * (1 + 0.3 * Math.max(0, this.branchLv('ice', '冬珠', 'B') - 1));
-          const tickI = 0.8 * (1 - 0.2 * Math.max(0, this.branchLv('ice', '冬珠', 'C') - 1));
+          const orbN = 1 + this.branchLv('ice', '冬珠', 'C');
+          const r = 110 * (1 + 0.3 * this.branchLv('ice', '冬珠', 'B'));
+          const tickI = 0.8 * (1 - 0.2 * this.branchLv('ice', '冬珠', 'C'));
           const slowA = this.branchLv('ice', '冬珠', 'A');
           const dmg = this.shotDmg('ice') * 0.44;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
           const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbN);  // 最近 N 个敌人位置落球
@@ -1597,7 +1599,7 @@ class CombatSystem {
       if (this.timers.iceWall >= 20) {
         this.timers.iceWall = 0;
         this.iceWall = {
-          ttl: 8 + 2 * Math.max(0, this.branchLv('ice', '冰墙', 'A') - 1),
+          ttl: 8 + 2 * this.branchLv('ice', '冰墙', 'A'),
           absorb: 500,   // v1.13.26 平衡：冰墙吸收 400→500
           reflect: 0.30 * this.branchLv('ice', '冰墙', 'B'),
           heal: 40 * this.branchLv('ice', '冰墙', 'C'),
@@ -1659,7 +1661,7 @@ class CombatSystem {
         this.timers.storm = 0;
         const aLv = this.branchLv('electric', '雷暴', 'A');
         const bLv = this.branchLv('electric', '雷暴', 'B');
-        const n = 3 + 2 * Math.max(0, aLv - 1);   // A1 5 / A2 7 / A3 9
+        const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（v1.16.20 修正偏移）
         const dmg = this.shotDmg('electric') * 0.64 * (1 + 0.25 * (storm - 1));
         // 全图随机 N 个存活目标（Fisher-Yates）
         const alive = this.enemies().filter((e) => e.hp > 0);

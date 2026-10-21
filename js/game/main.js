@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.19';       // v1.16.19 麻痹技能激活 +15% 概率（20→35%，满级 A 80%）
+const GAME_VERSION = 'v1.16.20';       // v1.16.20 缺陷修复：22处分支加成去偏移、连锁A/B与过载B接入、协同索引修正、鹰眼基础射程+25%、多重火球/冰锥基础3枚
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

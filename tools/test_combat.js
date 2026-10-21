@@ -111,14 +111,14 @@ t('冰·寒霜C：减速目标易伤+15%/级', () => {
 t('冰·多重冰锥：等角度扇形散射命中', () => {
   const g = mkGame({ ice: { 多重冰锥: 1 } });
   const c = new CombatSystem(g);
-  // 主目标 + 两侧散射弹道（基础 3 枚 = 主 + 2 散射）
+  // 主目标 + 两侧散射弹道（基础 3 枚 = 主 + 2 散射；A=1 速记 → 4 枚 = 主 + 3 散射）
   const e1 = mkEnemy(1000, 330, 650); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
   const e3 = mkEnemy(1000, 420, 650); g.enemies.push(e3);
   const orig = Math.random; Math.random = () => 0.5;
   try {
     c.hit('ice', e2, 100);
-    assert.ok(c.shots.filter((s) => s.scatter).length === 2, '应生成 2 枚散射冰锥弹道');
+    assert.ok(c.shots.filter((s) => s.scatter).length === 3, '应生成 3 枚散射冰锥弹道');
     c.update(0.6);
   } finally { Math.random = orig; }
   const hurt = g.enemies.filter((x) => x.hp < 1000).length;
@@ -138,7 +138,7 @@ t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
   assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
 });
 
-t('冰·碎冰：命中后碎裂3枚碎冰穿透身后敌人', () => {
+t('冰·碎冰：命中后碎裂碎冰穿透身后敌人', () => {
   const g = mkGame({ ice: { 碎冰: 1 } });
   const c = new CombatSystem(g);
   // 主目标 + 身后（更靠近远处）敌人：碎冰沿弹道方向越过主目标后命中
@@ -147,7 +147,7 @@ t('冰·碎冰：命中后碎裂3枚碎冰穿透身后敌人', () => {
   const orig = Math.random; Math.random = () => 0.5;
   try {
     c.hit('ice', e1, 100);
-    assert.ok(c.shots.filter((s) => s.scatter).length === 3, '应生成 3 枚碎冰弹道');
+    assert.ok(c.shots.filter((s) => s.scatter).length === 4, '应生成 4 枚碎冰弹道（基础3 + A速记1）');
     c.update(0.1);   // 推进碎冰越过主目标飞向身后
   } finally { Math.random = orig; }
   const hurt = g.enemies.filter((x) => x.hp < 1000).length;
@@ -177,7 +177,7 @@ t('冰·冬珠：持续冰霜之球范围伤害', () => {
   g.enemies.push(mkEnemy(10000, 390, 830));   // 110 范围内
   c.timers.frostOrb = 9.9;
   c.update(0.2);   // timer 10.1 ≥10 → 释放冬珠（推进仅 -0.2s）
-  assert.ok(c.frostOrbs.length === 1, '应生成 1 颗冬珠');
+  assert.ok(c.frostOrbs.length === 2, '应生成 2 颗冬珠（基础1 + C速记1）');
   c.update(0.7);   // 累计 0.9s > 0.8s tickI → 第一跳
   const hurt = g.enemies.filter((x) => x.hp < 10000).length;
   assert.ok(hurt === 2, `冬珠一跳应伤范围内 2 个，实际 ${hurt}`);
@@ -255,17 +255,17 @@ t('电·活电：命中麻痹敌人扩散5个游走电球', () => {
   assert.ok(c.shots.filter((s) => s.orb).length === 5, '基础扩散 5 个电球');
 });
 
-t('电·雷暴：随机电击3个敌人', () => {
+t('电·雷暴：随机电击目标（A 速记 5 个）', () => {
   const g = mkGame({ electric: { 雷暴: 1 } });
   const c = new CombatSystem(g);
   const orig = Math.random;
   try {
     Math.random = () => 0.5;
     for (let i = 0; i < 5; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 500 + i * 30));
-    c.update(10);   // 周期 10s（C=0）触发一次；普攻也会命中最近目标
+    c.update(10);   // 周期 10×(1-0.25×1)=7.5s（C 速记 1）触发至少一次；普攻也会命中最近目标
   } finally { Math.random = orig; }
   const hurt = g.enemies.filter((e) => e.hp < 1000).length;
-  assert.ok(hurt >= 3 && hurt <= 4, `基础雷暴应电击 3 个（+普攻重叠），实际 ${hurt}`);
+  assert.ok(hurt === 5, `A1 速记雷暴应电击 5 个（基础3 + A1×2），实际 ${hurt}`);
 });
 
 t('电·雷暴B：雷击连锁周边敌人', () => {
@@ -362,9 +362,9 @@ t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰
   assert.ok(e1.hp < 2000, '主目标应立即受一枚火球伤害');
   // 主目标移出战场（避免散射弹道优先命中主目标，干扰散射路径验证）
   g.enemies = g.enemies.filter((o) => o !== e1);
-  // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 2
+  // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 3（基础 3 枚 + A 速记 1）
   const scatters = c.shots.filter((s) => s.scatter);
-  assert.strictEqual(scatters.length, 2, `应有 2 条散射弹道（实际 ${scatters.length}）`);
+  assert.strictEqual(scatters.length, 3, `应有 3 条散射弹道（实际 ${scatters.length}）`);
   scatters.forEach((s) => {
     assert.ok(!s.target, '散射弹道不配置目标');
     assert.ok(s.hitR > 0 && s.tx !== s.sx, '散射弹道有碰撞半径与射界终点');
