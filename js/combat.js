@@ -1462,24 +1462,24 @@ class CombatSystem {
       dmg *= 2;
       this.fxFlash(e.x, e.y, '#ffb347', 0.25);
     }
-    // 普攻溅射（v1.16.12）：基础 100px 范围、10% 溅射伤害；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
+    // 普攻溅射（v1.16.12）：基础 100px 范围、40% 溅射伤害（v1.16.22 由 10% 上调）；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
     const r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
-    const splDmg = dmg * 0.10 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
+    const splDmg = dmg * 0.40 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
     // 协同（爆炸类 +50%）在 explode() 内按 SYNERGIES[1] 统一结算（v1.16.20 修正越界索引）
-    // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1s
+    // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1/1.5/2 秒（随等级）
     const shock = this.lv('cannon', '震击');
-    let knock = 0, slowAfter = false;
+    let knock = 0, slowAfter = 0;
     if (shock > 0 && Math.random() < 0.40 + 0.20 * this.branchLv('cannon', '震击', 'B')) {
       knock = 60 * (1 + 0.4 * this.branchLv('cannon', '震击', 'A'));
-      slowAfter = this.branchLv('cannon', '震击', 'C') > 0;
+      slowAfter = 0.5 + 0.5 * this.branchLv('cannon', '震击', 'C');   // C1=1s / C2=1.5s / C3=2s
     }
     this.damage(e, dmg, 'cannon');
     // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
     this.explode(e.x, e.y, r, splDmg, 'cannon', knock, slowAfter, e);
     if (this.branchLv('cannon', '重炮', 'C') > 0) {
       this.enemies().forEach((o) => {
-        if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20) this.applySlow(o, 0.30, 1);
+        if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20 * this.branchLv('cannon', '重炮', 'C')) this.applySlow(o, 0.30, 1);
       });
     }
     // 贯穿弹（v1.16）：爆炸后弹片向前贯穿 2+裂片 个敌人（70%×碎劲），C 贯透减速 15%
@@ -1511,7 +1511,7 @@ class CombatSystem {
       if (d > r) return;
       this.damage(o, dmg * mult, key);
       if (knock > 0) o.y = Math.max(entryY + 10, o.y - knock * (1 - d / r));
-      if (slowAfter) this.applySlow(o, 0.3, 1);
+      if (slowAfter > 0) this.applySlow(o, 0.3, slowAfter);   // slowAfter = 减速秒数（震击 C：1/1.5/2）
     });
     // 爆炸视觉：按塔类型着色的爆炸 + 冲击环
     const COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };

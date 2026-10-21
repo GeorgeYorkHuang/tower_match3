@@ -587,7 +587,7 @@ t('回旋镖·折返增伤：命中后折返段追加伤害（A 增强）', () =
   assert.ok(lost <= 100 + 100 * 0.65 * 1.25 + 0.01, '折返段 = 命中×0.65×(1+0.25×A)');
 });
 
-t('炮·重炮：爆炸范围伤害（半径随 A 增强）', () => {
+t('炮·重炮：爆炸范围伤害（半径随 A 增强，溅射 40%）', () => {
   const g = mkGame({ cannon: { 重炮: { A: 2 } } }, ['cannon']);
   const c = new CombatSystem(g);
   const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
@@ -595,6 +595,28 @@ t('炮·重炮：爆炸范围伤害（半径随 A 增强）', () => {
   c.hit('cannon', e1, 100);
   assert.ok(e2.hp < 1000, '爆炸应波及邻近敌人');
   assert.ok(Math.abs(48 * (1 + 0.25 + 0.15 * 2) - 48 * 1.55) < 0.01, '重炮半径 = 48×(1+0.25×lv+0.15×A)');
+  assert.ok(Math.abs((1000 - e2.hp) - 100 * 0.40) < 0.01, '溅射伤害 = 40%（100 伤 × 0.40）');
+});
+
+t('炮·重炮 C 震尘：减速概率随等级（20%/40%/60%）', () => {
+  const g = mkGame({ cannon: { 重炮: { C: 2 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 820); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0; // 必触发
+  try { c.hit('cannon', e1, 100); } finally { Math.random = orig; }
+  assert.ok(e2.slow && e2.slow.mult === 0.7 && e2.slow.ttl === 1, 'C2 震尘应减速 30%·1s');
+});
+
+t('炮·震击 C 迟滞：被击退减速时长随等级（1/1.5/2 秒）', () => {
+  const g = mkGame({ cannon: { 震击: { C: 2 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 395, 820); g.enemies.push(e2);
+  const orig = Math.random; Math.random = () => 0; // 必击退
+  try { c.hit('cannon', e1, 100); } finally { Math.random = orig; }
+  assert.ok(e2.y < 820, '爆炸溅射应击退邻近敌人（向上）');
+  assert.ok(e2.slow && e2.slow.mult === 0.7 && Math.abs(e2.slow.ttl - 1.5) < 0.001, 'C2 迟滞应减速 30%·1.5s');
 });
 
 t('死亡触发：爆燃（灼烧敌人死亡时爆炸波及邻近）', () => {
@@ -972,14 +994,14 @@ t('普攻·火塔：无技能时 20% 概率灼烧（固定随机触发）', () =
   assert.ok(!e2.dots.some((d) => d.type === 'burn'), '未到 20% 概率时不应灼烧');
 });
 
-t('普攻·炮塔：基础 100px 范围 10% 溅射（无技能）', () => {
+t('普攻·炮塔：基础 100px 范围 40% 溅射（无技能）', () => {
   const g = mkGame({ cannon: {} }, ['cannon']);
   const c = new CombatSystem(g);
   const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 380, 770); g.enemies.push(e2); // 距 e1 ≈70px < 100
   c.hit('cannon', e1, 100);
   assert.strictEqual(Math.round(e1.hp), 900, '主目标应吃满 100% 伤害');
-  assert.ok(e2.hp <= 992, '100px 内敌人应受 10% 溅射伤害');
+  assert.strictEqual(Math.round(e2.hp), 960, '100px 内敌人应受 40% 溅射伤害');
 });
 
 t('普攻·镖塔：20% 概率流血，随移动距离结算伤害', () => {
