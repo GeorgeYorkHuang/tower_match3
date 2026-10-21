@@ -283,10 +283,21 @@ class CombatSystem {
         }
       }
     }
-    // 3.7 炮·地雷（v1.16）：敌人踩中（接触半径 60）引爆，C 连爆击退且 50% 连环引爆相邻地雷
+    // 3.7 炮·地雷（v1.16.22）：雷从塔口抛投（200px/s）飞向部署点，飞行期间不可引爆，落地布设 0.3s 后可引爆；
+    //   敌人踩中（接触半径 60）引爆，C 连爆击退且 50% 连环引爆相邻地雷
     if (this.mines && this.mines.length) {
       for (let i = this.mines.length - 1; i >= 0; i--) {
         const m = this.mines[i];
+        if (m.fly) {
+          const dx = m.fly.tx - m.fly.sx, dy = m.fly.ty - m.fly.sy;
+          const dist = Math.hypot(dx, dy) || 1;
+          m.fly.t += dt;
+          const p = Math.min(1, (m.fly.t * 200) / dist);
+          m.x = m.fly.sx + dx * p;
+          m.y = m.fly.sy + dy * p;
+          if (p >= 1) { m.x = m.fly.tx; m.y = m.fly.ty; m.fly = null; m.armed = 0.3; m.ttl = 20; }
+          continue;   // 飞行期间不可引爆
+        }
         m.ttl -= dt;
         m.armed -= dt;
         if (m.ttl <= 0) { this.mines.splice(i, 1); continue; }
@@ -301,7 +312,7 @@ class CombatSystem {
           this.enemies().forEach((o) => {
             if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= m.r + 40 && Math.random() < 0.5) this.applySlow(o, 0.3, 1);
           });
-          const chainTargets = this.mines.filter((m2) => Math.hypot(m2.x - m.x, m2.y - m.y) <= 150 && Math.random() < 0.5);
+          const chainTargets = this.mines.filter((m2) => !m2.fly && Math.hypot(m2.x - m.x, m2.y - m.y) <= 150 && Math.random() < 0.5);
           chainTargets.forEach((m2) => { const idx = this.mines.indexOf(m2); if (idx >= 0) this.mines.splice(idx, 1); });
           chainTargets.forEach((m2) => this.explode(m2.x, m2.y, m2.r, m2.dmg, 'cannon', 0, false));
         }
@@ -2007,22 +2018,53 @@ class CombatSystem {
         }
       }
     }
-    // 炮·地雷阵（v1.16 周期）：每 15 秒在城墙前 260px 沿线埋 3 颗地雷（A 布雷 +2/级；B 雷威 +50%/级；C 连爆击退+50% 连环），敌人踩中爆炸（130% 伤害·半径100）
+    // 炮·地雷阵（v1.16.22 重做）：每 6 秒抛投 3 颗雷（A 布雷 +2/级），雷从塔口以 200px/s 飞向部署点（飞行不可引爆），
+    //   落地布设 0.3s 后可引爆，持续 20 秒；有敌人时部署在最近敌人（最靠墙）附近一圈随机位置，无敌人时攻击范围内随机（B 雷威 +50%/级；C 连爆）
     const mineLv = this.lv('cannon', '地雷阵');
     if (mineLv > 0) {
       this.timers.mine = (this.timers.mine || 0) + dt;
-      if (this.timers.mine >= 15) {
+      if (this.timers.mine >= 6) {
         this.timers.mine = 0;
         const n = 3 + 2 * this.branchLv('cannon', '地雷阵', 'A');
-        const wallY = this.ly().wallY - 10;
-        const lineY = wallY - 260;
-        const my = lineY + (Math.random() - 0.5) * 40;
+        // 塔口坐标（与普攻弹道同口径）
+        const ly = this.ly();
+        const nSlots = g.run.slotOrder.length || 4;
+        const rowW = nSlots * ly.slotSize + (nSlots - 1) * ly.slotGap;
+        const startX = (750 - rowW) / 2;
+        const slotW = ly.slotSize + ly.slotGap;
+        const idx = g.run.slotOrder.indexOf('cannon');
+        const fx0 = startX + idx * slotW + ly.slotSize / 2;
+        const fy0 = ly.slotY + ly.slotSize / 2;
+        const range = this.range('cannon');
+        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
+        const topY = ly.areaY + ly.entryH + 10;
+        const wallY = ly.wallY - 12;
         for (let i = 0; i < n; i++) {
-          const mx = 40 + Math.random() * (700 - 80);
+          // 部署点：有敌人 → 最近敌人（y 最大）附近一圈随机；无敌人 → 攻击范围内随机
+          let tx, ty;
+          if (alive.length) {
+            const near = alive.reduce((a, b) => (b.y > a.y ? b : a));
+            const ang = Math.random() * Math.PI * 2;
+            const rr = 10 + Math.random() * 50;
+            tx = near.x + Math.cos(ang) * rr;
+            ty = near.y + Math.sin(ang) * rr;
+          } else {
+            tx = 40 + Math.random() * 620;
+            ty = fy0 - 30 - Math.random() * Math.max(60, range - 90);
+          }
+          tx = Math.max(25, Math.min(725, tx));
+          ty = Math.max(topY, Math.min(wallY, ty));
+          const dist = Math.hypot(tx - fx0, ty - fy0);
           this.mines = this.mines || [];
-          this.mines.push({ x: mx, y: my, r: 100, dmg: this.shotDmg('cannon') * 1.2 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')), armed: 0.3, ttl: 12, chain: this.branchLv('cannon', '地雷阵', 'C') });
-          g.fx.push({ type: 'mine', x: mx, y: my, t: 0, dur: 12, seed: Math.random() * 100 });
-          this.fxParticle(mx, my, '#b5651d', 4, 22, 0.35, 70, 4);
+          this.mines.push({
+            x: fx0, y: fy0, r: 100,
+            dmg: this.shotDmg('cannon') * 1.2 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')),
+            armed: 0, ttl: 20, chain: this.branchLv('cannon', '地雷阵', 'C'),
+            fly: { sx: fx0, sy: fy0, tx, ty, t: 0 },
+          });
+          const flyDur = dist / 200;   // 200px/s
+          g.fx.push({ type: 'mine', x: tx, y: ty, t: 0, dur: flyDur + 20, seed: Math.random() * 100, fly: { sx: fx0, sy: fy0, tx, ty, dur: flyDur } });
+          this.fxParticle(fx0, fy0 - 8, '#b5651d', 4, 22, 0.3, 90, 4);
         }
       }
     }

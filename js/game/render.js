@@ -1655,29 +1655,48 @@ class Renderer {
         }
         ctx.globalAlpha = 1;
       } else if (f.type === 'mine') {
-        // 炮·地雷（v1.16）：城墙前地雷（暗色弹体 + 警示脉冲环 + 引信火星），驻留期间闪烁
-        const p = Math.min(1, f.t / f.dur);
-        const blink = 0.6 + 0.4 * Math.sin(p * 22 + (f.seed || 0));
-        // 警示脉冲环（外扩淡出，提示爆炸半径 100）
-        const pulse = (p * 2.1 + (f.seed || 0) / 10) % 1;
-        ctx.globalAlpha = (1 - pulse) * 0.35;
-        ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 1.6;
-        ctx.beginPath(); ctx.arc(f.x, f.y, 10 + pulse * 42, 0, Math.PI * 2); ctx.stroke();
-        // 弹体
-        ctx.globalAlpha = blink;
-        ctx.fillStyle = '#5d4a2f';
-        ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(f.x, f.y, 9, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#f39c12';
-        ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill();
-        // 引信（火苗状火星）
-        ctx.fillStyle = '#b5651d';
-        ctx.fillRect(f.x - 1, f.y - 14, 2, 6);
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(p * 30 + (f.seed || 0));
-        ctx.fillStyle = '#ffd24a';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 13, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
+        // 炮·地雷（v1.16.22）：雷从塔口抛投（200px/s，飞行段为移动弹体+尾焰），落地后驻留闪烁（警示脉冲环+引信）
+        const flyDur = f.fly ? f.fly.dur : 0;
+        const flying = f.fly && f.t < flyDur;
+        const mx = flying ? f.fly.sx + (f.fly.tx - f.fly.sx) * (f.t / flyDur) : f.x;
+        const my = flying ? f.fly.sy + (f.fly.ty - f.fly.sy) * (f.t / flyDur) : f.y;
+        if (flying) {
+          // 飞行弹体：暗色雷弹 + 尾焰拖尾
+          ctx.fillStyle = '#5d4a2f';
+          ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#f39c12';
+          ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI * 2); ctx.fill();
+          const dir = Math.atan2(my - f.fly.sy, mx - f.fly.sx);
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = '#f39c12';
+          ctx.beginPath(); ctx.arc(mx - Math.cos(dir) * 10, my - Math.sin(dir) * 10, 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.45;
+          ctx.beginPath(); ctx.arc(mx - Math.cos(dir) * 17, my - Math.sin(dir) * 17, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        } else {
+          // 驻留：警示脉冲环（外扩淡出，提示爆炸半径 100）+ 闪烁弹体 + 引信
+          const p = Math.min(1, (f.t - flyDur) / 20);
+          const blink = 0.6 + 0.4 * Math.sin(p * 22 + (f.seed || 0));
+          const pulse = (p * 2.1 + (f.seed || 0) / 10) % 1;
+          ctx.globalAlpha = (1 - pulse) * 0.35;
+          ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.arc(mx, my, 10 + pulse * 42, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = blink;
+          ctx.fillStyle = '#5d4a2f';
+          ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#f39c12';
+          ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#b5651d';
+          ctx.fillRect(mx - 1, my - 14, 2, 6);
+          ctx.globalAlpha = 0.5 + 0.5 * Math.sin(p * 30 + (f.seed || 0));
+          ctx.fillStyle = '#ffd24a';
+          ctx.beginPath(); ctx.arc(mx, my - 13, 2, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       } else if (f.type === 'turret') {
         // 炮·炮台（v1.16.10）：帧动画贴图——1 落地 / 2 成型 / 3 瞄准 / 4 开火
         // 常态循环 1→2→3（1.2s 周期）；combat 开火时在 fx 上打 attackT（f.t 时刻），0.3s 内显示第 4 帧

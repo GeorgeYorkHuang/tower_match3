@@ -951,15 +951,36 @@ t('炮·炮火支援：每 12 秒降下炮击（延迟爆炸落点，伤害 40%�
   assert.ok(g.fx.some((f) => f.type === 'strike'), '应生成地面炮击圈预警特效');
 });
 
-t('炮·地雷阵：每 15 秒城墙前布雷，踩中爆炸', () => {
+t('炮·地雷阵：每 6 秒从塔口抛投，落地布设后可引爆', () => {
   const g = mkGame({ cannon: { 地雷阵: { A: 1 } } }, ['cannon']);
   const c = new CombatSystem(g);
-  c.update(15.01);
-  assert.ok(c.mines.length >= 5, 'A1 应埋 5 颗雷');
+  g.enemies.push(mkEnemy(1000, 375, 700));
+  c.update(6.01);
+  assert.ok(c.mines.length >= 5, 'A1 每 6 秒应抛投 5 颗雷');
   const m = c.mines[0];
+  assert.ok(m.fly, '雷生成后应处于飞行状态（不可引爆）');
+  assert.ok(m.armed === 0, '飞行期间不可引爆（armed 未开始计时）');
+  // 推进至落地（飞行段）+ 布设 0.3s 完毕
+  const dist = Math.hypot(m.fly.tx - m.fly.sx, m.fly.ty - m.fly.sy);
+  const steps = Math.ceil((dist / 200 + 0.4) * 60);
+  for (let i = 0; i < steps; i++) c.update(1 / 60);
+  assert.ok(!m.fly && m.armed <= 0, '落地布设 0.3s 后应可引爆');
+  // 敌人踩中爆炸
   const e = mkEnemy(2000, m.x, m.y); g.enemies.push(e);
   for (let i = 0; i < 60 && e.hp > 0; i++) c.update(1 / 60);
   assert.ok(e.hp < 2000, '敌人踩中地雷应爆炸受伤');
+});
+
+t('炮·地雷阵：无敌人时在攻击范围内随机部署', () => {
+  const g = mkGame({ cannon: { 地雷阵: 1 } }, ['cannon']);
+  const c = new CombatSystem(g);
+  c.update(6.01);
+  assert.ok(c.mines.length >= 3, '无敌人也应抛投 3 颗雷');
+  const ly = c.ly();
+  const fy0 = ly.slotY + ly.slotSize / 2;
+  c.mines.forEach((m) => {
+    assert.ok(m.fly.tx >= 25 && m.fly.tx <= 725 && m.fly.ty < fy0, '无敌人时部署点应在攻击范围内（塔口上方）');
+  });
 });
 
 t('炮·炮台：周期召唤自动炮台独立炮击（v1.16.18 无敌人不部署）', () => {
