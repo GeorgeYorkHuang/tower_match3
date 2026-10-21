@@ -85,19 +85,19 @@ t('测试战场弹药恒满', () => {
   });
 });
 
-// 3. 技能分支循环 + level 派生 + picked 同步
+// 3. 技能分支循环 + level 派生（v1.16.5：level = 1+分支） + picked 同步
 t('testSkillAction：A 分支 0→1→2→3→0 循环与激活同步', () => {
   const tw = game.run.effects.tower('fire');
   const ef = tw.pool.find((e) => e.name === '点燃');
   game.testSkillAction('fire', '点燃', 'A');
   assert.strictEqual(ef.branches.A, 1);
-  assert.strictEqual(ef.level, 1, 'level 应派生 = max(分支)');
+  assert.strictEqual(ef.level, 2, '分支 Lv1 → 技能 Lv2（1+分支）');
   assert.ok(tw.activeNames.includes('点燃'), '应加入 activeNames');
   assert.ok(tw.picked.has('点燃'), '应加入 picked');
   game.testSkillAction('fire', '点燃', 'A'); // 2
   game.testSkillAction('fire', '点燃', 'A'); // 3
   assert.strictEqual(ef.branches.A, 3);
-  assert.strictEqual(ef.level, 3);
+  assert.strictEqual(ef.level, 4, '分支 Lv3 → 技能 LvMAX(4)');
   game.testSkillAction('fire', '点燃', 'A'); // 0（循环回 0）
   assert.strictEqual(ef.branches.A, 0);
   assert.strictEqual(ef.level, 0, '清零后 level 应为 0');
@@ -106,6 +106,7 @@ t('testSkillAction：A 分支 0→1→2→3→0 循环与激活同步', () => {
   game.testSkillAction('fire', '点燃', 'A');
   game.testSkillAction('fire', '点燃', 'clear');
   assert.strictEqual(ef.branches.A, 0);
+  assert.strictEqual(ef.level, 0, '清除后 level 应为 0');
   assert.ok(!tw.picked.has('点燃'), '清除后应移出 picked');
 });
 

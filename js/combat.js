@@ -74,6 +74,7 @@ class CombatSystem {
     if (t && order && order.length && !order.includes(key)) return null;
     return t;
   }
+  /** 技能数值等级（v1.16.5：统一口径 = 激活?1+分支:0；与原版激活 1 档/分支逐级+1 一致，满级 4 档） */
   lv(key, name) {
     const b = this.tower(key);
     if (!b) return 0;

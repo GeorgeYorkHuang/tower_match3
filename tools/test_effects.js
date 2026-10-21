@@ -92,7 +92,7 @@ t('特效分支锁定：只升已选分支至 Lv3 后移出候选池', () => {
   elec.pending = 20;
   m.settleAuto();
   const chain = elec.pool.find((e) => e.name === '连锁');
-  assert.strictEqual(chain.level, CONFIG.EFFECT.maxLevel, '目标特效应升满');
+  assert.strictEqual(chain.level, CONFIG.EFFECT.maxLevel + 1, '满级技能等级 = 1+分支 = LvMAX(4)（v1.16.5）');
   assert.strictEqual(chain.branches.A, CONFIG.EFFECT.maxLevel, '分支 A 应升满（锁定线）');
   assert.strictEqual(chain.branches.B, 0, '分支 B 应移出池（未选不升）');
   assert.strictEqual(chain.branches.C, 0, '分支 C 应移出池（未选不升）');
@@ -188,18 +188,20 @@ t('v1.11 两级候选：技能卡 + 分支卡混池', () => {
   assert.ok(branches[0].branchLv >= 0 && branches[0].branchLv < CONFIG.EFFECT.maxLevel, '分支等级在 0-2');
 });
 
-/* 12. v1.11 分支独立升级：分支卡只升对应分支 */
+/* 12. v1.11 分支独立升级：分支卡只升对应分支（v1.16.5 激活不锁分支、level=1+分支） */
 t('v1.11 分支独立升级：只升对应分支', () => {
   const m = freshManager();
   const fire = m.tower('fire');
   fire.applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' });
   const ef = fire.pool.find((e) => e.name === '点燃');
+  assert.strictEqual(ef.branches.A, 0, '激活不锁定分支（v1.16.5）');
+  assert.strictEqual(ef.level, 1, '激活即技能 Lv1（分支未选）');
   const res = fire.applyChoice({ name: '点燃', type: 'branch', branch: 'B', branchLv: 0, fromTower: 'fire' });
   assert.ok(res.ok && res.leveled, '分支卡应升级');
-  assert.strictEqual(ef.branches.A, 1, 'A 不变');
+  assert.strictEqual(ef.branches.A, 0, 'A 不变（未选）');
   assert.strictEqual(ef.branches.B, 1, 'B +1');
   assert.strictEqual(ef.branches.C, 0, 'C 不变');
-  assert.strictEqual(ef.level, 1, '派生 level = max(A,B,C)');
+  assert.strictEqual(ef.level, 2, '分支 Lv1 → 技能 Lv2（1+分支）');
 });
 
 /* 13. v1.11 升级三选一跨塔混池：候选带来源塔，含两级类型 */

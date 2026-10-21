@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.4';        // v1.16.4 测试战场：切塔即旧塔取消生效（单塔生效集合+协同断开）+ 技能面板确定按钮
+const GAME_VERSION = 'v1.16.5';        // v1.16.5 技能等级口径：激活=技能Lv1(分支0)、选分支=技能Lv2(分支1)、满级Lv4；数值与原版等价；sim 确定性修复
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -210,11 +210,13 @@ class GameMain {
     if (!ef) return;
     if (br === 'clear') {
       ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0;
+      ef.act = false; // v1.16.5 清除同时取消激活标记
       const i = t.activeNames.indexOf(name);
       if (i >= 0) t.activeNames.splice(i, 1);
       t.picked.delete(name);
     } else if (['A', 'B', 'C'].includes(br)) {
       ef.branches[br] = (ef.branches[br] + 1) % 4; // 0→1→2→3→0
+      ef.act = (ef.branches.A + ef.branches.B + ef.branches.C) > 0; // v1.16.5 分支全归零 → 取消激活
       if (ef.level > 0) {
         if (!t.activeNames.includes(name)) t.activeNames.push(name);
         t.picked.add(name);
@@ -235,8 +237,8 @@ class GameMain {
     const t = this.run.effects.tower(key);
     if (!t) return;
     t.pool.forEach((ef) => {
-      if (on) { ef.branches.A = 3; ef.branches.B = 0; ef.branches.C = 0; if (!t.activeNames.includes(ef.name)) t.activeNames.push(ef.name); t.picked.add(ef.name); }
-      else { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; }
+      if (on) { ef.branches.A = 3; ef.branches.B = 0; ef.branches.C = 0; ef.act = true; if (!t.activeNames.includes(ef.name)) t.activeNames.push(ef.name); t.picked.add(ef.name); }
+      else { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; ef.act = false; }
     });
     if (!on) { t.activeNames = []; t.picked = new Set(); }
     this.run.effects.updateSynergies();

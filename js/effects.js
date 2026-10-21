@@ -35,10 +35,11 @@ class TowerBuild {
     let names = (CONFIG.EFFECT_POOLS[key] || []).map((e) => e.name);
     if (CONFIG.EFFECT.poolP0) names = names.slice(0, CONFIG.EFFECT.p0PoolSize);
     this.pool = names.map((name) => {
-      const ef = { name, branches: { A: 0, B: 0, C: 0 } };
-      // 兼容层：level 派生 = 最高分支等级（combat.lv()/dps 直接读取）
+      const ef = { name, branches: { A: 0, B: 0, C: 0 }, act: false };
+      // v1.16.5 技能等级口径：激活即 Lv1（分支未选=0）；每升一级分支 +1 → 技能 Lv2/3/4（满级 4 = LvMAX）
+      // level 派生：act ? 1 + max(分支) : 0（激活判定、DPS 乘区统一用此口径）
       Object.defineProperty(ef, 'level', {
-        get() { return Math.max(ef.branches.A, ef.branches.B, ef.branches.C); },
+        get() { return ef.act ? 1 + Math.max(ef.branches.A, ef.branches.B, ef.branches.C) : 0; },
       });
       return ef;
     });
@@ -76,8 +77,8 @@ class TowerBuild {
     }
   }
 
-  /** 特效满级？（派生 level 达到上限） */
-  _maxed(ef) { return ef.level >= CONFIG.EFFECT.maxLevel; }
+  /** 特效满级？（分支维度判定：任一分支达 maxLevel 即满，v1.16.5 对齐 1+分支 口径） */
+  _maxed(ef) { return Math.max(ef.branches.A, ef.branches.B, ef.branches.C) >= CONFIG.EFFECT.maxLevel; }
 
   /** 该技能是否已激活（任一分支 > 0） */
   _activated(ef) { return ef.level > 0; }
@@ -198,7 +199,8 @@ class TowerBuild {
         // v1.13.4：槽满 3 技能后不允许再激活新技能（候选已排除；防御拒绝超槽）
         return { ok: false };
       } else {
-        poolEf.branches.A = Math.max(poolEf.branches.A, 1); // 激活默认分支 A Lv1
+        // v1.16.5 技能卡激活：只标记激活、不锁定分支（分支保持 0，技能 Lv1；第一次分支升级才是「选分支」）
+        poolEf.act = true;
         if (!host.activeNames.includes(poolEf.name)) host.activeNames.push(poolEf.name);
         host.picked.add(poolEf.name);
         res.activated = true;
@@ -209,7 +211,8 @@ class TowerBuild {
     return res;
   }
 
-  /** 塔 DPS：等级成长（v1.8 可传入整体等级 baseLevel）× 已激活特效乘区 × 协同乘区 */
+  /** 塔 DPS：等级成长（v1.8 可传入整体等级 baseLevel）× 已激活特效乘区 × 协同乘区
+   *  v1.16.5：战斗乘区按数值口径 max(1, 分支档)（与原版激活即 1 档一致）；显示口径 1+分支 见 level getter */
   dps(synergyDone, baseLevel) {
     if (this.level === 0) return 0;
     const lv = (baseLevel && baseLevel > 0) ? baseLevel : this.level;
@@ -241,7 +244,7 @@ class TowerBuild {
 
   /** run 间重置构筑（塔等级/金币跨 run 保留） */
   resetRunBuild() {
-    this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; });
+    this.pool.forEach((ef) => { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; ef.act = false; });
     this.activeNames = [];
     this.picked = new Set();
     this.pending = 0;

@@ -20,6 +20,9 @@ const CONFIG = require('../js/config.js');
 
 function runSim(seed, maxWave) {
   const rng = (() => { let a = seed >>> 0; return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();
+  // v1.16.5 确定性修复：战斗概率（combat.js 的 Math.random）也走种子，消除跑间随机噪声
+  const origRandom = Math.random;
+  Math.random = rng;
   const run = game.run;
   run.rng = rng;
   run._weights = run._weightsFor();
@@ -71,6 +74,7 @@ function runSim(seed, maxWave) {
     });
     if (run.broken) break;
   }
+  Math.random = origRandom;
   return { breakWave: run.broken ? run.wave : null, rows };
 }
 
