@@ -138,17 +138,19 @@ t('冰·多重冰锥C：增殖 10/14/18 枚超小型冰锥', () => {
   assert.ok(hurt >= 2, `各自索敌应命中多个敌人，实际 ${hurt}`);
 });
 
-t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
-  const g = mkGame({ ice: { 冰花: { A: 1 } } });
+t('冰·冰花：周期对最近敌人范围伤害 + A扩张/B霜力/C繁花', () => {
+  const g = mkGame({ ice: { 冰花: { A: 1, C: 1 } } });
   const c = new CombatSystem(g);
-  // 主目标 y=900（最近），两个周边敌（100 内）+ 一个远处（传染 60 内）
+  // 主目标 y=900（最近），周边敌（120 内）+ 一个 100~120 环带（A1 扩张 120 才覆盖）+ 远处不受
   g.enemies.push(mkEnemy(10000, 375, 900));
   g.enemies.push(mkEnemy(10000, 400, 930));
-  g.enemies.push(mkEnemy(10000, 410, 950));   // 传染 60px 内
+  g.enemies.push(mkEnemy(10000, 375, 1010));   // 距主 110px：A1 扩张 120 覆盖
+  g.enemies.push(mkEnemy(10000, 800, 800));    // 远处不受
   c.tickPeriodic(8);   // 冰花周期 8s 触发
-  c.update(0.9);       // v1.16.10：冰花改为延迟 0.8s（第 4 帧动画末尾）结算范围伤害
+  c.update(0.9);       // 延迟 0.8s 结算范围伤害
   const hurt = g.enemies.filter((x) => x.hp < 10000).length;
-  assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
+  assert.ok(hurt >= 3, `A1 扩张 120px + C1 双花应覆盖主目标周边 3 个，实际 ${hurt}`);
+  assert.ok(g.enemies[3].hp === 10000, '远处敌人不受冰花伤害');
 });
 
 t('普攻·冰塔：无技能时 20% 概率冰缓（减速30%·3s）', () => {
@@ -217,17 +219,20 @@ t('冰·冰墙：周期附魔城墙 + 结束回血', () => {
   assert.ok(Math.abs(g.run.lineHp - (origHp - 100 + 40)) < 1e-6, `结束应回血 40，实际 lineHp=${g.run.lineHp}`);
 });
 
-t('冰·冬珠：持续冰霜之球范围伤害', () => {
-  const g = mkGame({ ice: { 冬珠: 1 } });
+t('冰·冬珠：持续冰霜之球范围伤害 + A寒域减速/B扩张/C凝华频率', () => {
+  const g = mkGame({ ice: { 冬珠: 1 } });   // A1B1C1：范围 110×1.2=132、跳频 0.7s、减速 20%
   const c = new CombatSystem(g);
   g.enemies.push(mkEnemy(10000, 375, 800));
   g.enemies.push(mkEnemy(10000, 390, 830));   // 110 范围内
   c.timers.frostOrb = 9.9;
   c.update(0.2);   // timer 10.1 ≥10 → 释放冬珠（推进仅 -0.2s）
-  assert.ok(c.frostOrbs.length === 2, '应生成 2 颗冬珠（基础1 + C速记1）');
-  c.update(0.7);   // 累计 0.9s > 0.8s tickI → 第一跳
+  assert.ok(c.frostOrbs.length === 1, '应生成 1 颗冬珠（C 不再增加数量）');
+  assert.ok(Math.abs(c.frostOrbs[0].tickI - 0.7) < 1e-6, `C1 凝华跳频应 0.7s，实际 ${c.frostOrbs[0].tickI}`);
+  assert.ok(Math.abs(c.frostOrbs[0].r - 132) < 1e-6, `B1 扩张范围应 132，实际 ${c.frostOrbs[0].r}`);
+  c.update(0.7);   // 累计 0.9s > 0.7s tickI → 第一跳
   const hurt = g.enemies.filter((x) => x.hp < 10000).length;
   assert.ok(hurt === 2, `冬珠一跳应伤范围内 2 个，实际 ${hurt}`);
+  assert.ok(g.enemies.every((x) => x.slow && x.slow.ttl > 0), 'A1 寒域减速 20% 应作用范围内敌人');
 });
 
 t('电·连锁：命中后跳转第二目标', () => {

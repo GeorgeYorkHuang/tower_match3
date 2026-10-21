@@ -1616,7 +1616,8 @@ class CombatSystem {
         this.rainWaves = remaining;
       }
     }
-    // 冰·冰花（v1.13.23 原霜星改周期技）：每 8 秒对最近 N 个敌人召唤冰花（范围 100 伤害；A 碎散传染、B 霜力伤害+40%/级、C 繁花数量+1/级）
+    // 冰·冰花（v1.13.23 原霜星改周期技；v1.16.21 分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
+    //     A 扩张 范围 +20/40/60%、B 霜力 伤害 +20/40/60%、C 繁花 数量 +1/+2/+3；原 A 碎散传染移除）
     const flower = this.lv('ice', '冰花');
     if (flower > 0) {
       this.timers.iceFlower = (this.timers.iceFlower || 0) + dt;
@@ -1624,43 +1625,34 @@ class CombatSystem {
         this.timers.iceFlower = 0;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
-          const n = 1 + this.branchLv('ice', '冰花', 'C');
-          const dmg = this.shotDmg('ice') * 0.8 * (1 + 0.4 * this.branchLv('ice', '冰花', 'B'));
-          const r = 100;
-          const aLv = this.branchLv('ice', '冰花', 'A');
+          const n = 1 + [0, 1, 2, 3][this.branchLv('ice', '冰花', 'C')];
+          const dmg = this.shotDmg('ice') * 0.8 * (1 + [0, 0.2, 0.4, 0.6][this.branchLv('ice', '冰花', 'B')]);
+          const r = 100 * (1 + [0, 0.2, 0.4, 0.6][this.branchLv('ice', '冰花', 'A')]);
           const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
           targets.forEach((tgt) => {
             // v1.16.9 伤害改为延迟到冰花第 3 帧动画末尾（dur 1.1s ÷ 4 帧 ≈ 0.275s/帧 → 0.825s≈0.8s）结算，
-            // 此时冰花绽放完成"爆炸"，一并触发碎散传染与扩散演出
+            // 此时冰花绽放完成"爆炸"，一并触发范围伤害与扩散演出
             const fxDmg = dmg;
-            const fxALv = aLv;
+            const fxR = r;
             this.delayed.push({
-              x: tgt.x, y: tgt.y, r: 100, dmg: fxDmg, delay: 0.8, t: 0, key: 'ice',
+              x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg, delay: 0.8, t: 0, key: 'ice',
               fn: (cb) => {
-                const hitOnes = cb.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= 100);
+                const hitOnes = cb.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
                 hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice'));
-                // A 碎散：冰花碎裂传染周边敌人（50% 伤害）
-                if (fxALv > 0) {
-                  hitOnes.forEach((h) => {
-                    cb.enemies().forEach((o) => {
-                      if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) cb.damage(o, fxDmg * 0.4, 'ice');
-                    });
-                  });
-                }
                 // 爆炸演出：扩散冰环 + 冰晶碎瓣 + 闪光（与伤害同时）
-                cb.fxRing(tgt.x, tgt.y, '#7fd4ff', 100, 0.5, 5);
+                cb.fxRing(tgt.x, tgt.y, '#7fd4ff', fxR, 0.5, 5);
                 cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
                 cb.fxFlash(tgt.x, tgt.y, '#7fd4ff');
               }
             });
             // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
-            this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r, t: 0, dur: 1.1 });
+            this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r: fxR, t: 0, dur: 1.1 });
           });
         }
       }
     }
-    // 冰·冬珠（v1.13.23 原冻结率改持续球）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
-    //     A 寒域：范围减速 30%；B 扩容：范围 +30%/级；C 凝华：数量 +1/级、伤害频率 +20%/级
+    // 冰·冬珠（v1.13.23 原冻结率改持续球；v1.16.21 分支重做）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
+    //     A 寒域 范围减速 20%/30%/40%；B 扩张 范围 +20/40/60%；C 凝华 伤害频率 0.7/0.55/0.4 秒一跳（原数量+1 移除）
     const orbSkill = this.lv('ice', '冬珠');
     if (orbSkill > 0) {
       this.timers.frostOrb = (this.timers.frostOrb || 0) + dt;
@@ -1668,15 +1660,15 @@ class CombatSystem {
         this.timers.frostOrb = 0;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
-          const orbN = 1 + this.branchLv('ice', '冬珠', 'C');
-          const r = 110 * (1 + 0.3 * this.branchLv('ice', '冬珠', 'B'));
-          const tickI = 0.8 * (1 - 0.2 * this.branchLv('ice', '冬珠', 'C'));
-          const slowA = this.branchLv('ice', '冬珠', 'A');
+          const r = 110 * (1 + [0, 0.2, 0.4, 0.6][this.branchLv('ice', '冬珠', 'B')]);
+          const cLv = this.branchLv('ice', '冬珠', 'C');
+          const tickI = cLv > 0 ? [0, 0.7, 0.55, 0.4][cLv] : 0.8;
+          const slowMult = [0, 0.2, 0.3, 0.4][this.branchLv('ice', '冬珠', 'A')];
           const dmg = this.shotDmg('ice') * 0.44;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
-          const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbN);  // 最近 N 个敌人位置落球
+          const spots = alive.sort((a, b) => b.y - a.y).slice(0, 1);   // 最近 1 个敌人位置落球（C 不再增加数量）
           this.frostOrbs = this.frostOrbs || [];
           spots.forEach((sp) => {
-            this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: 5, tickT: 0, tickI, dmg, slowA });
+            this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: 5, tickT: 0, tickI, dmg, slowMult });
             this.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: 5 });
             // v1.13.27 冬珠浮现光效：冰球凝现闪光 + 冰雾
             this.fxFlash(sp.x, sp.y, '#d6f0ff', 0.3);
@@ -1696,7 +1688,7 @@ class CombatSystem {
             this.enemies().forEach((o) => {
               if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
               this.damage(o, ob.dmg, 'ice');
-              if (ob.slowA > 0) this.applySlow(o, 0.3, 1);
+              if (ob.slowMult > 0) this.applySlow(o, ob.slowMult, 1);
             });
             this.fxRing(ob.x, ob.y, '#b8e6ff', ob.r * 0.5, 0.35, 3);
           }
