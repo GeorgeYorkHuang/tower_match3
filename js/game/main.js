@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.14';       // v1.16.14 全量技能类型+文案补全：大火球普攻化/冰冻30%+A/放血替换穿透/军火库重做(弹药+50·填充·充能·双倍火力)/碎冰爆
+const GAME_VERSION = 'v1.16.15';       // v1.16.15 塔等级=已选次数 + 即时三选一（升级/得塔立即弹出，不攒波末）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -336,6 +336,11 @@ class GameMain {
         this.relicPickHits = [];
         this.state = 'relicpick';
         this.toast('圣物宝箱 · 三选一', '#f7c948');
+        return;
+      }
+      // v1.16.15 即时三选一：每获得 1 次选择机会（塔升级/得塔）立即弹出，不再攒到波末统一结算
+      if (this.run.effects.pendingTotal() > 0) {
+        this.flushUpgrades();
         return;
       }
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）

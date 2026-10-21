@@ -22,9 +22,31 @@ function seededRng(seed) {
 
 function freshManager(seed = 1) {
   const m = new EffectManager({ rng: seededRng(seed) });
-  Object.keys(m.towers).forEach((k) => m.towers[k].unlock());
+  Object.keys(m.towers).forEach((k) => { m.towers[k].unlock(); m.towers[k].pending = 0; }); // v1.16.15 清掉建塔赠的 1 次机会，测试手动控制
   return m;
 }
+
+/* 0. v1.16.15 等级=已选次数：得塔赠 1 次建塔选择（不涨级），后续每选一次 +1；经验升级只加机会 */
+t('v1.16.15 得塔赠建塔选择；等级=已选次数', () => {
+  const m = new EffectManager();
+  const fire = m.tower('fire');
+  assert.strictEqual(fire.level, 0, '未得塔 Lv0');
+  fire.unlock();
+  assert.strictEqual(fire.level, 1, '得塔 Lv1');
+  assert.strictEqual(fire.pending, 1, '得塔赠 1 次建塔选择');
+  const res = fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
+  assert.ok(res.ok);
+  assert.strictEqual(fire.level, 1, '建塔选择计入等级基数 1（不涨级）');
+  assert.strictEqual(fire.pending, 0, '选择消耗 1 次机会');
+  fire.pending = 1;
+  fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
+  assert.strictEqual(fire.level, 2, '第 2 次选择后 Lv2');
+  fire.exp = 0; fire.gainExp(fire.expNeed());      // 升到当前需求即得 1 次机会
+  assert.strictEqual(fire.pending, 1, '升级产 1 次机会');
+  assert.strictEqual(fire.level, 2, '经验不直接涨等级');
+  fire.exp = 0; fire.gainExp(fire.expNeed());
+  assert.strictEqual(fire.pending, 2, '连续升级累积机会');
+});
 
 /* 1. 候选生成：3 个、不重复、来自该塔池 */
 t('候选生成：3 个、不重复、属于该塔池', () => {
