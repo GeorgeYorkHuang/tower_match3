@@ -364,15 +364,19 @@ t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰
   assert.ok(e1.hp < 2000, '主目标应立即受一枚火球伤害');
   // 主目标移出战场（避免散射弹道优先命中主目标，干扰散射路径验证）
   g.enemies = g.enemies.filter((o) => o !== e1);
-  // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 3（基础 3 枚 + A 速记 1）
+  // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 5（v1.16.21 基础 5 枚 = 主 + 4 散射，A 速记 1 → 6 枚）
+  //   + C 散射分裂：主目标命中后分裂 4 条 mini 小火球弹道（scatter:true, hitR=30）
   const scatters = c.shots.filter((s) => s.scatter);
-  assert.strictEqual(scatters.length, 3, `应有 3 条散射弹道（实际 ${scatters.length}）`);
-  scatters.forEach((s) => {
+  const mains = scatters.filter((s) => s.hitR === 45);
+  const minis = scatters.filter((s) => s.hitR === 30);
+  assert.strictEqual(mains.length, 5, `应有 5 条主散射弹道（实际 ${mains.length}）`);
+  assert.strictEqual(minis.length, 4, `C 散射应分裂 4 条小火球弹道（实际 ${minis.length}）`);
+  mains.concat(minis).forEach((s) => {
     assert.ok(!s.target, '散射弹道不配置目标');
     assert.ok(s.hitR > 0 && s.tx !== s.sx, '散射弹道有碰撞半径与射界终点');
   });
-  // 碰撞检测确定性验证：把敌人放到某条散射弹道当前位置 → scatterCheck 应命中
-  const s0 = scatters[0];
+  // 碰撞检测确定性验证：把敌人放到某条主散射弹道当前位置 → scatterCheck 应命中
+  const s0 = mains[0];
   s0.t = 0.3;
   const p = 0.3 / s0.dur;
   const bx = s0.sx + (s0.tx - s0.sx) * p, by = s0.sy + (s0.ty - s0.sy) * p;
@@ -435,19 +439,19 @@ t('火·火雨：每波 3 批×2-5 颗独立落下，落地结算伤害+灼烧',
   assert.ok(e1.dots.some((d) => d.type === 'burn'), '落地结算：火雨造成灼烧效果');
 });
 
-t('死亡触发：燃爆（灼烧敌人死亡时概率爆炸波及邻近）', () => {
-  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 } });
+t('死亡触发：爆燃（灼烧敌人死亡时概率爆炸波及邻近）', () => {
+  const g = mkGame({ fire: { 爆燃: 1, 点燃: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
   const orig = Math.random; Math.random = () => 0; // 必触发（40% 基础概率）
   try { c.hit('fire', e1, 100); } finally { Math.random = orig; }
   assert.ok(e1.hp <= 0, '主目标应死亡');
-  assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
+  assert.ok(e2.hp < 1000, '爆燃应波及邻近敌人');
 });
 
 t('火·灼烧爆裂：灼烧每跳概率向外爆炸', () => {
-  const g = mkGame({ fire: { 点燃: 1, 燃爆: { C: 2 } } });
+  const g = mkGame({ fire: { 点燃: 1, 爆燃: { C: 2 } } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(3000, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(3000, 385, 815); g.enemies.push(e2);
@@ -513,15 +517,15 @@ t('炮·重炮：爆炸范围伤害（半径随 A 增强）', () => {
   assert.ok(Math.abs(48 * (1 + 0.25 + 0.15 * 2) - 48 * 1.55) < 0.01, '重炮半径 = 48×(1+0.25×lv+0.15×A)');
 });
 
-t('死亡触发：燃爆（灼烧敌人死亡时爆炸波及邻近）', () => {
-  const g = mkGame({ fire: { 燃爆: 1, 点燃: 1 } });
+t('死亡触发：爆燃（灼烧敌人死亡时爆炸波及邻近）', () => {
+  const g = mkGame({ fire: { 爆燃: 1, 点燃: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 395, 815); g.enemies.push(e2);
   const orig = Math.random; Math.random = () => 0; // 必触发（40% 基础概率）
   try { c.hit('fire', e1, 100); } finally { Math.random = orig; }
   assert.ok(e1.hp <= 0, '主目标应死亡');
-  assert.ok(e2.hp < 1000, '燃爆应波及邻近敌人');
+  assert.ok(e2.hp < 1000, '爆燃应波及邻近敌人');
 });
 
 t('死亡触发：毒爆（v1.15 传播中毒）', () => {
@@ -536,11 +540,11 @@ t('死亡触发：毒爆（v1.15 传播中毒）', () => {
   assert.ok(dot && dot.stack === 1, '毒爆应向邻近 200px 内目标传播 1 层中毒');
 });
 
-t('协同：燃爆×毒爆 不再存在（毒爆重做为传播，v1.15 移除协同）', () => {
+t('协同：爆燃×毒爆 不再存在（毒爆重做为传播，v1.15 移除协同）', () => {
   const hit = CONFIG.SYNERGIES.some((s) =>
-    (s.a.tower === 'fire' && s.a.effect === '燃爆' && s.b.tower === 'poison' && s.b.effect === '毒爆') ||
-    (s.a.tower === 'poison' && s.a.effect === '毒爆' && s.b.tower === 'fire' && s.b.effect === '燃爆'));
-  assert.ok(!hit, '毒爆重做后不应再有燃爆×毒爆协同');
+    (s.a.tower === 'fire' && s.a.effect === '爆燃' && s.b.tower === 'poison' && s.b.effect === '毒爆') ||
+    (s.a.tower === 'poison' && s.a.effect === '毒爆' && s.b.tower === 'fire' && s.b.effect === '爆燃'));
+  assert.ok(!hit, '毒爆重做后不应再有爆燃×毒爆协同');
 });
 
 t('全塔攻击调度：tickTower 按间隔发弹道并命中', () => {

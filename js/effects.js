@@ -10,7 +10,7 @@
  *       · 技能卡（未激活技能，type='skill'）——选中=激活（默认分支 A Lv1）
  *       · 分支卡（已激活技能的未满分支，type='branch'）——选中=该分支 Lv+1
  *     先选技能；技能激活后，后续升级才会出现分支（分支继续升级，封顶 3）
- *   - 首选保底：本 run 首次三选一候选必含标志特效（火=燃爆/毒=毒爆/冰=冰冻/电=连锁）
+ *   - 首选保底：本 run 首次三选一候选必含标志特效（火=爆燃/毒=毒爆/冰=冰冻/电=连锁）
  *   - 目标加权：targeting 时目标特效权重 ×targetWeight
  *   - 槽满可替换：抽到未激活技能且槽满 → 替换非目标特效（保留目标）
  *   - 待选可攒：pending 上限 pendingCap（跨波），波末逐次结算
@@ -20,7 +20,7 @@
 const CONFIG = require('./config.js');
 
 /* 标志特效（协同目标）映射：塔 key → 目标特效名 */
-const TARGET_OF = { fire: '燃爆', poison: '毒爆', ice: '冰冻', electric: '连锁', cannon: '溅射' };
+const TARGET_OF = { fire: '爆燃', poison: '毒爆', ice: '冰冻', electric: '连锁', cannon: '溅射' };
 const BRANCH_KEYS = ['A', 'B', 'C'];
 
 /** 单塔特效构筑 */
@@ -358,7 +358,7 @@ class EffectManager {
   _synPairs() {    return CONFIG.SYNERGIES.map((s) => [s.a.tower, s.a.effect, s.b.tower, s.b.effect]);
   }
 
-  /** 协同检测：燃爆×毒爆、冰冻×电连锁；测试战场（_activeKeys 非空）只检测出战塔 */
+  /** 协同检测：爆燃×毒爆、冰冻×电连锁；测试战场（_activeKeys 非空）只检测出战塔 */
   updateSynergies() {
     const a = this._activeKeys;
     const ok = (k) => !a || !a.length || a.includes(k);

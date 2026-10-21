@@ -39,7 +39,7 @@ t('v1.16.17 塔等级=选择次数+1；建塔不赠选择', () => {
   assert.strictEqual(fire.level, 1, '升级不涨塔等级');
   assert.strictEqual(fire.pending, 1, '升级产 1 次选择机会');
   // 第 1 次选择：塔等级 1→2
-  const res = fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
+  const res = fire.applyChoice(fire.pool.find((e) => e.name === '爆燃'));
   assert.ok(res.ok);
   assert.strictEqual(fire.pending, 0, '选择消耗 1 次机会');
   assert.strictEqual(fire.level, 2, '第 1 次选择后 Lv2');
@@ -68,13 +68,13 @@ t('候选生成：3 个、不重复、属于该塔池', () => {
   cands.forEach((e) => assert.ok(poolNames.includes(e.name), `${e.name} 应属于火塔全技能池`));
 });
 
-/* 2. 首选保底：首次三选一候选必含标志特效（fire→燃爆） */
+/* 2. 首选保底：首次三选一候选必含标志特效（fire→爆燃） */
 t('首选保底：首次候选必含标志特效', () => {
   for (let i = 0; i < 50; i++) {
     const m = freshManager();
     m.tower('fire').pending = 1;
     const q = m.settlePending();
-    assert.ok(q[0].candidates.some((e) => e.name === '燃爆'), 'fire 首次候选应含燃爆');
+    assert.ok(q[0].candidates.some((e) => e.name === '爆燃'), 'fire 首次候选应含爆燃');
   }
 });
 
@@ -91,8 +91,8 @@ t('targeting 自动路径选目标特效', () => {
 t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升级卡）', () => {
   const m = freshManager();
   const fire = m.tower('fire');
-  // 直接构造 3 槽满：燃爆 + 大火球 + 火柱
-  fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));
+  // 直接构造 3 槽满：爆燃 + 大火球 + 火柱
+  fire.applyChoice(fire.pool.find((e) => e.name === '爆燃'));
   fire.applyChoice(fire.pool.find((e) => e.name === '大火球'));
   fire.applyChoice(fire.pool.find((e) => e.name === '火柱'));
   assert.strictEqual(fire.activeNames.length, 3);
@@ -146,7 +146,7 @@ t('待选队列逐组结算', () => {
   assert.strictEqual(ice.pending, 0);
 });
 
-/* 7. 协同检测：毒爆重做后移除燃爆×毒爆；冰冻×连锁仍生效（v1.15） */
+/* 7. 协同检测：毒爆重做后移除爆燃×毒爆；冰冻×连锁仍生效（v1.15） */
 t('协同检测（毒爆协同已移除；冰冻×连锁生效）', () => {
   const m = freshManager();
   m.tower('ice').applyChoice(m.tower('ice').pool.find((e) => e.name === '冰冻'));
@@ -155,11 +155,11 @@ t('协同检测（毒爆协同已移除；冰冻×连锁生效）', () => {
   const s = m.synergyStatus();
   assert.ok(s.some((x) => x.done && x.pair.includes('冰冻')), '冰冻×连锁 协同应达成');
   // 毒爆协同不存在
-  m.tower('fire').applyChoice(m.tower('fire').pool.find((e) => e.name === '燃爆'));
+  m.tower('fire').applyChoice(m.tower('fire').pool.find((e) => e.name === '爆燃'));
   m.tower('poison').applyChoice(m.tower('poison').pool.find((e) => e.name === '毒爆'));
   m.updateSynergies();
   const s2 = m.synergyStatus();
-  assert.ok(!s2.some((x) => x.pair.includes('燃爆') && x.pair.includes('毒爆')), '燃爆×毒爆 协同应已移除');
+  assert.ok(!s2.some((x) => x.pair.includes('爆燃') && x.pair.includes('毒爆')), '爆燃×毒爆 协同应已移除');
 });
 
 /* 8. DPS 乘区：等级成长 × 特效乘区 × 协同乘区 */
@@ -169,7 +169,7 @@ t('DPS 计算含全部乘区', () => {
   assert.strictEqual(fire.dps(false), 32, 'Lv1 无特效 = baseDps 32');
   // 直接构造：level=2（v1.16.17 激活选择会涨级，用动态 level 计算期望）
   fire.exp = 0; fire.level = 2;
-  fire.applyChoice(fire.pool.find((e) => e.name === '燃爆'));   // 激活 → level 2→3
+  fire.applyChoice(fire.pool.find((e) => e.name === '爆燃'));   // 激活 → level 2→3
   assert.strictEqual(fire.level, 3, '激活选择后塔等级 +1');
   const expected = 32 * Math.pow(1.26, fire.level - 1) * 1.15;
   const d = fire.dps(false);

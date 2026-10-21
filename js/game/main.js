@@ -1088,7 +1088,7 @@ class GameMain {
           if (res.ok) {
             const cd = group.candidates[i];
             const nm = cd.name;
-            // v1.14 提示优化：分支卡 toast 显示分支名 + 等级变化（如「燃爆·灼烧爆裂 Lv0→1」）
+            // v1.14 提示优化：分支卡 toast 显示分支名 + 等级变化（如「爆燃·灼烧爆裂 Lv0→1」）
             const cdCfg = (CONFIG.EFFECT_POOLS[cd.fromTower || group.tower] || []).find((q) => q.name === nm) || {};
             const actTxt = cd.type === 'branch'
               ? `${nm}·${this.renderer.branchName(cdCfg, cd.branch)} Lv${cd.branchLv}→${cd.branchLv + 1}`

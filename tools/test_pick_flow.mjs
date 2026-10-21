@@ -113,7 +113,7 @@ t('三选一：候选卡片渲染并填充 pickHits', () => {
   // 真实路径 candidates 为池内特效对象引用（applyChoice 校验 includes）
   const pool = game.run.effects.tower('fire').pool;
   game.run.effects.tower('fire').pending = 1;
-  game.pickQueue = [{ tower: 'fire', candidates: pool.slice(0, 3), target: '燃爆' }];
+  game.pickQueue = [{ tower: 'fire', candidates: pool.slice(0, 3), target: '爆燃' }];
   game.pickIndex = 0;
   game.pickHits = {};
   game.state = 'picking';

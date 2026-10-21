@@ -7,7 +7,7 @@
   1) 首塔获得及时：开局 30 秒内完成首次 3 消（模拟波内消除频率）；
   2) 构筑节奏：前 5 波内至少 1 次三选一、前 10 波内某塔 3 激活槽满；
   3) 消除连续不被打断：单波内待选生成峰值 ≤ 5（可跨波攒的上限）；
-  4) 协同可达成：标准路径（目标导向选择）下 15 波内凑齐「燃爆+毒爆」；
+  4) 协同可达成：标准路径（目标导向选择）下 15 波内凑齐「爆燃+毒爆」；
      另统计随机选择策略的达成率作对照；
   5) 经济不失控：30 分钟连续游玩（约 45 波 × 40 秒）期末囤积金币 ≤ 100,000。
 
@@ -46,14 +46,14 @@ CONFIG = {
     # P0 口径：每塔只实现前 5 个特效（GDD P0 范围）；全池口径=8 特效
     "POOL_P0": True,
     "P0_POOL_SIZE": 5,
-    # 协同候选加权：目标特效（燃爆/毒爆/冰冻/连锁）在候选生成中权重倍数
+    # 协同候选加权：目标特效（爆燃/毒爆/冰冻/连锁）在候选生成中权重倍数
     # =1 表示无加权（纯随机）；>1 缓解"槽满即锁定"导致的协同不可达
     "TARGET_WEIGHT": 2,
     # 槽满可替换：抽到未激活特效且槽满时，允许替换一个已激活特效（roguelike 换装）
     # 模拟侧策略：玩家总是保留目标特效、替换其他。False=槽满后未激活特效出局（GDD 原案）
     "SWAP_ON_FULL": False,
     # 首选保底：每塔本 run 第一次三选一时，候选固定包含该塔标志特效
-    # （火=燃爆、毒=毒爆、冰=冰冻、电=连锁），对应 GDD"每波关键色保底"在候选池的延伸
+    # （火=爆燃、毒=毒爆、冰=冰冻、电=连锁），对应 GDD"每波关键色保底"在候选池的延伸
     "FIRST_PICK_GUARANTEE": True,
     # 波次与操作模型
     "WAVE_SEC": 40,
@@ -81,14 +81,14 @@ CONFIG = {
     "SYNERGY_BONUS": 0.5,          # 协同达成后的乘区加成
     # 每塔 8 特效池（名即特效；协同目标以 GDD 旗舰组合为准）
     "EFFECT_POOLS": {
-        "fire":     ["点燃", "灼烧", "火柱", "大火球", "燃爆", "多重火球", "火焰鹰眼", "火雨"],
+        "fire":     ["点燃", "灼烧", "火柱", "大火球", "爆燃", "多重火球", "火焰鹰眼", "火雨"],
         "ice":      ["寒霜", "冰冻", "冰锥穿透", "多重冰锥", "冰花", "冬珠", "碎冰", "冰墙"],
         "poison":   ["剧毒", "扩散", "毒爆", "腐蚀", "毒雾", "瘟疫", "致死", "毒性强化"],
         "electric": ["连锁", "麻痹", "过载", "电弧", "雷暴", "活电", "充能", "电磁场"],
         "boomerang": ["穿透", "折返增伤", "飞距", "攻速", "回收", "暴击", "多镖", "巨镖"],
         "cannon":   ["溅射", "重击", "穿透弹", "炮台座", "震击", "引信", "弹幕", "阵地加固"],
     },
-    "SYNERGIES": [("fire", "燃爆", "poison", "毒爆"), ("ice", "冰冻", "electric", "连锁"), ("cannon", "溅射", "fire", "大火球")],
+    "SYNERGIES": [("fire", "爆燃", "poison", "毒爆"), ("ice", "冰冻", "electric", "连锁"), ("cannon", "溅射", "fire", "大火球")],
     # 敌人与防线（v1.12 调试：hpBase ×2、速度 ×1.5）
     "ENEMY_HP_BASE": 2000, "ENEMY_HP_GROWTH": 1.30,
     "ENEMY_SPEED_MULT": 1.5,
@@ -157,7 +157,7 @@ class Tower:
             eligible = [e for e in pool if not e.maxed and (not slots_full or e.level > 0)]
         if not eligible:
             return None
-        target = {"fire": "燃爆", "poison": "毒爆", "ice": "冰冻", "electric": "连锁"}.get(self.key)
+        target = {"fire": "爆燃", "poison": "毒爆", "ice": "冰冻", "electric": "连锁"}.get(self.key)
         if CONFIG["FIRST_PICK_GUARANTEE"] and not self.first_pick_done and target and any(e.name == target for e in eligible):
             # 本 run 首次三选一：候选必含标志特效
             self.first_pick_done = True
@@ -190,7 +190,7 @@ class Tower:
         if ef.level == 0:
             if len(self.active_names) >= CONFIG["ACTIVE_SLOTS"] and CONFIG["SWAP_ON_FULL"]:
                 # 槽满替换：模拟玩家最优策略——保留目标特效，替换掉一个非目标特效
-                target = {"fire": "燃爆", "poison": "毒爆", "ice": "冰冻", "electric": "连锁"}.get(self.key)
+                target = {"fire": "爆燃", "poison": "毒爆", "ice": "冰冻", "electric": "连锁"}.get(self.key)
                 victim = next((n for n in self.active_names if n != target), None)
                 if victim is None:
                     victim = self.active_names[0]
@@ -276,7 +276,7 @@ def simulate_run(rng, towers, start_wave):
                     break
                 t.apply_choice(ef)
                 pick_count += 1
-        # 协同检测（火燃爆 + 毒毒爆；冰冰冻 + 电连锁）
+        # 协同检测（火爆燃 + 毒毒爆；冰冰冻 + 电连锁）
         for si, (k1, e1, k2, e2) in enumerate(CONFIG["SYNERGIES"]):
             t1 = next((t for t in towers if t.key == k1), None)
             t2 = next((t for t in towers if t.key == k2), None)
@@ -441,7 +441,7 @@ def main():
     print(f"    首个 run 三选一次数均值     : {agg['picks_first_run_mean']:.2f} 次")
     print(f"    前 10 波内 3 激活槽填满率   : {agg['slot_full_10_rate']*100:6.1f}%   （阈值 ≥ 100% 前 10 波可见，GDD 假设）")
     print(f"    待选峰值（单波内，上限 5）  : max={agg['pending_peak_max']}   （≤5 达标率 {agg['pick_cap_ok_rate']*100:.0f}%）")
-    print(f"\n[2] 协同可达成（旗舰：燃爆 × 毒爆）")
+    print(f"\n[2] 协同可达成（旗舰：爆燃 × 毒爆）")
     print(f"    全窗口协同达成率            : {agg['synergy_rate']*100:6.1f}%")
     print(f"    首个 run 内 15 波达成率     : {agg['syn_15_rate']*100:6.1f}%   （阈值 100%，GDD 假设）")
     if agg["first_synergy_wave"]:

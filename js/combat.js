@@ -5,14 +5,14 @@
  *   - 每座塔按自己的 atkInterval 独立攻击（真实节奏、真实目标、真实弹道）
  *   - 单次攻击伤害 dmg = towerDps(key) × atkInterval(key)，保持既有 DPS 口径
  *   - 每次命中按塔类型 + 已激活技能执行真实行为：
- *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 燃爆（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
+ *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 火焰鹰眼 / 火雨（区域多段）
  *       冰：寒霜 / 冰冻 / 冰锥穿透 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
  *       电：连锁弹跳 / 麻痹 / 过载 / 电弧 / 雷暴 / 活电 / 充能 / 电磁场
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
  *       炮：溅射 / 重击 / 穿透弹 / 炮台座 / 震击 / 引信 / 弹幕 / 阵地加固
  *   - 敌人状态：灼烧/中毒 DoT、冰冻、麻痹、减速、腐蚀、连击/过载层数
- *   - 协同：燃爆×毒爆、冰冻×连锁、炮溅射×火溅射（爆炸/连锁增伤）
+ *   - 协同：爆燃×毒爆、冰冻×连锁、炮溅射×火溅射（爆炸/连锁增伤）
  *
  * 运行环境：微信小游戏（CommonJS），纯逻辑无渲染；视觉仍由 game.fx 表现。
  */
@@ -370,10 +370,10 @@ class CombatSystem {
           const dealt = d.stackDps ? (d.stack || 1) * d.stackDps * tickI : d.dps * boost.dmg * tickI;
           this.damage(e, dealt, d.src);
           d.totalDealt = (d.totalDealt || 0) + dealt;
-          // 火·燃爆 C 灼烧爆裂：灼烧每跳 15%+10%/级 概率向外爆炸（40% 范围伤害）
-          const burstLv = this.branchLv('fire', '燃爆', 'C');
-          if (d.type === 'burn' && burstLv > 0 && Math.random() < 0.15 + 0.10 * (burstLv - 1)) {
-            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.32 * (1 + 0.5 * this.branchLv('fire', '燃爆', 'A')), 'fire');
+          // 火·爆燃 C 灼裂：灼烧每跳 15%/30%/50% 概率爆炸一次（30% 范围伤害）
+          const burstLv = this.branchLv('fire', '爆燃', 'C');
+          if (d.type === 'burn' && burstLv > 0 && Math.random() < [0, 0.15, 0.30, 0.50][burstLv]) {
+            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.30, 'fire');
           }
           // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.7) {
@@ -495,18 +495,18 @@ class CombatSystem {
     }
   }
 
-  /* ---------- 死亡触发：各塔死亡技能（燃爆/毒爆/霜星/扩散/回收/致死） ---------- */
+  /* ---------- 死亡触发：各塔死亡技能（爆燃/毒爆/霜星/扩散/回收/致死） ---------- */
   onKill(e) {
     const g = this.game;
     // 毒·致死：低血死亡（此处仅为触发记录，实际致死在命中时判断）
     // 按所有激活塔触发死亡技能
     g.run.slotOrder.slice().forEach((key) => {
-      if (key === 'fire' && this.has('fire', '燃爆') && this.hasDot(e, 'burn')) {
-        // v1.13：基础 40% 概率引爆；A 威力 +50%/级、B 范围 +40%/级
+      if (key === 'fire' && this.has('fire', '爆燃') && this.hasDot(e, 'burn')) {
+        // v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%
         if (Math.random() < 0.40) {
-          const aLv = this.branchLv('fire', '燃爆', 'A');
-          const bLv = this.branchLv('fire', '燃爆', 'B');
-          this.explode(e.x, e.y, 80 * (1 + 0.4 * bLv), this.shotDmg('fire') * 0.96 * (1 + 0.5 * aLv), 'fire');
+          const aLv = this.branchLv('fire', '爆燃', 'A');
+          const bLv = this.branchLv('fire', '爆燃', 'B');
+          this.explode(e.x, e.y, 80 * (1 + [0, 0.2, 0.4, 0.6][bLv]), this.shotDmg('fire') * 0.96 * (1 + [0, 0.3, 0.6, 0.9][aLv]), 'fire');
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -861,7 +861,7 @@ class CombatSystem {
     this.fxFlash(e.x, e.y, '#ffffff', 0.25);
   }
 
-  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/燃爆/多重火球/火焰鹰眼/火雨） ============ */
+  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/火焰鹰眼/火雨） ============ */
   hitFire(e, dmg) {
     const g = this.game;
     // 火焰鹰眼：B 锐目伤害 +15%/级；C 两极反转——伤害随距离反比（最近 100% → 最远 40%，每级反转加大）
@@ -898,8 +898,8 @@ class CombatSystem {
       const idx = g.run.slotOrder.indexOf('fire');
       const fsx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
       const fsy = ly0.slotY + ly0.slotSize / 2;
-      const n = 3 + this.branchLv('fire', '多重火球', 'A');          // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
-      const perDmg = dmg * 0.44 * (1 + 0.15 * this.branchLv('fire', '多重火球', 'B'));
+      const n = 5 + this.branchLv('fire', '多重火球', 'A');          // v1.16.21 基础 5 枚（主 + 4 散射，+2 普通火球）；A 每级 +1
+      const perDmg = dmg * 0.44 * (1 + [0, 0.15, 0.30, 0.50][this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.fire.shot.dur;
       const tint = '#ff7043';
@@ -909,21 +909,55 @@ class CombatSystem {
         const cos = Math.cos(off), sin = Math.sin(off);
         return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
       };
-      // v1.13.13：额外火球改为无目标散射弹道——扇形随机角度射出，沿途真实碰撞命中，射界尽头消失
+      // 火塔射界半径与散射碰撞半径（v1.13.13：额外火球无目标散射弹道）
       const R = this.range('fire');                 // 射界半径（= 塔射程）
       const hitR = 45;                              // 散射火球碰撞半径（弹体较大）
-      const strike = (o, d) => {                    // 命中结算（主目标直瞄与散射弹道共用）
+      // 命中结算（主目标直瞄与散射弹道共用）：本体伤害 + 大火球叠加爆炸 + 多重火球 C 散射分裂
+      const cLv = this.branchLv('fire', '多重火球', 'C');
+      const strike = (o, d, ang) => {
         this.damage(o, d, 'fire');
         this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
         this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
-        if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, d, 'fire');
+        // 多重火球 C 散射：命中后分裂 4 个小火球，沿弹道方向 120° 均匀散射（每个 25% 攻击伤害 + 20% 点燃）
+        if (cLv > 0) {
+          for (let k = 0; k < 4; k++) {
+            const off = -Math.PI / 3 + (k / 3) * (2 * Math.PI / 3);   // -60°~+60° 均匀 4 等分
+            const da = off + (ang || 0);
+            const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
+            const mStrike = (m2) => {
+              this.damage(m2, dmg * 0.25, 'fire');
+              this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
+              if (Math.random() < 0.20) this.applyBurn(m2, dmg, 'fire');
+            };
+            this.shots.push({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
+            g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+          }
+        }
+        // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
+        if (big > 0) {
+          const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A'));
+          const bgs = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
+          const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
+          this.enemies().forEach((o2) => {
+            if (o2 === o || o2.hp <= 0) return;
+            if (Math.hypot(o2.x - o.x, o2.y - o.y) <= bgr) {
+              this.damage(o2, bgs, 'fire');
+              if (bgIgnite > 0 && Math.random() < bgIgnite) this.applyBurn(o2, dmg, 'fire');
+            }
+          });
+          this.fxRing(o.x, o.y, '#ff7043', bgr, 0.4, 4);
+          this.fxParticle(o.x, o.y, '#ffab40', 8, bgr * 0.8, 0.5, 140, 5);
+          this.fxFlash(o.x, o.y, '#ff9f43');
+        }
       };
-      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道（仍直瞄）
+      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道（仍直瞄）+ 命中结算（散射/爆炸）
+      const aim0 = aimOf(e, 0);
       this.damage(e, perDmg, 'fire');
-      g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aimOf(e, 0)));
+      strike(e, perDmg, Math.atan2(aim0.ty - fsy, aim0.tx - fsx));
+      g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aim0));
       // 额外火球：无目标散射——扇形范围内随机角度（基准垂直向上），垂直射界，沿途碰撞命中即止
-      const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：3 枚 ±0.08 / 4 枚 ±0.16 / 5 枚 ±0.24
+      const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
       for (let i = 0; i < n - 1; i++) {
         const off = (Math.random() * 2 - 1) * maxOff;   // 扇形范围内随机角度发射
         const tx = fsx + Math.sin(off) * R;
@@ -936,7 +970,8 @@ class CombatSystem {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
     }
     // 大火球：爆炸范围溅射（扩大 +30%/级、强化 +20%/级、引燃 50%/75%/100% 概率点燃）
-    if (big > 0) {
+    // v1.16.21：多重火球叠加时每枚火球命中处已各自爆炸（见 strike）；此块仅处理未学多重火球的单发大火球
+    if (big > 0 && multi <= 0) {
       const r = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A'));
       const splDmg = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
       const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
