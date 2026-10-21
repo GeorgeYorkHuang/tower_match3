@@ -66,9 +66,9 @@ function renderOnce() {
 }
 
 /* ---- bug 1：功能键命中 ---- */
-t('功能键命中区同步：渲染后 game.funcHits 有 4 键', () => {
+t('功能键命中区同步：渲染后 game.funcHits 有 5 键（v1.16.13 加速按钮）', () => {
   renderOnce();
-  assert.strictEqual(game.funcHits.length, 4, `funcHits 应有 4 个（实际 ${game.funcHits.length}）`);
+  assert.strictEqual(game.funcHits.length, 5, `funcHits 应有 5 个（实际 ${game.funcHits.length}）`);
 });
 
 t('点击设置键 → 打开设置弹层', () => {

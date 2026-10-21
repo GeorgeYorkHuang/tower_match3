@@ -100,10 +100,8 @@ class CombatSystem {
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
     // 回旋镖·接镖 A 已改为飞行速度提升（v1.16.5，见发射段 bDur），不再提供攻速加成
-    // 炮·双管齐射 C 速射：+12%/级；军火库 A 速填：+15%/级（v1.16 重做）
-    if (key === 'cannon') iv /= (1 + 0.12 * this.branchLv('cannon', '双管齐射', 'C') + 0.15 * this.branchLv('cannon', '军火库', 'A'));
-    // 炮·军火库 B 协同：全塔攻速 +8%/级（炮塔在场即全塔生效）
-    if (this.lv('cannon', '军火库') > 0) iv /= (1 + 0.08 * this.branchLv('cannon', '军火库', 'B'));
+    // 炮·双管齐射 C 速射：+12%/级（v1.16.14 军火库重做后不再提供攻速）
+    if (key === 'cannon') iv /= (1 + 0.12 * this.branchLv('cannon', '双管齐射', 'C'));
     // 电·充能：命中累计攻速 +5%/层（上限 5×lv 层；A 扩容上限+5/级、B 快充每层+10%、C 共享全塔）
     const charge = this.lv('electric', '充能');
     if (charge > 0 && (key === 'electric' || this.branchLv('electric', '充能', 'C') > 0)) {
@@ -135,10 +133,13 @@ class CombatSystem {
     return dps * iv;
   }
 
-  /** 毒·毒性强化 A：DoT 伤害 +25%/级（v1.15 毒塔重做，仅保留增伤乘区） */
+  /** 毒·毒性强化（v1.16.14）：选择后中毒 DoT 伤害 +10%，A 分支每级再 +10% */
   dotBoost() {
     const n = this.lv('poison', '毒性强化');
-    return { dmg: 1 + 0.25 * n, ttl: 1 + 0.25 * this.branchLv('poison', '毒性强化', 'B') };
+    return {
+      dmg: n > 0 ? 1.10 + 0.10 * this.branchLv('poison', '毒性强化', 'A') : 1,
+      ttl: 1 + 0.25 * this.branchLv('poison', '毒性强化', 'B'),
+    };
   }
 
   /* ---------- 主更新：弹道命中 → 状态推进 → 塔攻击 → 周期技 → 死亡触发 ---------- */
@@ -536,6 +537,11 @@ class CombatSystem {
             this.fxRing(next.x, next.y, '#7dcea0', 26, 1, 3);
           }
         }
+      }
+      // 冰·冰冻 C 碎冰爆（v1.16.14）：击杀冰冻敌人 → 100px 范围爆炸（40%×攻击力，每级 +10%）并减速
+      if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
+        const frzC = this.branchLv('ice', '冰冻', 'C');
+        this.explode(e.x, e.y, 100, this.shotDmg('ice') * (0.40 + 0.10 * (frzC - 1)), 'ice', 0, true);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16）：标记目标死亡向 100px 内 2 个敌人扩散 1 层标记
@@ -967,12 +973,15 @@ class CombatSystem {
     }
   }
 
-  /* 普攻流血（v1.16.12，回旋镖塔）：随移动距离结算伤害 */
+  /* 普攻流血（v1.16.12 回旋镖塔）：随移动距离结算伤害；「放血」强化（v1.16.14：基础每跳翻倍 / A +50%/级 / B 时长+1s/级 / C 流血减速 20%） */
   applyBleed(e, dmg) {
-    e.bleedT = 4;                 // 流血持续 4s
-    e._bleedDmg = dmg * 0.10;     // 每移动 100px 结算一次：10%×本次命中伤害
+    const bLv = this.lv('boomerang', '放血');
+    e.bleedT = 4 + 1 * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
+    e._bleedDmg = dmg * 0.10 * (bLv > 0 ? 2 * (1 + 0.5 * this.branchLv('boomerang', '放血', 'A')) : 1); // 每移动100px结算
     e._bleedDist = 0;
     e._bleedLastY = e.y;
+    // 放血 C 血迟：流血敌人减速 20%
+    if (this.branchLv('boomerang', '放血', 'C') > 0) this.applySlow(e, 0.20, 1.5);
     // 流血视觉：暗红血珠粒子
     this.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
   }
@@ -994,10 +1003,10 @@ class CombatSystem {
       // 减速视觉：浅蓝冰雾粒子
       this.fxParticle(e.x, e.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
     }
-    // 冰冻
+    // 冰冻（v1.16.14）：基础 30% 概率冻结；仅 A 分支每级 +15% 提高概率
     const frzLv = this.lv('ice', '冰冻');
     if (frzLv > 0) {
-      const prob = 0.20 + 0.15 * (frzLv - 1);
+      const prob = 0.30 + 0.15 * this.branchLv('ice', '冰冻', 'A');
       if (Math.random() < prob) {
         e.frozen = Math.max(e.frozen || 0, 1 + 0.5 * (frzLv - 1));
         // 冰冻视觉：冻结凝固闪光 + 冰蓝扩散环 + 冰晶粒子
@@ -1291,23 +1300,17 @@ class CombatSystem {
       // 折返视觉：紫色小回环
       this.fxRing(e.x, e.y, '#c39bd3', 34, 0.3, 2.5);
     }
-    // 穿透（v1.16）：命中后向前贯穿 1+穿数 个敌人（85%×穿力），C 穿缓减速 15%
-    const pierce = this.lv('boomerang', '穿透');
-    if (pierce > 0) {
-      const n = 1 + this.branchLv('boomerang', '穿透', 'A');
-      const pMult = 0.85 * (1 + 0.15 * this.branchLv('boomerang', '穿透', 'B'));
-      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 55 && Math.abs(o.x - e.x) < 85)
-        .sort((a, b) => b.y - a.y);
-      for (let i = 0; i < Math.min(n, cands.length); i++) {
-        this.damage(cands[i], dmg * pMult, 'boomerang');
-        if (this.branchLv('boomerang', '穿透', 'C') > 0) this.applySlow(cands[i], 0.15, 1);
-        this.fxBeam(e.x, e.y, cands[i].x, cands[i].y, '#a569bd', 0.25, 2);
-      }
-    }
+    // （v1.16.14 回旋镖「穿透」已替换为「放血」dot 强化，穿透实现移除）
   }
 
   /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) {
+    // v1.16.14 军火库 C 双倍火力：普攻 10%/20%/30% 概率造成双倍伤害（仅主目标）
+    const armC = this.branchLv('cannon', '军火库', 'C');
+    if (armC > 0 && Math.random() < 0.10 * armC) {
+      dmg *= 2;
+      this.fxFlash(e.x, e.y, '#ffb347', 0.25);
+    }
     // 普攻溅射（v1.16.12）：基础 100px 范围、10% 溅射伤害；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
     const r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));

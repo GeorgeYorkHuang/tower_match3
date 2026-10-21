@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.13';       // v1.16.13 战斗区右下角加速按钮（×1/×2/×3/×4）+ 三塔普攻特效（v1.16.12）
+const GAME_VERSION = 'v1.16.14';       // v1.16.14 全量技能类型+文案补全：大火球普攻化/冰冻30%+A/放血替换穿透/军火库重做(弹药+50·填充·充能·双倍火力)/碎冰爆
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -726,7 +726,7 @@ class GameMain {
         dps: t.level > 0 ? eff.towerDps(key) : 0,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
-        ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,            // v1.12 弹药（塔位条显示）
+        ammo: t.ammo, ammoMax: this.run.armoryAmmoMax(),            // v1.12 弹药（塔位条显示）；v1.16.14 军火库 +50
         skills,
       });
     }

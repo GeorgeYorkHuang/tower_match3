@@ -146,9 +146,9 @@ class Run {
       // 塔色：弹药按形状供给 + 整体经验；弹药满 → 溢出均分充能两个全局技能（弹药口径）
       const gain = this._ammoGain(shape, size);
       const before = t.ammo;
-      t.ammo = Math.min(before + gain, GS.ammoMax);
+      t.ammo = Math.min(before + gain, this.armoryAmmoMax());
       ammoGain = t.ammo - before;
-      const over = Math.max(0, before + gain - GS.ammoMax);
+      const over = Math.max(0, before + gain - this.armoryAmmoMax());
       if (over > 0) {
         const half = Math.floor(over / 2);
         shuffleGain = this._chargeAmmo('shuffle', half);
@@ -185,18 +185,35 @@ class Run {
     this._globalMap = { [remain[0]]: 'shuffle', [remain[1]]: 'refill' };
   }
 
-  /** 塔色消除弹药供给（v1.13.1 ×3）：3消 +9 / 4消 +18 / 5消（L5/直5）+30 / 5消以上(x块) 30+9(x-5) */
-  _ammoGain(shape, size) {
-    const fixed = CONFIG.GLOBAL_SKILL.ammoShape[shape];
-    if (fixed !== undefined) return fixed;
-    return 30 + 9 * (size - 5);   // '6+'（x 块，x≥6）
+  /** 炮·军火库（v1.16.14）：选择后弹药库上限 +50；A 填充量 +25%/级；B 全局技能充能速度 +25%/级 */
+  armory() {
+    const ct = this.effects ? this.effects.tower('cannon') : null;
+    const arm = ct ? (ct.pool || []).find((e) => e.name === '军火库') : null;
+    return arm ? { lv: arm.level, a: arm.branches ? arm.branches.A || 0 : 0, b: arm.branches ? arm.branches.B || 0 : 0 } : null;
   }
 
-  /** 全局技能累计弹药充能（封顶 energyMax=90；返回实际入账发数） */
+  /** 塔弹药上限（军火库 +50） */
+  armoryAmmoMax() {
+    const a = this.armory();
+    return CONFIG.GLOBAL_SKILL.ammoMax + (a && a.lv > 0 ? 50 : 0);
+  }
+
+  /** 塔色消除弹药供给（v1.13.1 ×3）：3消 +9 / 4消 +18 / 5消（L5/直5）+30 / 5消以上(x块) 30+9(x-5)；军火库 A +25%/级 */
+  _ammoGain(shape, size) {
+    const fixed = CONFIG.GLOBAL_SKILL.ammoShape[shape];
+    let base = fixed !== undefined ? fixed : 30 + 9 * (size - 5);   // '6+'（x 块，x≥6）
+    const a = this.armory();
+    if (a && a.lv > 0) base = Math.round(base * (1 + 0.25 * a.a));
+    return base;
+  }
+
+  /** 全局技能累计弹药充能（封顶 energyMax=90；返回实际入账发数；军火库 B 充能速度 +25%/级） */
   _chargeAmmo(which, ammo) {
     if (!ammo || ammo <= 0) return 0;
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
+    const a = this.armory();
+    if (a && a.lv > 0) ammo = Math.round(ammo * (1 + 0.25 * a.b));
     const before = this[key] || 0;
     this[key] = Math.min(before + ammo, GS.energyMax);
     return this[key] - before;

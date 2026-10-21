@@ -679,13 +679,46 @@ t('回旋镖·多镖：多投且单镖衰减（B 稳镖减半）', () => {
   sweeps.forEach((s) => assert.ok(Math.abs(s.dmg - dmg * (1 - 0.12 * 0.5)) < 0.01, 'B 稳镖：单镖衰减减半为 6%'));
 });
 
-t('回旋镖·穿透：命中后贯穿身后敌人', () => {
-  const g = mkGame({ boomerang: { 穿透: { A: 1 } } }, ['boomerang']);
+t('回旋镖·放血：强化流血伤害与时长（替换穿透，v1.16.14）', () => {
+  const g = mkGame({ boomerang: { 放血: { A: 1, B: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);
-  const e1 = mkEnemy(1000, 375, 700); g.enemies.push(e1);
-  const e2 = mkEnemy(1000, 375, 740); g.enemies.push(e2); // 身后 40px（<55 可贯穿）
-  c.hit('boomerang', e1, 100);
-  assert.ok(e2.hp < 1000, '穿透应命中身后敌人');
+  const e = mkEnemy(10000, 375, 700); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 必触发流血
+  try { c.hit('boomerang', e, 100); } finally { Math.random = orig; }
+  assert.strictEqual(e.bleedT, 5, 'B1 流血时间应为 4+1=5s');
+  assert.ok(Math.abs(e._bleedDmg - (100 * 0.10 * 2 * 1.5)) < 0.01, 'A1 每跳 = 10%×2×(1+0.5) = 30 点');
+  const hp0 = e.hp;
+  e.y += 100; c.tickStatus(e, 0.1);
+  assert.ok(Math.round(hp0 - e.hp) === 30, '移动 100px 应结算 30 点流血伤害');
+});
+
+t('冰·冰冻：基础 30% 概率，A 分支每级 +15%', () => {
+  const g = mkGame({ ice: { 冰冻: { A: 1 } } });
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0.40; // 0.30 < 0.40 < 0.45 → 基础30%不触发、A1(45%)触发
+  try { c.hit('ice', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.frozen > 0, 'A1 概率 45% 应冻结');
+});
+
+t('炮·军火库 C：双倍火力概率造成双倍伤害', () => {
+  const g = mkGame({ cannon: { 军火库: { C: 1 } } }, ['cannon']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(10000, 375, 700); g.enemies.push(e);
+  const orig = Math.random; Math.random = () => 0; // 10% 必触发
+  try { c.hit('cannon', e, 100); } finally { Math.random = orig; }
+  assert.ok(e.hp <= 10000 - 200, 'C1 双倍火力应造成 200 伤害（溅射已排除主目标）');
+});
+
+t('冰·冰冻 C 碎冰爆：击杀冰冻敌人范围爆炸并减速', () => {
+  const g = mkGame({ ice: { 冰冻: { C: 1 } } });
+  const c = new CombatSystem(g);
+  const e1 = mkEnemy(100, 375, 700); g.enemies.push(e1);
+  const e2 = mkEnemy(1000, 380, 740); g.enemies.push(e2); // 相邻 40px < 100
+  e1.frozen = 1;
+  c.damage(e1, 999, 'ice'); // 击杀
+  assert.ok(e2.hp < 1000, '碎冰爆应波及相邻敌人');
+  assert.ok(e2.slow && e2.slow.ttl > 0, '碎冰爆应减速波及敌人');
 });
 
 t('回旋镖·猎手标记：命中同目标叠层增伤', () => {
