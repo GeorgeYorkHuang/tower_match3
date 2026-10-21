@@ -153,8 +153,8 @@ class CombatSystem {
       const s = this.shots[i];
       s.t += dt;
       if (s.orb) {
-        // v1.13.18 游走电球（活电扩散）：每帧随机转向漂移，命中 34px 内敌人即结算消失，dur 耗尽消散
-        s.ang += (Math.random() - 0.5) * 2.6;
+        // v1.16.21 游走电球（活电扩散）：每帧随机转向漂移（转向幅度加大 ±1.6 rad，配合等分初角更像四周扩散），命中 34px 内敌人即结算消失，dur 耗尽消散
+        s.ang += (Math.random() - 0.5) * 3.2;
         s.x += Math.cos(s.ang) * s.speed * dt;
         s.y += Math.sin(s.ang) * s.speed * dt;
         const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < 34);
@@ -1340,7 +1340,10 @@ class CombatSystem {
       for (let i = 0; i < n; i++) {
         const orb = {
           key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
-          x: e.x, y: e.y, ang: Math.random() * Math.PI * 2, speed: 150 + Math.random() * 80,   // v1.13.21 速度 95-155→150-230
+          x: e.x, y: e.y,
+          // v1.16.21 电球均匀向周围扩散：初始角度等分圆周（360°/n）+ 小幅抖动，不再扎堆生成方向
+          ang: (Math.PI * 2 / n) * i + (Math.random() - 0.5) * 0.9,
+          speed: 150 + Math.random() * 80,   // v1.13.21 速度 95-155→150-230
           orb: true, fx: null,
         };
         orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };
