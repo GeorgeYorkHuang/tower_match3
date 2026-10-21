@@ -1272,32 +1272,38 @@ class CombatSystem {
   hitElectric(e, dmg) {
     // 主目标伤害（过载层数为上一击累计，连续命中递增）
     this.damage(e, dmg, 'electric');
-    // 过载（v1.13.18）：叠层上限固定 3 层；A 分支=每 3 层填充 1 发弹药；C 分支=满层闪电爆发（麻痹 150px 内敌人并造成伤害）
+    // 过载（v1.16.21 重做）：仅命中麻痹目标叠层（上限 3 层·2s）；A 每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 发炮弹；C 满层闪电爆发（不变）
     const over = this.lv('electric', '过载');
     if (over > 0) {
-      if (!e.overload) e.overload = { n: 0, ttl: 2 };
-      e.overload.n = Math.min(3, e.overload.n + 1);
-      e.overload.ttl = 2;
-      // A 分支：每 3 层填充 1 发弹药（封顶 ammoMax）
-      if (this.branchLv('electric', '过载', 'A') > 0 && e.overload.n >= 3) {
-        const maxA = CONFIG.GLOBAL_SKILL && CONFIG.GLOBAL_SKILL.ammoMax ? CONFIG.GLOBAL_SKILL.ammoMax : 50;
-        const et = this.tower('electric');
-        if (et) et.ammo = Math.min(maxA, et.ammo + 1);
-        this.fxFlash(e.x, e.y, '#f4d03f');
-      }
-      // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
-      if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
-        e.overload._burst = true;
-        const bDmg = this.shotDmg('electric') * 0.8;
-        const r = 150;
-        this.enemies().forEach((o) => {
-          if (o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > r) return;
-          this.damage(o, bDmg, 'electric');
-          o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
-          this.applySlow(o, 0.5, 1.5);
-          this.fxFlash(o.x, o.y, '#f4d03f');
-        });
-        this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
+      if (e.paralyzed > 0) {
+        if (!e.overload) e.overload = { n: 0, ttl: 2 };
+        e.overload.n = Math.min(3, e.overload.n + 1);
+        e.overload.ttl = 2;
+        // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
+        if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
+          e.overload._burst = true;
+          const bDmg = this.shotDmg('electric') * 0.8;
+          const r = 150;
+          this.enemies().forEach((o) => {
+            if (o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > r) return;
+            this.damage(o, bDmg, 'electric');
+            o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
+            this.applySlow(o, 0.5, 1.5);
+            this.fxFlash(o.x, o.y, '#f4d03f');
+          });
+          this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
+        }
+        // A 分支：每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 发炮弹（封顶 ammoMax）
+        const ovA = this.branchLv('electric', '过载', 'A');
+        if (ovA > 0 && e.overload.n >= 3) {
+          this.damage(e, this.shotDmg('electric') * [0, 0.20, 0.30, 0.40][ovA], 'electric');
+          this.fxFlash(e.x, e.y, '#f4d03f');
+          this.fxRing(e.x, e.y, '#f4d03f', 40, 0.3, 3);
+          const maxA = CONFIG.GLOBAL_SKILL && CONFIG.GLOBAL_SKILL.ammoMax ? CONFIG.GLOBAL_SKILL.ammoMax : 50;
+          const et = this.tower('electric');
+          if (et) et.ammo = Math.min(maxA, et.ammo + 1);
+          e.overload.n = 0;   // 消耗所有过载
+        }
       }
     }
     // 麻痹（v1.16.21 调平）：电塔基础 20%；学麻痹技能 +25%；A 分支每级 +15%（45→60→75→90%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击

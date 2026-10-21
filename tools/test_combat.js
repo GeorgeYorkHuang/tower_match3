@@ -284,18 +284,24 @@ t('电·麻痹A满B满：90%概率 + 时长3.5s + 减速50%（v1.16.21 基础+25
   assert.ok(e2.paralyzed === 0, '概率外（0.91 > 90%）不应麻痹');
 });
 
-t('电·过载A：每3层填充1发弹药', () => {
+t('电·过载A：命中麻痹目标叠层，3层消耗并填充1发弹药', () => {
   const g = mkGame({ electric: { 过载: { A: 1 } } });
   const c = new CombatSystem(g);
   const tw = g.run.effects.tower('electric');
   tw.ammo = 0;
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
+  e.paralyzed = 1;   // 麻痹目标才叠层
   c.hit('electric', e, 100);
   assert.ok(tw.ammo === 0, '1 层不填充');
   c.hit('electric', e, 100);
   assert.ok(tw.ammo === 0, '2 层不填充');
   c.hit('electric', e, 100);
-  assert.ok(tw.ammo === 1, '3 层填充 1 发');
+  assert.ok(tw.ammo === 1, '3 层消耗全部层数并填充 1 发');
+  assert.ok(e.overload && e.overload.n === 0, '3 层触发后应清零（消耗所有过载）');
+  // 未麻痹目标不叠层
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  c.hit('electric', e2, 100);
+  assert.ok(!e2.overload || e2.overload.n === 0, '未麻痹目标不应叠层');
 });
 
 t('电·过载C：满层闪电爆发麻痹周边敌人', () => {
@@ -304,8 +310,11 @@ t('电·过载C：满层闪电爆发麻痹周边敌人', () => {
   const e1 = mkEnemy(1000, 400, 400); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 420, 410); g.enemies.push(e2);
   const e3 = mkEnemy(1000, 800, 800); g.enemies.push(e3);
+  e1.paralyzed = 1;
   c.hit('electric', e1, 100);
+  e1.paralyzed = 1;
   c.hit('electric', e1, 100);
+  e1.paralyzed = 1;
   c.hit('electric', e1, 100);
   assert.ok(e1.overload && e1.overload.n >= 3, '应叠满 3 层');
   assert.ok(e2.hp < 1000, '150px 内敌人应受爆发伤害');
