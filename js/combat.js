@@ -370,7 +370,13 @@ class CombatSystem {
     // 4. 塔攻击调度（每塔独立节奏）
     g.run.slotOrder.slice().forEach((key) => this.tickTower(key, dt));
     // 5. 周期技
-    this.tickPeriodic(dt);
+    // 5. 周期技（按塔分节：火/冰/电/毒/炮/回旋镖）
+    this.tickFire(dt);
+    this.tickIce(dt);
+    this.tickElectric(dt);
+    this.tickPoison(dt);
+    this.tickCannon(dt);
+    this.tickBoomerang(dt);
     // 6. 死亡清场（死亡技能已在伤害结算处触发）
     g.enemies = g.enemies.filter((e) => e.hp > 0);
   }
@@ -1041,16 +1047,7 @@ class CombatSystem {
     }
   }
 
-  /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
-  applyBleed(e, dmg) {
-    e.bleedT = 4 + 1 * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
-    const cLv = this.branchLv('boomerang', '放血', 'C');
-    e._bleedDmg = dmg * (0.40 + 0.20 * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
-    e._bleedDist = 0;
-    e._bleedLastY = e.y;
-    // 流血视觉：暗红血珠粒子
-    this.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
-  }
+
 
   /* ============ 冰塔 ============ */
   hitIce(e, dmg) {
@@ -1446,6 +1443,17 @@ class CombatSystem {
     // （v1.16.14 回旋镖「穿透」已替换为「放血」dot 强化，穿透实现移除）
   }
 
+  /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
+  applyBleed(e, dmg) {
+    e.bleedT = 4 + 1 * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
+    const cLv = this.branchLv('boomerang', '放血', 'C');
+    e._bleedDmg = dmg * (0.40 + 0.20 * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
+    e._bleedDist = 0;
+    e._bleedLastY = e.y;
+    // 流血视觉：暗红血珠粒子
+    this.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
+  }
+
   /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) {
     // v1.16.14 军火库 C 双倍火力：普攻 10%/20%/30% 概率造成双倍伤害（仅主目标）
@@ -1513,8 +1521,19 @@ class CombatSystem {
     this.fxParticle(x, y, col, 6, r, 0.45, 130, 5);
   }
 
-  /* ---------- 周期技 ---------- */
+  /* ---------- 周期技（按塔分节：火/冰/电/毒/炮/回旋镖） ---------- */
+  /** 周期技总入口（兼容旧调用/测试；update 已按塔直接调度） */
   tickPeriodic(dt) {
+    this.tickFire(dt);
+    this.tickIce(dt);
+    this.tickElectric(dt);
+    this.tickPoison(dt);
+    this.tickCannon(dt);
+    this.tickBoomerang(dt);
+  }
+
+  // ===== tickFire =====
+  tickFire(dt) {
     const g = this.game;
     // 火·火柱：每 10 秒（触发间隔保持原值，v1.13.10）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
     // v1.13.9：伤害延迟到地面圈画完（约 0.6s）后结算，动画与伤害节奏一致
@@ -1670,6 +1689,11 @@ class CombatSystem {
         this.rainWaves = remaining;
       }
     }
+  }
+
+  // ===== tickIce =====
+  tickIce(dt) {
+    const g = this.game;
     // 冰·冰花（v1.13.23 原霜星改周期技；v1.16.21 分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
     //     A 扩张 范围 +20/40/60%、B 霜力 伤害 +20/40/60%、C 繁花 数量 +1/+2/+3；原 A 碎散传染移除）
     const flower = this.lv('ice', '冰花');
@@ -1784,6 +1808,11 @@ class CombatSystem {
         this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
       }
     }
+  }
+
+  // ===== tickElectric =====
+  tickElectric(dt) {
+    const g = this.game;
     // 电·极光电击（v1.16.21 电弧重做改名）：周期从塔口到最近敌人连线（z 字形前进黄色电击动画），线宽 20px 内所有敌人受 80% 伤害；
     //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 麻痹电击：命中 20%/级 概率麻痹 1.5s
     const arc = this.lv('electric', '极光电击');
@@ -1885,6 +1914,11 @@ class CombatSystem {
         });
       }
     }
+  }
+
+  // ===== tickPoison =====
+  tickPoison(dt) {
+    const g = this.game;
     // 毒·毒池（v1.15；v1.16.21 数值调整）：周期 5s 释放毒池（半径 130；A 伤 +40%/级；B 持续 +2s/级；C 范围 +20%/级），池内每秒毒伤并叠毒
     const pool = this.lv('poison', '毒池');
     if (pool > 0) {
@@ -1945,6 +1979,11 @@ class CombatSystem {
         });
       }
     }
+  }
+
+  // ===== tickCannon =====
+  tickCannon(dt) {
+    const g = this.game;
     // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（90%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
@@ -2008,6 +2047,11 @@ class CombatSystem {
         }
       }
     }
+  }
+
+  // ===== tickBoomerang =====
+  tickBoomerang(dt) {
+    const g = this.game;
     // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖 10% 伤害，命中即消失；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
     const cyclone = this.lv('boomerang', '风暴镖');
     if (cyclone > 0) {
