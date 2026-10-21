@@ -673,6 +673,25 @@ class Renderer {
             ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2 + 0.5 * Math.min(2, fireI); ctx.globalAlpha = 0.7 * flick + 0.15 * Math.min(2, fireI);
             ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
             ctx.globalAlpha = 1;
+          } else if (d.type === 'poison') {
+            // v1.16.2 中毒层数标识：敌人身上按叠层层数画毒泡（最多 5 个，层数越高泡越大越亮）+ 头顶层数数字
+            const stack = d.stack || 1;
+            const cx = x + size / 2, cy = y + size / 2;
+            const tNow = Date.now();
+            const n = Math.min(5, stack);
+            for (let k = 0; k < n; k++) {
+              const ph = tNow / 320 + k / n;
+              const px = cx + Math.cos(ph * 2 + k * 1.9) * size * 0.17;
+              const py = cy + size * 0.2 + Math.sin(ph * 1.6 + k) * size * 0.07 - k * 3;
+              ctx.fillStyle = k === n - 1 ? '#58d68d' : (k % 2 ? '#2e7d32' : '#1e8449');
+              ctx.globalAlpha = 0.7 + 0.25 * Math.sin(tNow / 180 + k * 2);
+              ctx.beginPath(); ctx.arc(px, py, 2.4 + k * 0.45, 0, Math.PI * 2); ctx.fill();
+            }
+            // 层数数字（头顶，深底浅字清晰可见）
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.beginPath(); ctx.arc(cx, cy - size * 0.38, 8.5, 0, Math.PI * 2); ctx.fill();
+            text(ctx, `${stack}`, cx, cy - size * 0.38 + 1, Math.max(11, 10 + Math.min(2, stack - 1)), '#a9dfbf', 'center');
+            ctx.globalAlpha = 1;
           } else {
             ctx.fillStyle = '#52be80';
             ctx.globalAlpha = 0.65;

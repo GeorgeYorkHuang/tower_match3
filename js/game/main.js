@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.1';        // v1.16.1 毒塔特效优化：毒池深绿毒液池（冒泡帧动画）、毒棒帧动画图标+毒刺弹道、毒藤生长动画+持续缠绕
+const GAME_VERSION = 'v1.16.2';        // v1.16.2 中毒层数标识：敌人身上毒泡数量=叠层层数 + 头顶层数数字
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
