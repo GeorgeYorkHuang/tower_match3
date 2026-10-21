@@ -1300,23 +1300,24 @@ class CombatSystem {
         this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
       }
     }
-    // 麻痹（v1.16.19 调平）：电塔基础 20%；学麻痹技能 +15%；A 分支每级 +25%（满级封顶 100%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
-    // C 传导：邻近敌人 20% 概率被麻痹（1s）
+    // 麻痹（v1.16.21 调平）：电塔基础 20%；学麻痹技能 +25%；A 分支每级 +15%（45→60→75→90%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
+    // C 导电：被麻痹时附近 100px 敌人 20%/30%/40% 概率被传导麻痹（1s）
     const paraLv = this.lv('electric', '麻痹');
     const pA = this.branchLv('electric', '麻痹', 'A');
     const pB = this.branchLv('electric', '麻痹', 'B');
     const pC = this.branchLv('electric', '麻痹', 'C');
-    if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.15 : 0) + 0.25 * pA)) {
+    if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.25 : 0) + 0.15 * pA)) {
       const dur = 2 + 0.5 * pB;
       e.paralyzed = Math.max(e.paralyzed || 0, dur);
       this.applySlow(e, 0.5, dur);
       // 麻痹视觉：金黄电火花
       this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 140, 5);
-      // C 传导：60px 内其它敌人 20% 概率被传导麻痹
+      // C 导电：100px 内其它敌人 20%/30%/40% 概率被传导麻痹
       if (pC > 0) {
+        const cProb = [0, 0.20, 0.30, 0.40][pC];
         this.enemies().forEach((o) => {
-          if (o === e || o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > 60) return;
-          if (Math.random() < 0.20) {
+          if (o === e || o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > 100) return;
+          if (Math.random() < cProb) {
             o.paralyzed = Math.max(o.paralyzed || 0, 1);
             this.applySlow(o, 0.5, 1);
             this.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.35, 110, 4);
@@ -1342,13 +1343,13 @@ class CombatSystem {
       }
       this.fxRing(e.x, e.y, '#f4d03f', 44, 0.3, 3);
     }
-    // 连锁弹跳（v1.16.20 接入 A/B：A 扩展每级 +2 弹跳、B 稳流每级衰减 -20%；C 回能：每次连锁命中缩短攻击间隔）
+    // 连锁弹跳（v1.16.21 目标数调整：基础连锁 3 个敌人 + A 每级 +1；B 稳流每级衰减 -20%；C 回能：每次连锁命中缩短攻击间隔）
     const chainLv = this.lv('electric', '连锁');
     const chainA = this.branchLv('electric', '连锁', 'A');
     const chainB = this.branchLv('electric', '连锁', 'B');
     const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
-      const extra = 1 + 2 * chainA;      // 基础 1 个额外（主+1=共 2 目标）+ A 扩展每级 +2
+      const extra = 2 + 1 * chainA;      // 基础连锁 3 个敌人（主+2）+ A 每级 +1
       let decay = 0.30 * (1 - 0.2 * chainB);   // 基础衰减 30% - B 稳流每级 20%
       decay = Math.max(0.10, decay);
       const hitSet = [e];

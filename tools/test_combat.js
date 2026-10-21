@@ -245,13 +245,15 @@ t('冰·冬珠：持续冰霜之球范围伤害 + A寒域减速/B扩张/C凝华�
   assert.ok(g.enemies.every((x) => x.slow && x.slow.ttl > 0), 'A1 寒域减速 20% 应作用范围内敌人');
 });
 
-t('电·连锁：命中后跳转第二目标', () => {
+t('电·连锁：基础连锁 3 个敌人（v1.16.21）', () => {
   const g = mkGame({ electric: { 连锁: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(1000, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(1000, 380, 806); g.enemies.push(e2);
+  const e3 = mkEnemy(1000, 390, 812); g.enemies.push(e3);
   c.hit('electric', e1, 100);
   assert.ok(e2.hp < 1000, '第二目标应被连锁伤害');
+  assert.ok(e3.hp < 1000, '第三目标应被连锁伤害');
 });
 
 t('电·麻痹：命中概率麻痹', () => {
@@ -263,18 +265,23 @@ t('电·麻痹：命中概率麻痹', () => {
   assert.ok(e.paralyzed > 0, '应进入麻痹状态');
 });
 
-t('电·麻痹A满B满：80%概率 + 时长3.5s + 减速50%（v1.16.18 技能+15%）', () => {
+t('电·麻痹A满B满：90%概率 + 时长3.5s + 减速50%（v1.16.21 基础+25% A+15%/级）', () => {
   const g = mkGame({ electric: { 麻痹: { A: 3, B: 3 } } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
   const orig = Math.random;
   try {
-    Math.random = () => 0.79;  // 0.79 < 0.80 → A=3 满概率 20+15+3×15=80% 应触发
+    Math.random = () => 0.89;  // 0.89 < 0.90 → A=3 满概率 20+25+3×15=90% 应触发
     c.hit('electric', e, 100);
   } finally { Math.random = orig; }
-  assert.ok(e.paralyzed > 0, 'A=3 满概率 80% 应触发麻痹');
+  assert.ok(e.paralyzed > 0, 'A=3 满概率 90% 应触发麻痹');
   assert.ok(e.paralyzed >= 3.5 - 1e-6, 'B=3 时长应为 2 + 0.5×3 = 3.5s');
   assert.ok(e.slow && e.slow.mult <= 0.5 + 1e-6, '麻痹应附带 50% 减速');
+  // 概率外不触发：0.91 > 0.90
+  const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
+  const orig2 = Math.random;
+  try { Math.random = () => 0.91; c.hit('electric', e2, 100); } finally { Math.random = orig2; }
+  assert.ok(e2.paralyzed === 0, '概率外（0.91 > 90%）不应麻痹');
 });
 
 t('电·过载A：每3层填充1发弹药', () => {
