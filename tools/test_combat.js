@@ -340,19 +340,19 @@ t('电·雷暴：随机电击目标（A 速记 5 个）', () => {
   try {
     Math.random = () => 0.5;
     for (let i = 0; i < 5; i++) g.enemies.push(mkEnemy(1000, 100 + i * 80, 500 + i * 30));
-    c.update(10);   // 周期 10×(1-0.25×1)=7.5s（C 速记 1）触发至少一次；普攻也会命中最近目标
+    c.update(10);   // 周期 10-1=9s（C 速记 1）触发至少一次；普攻也会命中最近目标
   } finally { Math.random = orig; }
   const hurt = g.enemies.filter((e) => e.hp < 1000).length;
   assert.ok(hurt === 5, `A1 速记雷暴应电击 5 个（基础3 + A1×2），实际 ${hurt}`);
 });
 
-t('电·雷暴B：雷击连锁周边敌人', () => {
+t('电·雷暴B：雷击 30%/45%/60% 几率连锁周边敌人（v1.16.21 连雷）', () => {
   const g = mkGame({ electric: { 雷暴: { B: 2 } } });
   const c = new CombatSystem(g);
   const orig = Math.random;
   try {
-    Math.random = () => 0.5;
-    // 紧密聚堆（间距 30 < 90）：雷击命中后连锁必覆盖周边
+    Math.random = () => 0.3;   // 0.3 < 0.45（B2 连雷概率）→ 触发连锁
+    // 紧密聚堆（间距 30 < 90）：雷击命中后连锁覆盖周边
     for (let i = 0; i < 4; i++) g.enemies.push(mkEnemy(1000, 300 + i * 30, 500));
     c.update(10);
   } finally { Math.random = orig; }

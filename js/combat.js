@@ -1802,15 +1802,15 @@ class CombatSystem {
     }
     const storm = this.lv('electric', '雷暴');
     if (storm > 0) {
-      // v1.13.20 雷暴重做：随机电击 N 个敌人；A=雷击目标+2/级；B=雷击连锁周边敌人；C=雷击间隔-25%/级
+      // v1.16.21 雷暴分支调整：A=雷击目标+2/级（3/5/7/9）；B=连雷 30%/45%/60% 几率连锁周边 90px 敌人；C=雷击间隔 -1s/级（10→9/8/7s）
       const cLv = this.branchLv('electric', '雷暴', 'C');
-      const period = 10 * (1 - 0.25 * cLv);   // C1 7.5 / C2 5 / C3 2.5s
+      const period = 10 - 1 * cLv;   // C0 10 / C1 9 / C2 8 / C3 7s
       this.timers.storm = (this.timers.storm || 0) + dt;
       if (this.timers.storm >= period) {
         this.timers.storm = 0;
         const aLv = this.branchLv('electric', '雷暴', 'A');
         const bLv = this.branchLv('electric', '雷暴', 'B');
-        const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（v1.16.20 修正偏移）
+        const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
         const dmg = this.shotDmg('electric') * 0.64 * (1 + 0.25 * (storm - 1));
         // 全图随机 N 个存活目标（Fisher-Yates）
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('electric', e.x, e.y));
@@ -1827,8 +1827,8 @@ class CombatSystem {
           const delay = Math.floor(idx * batches / n) * 0.12;
           // 雷击伤害（即时结算）
           this.damage(e, dmg, 'electric');
-          // B 分支：雷击命中后连锁周边最近 bLv 个敌人（90px，50% 伤害）
-          if (bLv > 0) {
+          // B 分支（v1.16.21 连雷）：雷击 30%/45%/60% 几率连锁周边最近 bLv 个敌人（90px，50% 伤害）
+          if (bLv > 0 && Math.random() < [0, 0.30, 0.45, 0.60][bLv]) {
             const chain = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
               .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, bLv);
             chain.forEach((o) => {
