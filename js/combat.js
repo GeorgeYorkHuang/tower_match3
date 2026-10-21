@@ -195,6 +195,7 @@ class CombatSystem {
       d.t += dt;
       if (d.t >= d.delay) {
         this.delayed.splice(i, 1);
+        if (d.fn) { d.fn(this); continue; }   // v1.16.9 自定义延迟回调（冰花第 3 帧末结算）
         this.explode(d.x, d.y, d.r, d.dmg, d.key, d.knock, d.slowAfter);
         // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
         if (d.ember > 0) {
@@ -295,6 +296,9 @@ class CombatSystem {
             // v1.16.6 炮台开火炮口闪光 + 后坐火星
             this.fxFlash(tu.x, tu.y - 8, '#ffd24a', 0.15);
             this.fxParticle(tu.x, tu.y - 6, '#d89e63', 2, 18, 0.2, 60, 3);
+            // v1.16.10 开火帧动画标记：命中对应炮台 fx，0.3s 内渲染第 4 帧开火
+            const fi = this.game.fx.findIndex((x) => x.type === 'turret' && Math.abs(x.x - tu.x) < 2 && Math.abs(x.y - tu.y) < 2);
+            if (fi >= 0) this.game.fx[fi].attackT = this.game.fx[fi].t;
           }
         }
       }
@@ -1465,21 +1469,31 @@ class CombatSystem {
           const aLv = this.branchLv('ice', '冰花', 'A');
           const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
           targets.forEach((tgt) => {
-            const hitOnes = this.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= r);
-            hitOnes.forEach((o) => this.damage(o, dmg, 'ice'));
-            // A 碎散：冰花碎裂传染周边敌人（50% 伤害）
-            if (aLv > 0) {
-              hitOnes.forEach((h) => {
-                this.enemies().forEach((o) => {
-                  if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) this.damage(o, dmg * 0.5, 'ice');
-                });
-              });
-            }
+            // v1.16.9 伤害改为延迟到冰花第 3 帧动画末尾（dur 1.1s ÷ 4 帧 ≈ 0.275s/帧 → 0.825s≈0.8s）结算，
+            // 此时冰花绽放完成"爆炸"，一并触发碎散传染与扩散演出
+            const fxDmg = dmg;
+            const fxALv = aLv;
+            this.delayed.push({
+              x: tgt.x, y: tgt.y, r: 100, dmg: fxDmg, delay: 0.8, t: 0, key: 'ice',
+              fn: (cb) => {
+                const hitOnes = cb.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= 100);
+                hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice'));
+                // A 碎散：冰花碎裂传染周边敌人（50% 伤害）
+                if (fxALv > 0) {
+                  hitOnes.forEach((h) => {
+                    cb.enemies().forEach((o) => {
+                      if (o !== h && o.hp > 0 && Math.hypot(o.x - h.x, o.y - h.y) <= 60) cb.damage(o, fxDmg * 0.5, 'ice');
+                    });
+                  });
+                }
+                // 爆炸演出：扩散冰环 + 冰晶碎瓣 + 闪光（与伤害同时）
+                cb.fxRing(tgt.x, tgt.y, '#7fd4ff', 100, 0.5, 5);
+                cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
+                cb.fxFlash(tgt.x, tgt.y, '#7fd4ff');
+              }
+            });
             // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
             this.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r, t: 0, dur: 1.1 });
-            this.fxRing(tgt.x, tgt.y, '#7fd4ff', r, 0.5, 5);
-            this.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
-            this.fxFlash(tgt.x, tgt.y, '#7fd4ff');
           });
         }
       }

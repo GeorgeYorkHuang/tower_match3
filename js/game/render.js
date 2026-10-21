@@ -825,48 +825,50 @@ class Renderer {
         ctx.globalAlpha = 1;
       });
     }
-    // 毒棒：帧动画图标（木柄 + 顶部毒液囊脉动 + 根部毒圈 + 呼吸光晕）
+    // 毒棒：帧动画贴图（v1.16.10）——4 帧：1 破土 / 2 成型 / 3 蓄力膨胀 / 4 喷发攻击
+    // 常态循环 1→2→3（0.9s 周期）；每次攻击（atkT 归零）后 0.32s 内显示第 4 帧喷发
     if (combat.poisonSticks && combat.poisonSticks.length) {
       combat.poisonSticks.forEach((st) => {
         if (st.ttl <= 0) return;
         const seed = st.seed || 0;
         const fade = Math.min(1, st.ttl / 1.5);
-        const pulse = 1 + 0.08 * Math.sin(tNow / 280 + seed);
         const x = st.x, y = st.y;
-        // 根部毒圈（微光 + 呼吸）
-        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.22 * fade * pulse;
-        ctx.beginPath(); ctx.arc(x, y, 13 * pulse, 0, Math.PI * 2); ctx.fill();
-        // 木柄（斜立，深棕 + 纹理）
-        ctx.save();
-        ctx.translate(x, y - 4); ctx.rotate(-0.18);
-        ctx.fillStyle = '#6d4c41'; ctx.globalAlpha = 0.95 * fade;
-        ctx.fillRect(-3, -22, 6, 24);
-        ctx.fillStyle = '#5d4037';
-        ctx.fillRect(-3, -16, 6, 2);
-        ctx.fillRect(-3, -9, 6, 2);
-        // 顶部毒液囊（深绿圆囊脉动 + 高光）
-        const sacR = 6.5 * pulse;
-        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.95 * fade;
-        ctx.beginPath(); ctx.arc(0, -26, sacR, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#28b463';
-        ctx.beginPath(); ctx.arc(-1.5, -28, sacR * 0.45, 0, Math.PI * 2); ctx.fill();
-        // 毒刺（囊顶小三角刺，朝向斜上）
-        ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = 0.9 * fade;
-        ctx.beginPath();
-        ctx.moveTo(3, -27); ctx.lineTo(9, -31); ctx.lineTo(2, -31);
-        ctx.closePath(); ctx.fill();
-        ctx.restore();
-        // 毒液滴（囊顶渗出，周期性滴落）
-        const drip = (tNow / 620 + seed * 0.01) % 1;
-        if (drip > 0.55) {
-          const dy = -26 - (drip - 0.55) / 0.45 * 14;
-          ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = (0.9 - drip * 0.4) * fade;
-          ctx.beginPath(); ctx.arc(x, y + dy, 1.6, 0, Math.PI * 2); ctx.fill();
-        }
-        // 呼吸光晕
-        ctx.strokeStyle = '#58d68d'; ctx.lineWidth = 1.5; ctx.globalAlpha = (0.3 + 0.2 * Math.sin(tNow / 300 + seed)) * fade;
-        ctx.beginPath(); ctx.arc(x, y - 4, 16 * pulse, 0, Math.PI * 2); ctx.stroke();
+        // 根部毒圈（微光 + 呼吸，保留增强落地感）
+        const pulse = 1 + 0.08 * Math.sin(tNow / 280 + seed);
+        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.2 * fade * pulse;
+        ctx.beginPath(); ctx.arc(x, y, 12 * pulse, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#58d68d'; ctx.lineWidth = 1.4; ctx.globalAlpha = (0.28 + 0.18 * Math.sin(tNow / 300 + seed)) * fade;
+        ctx.beginPath(); ctx.arc(x, y, 15 * pulse, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
+        // 帧选择：攻击后 0.32s 内第 4 帧（喷发），否则 1-3 帧循环
+        const atk = st.atkT <= 0.32;
+        let frameIdx;
+        if (atk) {
+          frameIdx = 3;
+        } else {
+          const ph = (tNow / 900 + seed * 0.037) % 1;
+          frameIdx = Math.floor(ph * 3);
+        }
+        const fw = 30, fh = 36;
+        if (!drawImg(ctx, `images/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
+          // 贴图未加载回退：简化几何（木柄 + 毒囊）
+          const pulse2 = 1 + 0.08 * Math.sin(tNow / 280 + seed);
+          ctx.save();
+          ctx.translate(x, y - 4); ctx.rotate(-0.18);
+          ctx.fillStyle = '#6d4c41'; ctx.globalAlpha = 0.95 * fade;
+          ctx.fillRect(-3, -22, 6, 24);
+          const sacR = 6.5 * pulse2;
+          ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.95 * fade;
+          ctx.beginPath(); ctx.arc(0, -26, sacR, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+        // 攻击瞬间绿色毒雾爆点（贴图第 4 帧叠加，增强命中感）
+        if (atk) {
+          ctx.globalAlpha = (0.7 - st.atkT * 2.2) * fade;
+          ctx.fillStyle = '#2e7d32';
+          ctx.beginPath(); ctx.arc(x, y - 16, 6 + st.atkT * 26, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       });
     }
   }
@@ -1424,30 +1426,44 @@ class Renderer {
         ctx.beginPath(); ctx.arc(f.x, f.y - 13, 2, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       } else if (f.type === 'turret') {
-        // 炮·炮台（v1.16）：自动炮台（底座光环 + 炮管摆动 + 瞄准灯），驻留期炮管左右摆动
+        // 炮·炮台（v1.16.10）：帧动画贴图——1 落地 / 2 成型 / 3 瞄准 / 4 开火
+        // 常态循环 1→2→3（1.2s 周期）；combat 开火时在 fx 上打 attackT（f.t 时刻），0.3s 内显示第 4 帧
         const p = Math.min(1, f.t / f.dur);
-        const sway = Math.sin(p * 8 + (f.seed || 0)) * 0.12;
-        // 底座光环（部署确认圈）
-        ctx.globalAlpha = 0.3 + 0.2 * Math.sin(p * 6 + (f.seed || 0));
+        const seed = f.seed || 0;
+        // 底座光环（部署确认圈，保留淡显）
+        ctx.globalAlpha = (0.22 + 0.14 * Math.sin(p * 6 + seed)) * Math.min(1, f.t / 0.4);
         ctx.strokeStyle = '#d89e63'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(f.x, f.y - 2, 15, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = 0.15;
-        ctx.fillStyle = '#d89e63';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 2, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(f.x, f.y - 2, 16, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
-        ctx.fillStyle = '#7a5a30';
-        ctx.fillRect(f.x - 10, f.y - 8, 20, 16);
-        ctx.fillStyle = '#a06020';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.save();
-        ctx.translate(f.x, f.y - 8); ctx.rotate(sway);
-        ctx.fillStyle = '#c0392b';
-        ctx.fillRect(-2, -14, 5, 16);
-        ctx.restore();
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(p * 12);
-        ctx.fillStyle = '#d89e63';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
+        const atk = f.attackT !== undefined && f.t - f.attackT < 0.3;
+        let frameIdx;
+        if (atk) {
+          frameIdx = 3;
+        } else {
+          const ph = (f.t / 1.2 + seed * 0.031) % 1;
+          frameIdx = Math.floor(ph * 3);
+        }
+        const fw = 34, fh = 36;
+        if (!drawImg(ctx, `images/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
+          // 贴图未加载回退：简化几何炮台（底座 + 摆动炮管）
+          const sway = Math.sin(p * 8 + seed) * 0.12;
+          ctx.fillStyle = '#7a5a30';
+          ctx.fillRect(f.x - 10, f.y - 8, 20, 16);
+          ctx.fillStyle = '#a06020';
+          ctx.beginPath(); ctx.arc(f.x, f.y - 8, 7, 0, Math.PI * 2); ctx.fill();
+          ctx.save();
+          ctx.translate(f.x, f.y - 8); ctx.rotate(sway);
+          ctx.fillStyle = '#c0392b';
+          ctx.fillRect(-2, -14, 5, 16);
+          ctx.restore();
+        }
+        // 开火瞬间炮口高亮（贴图第 4 帧叠加）
+        if (atk) {
+          ctx.globalAlpha = (0.8 - (f.t - f.attackT) * 2.6);
+          ctx.fillStyle = '#ffd24a';
+          ctx.beginPath(); ctx.arc(f.x, f.y - 8, 5 + (f.t - f.attackT) * 30, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       } else if (f.type === 'cyclone') {
         // 回旋镖·风暴镖（v1.16）：紫色旋风（旋转风轨 + 中心涡眼 + 飘散镖影）
         const p = Math.min(1, f.t / f.dur);

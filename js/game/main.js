@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.9';        // v1.16.9 冰花帧动画放慢一倍（0.55s→1.1s，伤害节奏不变）
+const GAME_VERSION = 'v1.16.10';       // v1.16.10 冰花延迟结算（第4帧动画末尾）+ 毒棒/炮台帧动画贴图与攻击效果
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

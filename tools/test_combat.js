@@ -133,6 +133,7 @@ t('冰·冰花：周期对最近敌人范围伤害 + A传染', () => {
   g.enemies.push(mkEnemy(10000, 400, 930));
   g.enemies.push(mkEnemy(10000, 410, 950));   // 传染 60px 内
   c.tickPeriodic(8);   // 冰花周期 8s 触发
+  c.update(0.9);       // v1.16.10：冰花改为延迟 0.8s（第 4 帧动画末尾）结算范围伤害
   const hurt = g.enemies.filter((x) => x.hp < 10000).length;
   assert.ok(hurt >= 3, `冰花 100 范围 + A 传染 60 应覆盖 3 个，实际 ${hurt}`);
 });
