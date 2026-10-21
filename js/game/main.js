@@ -405,9 +405,9 @@ class GameMain {
       if (e.frozen > 0 || e.paralyzed > 0) continue;
       // 毒·瘴气环境：环内敌人命中率下降（15% 概率攻击落空，v1.15）
       if (e._miasma && Math.random() < 0.15) continue;
-      // 冰墙攻速减缓计时（v1.13.25：被冰墙迟缓的敌人攻击间隔 ×1.5）
-      if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowMult = 1; }
-      const eAtkInt = (e.attackInterval || 1) * (e.atkSlowMult || 1);
+      // 冰墙攻击间隔迟缓计时（v1.16.21：被冰墙迟缓的敌人攻击间隔 +0.5s）
+      if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowAdd = 0; }
+      const eAtkInt = (e.attackInterval || 1) + (e.atkSlowAdd || 0);
       e.attackT = (e.attackT || 0) + dt;
       if (e.attackT >= eAtkInt) {
         e.attackT -= eAtkInt;
@@ -415,7 +415,7 @@ class GameMain {
         const atkDmg = e.attack * (e._miasmaAtkMult || 1);
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {
-          // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻速减缓×1.5）
+          // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻击间隔 +0.5s·持续2s）
           const absorbed = Math.min(iw.absorb, atkDmg);
           iw.absorb -= absorbed;
           const leak = atkDmg - absorbed;
@@ -423,7 +423,7 @@ class GameMain {
           if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= leak;
           if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
           this.combat.applySlow(e, 0.4, 2);
-          e.atkSlowMult = 1.5; e.atkSlowT = 2;
+          e.atkSlowAdd = 0.5; e.atkSlowT = 2;
           // 冰墙受击视觉：冰晶飞溅
           this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
         } else {

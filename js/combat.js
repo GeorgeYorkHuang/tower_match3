@@ -1703,9 +1703,9 @@ class CombatSystem {
         this.frostOrbs = remain;
       }
     }
-    // 冰墙（v1.13.25 原永冻改，驻场城墙护盾）：每 20 秒为城墙附魔冰霜之墙，持续 8+2A 秒，
-    //     吸收 400 伤害；攻击冰墙的敌人减速 40% + 攻速减缓 ×1.5（由 main.js 攻城段结算吸收/反伤/迟缓）
-    //     A 凝壁 持续+2s/级；B 霜反 反伤 30%/级；C 融暖 结束回血 40/级
+    // 冰墙（v1.13.25 原永冻改，驻场城墙护盾；v1.16.21 数值重做）：每 20 秒为城墙附魔冰盾，持续 10s，
+    //     抵御 300 伤害；攻击冰墙的敌人减速 40% + 攻击间隔 +0.5s（由 main.js 攻城段结算吸收/反伤/迟缓）
+    //     A 凝壁 持续 +2/+4/+6s（档位式）；B 霜反 反伤 30%/60%/90%；C 融暖 结束回血 +50/+100/+150
     const wallSkill = this.lv('ice', '冰墙');
     if (wallSkill > 0) {
       this.timers.iceWall = (this.timers.iceWall || 0) + dt;
@@ -1726,10 +1726,10 @@ class CombatSystem {
       if (this.timers.iceWall >= 20) {
         this.timers.iceWall = 0;
         this.iceWall = {
-          ttl: 8 + 2 * this.branchLv('ice', '冰墙', 'A'),
-          absorb: 500,   // v1.13.26 平衡：冰墙吸收 400→500
-          reflect: 0.30 * this.branchLv('ice', '冰墙', 'B'),
-          heal: 40 * this.branchLv('ice', '冰墙', 'C'),
+          ttl: 10 + [0, 2, 4, 6][this.branchLv('ice', '冰墙', 'A')],   // 基础 10s + A 档位 +2/+4/+6s
+          absorb: 300,   // v1.16.21：基础抵御 300 点伤害
+          reflect: [0, 0.3, 0.6, 0.9][this.branchLv('ice', '冰墙', 'B')],   // B 反伤 30%/60%/90%
+          heal: [0, 50, 100, 150][this.branchLv('ice', '冰墙', 'C')],      // C 融暖结束回血 +50/+100/+150
         };
         this.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: this.ly().wallY, t: 0, dur: this.iceWall.ttl });
         this.fxRing(375, this.ly().wallY, '#7fd4ff', 320, 0.6, 5);

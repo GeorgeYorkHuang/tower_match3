@@ -211,20 +211,22 @@ t('冰·碎冰：命中后碎裂碎冰 60° 散射 + B伤害/C冻结', () => {
   assert.ok(f2.frozen > 0, 'C1 碎冰命中 5% 冻结应生效');
 });
 
-t('冰·冰墙：周期附魔城墙 + 结束回血', () => {
-  const g = mkGame({ ice: { 冰墙: { C: 1 } } });
+t('冰·冰墙：周期附魔城墙 + A持续/B反伤/C融暖回血', () => {
+  const g = mkGame({ ice: { 冰墙: { A: 1, B: 1, C: 1 } } });
   const c = new CombatSystem(g);
   const origHp = g.run.lineHp;   // CONFIG.LINE.hp
   c.timers.iceWall = 19.9;
-  c.update(0.2);   // timer 20.1 ≥20 → 生成冰墙（ttl 8 + 2×A0；C1 → 回血 40）
+  c.update(0.2);   // timer 20.1 ≥20 → 生成冰墙（A1 → 12s；B1 → 反伤 30%；C1 → 回血 50）
   assert.ok(c.iceWall && c.iceWall.ttl > 0, '应生成冰墙');
-  assert.ok(c.iceWall.absorb === 500, '冰墙吸收值应为 500');
-  assert.ok(c.iceWall.heal === 40, 'C1 回血应为 40');
+  assert.ok(Math.abs(c.iceWall.ttl - 12) < 1e-6, `A1 凝壁持续应 12s，实际 ${c.iceWall.ttl}`);
+  assert.ok(c.iceWall.absorb === 300, '冰墙吸收值应为 300');
+  assert.ok(Math.abs(c.iceWall.reflect - 0.3) < 1e-6, 'B1 反伤应 30%');
+  assert.ok(c.iceWall.heal === 50, 'C1 回血应为 50');
   // 模拟攻城扣血后冰墙消散回血
   g.run.lineHp -= 100;
-  c.update(8.0);   // ttl 8 - 8.0 → 结束
+  c.update(12.1);   // ttl 12 - 12.1 → 结束
   assert.ok(!c.iceWall, '冰墙应已消散');
-  assert.ok(Math.abs(g.run.lineHp - (origHp - 100 + 40)) < 1e-6, `结束应回血 40，实际 lineHp=${g.run.lineHp}`);
+  assert.ok(Math.abs(g.run.lineHp - (origHp - 100 + 50)) < 1e-6, `结束应回血 50，实际 lineHp=${g.run.lineHp}`);
 });
 
 t('冰·冬珠：持续冰霜之球范围伤害 + A寒域减速/B扩张/C凝华频率', () => {
