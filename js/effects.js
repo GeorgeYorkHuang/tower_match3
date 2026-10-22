@@ -6,9 +6,9 @@
  *   - 特效结构：{ name, branches: { A, B, C } }，分支等级 0-3；
  *     level 派生 = max(分支等级)（激活判定 + 战斗数值读取，兼容 combat.lv()）
  *   - 每塔 3 激活槽（activeSlots）；候选每次 3 个（pickSize）
- *   - 三选一候选两级混池（用户 v1.11 设计）：
- *       · 技能卡（未激活技能，type='skill'）——选中=激活（默认分支 A Lv1）
- *       · 分支卡（已激活技能的未满分支，type='branch'）——选中=该分支 Lv+1
+ *   - 三选一候选跨塔混池（v1.16.28）：每组 3 张候选分别来自随机 3 座已激活塔，各出 1 张卡；
+ *     卡分两级（v1.11）：技能卡（未激活技能，type='skill'）——选中=激活（默认分支 A Lv1）；
+ *     分支卡（已激活技能的未满分支，type='branch'）——选中=该分支 Lv+1
  *     先选技能；技能激活后，后续升级才会出现分支（分支继续升级，封顶 3）
  *   - 首选保底：本 run 首次三选一候选必含标志特效（火=爆燃/毒=毒爆/冰=冰冻/电=连锁）
  *   - 目标加权：targeting 时目标特效权重 ×targetWeight
@@ -171,8 +171,8 @@ class TowerBuild {
   }
 
   /**
-   * 应用一次选择（玩家从 pickChoices 结果中选中一项）。
-   * v1.16.18 三选一候选为单塔池：候选来自触发塔（group.tower），选中后作用于本塔并涨 1 级。
+   * 应用一次选择（玩家从候选组中选中一项）。
+   * v1.16.28 候选为跨塔随机：选中哪张卡就作用于哪座塔（fromTower）并涨 1 级。
    * 技能卡（未激活）：激活（默认分支 A Lv1；槽满且 SWAP_ON_FULL → 替换非目标特效）；
    * 分支卡（已激活技能未满分支）：该分支 Lv+1（封顶 maxLevel）。
    * 返回 {ok, activated, replaced, leveled}。
@@ -266,6 +266,7 @@ class EffectManager {
     opts = opts || {};
     this.rng = opts.rng || Math.random;  // 模拟路径注入 seeded rng（候选 shuffle 确定性）
     this.towers = {};
+    this._firstAnyDone = false;          // v1.16.28 跨塔三选一：本 run 首次候选是否已含标志特效
     // P0 可玩塔池：排除 p1 占位塔（如炮塔），其颜色转为惩罚色（对齐模拟脚本 TOWERS）
     Object.keys(CONFIG.TOWERS).forEach((key) => {
       if (CONFIG.TOWERS[key].p1) return;
@@ -278,12 +279,51 @@ class EffectManager {
   tower(key) { return this.towers[key]; }
 
   /**
+   * 跨塔三选一组（v1.16.28）：从已激活塔池（level>0 且有候选）随机抽 pickSize 座不同塔，
+   * 每座塔随机出 1 张候选卡 —— 三个选项分别来自不同塔。
+   * 返回 { tower, cands, target } 或 null（无候选塔）。
+   * target = 组内标志特效名（首选保底：本 run 首次三选一必含任一塔的标志特效卡）。
+   */
+  _buildGroup(poolKeys) {
+    const pickSize = CONFIG.EFFECT.pickSize;
+    const towers = [];
+    (poolKeys || Object.keys(this.towers)).forEach((key) => {
+      const t = this.towers[key];
+      if (t && t.level > 0 && t._choices().length > 0) towers.push(key);
+    });
+    if (!towers.length) return null;
+    shuffle(towers, this.rng);
+    const cands = [];
+    for (let i = 0; i < pickSize; i++) {
+      const k = towers[i % towers.length];   // 激活塔不足 pickSize 时轮转补足（保证每轮 3 选）
+      const t = this.towers[k];
+      const pool = t._choices();
+      cands.push(pool[Math.floor(this.rng() * pool.length)]);
+    }
+    // 首选保底：组内替换一张为标志特效卡（若尚未达成）
+    if (CONFIG.EFFECT.firstPickGuarantee && !this._firstAnyDone) {
+      const hasTgt = cands.some((c) => TARGET_OF[c.fromTower] === c.name);
+      if (!hasTgt) {
+        const tgtTowers = towers.filter((k) => TARGET_OF[k] && this.towers[k]._choices().some((c) => c.name === TARGET_OF[k]));
+        if (tgtTowers.length) {
+          const k = tgtTowers[Math.floor(this.rng() * tgtTowers.length)];
+          const tc = this.towers[k]._choices();
+          const tgtC = tc.find((c) => c.name === TARGET_OF[k]) || tc[0];
+          const idx = cands.findIndex((c) => c.fromTower === k);
+          cands[idx >= 0 ? idx : Math.floor(this.rng() * cands.length)] = tgtC;
+        }
+      }
+      this._firstAnyDone = true;
+    }
+    const tgt = cands.find((c) => TARGET_OF[c.fromTower] === c.name);
+    return { tower: cands[0].fromTower, cands, target: (tgt && tgt.name) || null };
+  }
+
+  /**
    * 波末结算：为所有已激活塔（level>0）的 pending 生成三选一队列，返回：
    *   [{ tower: key, candidates: [ef...] }]
-   * v1.16.25：候选来源塔 = 已激活塔中有待选次数的塔，槽级随机打乱——
-   * 「每次三选一从已激活塔池随机挑一座，出该塔的技能卡」，避免集中在同一塔。
-   * 生成时已消耗候选随机性与首选保底位；UI 逐组弹层，选中后
-   * applyChoice(group.tower, group.candidates[i]) 消费。
+   * v1.16.28：每组 3 张候选分别来自随机 3 座已激活塔（跨塔三选一）；组数 = Σpending；
+   * 选中后 applyChoice 按候选 fromTower 扣对应塔 pending。
    */
   settlePending() {
     const queue = [];
@@ -294,11 +334,10 @@ class EffectManager {
       for (let i = 0; i < t.pending; i++) slots.push(key);
     });
     shuffle(slots, this.rng);                        // 槽级随机：跨塔交错
-    slots.forEach((key) => {
-      const t = this.towers[key];
-      const cands = t.pickChoices(false);
-      if (!cands.length) { t.pending = 0; return; }
-      queue.push({ tower: key, candidates: cands, target: TARGET_OF[key] || null });
+    slots.forEach(() => {
+      const g = this._buildGroup();
+      if (!g) { Object.keys(this.towers).forEach((k) => { this.towers[k].pending = 0; }); return; }
+      queue.push({ tower: g.tower, candidates: g.cands, target: g.target });
     });
     return queue;
   }
@@ -335,8 +374,8 @@ class EffectManager {
   }
 
   /**
-   * 生成升级三选一队列：候选来源塔 = 已激活塔（level>0）中有待选次数者，槽级随机打乱
-   * （v1.16.25 跨塔随机，避免三选一集中在同一塔）。
+   * 生成升级三选一队列：每组 3 张候选分别来自随机 3 座已激活塔（v1.16.28 跨塔三选一；
+   * ownedKeys 限制塔池为出战塔，level>0 过滤未拥有塔）。
    */
   buildUpgradeQueue(ownedKeys) {
     const queue = [];
@@ -347,11 +386,10 @@ class EffectManager {
       for (let i = 0; i < t.pending; i++) slots.push(k);
     });
     shuffle(slots, this.rng);
-    slots.forEach((k) => {
-      const t = this.towers[k];
-      const cands = t.pickChoices(false);
-      if (!cands.length) { t.pending = 0; return; }
-      queue.push({ tower: k, candidates: cands, target: null });
+    slots.forEach(() => {
+      const g = this._buildGroup(ownedKeys);
+      if (!g) { (ownedKeys || Object.keys(this.towers)).forEach((k) => { if (this.towers[k]) this.towers[k].pending = 0; }); return; }
+      queue.push({ tower: g.tower, candidates: g.cands, target: null });
     });
     return queue;
   }

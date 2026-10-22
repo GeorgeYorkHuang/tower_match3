@@ -54,8 +54,8 @@ t('v1.16.17 塔等级=选择次数+1；建塔不赠选择', () => {
   assert.ok(fire.level > 3 && fire.level <= CONFIG.EXP.towerMaxLevel, `等级随选择增长且封顶 20（实际 ${fire.level}）`);
 });
 
-/* 1. 候选生成：3 个、不重复、来自该塔池 */
-t('候选生成：3 个、不重复、属于该塔池', () => {
+/* 1. 跨塔三选一（v1.16.28）：候选 3 张、分别来自不同已激活塔（塔池 ≥3 时不重复）、各属于其来源塔池 */
+t('跨塔三选一：3 张候选来自不同已激活塔、属于各自塔池', () => {
   const m = freshManager();
   const fire = m.tower('fire');
   fire.pending = 1;
@@ -63,9 +63,12 @@ t('候选生成：3 个、不重复、属于该塔池', () => {
   assert.strictEqual(queue.length, 1);
   const cands = queue[0].candidates;
   assert.strictEqual(cands.length, CONFIG.EFFECT.pickSize);
-  assert.strictEqual(new Set(cands.map((e) => e.name)).size, cands.length, '候选不得重复');
-  const poolNames = CONFIG.EFFECT_POOLS.fire.map((e) => e.name);
-  cands.forEach((e) => assert.ok(poolNames.includes(e.name), `${e.name} 应属于火塔全技能池`));
+  const froms = new Set(cands.map((e) => e.fromTower));
+  assert.strictEqual(froms.size, cands.length, '候选应来自不同塔（塔池 6 ≥ 3）');
+  cands.forEach((e) => {
+    const poolNames = CONFIG.EFFECT_POOLS[e.fromTower].map((q) => q.name);
+    assert.ok(poolNames.includes(e.name), `${e.name} 应属于 ${e.fromTower} 塔全技能池`);
+  });
 });
 
 /* 2. 首选保底：首次三选一候选必含标志特效（fire→爆燃） */
@@ -101,13 +104,14 @@ t('槽满后三选一不再刷新未激活技能（同技能每轮限 1 张升�
   const res = fire.applyChoice(newEf);
   assert.ok(!res.ok, '槽满后激活新技能应被拒绝');
   assert.strictEqual(fire.activeNames.length, 3, '槽数保持 3');
-  // 三选一候选：只出分支升级卡，不出未激活技能
+  // 三选一候选：来自槽满塔的候选只出分支升级卡，不出未激活技能
   fire.pending = 1;
   const q = m.settlePending();
   const cands = q[0].candidates;
   assert.ok(cands.length > 0, '槽满后仍有升级候选');
-  cands.forEach((c) => assert.strictEqual(c.type, 'branch', '槽满后只出升级分支卡'));
-  assert.ok(cands.every((c) => c.name !== '灼烧'), '未激活技能不应出现');
+  const fireCands = cands.filter((c) => c.fromTower === 'fire');
+  fireCands.forEach((c) => assert.strictEqual(c.type, 'branch', '槽满后 fire 只出升级分支卡'));
+  assert.ok(!fireCands.some((c) => c.name === '灼烧'), '未激活技能（灼烧）不应出现在 fire 候选');
   const names = cands.map((c) => c.name);
   assert.strictEqual(new Set(names).size, names.length, '同一技能每轮升级最多 1 张卡');
 });
@@ -229,8 +233,8 @@ t('v1.11 分支独立升级：只升对应分支', () => {
   assert.strictEqual(ef.level, 2, '分支 Lv1 → 技能 Lv2（1+分支）');
 });
 
-/* 13. v1.16.18 升级三选一单塔池：候选只出本塔技能（不再跨塔混池） */
-t('v1.16.18 升级三选一单塔池', () => {
+/* 13. v1.16.28 升级三选一跨塔随机：候选分别来自不同已激活塔（不再单塔池） */
+t('v1.16.28 升级三选一跨塔随机', () => {
   const m = freshManager();
   m.tower('fire').applyChoice({ name: '点燃', type: 'skill', fromTower: 'fire' });
   m.tower('ice').applyChoice({ name: '冰冻', type: 'skill', fromTower: 'ice' });
@@ -238,10 +242,12 @@ t('v1.16.18 升级三选一单塔池', () => {
   assert.ok(all.some((e) => e.fromTower === 'fire' && e.type === 'skill'), '应含火塔未激活技能卡');
   assert.ok(all.some((e) => e.fromTower === 'ice' && e.type === 'branch'), '应含冰塔已激活技能分支卡');
   m.tower('fire').pending = 1;
+  m.tower('ice').pending = 1;
   const q = m.buildUpgradeQueue(['fire', 'ice']);
-  assert.strictEqual(q.length, 1, '1 次待选 1 组（fire）');
-  q[0].candidates.forEach((e) => {
-    assert.strictEqual(e.fromTower, 'fire', '候选全部来自本塔 fire（单塔池）');
+  assert.strictEqual(q.length, 2, '2 次待选 2 组');
+  q.forEach((g) => {
+    assert.strictEqual(g.candidates.length, 3, '每组恒 3 张候选（塔池不足时轮转补足）');
+    g.candidates.forEach((e) => assert.ok(['fire', 'ice'].includes(e.fromTower), '候选应来自出战塔池'));
   });
 });
 
