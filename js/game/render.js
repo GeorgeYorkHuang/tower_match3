@@ -2197,9 +2197,9 @@ class Renderer {
       ctx.closePath(); ctx.fill();
       ctx.restore();
       ctx.globalAlpha = cAlpha;
-      // v1.16.27：技能图标 = 美术图片（88px，六边形徽章内完全居中），缺失回退 emoji
-      const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 44, iconCy - 44, 88, 88);
-      if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx, iconCy + 6, 52, '#ffffff', 'center');
+      // v1.16.27：技能图标 = 美术图片（88px；垂直居中，水平右移 4px 中和 Lv 角标/素材残余左偏），缺失回退 emoji
+      const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 40, iconCy - 44, 88, 88);
+      if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx + 4, iconCy + 6, 52, '#ffffff', 'center');
       // 等级角标（选择后达到的等级）
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
