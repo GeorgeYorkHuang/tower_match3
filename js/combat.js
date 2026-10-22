@@ -1283,12 +1283,13 @@ class CombatSystem {
   }
 
   /** 塔口坐标（普攻/技能弹道统一发射点，v1.16.37 统一口径）：
-   *  正式战斗：塔位槽布局（槽中心）；测试战场：单塔出战大槽（渲染 testFieldLayer 硬编码 x=15/y=1053，中心 65,1103） */
+   *  正式战斗：塔位槽布局（槽中心）；测试战场：单塔出战大槽（渲染 testFieldLayer 硬编码 x=15/y=1053，中心 65,1103）
+   *  v1.16.39 槽数恒用渲染固定值（正式 4 槽），不随已激活塔数变化——得塔前/后塔位坐标稳定（旧实现 n=slotOrder.length，1 塔时算成单槽居中 → 塔区中心） */
   towerMuzzle(key) {
     const g = this.game;
     const ly = this.ly();
     if (g.state === 'testfield') return { x: 15 + 50, y: 1053 + 50 };   // 渲染 testFieldLayer 硬编码单塔大槽（100×100，中心 65,1103）
-    const n = g.run.slotOrder.length || 4;
+    const n = ly.slotCount || 4;
     const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
     const startX = (750 - rowW) / 2;
     const slotW = ly.slotSize + ly.slotGap;

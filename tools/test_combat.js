@@ -60,15 +60,16 @@ function t(name, fn) {
 
 /* ---------- 用例 ---------- */
 
-/* v1.16.37 塔口坐标：测试战场单塔大槽中心 (65,1103) / 正式战斗槽位中心 */
-t('塔口坐标：测试战场单塔大槽 / 正式战斗槽位（弹道不从塔区中间发出）', () => {
+/* v1.16.37 塔口坐标：测试战场单塔大槽中心 (65,1103) / 正式战斗槽位中心
+   v1.16.39 正式战斗槽数恒 4（渲染固定），不随已激活塔数变化——得塔前后塔位坐标稳定 */
+t('塔口坐标：测试战场单塔大槽 / 正式战斗固定 4 槽（弹道不从塔区中间发出）', () => {
   const g = mkGame({ boomerang: {} }, ['boomerang']);
   const c = new CombatSystem(g);
   g.state = 'testfield';
   assert.deepStrictEqual(c.towerMuzzle('boomerang'), { x: 65, y: 1103 }, '测试战场出战塔大槽中心 (65,1103)（渲染硬编码 15,1053 大槽）');
   g.state = 'fighting';
   const m2 = c.towerMuzzle('boomerang');
-  assert.strictEqual(m2.x, 375, '正式战斗单塔槽中心 x=375');
+  assert.strictEqual(m2.x, 285, '正式战斗 1 塔（第 0 槽）中心 x=285（恒 4 槽 startX 261 + 24，不再单槽居中 375）');
   g.run.slotOrder = ['fire', 'ice', 'poison', 'electric'];
   const m3 = c.towerMuzzle('poison');
   assert.strictEqual(m3.x, 405, '正式战斗 4 塔第 3 槽中心 x=405（startX 261 + 2×60 + 24）');
