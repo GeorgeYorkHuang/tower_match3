@@ -2598,9 +2598,9 @@ class Renderer {
     return hits;
   }
 
-  /** 战斗主页：战场卡（约 1/4 屏高，v1.16.30 支持 ◀ ▶ 切换测试/远古战场）+ 进入战斗 + 4 个宝箱槽 */
+  /** 战斗主页：战场卡（v1.16.30 美化 + ◀ ▶ 战场切换；v1.16.31 箭头移到战场卡外侧左右，切换时描述内容同步适配） */
   menuBattle(ctx, s, push) {
-    const sx = 55, sy = 400, sw = 640, sh = 392;
+    const sx = 80, sy = 400, sw = 590, sh = 392;   // v1.16.31 卡片收窄留出外侧箭头空间（几何位置不变）
     const stage = s.stage || 'ancient';
     const isTest = stage === 'test';
     const tint = isTest ? '#a88bff' : '#2ecc71';
@@ -2608,7 +2608,7 @@ class Renderer {
     const title = isTest ? '🧪 测试战场' : '🏰 远古战场';
     const subtitle = isTest ? '免三消直测塔技能效果' : '城墙防守 · 怪物攻城 · 消消防线';
     push('stage', { id: stage }, sx, sy, sw, sh);
-    // 战场卡（v1.16.30 美化：渐变底 + 斜向光带 + 城齿装饰 + 塔色描边 + 呼吸光晕）
+    // 战场卡（渐变底 + 斜向光带 + 城齿装饰 + 塔色描边 + 呼吸光晕）
     const breath = 0.06 + 0.04 * Math.sin(Date.now() / 500);
     ctx.save();
     ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.clip();
@@ -2632,31 +2632,30 @@ class Renderer {
     ctx.globalAlpha = 1 + breath;
     strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
     ctx.globalAlpha = 1;
-    // 战场标题 + 左右切换箭头（v1.16.30：◀ ▶ 点击切换战场类型）
-    const arW = 58, arH = 58, arY = sy + 62;
-    const arrow = (ax, dir) => {
-      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arW / 2, arY - arH / 2, arW, arH);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.arc(ax, arY, arW / 2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = tint; ctx.lineWidth = 2; ctx.stroke();
-      text(ctx, dir, ax, arY + 2, 34, '#ffffff', 'center');
-    };
-    arrow(sx + 62, '‹');
-    arrow(sx + sw - 62, '›');
+    // 战场标题
     text(ctx, title, 375, sy + 92, 46, '#ffffff', 'center');
     text(ctx, subtitle, 375, sy + 146, 24, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
-    // 奖励说明
+    // 奖励说明（v1.16.31 切换战场时内容同步适配）
     fillRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.10)' : 'rgba(46,204,113,0.10)');
     strokeRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.35)' : 'rgba(46,204,113,0.35)', 1);
-    const rewards = [
-      ['💛 金币', ''],
-      ['📦 宝箱', ''],
-      ['💎 圣物', ''],
-    ];
+    const rewards = isTest
+      ? ['⚔ 直测技能', '🛡 城墙无敌', '⚡ 弹药恒满']
+      : ['💛 金币', '📦 宝箱', '💎 圣物'];
     rewards.forEach((r, i) => {
-      text(ctx, r[0], sx + 70 + i * 200, sy + 226, 24, '#f7c948', 'left');
+      text(ctx, r[0], sx + 62 + i * 180, sy + 226, 24, '#f7c948', 'left');
     });
-    text(ctx, '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
+    text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
+    // ◀ ▶ 战场切换箭头：放在战场描述卡外侧左右两边（v1.16.31）
+    const arR = 26;
+    const arrow = (ax, dir) => {
+      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arR, sy + 120, arR * 2, arR * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.arc(ax, sy + 120 + arR, arR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = tint; ctx.lineWidth = 2.5; ctx.stroke();
+      text(ctx, dir, ax, sy + 120 + arR + 2, 30, '#ffffff', 'center');
+    };
+    arrow(sx - 38, '‹');
+    arrow(sx + sw + 38, '›');
     // 进入战斗：屏幕 2/3 处（1626×2/3 ≈ 1084）
     const ey = 850, eh = 80;
     push('enter', null, 75, ey, 600, eh);
