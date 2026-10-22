@@ -1995,8 +1995,8 @@ class CombatSystem {
   // ===== tickCannon =====
   tickCannon(dt) {
     const g = this.game;
-    // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（40%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
-    // v1.16.22：先在地面形成醒目炮击圈预警（0.5s），再炮击结算
+    // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（60%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
+    // v1.16.23：动画重做——炮弹从塔口向天空发射（升空后随机敌人头顶垂直落下），落地瞬间以 130px 炮击圈标识爆炸范围
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
       this.timers.support = (this.timers.support || 0) + dt;
@@ -2005,15 +2005,20 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (alive.length) {
           const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
-          const dmg = this.shotDmg('cannon') * 0.40 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          const dmg = this.shotDmg('cannon') * 0.60 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          const mus = this.towerMuzzle('cannon');
           for (let i = 0; i < n; i++) {
             const t = alive[Math.floor(Math.random() * alive.length)];
             const px = t.x + (Math.random() - 0.5) * 40;
             const py = t.y + (Math.random() - 0.5) * 40;
-            // 地面炮击圈预警（明显）：实心橙圆 + 双环 + 瞄准点 + 旋转刻度，0.5s 后爆炸
-            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur: 0.5, seed: Math.random() * 100 });
-            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 0.5, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
-            this.fxParticle(px, py - 10, '#f39c12', 3, 30, 0.4, 90, 4);
+            // 炮弹弹道：塔口升空（0.3s 到高点 300px）→ 垂直落下至落点（约 850px/s）
+            const upT = 0.3;
+            const fallDist = Math.max(60, mus.y - 300 - py);
+            const dur = upT + fallDist / 850;
+            g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, t: 0, dur, upT, seed: Math.random() * 100 });
+            // 落点炮击圈（130px，炮弹飞行期间可见，落地即爆炸）
+            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur, seed: Math.random() * 100 });
+            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: dur, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
           }
         }
       }

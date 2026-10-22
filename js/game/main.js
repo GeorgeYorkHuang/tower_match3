@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.23';       // v1.16.23 炮塔三改：重炮溅射40%/震尘档位/震击迟滞档位 + 炮火支援炮击圈预警 + 地雷阵抛雷重做（config↔SKILLS双写）
+const GAME_VERSION = 'v1.16.24';       // v1.16.24 炮火支援动画重做（塔口升空→垂直落下弹道+落点炮击圈，伤害60%）+ 地雷阵二调（500px/s、部署圈×3）（config↔SKILLS双写）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

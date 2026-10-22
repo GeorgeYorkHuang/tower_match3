@@ -1506,6 +1506,45 @@ class Renderer {
           ctx.fillStyle = f.color || '#ffd24a';
           ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
         }
+      } else if (f.type === 'strikeShell') {
+        // v1.16.23 炮火支援：炮弹从塔口向天空发射（升空段 0.3s 到高点 300px），再垂直落下至落点
+        const p = Math.min(1, f.t / f.dur);
+        const upT = f.upT || 0.3;
+        let mx, my, ang;
+        if (p < upT / f.dur) {
+          const k = p * f.dur / upT;
+          mx = f.sx; my = f.sy - 300 * k; ang = -Math.PI / 2;
+        } else {
+          const k = (p * f.dur - upT) / (f.dur - upT);
+          mx = f.sx + (f.tx - f.sx) * k;
+          my = (f.sy - 300) + (f.ty - (f.sy - 300)) * k;
+          ang = Math.atan2(f.ty - (f.sy - 300), f.tx - f.sx);
+        }
+        // 升空段出膛口焰
+        if (p < upT / f.dur * 0.8) {
+          ctx.globalAlpha = 0.9 * (1 - p * f.dur / upT * 1.25);
+          ctx.fillStyle = '#ffd24a';
+          ctx.beginPath(); ctx.arc(f.sx, f.sy, 6 + 10 * (p * f.dur / upT), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // 炮弹弹体（沿飞行方向胶囊炮弹 + 尾部曳光焰，与 mortar 同款）
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(ang);
+        ctx.globalAlpha = (1 - p) * 0.7;
+        ctx.fillStyle = '#ff7043';
+        ctx.beginPath(); ctx.ellipse(-13, 0, 13, 4.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = (1 - p) * 0.9;
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath(); ctx.ellipse(-17, 0, 7, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#3a2f22';
+        ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ff8c42'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.6, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath(); ctx.arc(7, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       } else if (f.type === 'strike') {
         // v1.16.22 炮火支援：地面炮击圈预警（实心橙圆 + 白描边双环 + 中心瞄准点 + 旋转刻度，淡入至爆炸）
         const p = Math.min(1, f.t / f.dur);
