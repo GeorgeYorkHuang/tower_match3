@@ -278,21 +278,27 @@ class EffectManager {
   tower(key) { return this.towers[key]; }
 
   /**
-   * 波末结算：按塔序为每个 pending 生成一组三选一，返回完整队列：
+   * 波末结算：为所有已激活塔（level>0）的 pending 生成三选一队列，返回：
    *   [{ tower: key, candidates: [ef...] }]
+   * v1.16.25：候选来源塔 = 已激活塔中有待选次数的塔，槽级随机打乱——
+   * 「每次三选一从已激活塔池随机挑一座，出该塔的技能卡」，避免集中在同一塔。
    * 生成时已消耗候选随机性与首选保底位；UI 逐组弹层，选中后
    * applyChoice(group.tower, group.candidates[i]) 消费。
    */
   settlePending() {
     const queue = [];
+    const slots = [];
     Object.keys(this.towers).forEach((key) => {
       const t = this.towers[key];
-      const total = t.pending;              // 按待选次数生成，生成过程不扣减（由 applyChoice 扣）
-      for (let i = 0; i < total; i++) {
-        const cands = t.pickChoices(false);
-        if (!cands.length) { t.pending = 0; break; }
-        queue.push({ tower: key, candidates: cands, target: TARGET_OF[key] || null });
-      }
+      if (t.level <= 0 || t.pending <= 0) return;   // 只出已激活塔
+      for (let i = 0; i < t.pending; i++) slots.push(key);
+    });
+    shuffle(slots, this.rng);                        // 槽级随机：跨塔交错
+    slots.forEach((key) => {
+      const t = this.towers[key];
+      const cands = t.pickChoices(false);
+      if (!cands.length) { t.pending = 0; return; }
+      queue.push({ tower: key, candidates: cands, target: TARGET_OF[key] || null });
     });
     return queue;
   }
@@ -329,20 +335,23 @@ class EffectManager {
   }
 
   /**
-   * 生成升级三选一队列：按塔序，每 pending 一组（v1.16.18 候选为该塔自己的技能池——
-   * 「这次机会属于哪个塔就出哪个塔的卡，选中后该塔涨 1 级」）。
+   * 生成升级三选一队列：候选来源塔 = 已激活塔（level>0）中有待选次数者，槽级随机打乱
+   * （v1.16.25 跨塔随机，避免三选一集中在同一塔）。
    */
   buildUpgradeQueue(ownedKeys) {
     const queue = [];
-    ownedKeys.forEach((k) => {
+    const slots = [];
+    (ownedKeys || Object.keys(this.towers)).forEach((k) => {
       const t = this.towers[k];
-      if (!t) return;
-      const total = t.pending;
-      for (let i = 0; i < total; i++) {
-        const cands = t.pickChoices(false);
-        if (!cands.length) { t.pending = 0; break; }
-        queue.push({ tower: k, candidates: cands, target: null });
-      }
+      if (!t || t.level <= 0 || t.pending <= 0) return;
+      for (let i = 0; i < t.pending; i++) slots.push(k);
+    });
+    shuffle(slots, this.rng);
+    slots.forEach((k) => {
+      const t = this.towers[k];
+      const cands = t.pickChoices(false);
+      if (!cands.length) { t.pending = 0; return; }
+      queue.push({ tower: k, candidates: cands, target: null });
     });
     return queue;
   }
