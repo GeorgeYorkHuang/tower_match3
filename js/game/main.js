@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.24';       // v1.16.24 炮火支援动画重做（塔口升空→垂直落下弹道+落点炮击圈，伤害60%）+ 地雷阵二调（500px/s、部署圈×3）（config↔SKILLS双写）
+const GAME_VERSION = 'v1.16.25';       // v1.16.25 三选一候选塔跨塔随机（候选来源=已激活塔中随机，避免集中同一塔）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
