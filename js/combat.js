@@ -292,7 +292,7 @@ class CombatSystem {
           const dx = m.fly.tx - m.fly.sx, dy = m.fly.ty - m.fly.sy;
           const dist = Math.hypot(dx, dy) || 1;
           m.fly.t += dt;
-          const p = Math.min(1, (m.fly.t * 200) / dist);
+          const p = Math.min(1, (m.fly.t * 500) / dist);   // v1.16.23：抛投速度 200→500px/s
           m.x = m.fly.sx + dx * p;
           m.y = m.fly.sy + dy * p;
           if (p >= 1) { m.x = m.fly.tx; m.y = m.fly.ty; m.fly = null; m.armed = 0.3; m.ttl = 20; }
@@ -2018,7 +2018,7 @@ class CombatSystem {
         }
       }
     }
-    // 炮·地雷阵（v1.16.22 重做）：每 6 秒抛投 3 颗雷（A 布雷 +2/级），雷从塔口以 200px/s 飞向部署点（飞行不可引爆），
+    // 炮·地雷阵（v1.16.22 重做）：每 6 秒抛投 3 颗雷（A 布雷 +2/级），雷从塔口以 500px/s 飞向部署点（飞行不可引爆），
     //   落地布设 0.3s 后可引爆，持续 20 秒；有敌人时部署在最近敌人（最靠墙）附近一圈随机位置，无敌人时攻击范围内随机（B 雷威 +50%/级；C 连爆）
     const mineLv = this.lv('cannon', '地雷阵');
     if (mineLv > 0) {
@@ -2045,7 +2045,7 @@ class CombatSystem {
           if (alive.length) {
             const near = alive.reduce((a, b) => (b.y > a.y ? b : a));
             const ang = Math.random() * Math.PI * 2;
-            const rr = 10 + Math.random() * 50;
+            const rr = 30 + Math.random() * 150;   // v1.16.23：部署圈半径 ×3（10~60 → 30~180px）
             tx = near.x + Math.cos(ang) * rr;
             ty = near.y + Math.sin(ang) * rr;
           } else {

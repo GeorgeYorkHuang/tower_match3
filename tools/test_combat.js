@@ -960,11 +960,15 @@ t('炮·地雷阵：每 6 秒从塔口抛投，落地布设后可引爆', () => 
   const m = c.mines[0];
   assert.ok(m.fly, '雷生成后应处于飞行状态（不可引爆）');
   assert.ok(m.armed === 0, '飞行期间不可引爆（armed 未开始计时）');
-  // 推进至落地（飞行段）+ 布设 0.3s 完毕
-  const dist = Math.hypot(m.fly.tx - m.fly.sx, m.fly.ty - m.fly.sy);
-  const steps = Math.ceil((dist / 200 + 0.4) * 60);
+  // 推进至落地（飞行段 500px/s）+ 布设 0.3s 完毕
+  const lx = m.fly.tx, lyy = m.fly.ty;   // 先存部署点（落地后 fly 置空）
+  const dist = Math.hypot(lx - m.fly.sx, lyy - m.fly.sy);
+  const steps = Math.ceil((dist / 500 + 0.4) * 60);
   for (let i = 0; i < steps; i++) c.update(1 / 60);
   assert.ok(!m.fly && m.armed <= 0, '落地布设 0.3s 后应可引爆');
+  // 部署圈：最近敌人 (375,700) 附近 30~180px
+  const dd = Math.hypot(lx - 375, lyy - 700);
+  assert.ok(dd >= 30 && dd <= 180, '部署点应在最近敌人附近 30~180px 圈内');
   // 敌人踩中爆炸
   const e = mkEnemy(2000, m.x, m.y); g.enemies.push(e);
   for (let i = 0; i < 60 && e.hp > 0; i++) c.update(1 / 60);
