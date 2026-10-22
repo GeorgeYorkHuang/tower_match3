@@ -64,6 +64,12 @@ class CombatSystem {
     this.turrets = [];         // 炮·炮台（v1.16）
     this.storms = [];          // 回旋镖·风暴镖（v1.16）
     this.windTrails = [];      // 回旋镖·风痕（v1.16）
+    // v1.16.38 同步清理战斗实体 fx（弹道/风暴镖/炮台/地雷/地面持续区），避免切塔/清场/重开后幽灵残留
+    const g = this.game;
+    if (g && g.fx) {
+      const entityFx = ['shot', 'cyclone', 'turret', 'mine', 'groundDot', 'frostOrb', 'poisonStick'];
+      g.fx = g.fx.filter((f) => !entityFx.includes(f.type));
+    }
   }
 
   /* ---------- 工具 ---------- */
@@ -194,6 +200,7 @@ class CombatSystem {
           s.bounces++;
         }
         if (s.bounces >= s.maxB || s.t >= s.dur) {
+          if (s.fx) s.fx.t = s.fx.dur;   // v1.16.38 弹力镖提前结束（反弹满/超时）时同步结束其 fx，防止幽灵残留
           this.shots.splice(i, 1);
         }
         continue;
@@ -348,7 +355,11 @@ class CombatSystem {
       for (let i = this.storms.length - 1; i >= 0; i--) {
         const st = this.storms[i];
         st.ttl -= dt;
-        if (st.ttl <= 0) { this.storms.splice(i, 1); continue; }
+        if (st.ttl <= 0) {
+          if (st.fx) st.fx.t = st.fx.dur;   // v1.16.38 同步结束风暴镖 fx
+          this.storms.splice(i, 1);
+          continue;
+        }
         const ds = st.darts;
         for (let j = ds.length - 1; j >= 0; j--) {
           const d = ds[j];
@@ -2097,8 +2108,11 @@ class CombatSystem {
             for (let i = 0; i < n; i++) darts.push({ r: rc.r, spd, a: (Math.PI * 2 * i) / n, hitIds: {} });
           });
           this.storms = this.storms || [];
-          this.storms.push({ x: t.x, y: t.y, r: 120, ttl: 3, darts, perDmg });
-          g.fx.push({ type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts });
+          const sto = { x: t.x, y: t.y, r: 120, ttl: 3, darts, perDmg };
+          const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts };
+          sto.fx = fxo;                    // v1.16.38 风暴镖 fx 引用（同步清除）
+          this.storms.push(sto);
+          g.fx.push(fxo);
         }
       }
     }
@@ -2123,7 +2137,9 @@ class CombatSystem {
           const ang = baseAng + (i - (n - 1) / 2) * 0.5;
           const d = { key: 'boomerang', dmg: perDmg, t: 0, dur: 8, x: mus.x, y: mus.y, ang, speed: 400, bounce: true, bounces: 0, maxB, hitR: 30, hitIds: {} };
           this.shots.push(d);
-          g.fx.push({ type: 'shot', kind: 'bounce', ref: d, t: 0, dur: 8, color: '#c39bd3' });
+          const fxo = { type: 'shot', kind: 'bounce', ref: d, t: 0, dur: 8, color: '#c39bd3' };
+          d.fx = fxo;                    // v1.16.38 弹力镖 fx 引用（提前结束同步清除）
+          g.fx.push(fxo);
         }
       }
     }

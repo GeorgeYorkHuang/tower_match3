@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.37';       // v1.16.37 塔口弹道修复+三消飞光+激活塔弹药=15+形状弹药
+const GAME_VERSION = 'v1.16.38';       // v1.16.38 三选一跨塔扣减修正+弹力镖/风暴镖结束清理
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

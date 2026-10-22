@@ -262,5 +262,27 @@ t('v1.16.28 升级三选一跨塔随机', () => {
   });
 });
 
+/* v1.16.38 跨塔三选一扣减修正：queue.tower=触发塔（机会持有者），选中后触发塔扣 pending、来源塔成长
+   修复：一次升级反复弹三选一（旧实现 queue.tower=候选首张来源塔，选中跨塔候选时被跳过塔 pending 残留） */
+t('v1.16.38 跨塔三选一：触发塔扣 pending、来源塔成长，待选一次清空', () => {
+  const m = freshManager(3);
+  const fire = m.tower('fire'), ice = m.tower('ice');
+  fire.pending = 2; ice.pending = 0;
+  const q = m.buildUpgradeQueue(['fire', 'ice']);
+  assert.strictEqual(q.length, 2, 'fire 2 次待选 2 组');
+  q.forEach((g) => assert.strictEqual(g.tower, 'fire', 'queue.tower 应为触发塔 fire（旧实现误为候选首张来源塔）'));
+  const picked = q[0].candidates[0];
+  const res = m.applyChoice('fire', picked);
+  assert.ok(res.ok, '选择应成功');
+  assert.strictEqual(fire.pending, 1, '触发塔 fire 扣 1 次待选');
+  assert.strictEqual(fire.level, 1, '触发塔等级不因此成长（成长归选中来源塔）');
+  const host = m.tower(picked.fromTower);
+  assert.strictEqual(host.level, 2, `选中来源塔 ${picked.fromTower} 等级 +1`);
+  const res2 = m.applyChoice('fire', q[1].candidates[0]);
+  assert.ok(res2.ok);
+  assert.strictEqual(fire.pending, 0, 'fire pending 清空');
+  assert.strictEqual(m.pendingTotal(), 0, '全部待选清空 → 一次升级只触发一次三选一');
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

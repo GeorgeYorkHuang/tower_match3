@@ -75,6 +75,31 @@ t('塔口坐标：测试战场单塔大槽 / 正式战斗槽位（弹道不从�
   assert.strictEqual(m3.y, 1103, '正式战斗槽中心 y=1103');
 });
 
+/* v1.16.38 弹力镖/风暴镖：结束同步清除 fx，reset 清理战斗实体 fx（修复技能结束后幽灵残留） */
+t('弹力镖/风暴镖：结束同步清除 fx，reset 清理实体 fx', () => {
+  const g = mkGame({ boomerang: { 弹力镖: 1, 风暴镖: 1 } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  const e = mkEnemy(1000, 375, 700); g.enemies.push(e);
+  c.timers.ringN = 8; c.timers.storm = 12;
+  c.tickBoomerang(0);
+  const dart = c.shots.find((s) => s.bounce);
+  assert.ok(dart && dart.fx, '弹力镖应携带 fx 引用');
+  assert.ok(g.fx.some((f) => f.type === 'shot' && f.kind === 'bounce'), '弹力镖 fx 已生成');
+  assert.ok(g.fx.some((f) => f.type === 'cyclone'), '风暴镖 fx 已生成');
+  // 提前结束：弹力镖超时 + 风暴镖 ttl 耗尽 → 实体与其 fx 同步清除
+  dart.t = dart.dur;
+  c.storms[0].ttl = 0;
+  c.update(0);
+  assert.ok(!c.shots.includes(dart), '弹力镖超时移除');
+  assert.ok(dart.fx.t >= dart.fx.dur, '弹力镖 fx 同步结束（不再冻结残留）');
+  assert.strictEqual(c.storms.length, 0, '风暴镖 ttl 耗尽移除');
+  assert.ok(g.fx.find((f) => f.type === 'cyclone').t >= 3, '风暴镖 fx 同步结束');
+  // reset 清理战斗实体 fx（切塔/清场/重开后无幽灵）
+  g.fx.push({ type: 'shot', kind: 'line', t: 0, dur: 1 });
+  c.reset();
+  assert.ok(!g.fx.some((f) => ['shot', 'cyclone', 'turret', 'mine'].includes(f.type)), 'reset 后无战斗实体 fx 残留');
+});
+
 t('火·点燃：命中附加灼烧 DoT 并持续掉血', () => {
   const g = mkGame({ fire: { 点燃: 2 } });   // 点燃 Lv2：A1 → 灼烧几率 20%+25%+15%=60%
   const c = new CombatSystem(g);

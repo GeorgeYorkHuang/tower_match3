@@ -210,9 +210,11 @@ class TowerBuild {
         res.activated = true;
       }
     }
-    // 扣除触发升级塔（group.tower）的待升级次数；完成一次选择 → 塔自身等级 +1（v1.16.17 塔等级 = 累计选择次数 + 1）
+    // v1.16.38 跨塔三选一扣减修正：待选机会（pending）属于触发升级的塔（this = towers[queue.tower]），
+    // 选中候选后扣除触发塔的待选次数（旧实现按候选首张来源塔扣，跨塔时被跳过塔的 pending 残留 → 一次升级反复弹三选一）；
+    // 成长归属选中候选来源塔 host（等级 = 累计选择次数 + 1，v1.16.17）
     this.pending = Math.max(0, this.pending - 1);
-    this.level = Math.min(this.level + 1, CONFIG.EXP.towerMaxLevel);
+    host.level = Math.min(host.level + 1, CONFIG.EXP.towerMaxLevel);
     return res;
   }
 
@@ -328,10 +330,11 @@ class EffectManager {
       for (let i = 0; i < t.pending; i++) slots.push(key);
     });
     shuffle(slots, this.rng);                        // 槽级随机：跨塔交错
-    slots.forEach(() => {
+    slots.forEach((slotKey) => {
       const g = this._buildGroup();
       if (!g) { Object.keys(this.towers).forEach((k) => { this.towers[k].pending = 0; }); return; }
-      queue.push({ tower: g.tower, candidates: g.cands, target: g.target });
+      // v1.16.38 queue.tower = 触发塔（持有该 pending 的塔），选中后据此扣除；候选来自全池（可跨塔）
+      queue.push({ tower: slotKey, candidates: g.cands, target: g.target });
     });
     return queue;
   }
@@ -380,10 +383,11 @@ class EffectManager {
       for (let i = 0; i < t.pending; i++) slots.push(k);
     });
     shuffle(slots, this.rng);
-    slots.forEach(() => {
+    slots.forEach((slotKey) => {
       const g = this._buildGroup(ownedKeys);
       if (!g) { (ownedKeys || Object.keys(this.towers)).forEach((k) => { if (this.towers[k]) this.towers[k].pending = 0; }); return; }
-      queue.push({ tower: g.tower, candidates: g.cands, target: null });
+      // v1.16.38 queue.tower = 触发塔（持有该 pending 的塔），选中后据此扣除；候选来自全池（可跨塔）
+      queue.push({ tower: slotKey, candidates: g.cands, target: null });
     });
     return queue;
   }
