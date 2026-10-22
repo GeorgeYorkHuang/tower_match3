@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.40';       // v1.16.40 三消光球飞行路径：先下坠减速再加速（反向抛物线）
+const GAME_VERSION = 'v1.16.41';       // v1.16.41 三消光球发光效果放大 1.5 倍（光晕/白芯/拖尾/到达涟漪）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
