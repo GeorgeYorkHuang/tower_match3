@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.42';       // v1.16.42 11 项技能分支补充/重做（真火/散射/毒爆重做/浓瘴/极光电击/接镖节奏/猎手标记/风暴镖十字/卷痕/贯透/碎雷）
+const GAME_VERSION = 'v1.16.43';       // v1.16.43 攻城修复：无塔时怪物到城墙也扣血（siegeEnemies 独立）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -384,9 +384,10 @@ class GameMain {
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
-    // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现
+    // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
     if (this.run.slotOrder.length === 0) {
       this.enemies.forEach((e) => this.moveEnemy(e, dt));
+      this.siegeEnemies(dt);
       return;
     }
     // A1 真实战斗：弹道命中 / DoT / 塔攻击调度 / 周期技 / 死亡触发
@@ -398,7 +399,15 @@ class GameMain {
     });
     // 移动：冰冻/减速影响移动速度；已到城墙攻击范围的停止前进
     this.enemies.forEach((e) => this.moveEnemy(e, dt));
-    // 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
+    // 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（v1.16.43 抽出独立方法，无塔时同样执行）
+    this.siegeEnemies(dt);
+    // 死亡清场（combat.update 已结算死亡技能，此处统一移除尸体）
+    this.enemies = this.enemies.filter((e) => e.hp > 0);
+  }
+
+  /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
+   *  v1.16.43 修复：无塔（槽位未解锁）时怪物到城墙也应攻城掉血——此前被「无塔不战斗」提前 return 跳过，城墙完全不扣血 */
+  siegeEnemies(dt) {
     const wallLine = this.ly.wallY - 10; // 城墙攻击范围（城墙顶）
     let wallHits = 0;
     for (const e of this.enemies) {
@@ -439,8 +448,6 @@ class GameMain {
       }
     }
     if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallLine, t: 0, dur: 0.3 });
-    // 死亡清场（combat.update 已结算死亡技能，此处统一移除尸体）
-    this.enemies = this.enemies.filter((e) => e.hp > 0);
   }
 
   /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城） */
