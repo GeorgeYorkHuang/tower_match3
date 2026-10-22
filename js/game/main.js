@@ -663,7 +663,8 @@ class GameMain {
         let ex, ey;
         if (tk && this.run.effects.tower(tk).level > 0) {
           const mz = this.combat.towerMuzzle(tk);
-          ex = mz.x; ey = mz.y;
+          // v1.16.38b 终点 = 塔图标中心：正式战斗图标 iy 较槽中心上移 2px（slotY + (100-98)/2 - 2 + 49），测试战场大槽图标即槽中心
+          ex = mz.x; ey = mz.y - (this.state === 'testfield' ? 0 : 2);
         } else {
           // 全局技能色：洗牌左按钮 / 补给右按钮（渲染 globalBtns 同口径：btnW 102、btnH 75、btnY = towerRowY+12）
           const skill = this.run._globalSkillOf ? this.run._globalSkillOf(m.color) : null;

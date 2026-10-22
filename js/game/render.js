@@ -2022,26 +2022,43 @@ class Renderer {
         ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.type === 'beamp') {
-        // v1.16.37 三消飞光：光点从盘面汇聚点飞向塔位/全局技能按钮（ease-out，光晕+白芯，末端终点闪光）
+        // v1.16.38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮（ease-out）
+        //   · 动态拖尾（前 6 帧位置渐变光点）· 三层光晕（外柔光/中彩光/白芯）· 到达涟漪 + 星芒闪光
         const p = Math.min(1, f.t / f.dur);
         const e = 1 - Math.pow(1 - p, 2.2);
         const x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e;
         const col = f.color || '#ffffff';
-        ctx.globalAlpha = 0.95;
+        if (!f.trail) f.trail = [];
+        f.trail.push({ x, y });
+        if (f.trail.length > 6) f.trail.shift();
+        // 拖尾：越靠后越淡越小
+        for (let ti = 0; ti < f.trail.length - 1; ti++) {
+          const tp = f.trail[ti];
+          const k = (ti + 1) / f.trail.length;
+          ctx.globalAlpha = 0.10 + 0.35 * k * (1 - p);
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.arc(tp.x, tp.y, 1.5 + 2.2 * k, 0, Math.PI * 2); ctx.fill();
+        }
+        // 本体：三层光晕（外柔光 → 中彩光 → 白芯）
+        ctx.globalAlpha = 0.20 * (1 - p * 0.4);
         ctx.fillStyle = col;
-        ctx.beginPath(); ctx.arc(x, y, 4.5 + 2.5 * p, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.32;
-        ctx.beginPath(); ctx.arc(x, y, 10 + 5 * p, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 13 + 4 * p, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.arc(x, y, 6 + 2.5 * p, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill();
-        // 到达终点小闪光（星芒扩散）
-        if (p >= 0.82) {
-          const q = (p - 0.82) / 0.18;
-          ctx.globalAlpha = (1 - q) * 0.85;
+        ctx.beginPath(); ctx.arc(x, y, 2.8, 0, Math.PI * 2); ctx.fill();
+        // 末端：到达终点 → 扩散涟漪 + 星芒闪光（停留 0.35s 视觉）
+        if (p >= 0.8) {
+          const q = (p - 0.8) / 0.2;
+          const qq = 1 - Math.pow(1 - q, 2);
+          ctx.globalAlpha = (1 - q) * 0.75;
           ctx.strokeStyle = col;
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(f.x1, f.y1, 6 + qq * 30, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = (1 - q) * 0.9;
           ctx.lineWidth = 2.5;
-          const rr = 4 + q * 14;
+          const rr = 4 + qq * 16;
           ctx.beginPath();
           ctx.moveTo(f.x1 - rr, f.y1); ctx.lineTo(f.x1 + rr, f.y1);
           ctx.moveTo(f.x1, f.y1 - rr); ctx.lineTo(f.x1, f.y1 + rr);
