@@ -2645,14 +2645,39 @@ class Renderer {
       text(ctx, r[0], sx + 62 + i * 180, sy + 226, 24, '#f7c948', 'left');
     });
     text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
-    // ◀ ▶ 战场切换箭头：放在战场描述卡外侧左右两边（v1.16.31）
+    // ◀ ▶ 战场切换箭头：放在战场描述卡外侧左右两边（v1.16.31；v1.16.33 立体化：投影+渐变玻璃底+高光弧+呼吸光晕）
     const arR = 26;
     const arrow = (ax, dir) => {
-      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arR, sy + 120, arR * 2, arR * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.arc(ax, sy + 120 + arR, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = tint; ctx.lineWidth = 2.5; ctx.stroke();
-      text(ctx, dir, ax, sy + 120 + arR + 2, 30, '#ffffff', 'center');
+      const ay = sy + 120 + arR;   // 圆心（与副标题同行）
+      const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (dir === 'L' ? 0 : 2.1));
+      // 命中区（含光晕）
+      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
+      // 底部投影
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(ax + 2, ay + 3, arR, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      // 呼吸光晕
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = tint;
+      ctx.beginPath(); ctx.arc(ax, ay, arR + 7, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      // 渐变玻璃圆底（左上亮右下暗）
+      const abg = ctx.createRadialGradient(ax - arR * 0.35, ay - arR * 0.42, arR * 0.12, ax, ay, arR);
+      abg.addColorStop(0, isTest ? '#8f83f5' : '#45d48a');
+      abg.addColorStop(0.55, isTest ? '#5a4bc8' : '#23a06a');
+      abg.addColorStop(1, isTest ? '#3c2f8f' : '#14694a');
+      ctx.fillStyle = abg;
+      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.fill();
+      // 外描边
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.stroke();
+      // 顶部高光弧
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(ax, ay, arR - 3.5, -Math.PI * 0.88, -Math.PI * 0.12); ctx.stroke();
+      // 箭头符号（阴影 + 主体）
+      text(ctx, dir, ax + 1, ay + 3, 30, 'rgba(0,0,0,0.35)', 'center');
+      text(ctx, dir, ax, ay + 2, 30, '#ffffff', 'center');
     };
     arrow(sx - 38, '‹');
     arrow(sx + sw + 38, '›');

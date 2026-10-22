@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 /* ---------- mock 微信环境 ---------- */
 const ctx2d = new Proxy({}, {
   get(t, k) {
-    if (k === 'createLinearGradient') return () => ({ addColorStop() {} });
+    if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop() {} });
     return () => undefined;
   },
   set() { return true; },

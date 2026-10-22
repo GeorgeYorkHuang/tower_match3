@@ -27,7 +27,7 @@ global.wx = {
 };
 const ctx2d = new Proxy({}, {
   get(t, k) {
-    if (k === 'createLinearGradient') return () => ({ addColorStop() {} });
+    if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop() {} });
     if (k === 'measureText') return () => ({ width: 10 });
     return () => undefined;
   },

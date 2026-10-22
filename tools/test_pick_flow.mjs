@@ -15,7 +15,7 @@ const wxHandlers = {};
 const grad = { addColorStop() {} };
 const ctx2d = new Proxy({}, {
   get(t, k) {
-    if (k === 'createLinearGradient') return () => grad;
+    if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad;
     return () => undefined;
   },
   set() { return true; },
