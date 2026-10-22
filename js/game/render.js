@@ -102,6 +102,20 @@ function drawImg(ctx, src, x, y, w, h) {
   return false;
 }
 
+/* v1.16.27 技能图标（美术资源 images/skillicons/<塔>/<文件名>.png，缺失时回退 emoji） */
+const SKILL_ICON = {
+  fire:      { 点燃: 'ignite', 灼烧: 'burnstack', 火柱: 'pillar', 大火球: 'bigfireball', 爆燃: 'detonate', 多重火球: 'multifireball', 火雨: 'firerain' },
+  ice:       { 寒霜: 'frost', 冰冻: 'freeze', 冰穿刺: 'pierce', 多重冰锥: 'multiicicle', 冰花: 'frostflower', 冬珠: 'winterorb', 碎冰: 'shatter', 冰墙: 'icewall' },
+  poison:    { 剧毒: 'toxic', 毒爆: 'burst', 毒池: 'pool', 毒棒: 'totem', 毒性强化: 'enhance', 瘟疫: 'plague', 毒藤: 'vine', 瘴气: 'miasma' },
+  electric:  { 连锁: 'chain', 麻痹: 'paralysis', 过载: 'overload', 极光电击: 'arc', 雷暴: 'thunderstorm', 活电: 'liveorbs', 充能: 'charge', 电磁场: 'magnetic' },
+  boomerang: { 折返增伤: 'returnboost', 放血: 'pierce', 多镖: 'multiboom', 接镖: 'catch', 猎手标记: 'mark', 风暴镖: 'storm', 弹力镖: 'ring', 风痕: 'windtrail' },
+  cannon:    { 重炮: 'heavy', 震击: 'shock', 贯穿弹: 'pierce', 双管齐射: 'double', 炮火支援: 'support', 地雷阵: 'minefield', 炮台: 'turret', 军火库: 'arsenal' },
+};
+function skillIconSrc(towerKey, skillName) {
+  const f = (SKILL_ICON[towerKey] || {})[skillName];
+  return f ? `images/skillicons/${towerKey}/${f}.png` : null;
+}
+
 const STATUS_H = L.statusBar.h;             // 72
 const AREA_X = L.actionArea.x;              // 25
 const AREA_Y = STATUS_H;                    // 72
@@ -373,10 +387,13 @@ class Renderer {
         ctx.fillStyle = grad; ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2); ctx.stroke();
-        // 图标阴影字
-        ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 3, 22, '#000', 'center');
-        ctx.globalAlpha = 1;
-        text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 2, 22, '#ffffff', 'center');
+        // 图标（v1.16.27：优先美术图片，缺失回退 emoji）
+        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 22, icy - 22, 44, 44);
+        if (!skIconOk) {
+          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 3, 22, '#000', 'center');
+          ctx.globalAlpha = 1;
+          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 2, 22, '#ffffff', 'center');
+        }
         // 技能名
         text(ctx, sk.name, cx + cardW / 2, cy + 106, 22, '#ffffff', 'center');
         // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.14，v1.16.11 立体化）
@@ -2143,7 +2160,7 @@ class Renderer {
       ctx.globalAlpha = cAlpha * (0.16 + 0.12 * breathe);
       ctx.fillStyle = fromTint;
       ctx.beginPath(); ctx.arc(iconCx, iconCy, ir + 13, 0, Math.PI * 2); ctx.fill();
-      // 六边形徽章体（渐变填充）
+      // 六边形徽章体（v1.16.27：底色统一自上而下 蓝 → 完全透明白 渐变）
       ctx.globalAlpha = cAlpha;
       const hex = (cxx, cyy, rr, rot) => {
         ctx.beginPath();
@@ -2154,8 +2171,8 @@ class Renderer {
         }
         ctx.closePath();
       };
-      const grad = ctx.createLinearGradient(iconCx - ir, iconCy - ir, iconCx + ir, iconCy + ir);
-      grad.addColorStop(0, lighten(fromTint, 1.35)); grad.addColorStop(1, fromTint);
+      const grad = ctx.createLinearGradient(iconCx, iconCy - ir, iconCx, iconCy + ir);
+      grad.addColorStop(0, '#4a8cff'); grad.addColorStop(1, 'rgba(255,255,255,0)');
       hex(iconCx, iconCy, ir * cScale, Math.PI / 6);
       ctx.fillStyle = grad; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 3;
@@ -2180,7 +2197,9 @@ class Renderer {
       ctx.closePath(); ctx.fill();
       ctx.restore();
       ctx.globalAlpha = cAlpha;
-      text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx, iconCy + 8, 52, '#ffffff', 'center');
+      // v1.16.27：技能图标 = 美术图片（88px，六边形徽章内），缺失回退 emoji
+      const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 44, iconCy - 36, 88, 88);
+      if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx, iconCy + 8, 52, '#ffffff', 'center');
       // 等级角标（选择后达到的等级）
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
