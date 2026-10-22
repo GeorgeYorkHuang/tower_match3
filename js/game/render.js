@@ -860,6 +860,23 @@ class Renderer {
         }
         ctx.globalAlpha = 1;
       }
+      // v1.16.42 猎手标记：被标记敌人头顶红色半透明瞄准标记（瞄准环 + 十字准线 + 中心点），随层数扩大脉冲
+      if ((e._mark || 0) > 0) {
+        const cx = x + size / 2, cy = y + size / 2 - size * 0.5 - 4;
+        const tNow2 = Date.now();
+        const pulse = 0.72 + 0.28 * Math.sin(tNow2 / 240);
+        ctx.strokeStyle = 'rgba(255,80,80,0.85)'; ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.85 * pulse;
+        ctx.beginPath(); ctx.arc(cx, cy, 7 + e._mark * 1.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 11 - e._mark * 2, cy); ctx.lineTo(cx + 11 + e._mark * 2, cy);
+        ctx.moveTo(cx, cy - 11 - e._mark * 2); ctx.lineTo(cx, cy + 11 + e._mark * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,80,80,0.9)'; ctx.globalAlpha = 0.9 * pulse;
+        ctx.beginPath(); ctx.arc(cx, cy, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       if (e.dots && e.dots.length) {
         e.dots.forEach((d) => {
           if (d.type === 'burn') {
@@ -1004,7 +1021,7 @@ class Renderer {
         ctx.globalAlpha = 1;
       });
     }
-    // 毒池：半透明深绿毒液池（多层椭圆呼吸）+ 边缘泡沫 + 气泡上升帧动画
+    // 毒池（v1.16.1 深绿毒液池）/ 毒沼（v1.16.42 60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
     if (combat.groundDots && combat.groundDots.length) {
       combat.groundDots.forEach((gd) => {
         if (gd.key !== 'poison' || gd.ttl <= 0) return;
@@ -1012,6 +1029,26 @@ class Renderer {
         const fade = Math.min(1, gd.ttl / 1.2); // 接近结束淡出
         const R = gd.r || 130;
         const breathe = 1 + 0.05 * Math.sin(tNow / 320 + seed);
+        if (gd.swamp) {
+          // v1.16.42 毒沼：小范围（60px）暗褐绿泥沼——泥浆底色 + 内圈 + 冒泡，与毒池（亮绿毒液池）区分
+          ctx.fillStyle = '#4d3a1e'; ctx.globalAlpha = 0.5 * fade;
+          ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.7 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#6b5325'; ctx.globalAlpha = 0.4 * fade;
+          ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * 0.62 * breathe, R * 0.44 * breathe, 0, 0, Math.PI * 2); ctx.fill();
+          // 泥浆高光斑
+          ctx.fillStyle = '#7d6a2e'; ctx.globalAlpha = 0.25 * fade;
+          ctx.beginPath(); ctx.ellipse(gd.x - R * 0.2, gd.y - R * 0.1, R * 0.3, R * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+          // 泥沼气泡（暗绿气泡上升）
+          for (let k = 0; k < 5; k++) {
+            const ph = ((tNow / 850 + k / 5 + seed * 0.013) % 1);
+            const bx = gd.x + Math.sin((tNow / 620 + k * 2.1) * 2) * R * 0.35;
+            const by = gd.y + R * 0.3 - ph * R * 0.7;
+            ctx.fillStyle = '#8a9a5b'; ctx.globalAlpha = (0.5 - 0.3 * ph) * fade;
+            ctx.beginPath(); ctx.arc(bx, by, 1.6 + ph * 2.2, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          return;
+        }
         // 外圈深绿液池
         ctx.fillStyle = '#145a32'; ctx.globalAlpha = 0.45 * fade;
         ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.62 * breathe, 0, 0, Math.PI * 2); ctx.fill();
@@ -1820,7 +1857,8 @@ class Renderer {
           ctx.globalAlpha = 1;
         }
       } else if (f.type === 'cyclone') {
-        // v1.16.21 风暴镖重做：三同心圈（不可见）沿圈旋转的小飞镖（10px），引用 combat 实时 darts（命中消失同步）
+        // v1.16.21 风暴镖重做：三同心圈（不可见）沿圈旋转的十字飞镖，引用 combat 实时 darts（命中消失同步）
+        // v1.16.42 小镖改为十字飞镖：两片菱形刀刃交叉成十字，绕中心旋转
         const darts = f.darts || [];
         for (const d of darts) {
           const px = f.x + Math.cos(d.a) * d.r;
@@ -1828,16 +1866,20 @@ class Renderer {
           ctx.save();
           ctx.translate(px, py);
           ctx.rotate(d.a);
-          ctx.globalAlpha = 0.25;
+          ctx.globalAlpha = 0.28;
           ctx.fillStyle = '#8e44ad';
-          ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
-          ctx.lineCap = 'round';
-          ctx.strokeStyle = '#c39bd3'; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.stroke();
-          ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.moveTo(-4.5, 0); ctx.lineTo(4.5, 0); ctx.stroke();
-          ctx.lineCap = 'butt';
+          // 十字镖：两片菱形刀刃交叉（横/竖），紫底 + 白刃高光
+          const blade = (ang) => {
+            ctx.save(); ctx.rotate(ang);
+            ctx.fillStyle = '#c39bd3';
+            ctx.beginPath(); ctx.moveTo(0, -8.5); ctx.lineTo(3.2, 0); ctx.lineTo(0, 8.5); ctx.lineTo(-3.2, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.beginPath(); ctx.moveTo(0, -8.5); ctx.lineTo(1.2, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+            ctx.restore();
+          };
+          blade(0); blade(Math.PI / 2);
           ctx.restore();
         }
       } else if (f.type === 'pillar') {

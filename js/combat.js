@@ -46,6 +46,7 @@ class CombatSystem {
     this.atkTimers = {};    // 每塔攻击计时
     this.kills = {};        // 每塔击杀计数（回收/充能联动）
     this.bWait = {};        // 回旋镖：镖在飞行中 → true（接回后才能投下一个）
+    this.bCatch = {};       // v1.16.42 回旋镖接镖冷却计时（未学接镖：接镖后 0.5s 才投下一镖）
     this._nextDmg = {};     // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
   }
 
@@ -56,6 +57,7 @@ class CombatSystem {
     this.atkTimers = {};
     this.kills = {};
     this.bWait = {};
+    this.bCatch = {};          // v1.16.42 回旋镖接镖冷却计时
     this._nextDmg = {};        // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
     this.groundDots = [];      // 火·火柱余烬 / 毒·毒池·毒沼：地面持续区域
     this.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
@@ -250,6 +252,8 @@ class CombatSystem {
         this.enemies().forEach((o) => {
           if (o.hp <= 0 || Math.hypot(o.x - gd.x, o.y - gd.y) > gd.r) return;
           if (gd.dps) this.damage(o, gd.dps * dt, gd.key || 'fire');
+          // v1.16.42 毒沼：泥沼减速（与毒池区分——毒沼纯叠毒 + 减速，无直伤）
+          if (gd.swamp && gd.slow) this.applySlow(o, gd.slow, 1);
           if (gd.key === 'poison' && gd.stackPerSec) {
             gd._t = (gd._t || 0) + dt;
             while (gd._t >= 1) {
@@ -259,7 +263,12 @@ class CombatSystem {
           }
         });
         if (gd.key === 'poison') {
-          if (Math.random() < 0.3) {
+          if (gd.swamp) {
+            // v1.16.42 毒沼视觉粒子：暗褐绿泥沼气泡（与毒池的亮绿液区分）
+            if (Math.random() < 0.5) {
+              this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#6e8b3d', 2, 16, 0.5, 50, 4);
+            }
+          } else if (Math.random() < 0.3) {
             this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#52be80', 2, 18, 0.5, 60, 4);
           }
         } else if (Math.random() < 0.3) {
@@ -312,16 +321,22 @@ class CombatSystem {
         const hit = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 60);
         if (!hit) continue;
         this.mines.splice(i, 1);
-        const knock = m.chain > 0 ? 70 : 0;
-        this.explode(m.x, m.y, m.r, m.dmg, 'cannon', knock, false);
+        this.explode(m.x, m.y, m.r, m.dmg, 'cannon', 0, false);
         if (m.chain > 0) {
-          // C 连爆：爆炸击退 + 50% 概率连环引爆相邻地雷（直接爆炸）
-          this.enemies().forEach((o) => {
-            if (o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= m.r + 40 && Math.random() < 0.5) this.applySlow(o, 0.3, 1);
-          });
-          const chainTargets = this.mines.filter((m2) => !m2.fly && Math.hypot(m2.x - m.x, m2.y - m.y) <= 150 && Math.random() < 0.5);
-          chainTargets.forEach((m2) => { const idx = this.mines.indexOf(m2); if (idx >= 0) this.mines.splice(idx, 1); });
-          chainTargets.forEach((m2) => this.explode(m2.x, m2.y, m2.r, m2.dmg, 'cannon', 0, false));
+          // v1.16.42 C 连爆 → 碎雷重做：爆炸后星状向四周 130px 内散射 5/6/7 片弹片，每片 30% 攻击伤害
+          const nShard = 5 + (m.chain - 1);
+          const shardDmg = this.shotDmg('cannon') * 0.30;
+          for (let k = 0; k < nShard; k++) {
+            const ang = (Math.PI * 2 * k) / nShard + (Math.random() - 0.5) * 0.4;
+            const tx2 = m.x + Math.cos(ang) * 130, ty2 = m.y + Math.sin(ang) * 130;
+            const shard = {
+              key: 'cannon', dmg: shardDmg, t: 0, dur: 130 / 500, sx: m.x, sy: m.y, tx: tx2, ty: ty2,
+              scatter: true, hitR: 34,
+              onHit: (o, dd) => { this.damage(o, dd, 'cannon'); this.fxParticle(o.x, o.y, '#d89e63', 3, 18, 0.3, 80, 4); },
+            };
+            this.shots.push(shard);
+            this.game.fx.push({ type: 'shot', kind: 'line', color: '#e6b980', x: m.x, y: m.y, t: 0, dur: 130 / 500, key: 'cannon', aim: true, scale: 0.8, tx: tx2, ty: ty2 });
+          }
         }
       }
     }
@@ -448,6 +463,8 @@ class CombatSystem {
         }
       }
     }
+    // 回旋镖·猎手标记（v1.16.42）：标记持续 5 秒，到期清零
+    if (e._markT > 0) { e._markT -= dt; if (e._markT <= 0) { e._mark = 0; e._markT = 0; } }
     // 控制
     if (e.frozen > 0) e.frozen -= dt;
     if (e.paralyzed > 0) e.paralyzed -= dt;
@@ -510,8 +527,9 @@ class CombatSystem {
         e._miaT = (e._miaT || 0) + dt;
         if (e._miaT >= 2) {
           e._miaT -= 2;
-          const bOn = this.branchLv('poison', '瘴气', 'B') > 0 ? 1.3 : 1;
-          this.applyPoison(e, this.shotDmg('poison') * bOn, 'poison', 1);
+          // v1.16.42 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
+          const bLv = this.branchLv('poison', '瘴气', 'B');
+          this.applyPoison(e, this.shotDmg('poison') * (bLv > 0 ? [0, 1.2, 1.3, 1.4][bLv] : 1), 'poison', 1);
         }
         if (Math.random() < 0.4) this.fxParticle(e.x, e.y - 6, '#7ee2a8', 1, 16, 0.6, 50, 4);
       }
@@ -532,12 +550,15 @@ class CombatSystem {
     // 腐蚀增伤
     if (e.corrode) v *= e.corrode.mult;
     // （寒霜 C 原「易伤」已改「深寒：减速幅度」，v1.16.21 移除易伤乘区）
-    // 火·灼烧 C 真火：每层灼烧使目标受到的伤害 +10%（全来源，按层数）
+    // 火·灼烧 C 真火（v1.16.42 档位式）：每层灼烧使目标受到的伤害 +10%/+20%/+30%（全来源，按层数）
     const trueLv = this.branchLv('fire', '灼烧', 'C');
     if (trueLv > 0) {
       const bd = e.dots.find((d) => d.type === 'burn');
-      if (bd) v *= (1 + 0.10 * bd.stack);
+      if (bd) v *= (1 + [0, 0.10, 0.20, 0.30][trueLv] * bd.stack);
     }
+    // 回旋镖·猎手标记 A 深镖（v1.16.42）：受标记的敌人受到伤害提升 8%/16%/24%（全来源）
+    const mkA = this.branchLv('boomerang', '猎手标记', 'A');
+    if (mkA > 0 && (e._mark || 0) > 0) v *= (1 + [0, 0.08, 0.16, 0.24][mkA]);
     // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
     const ovB = this.branchLv('electric', '过载', 'B');
     if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
@@ -569,22 +590,28 @@ class CombatSystem {
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
-        // v1.16.21 毒爆：中毒目标死亡向周边 200px 传播 1 层（基础 3 名；A 目标 +1/级；B 附带死亡时层数；C 留毒沼 4s 每秒 +1 层）
+        // v1.16.42 毒爆重做：中毒目标死亡时传染 3+A 个目标，每个目标 30% 几率造成 1 层中毒；
+        //   B 继承：30%/40%/50% 概率传播时附带死亡时所有层数；C 毒沼：留下 60px 毒沼 4/5/6 秒每秒叠 1 层并减速 25%
         const n = 3 + this.branchLv('poison', '毒爆', 'A');
+        const bLv = this.branchLv('poison', '毒爆', 'B');
         const r = 200;
-        const layers = this.branchLv('poison', '毒爆', 'B') > 0 ? this.poisonStack(e) : 1;
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r)
           .sort((a, b) => (Math.abs(a.x - e.x) + Math.abs(a.y - e.y)) - (Math.abs(b.x - e.x) + Math.abs(b.y - e.y)));
         const picks = cands.slice(0, n);
         picks.forEach((o) => {
-          this.applyPoison(o, this.shotDmg('poison'), 'poison', layers);
-          this.fxBeam(e.x, e.y, o.x, o.y, '#7ee2a8', 0.3, 3);
+          if (Math.random() < 0.30) {
+            const layers = (bLv > 0 && Math.random() < [0, 0.30, 0.40, 0.50][bLv]) ? this.poisonStack(e) : 1;
+            this.applyPoison(o, this.shotDmg('poison'), 'poison', layers);
+            this.fxBeam(e.x, e.y, o.x, o.y, '#7ee2a8', 0.3, 3);
+          }
         });
         this.fxRing(e.x, e.y, '#52be80', r, 0.5, 5);
         this.fxFlash(e.x, e.y, '#52be80');
         if (this.branchLv('poison', '毒爆', 'C') > 0) {
+          const cLv = this.branchLv('poison', '毒爆', 'C');
           this.groundDots = this.groundDots || [];
-          this.groundDots.push({ x: e.x, y: e.y, r, ttl: 4, key: 'poison', dps: 0, stackPerSec: 1 });
+          // v1.16.42 毒沼：60px 泥沼，4/5/6 秒，每秒叠 1 层 + 泥沼减速 25%（swamp 标记与毒池视觉区分）
+          this.groundDots.push({ x: e.x, y: e.y, r: 60, ttl: [0, 4, 5, 6][cLv], key: 'poison', dps: 0, stackPerSec: 1, swamp: true, slow: 0.25 });
         }
       }
       // 毒·毒藤 C（v1.15）：被缠绕敌人死亡时，藤蔓延伸缠住 100px（每级 +50px）内下一个敌人
@@ -608,12 +635,14 @@ class CombatSystem {
         this.explode(e.x, e.y, 120, this.shotDmg('ice') * [0, 0.30, 0.40, 0.50][frzC], 'ice', 0, true);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
-      // 回旋镖·猎手标记 C 猎杀（v1.16）：标记目标死亡向 100px 内 2 个敌人扩散 1 层标记
+      // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
       if (key === 'boomerang' && this.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
+        const cLv = this.branchLv('boomerang', '猎手标记', 'C');
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100);
-        for (let i = 0; i < Math.min(2, cands.length); i++) {
+        for (let i = 0; i < Math.min(cLv, cands.length); i++) {
           const pick = cands[i];
           pick._mark = Math.min(3 + 2 * this.branchLv('boomerang', '猎手标记', 'B'), (pick._mark || 0) + 1);
+          pick._markT = 5;
           this.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
         }
       }
@@ -667,18 +696,29 @@ class CombatSystem {
     if (!t || t.level === 0) return;
     const cfg = CONFIG.TOWERS[key];
     let iv = this.interval(key);
-    // 回旋镖·接镖机制：镖未飞回前不投掷下一个（也不累计计时）；刚接回 → 立即投下一个
-    // v1.16 接镖 C 续投：接镖立即投掷且下镖伤害 +10%/级
+    // v1.16.42 回旋镖攻击节奏重做（无攻速属性）：投掷节奏 = 镖飞回 + 接镖硬间隔——
+    //   未学「接镖」：接镖后 0.5 秒才投出下一镖；学「接镖」：接镖后立即投掷（C 续投加成）
     if (key === 'boomerang') {
       const flying = this.shots.some((s) => s.sweep && s.key === key);
-      if (flying) return;
+      if (flying) return;                       // 镖在飞行中不投（也不累计攻速计时）
+      const catchSkill = this.lv('boomerang', '接镖') > 0;
       if (this.bWait[key]) {
         this.bWait[key] = false;
-        const cnt = this.branchLv('boomerang', '接镖', 'C');
-        if (cnt > 0) this._nextDmg[key] = (this._nextDmg[key] || 0) + 0.10 * cnt;
-        this.attackOnce(key);
-        return;
+        if (catchSkill) {
+          const cnt = this.branchLv('boomerang', '接镖', 'C');
+          if (cnt > 0) this._nextDmg[key] = (this._nextDmg[key] || 0) + 0.10 * cnt;
+          this.attackOnce(key);
+          return;
+        }
+        this.bCatch[key] = 0;                   // 未学接镖：开始 0.5s 接镖冷却
       }
+      if (this.bCatch[key] !== undefined) {
+        this.bCatch[key] += dt;
+        if (this.bCatch[key] >= 0.5) { this.bCatch[key] = undefined; this.attackOnce(key); }
+      } else {
+        this.attackOnce(key);                   // 空闲/无目标：直接尝试（attackOnce 内部无目标时复位等待）
+      }
+      return;
     }
     this.atkTimers[key] = (this.atkTimers[key] || 0) + dt;
     // 电·充能：命中层数也提供攻速（interval 已算）
@@ -873,7 +913,7 @@ class CombatSystem {
       if (spaced && this.windTrails.length < 240) {
         const ttl = 1.5 + 0.5 * wA;
         const dps = this.shotDmg('boomerang') * 0.30 * (1 + 0.3 * wB);
-        this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: wC > 0 ? 0.15 : 0 });
+        this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: [0, 0.10, 0.20, 0.30][wC] });   // v1.16.42 C 卷痕档位式 10%/20%/30%
         s._wLast = { x: bx, y: by };
       }
       if (Math.random() < 0.5) this.fxParticle(bx, by, '#c39bd3', 1, 14, 0.5, 50, 3);
@@ -960,10 +1000,11 @@ class CombatSystem {
         this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
         this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
-        // 多重火球 C 散射：命中后分裂 4 个小火球，沿弹道方向 120° 均匀散射（每个 25% 攻击伤害 + 20% 点燃）
+        // 多重火球 C 散射（v1.16.42 档位式 3/4/5）：命中后分裂 3/4/5 个小火球，沿弹道方向 120° 均匀散射（每个 25% 攻击伤害 + 20% 点燃）
         if (cLv > 0) {
-          for (let k = 0; k < 4; k++) {
-            const off = -Math.PI / 3 + (k / 3) * (2 * Math.PI / 3);   // -60°~+60° 均匀 4 等分
+          const nSplit = 3 + cLv - 1;
+          for (let k = 0; k < nSplit; k++) {
+            const off = -Math.PI / 3 + (k / Math.max(1, nSplit - 1)) * (2 * Math.PI / 3);   // -60°~+60° 均匀
             const da = off + (ang || 0);
             const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
             const mStrike = (m2) => {
@@ -1423,13 +1464,14 @@ class CombatSystem {
   /* ============ 回旋镖塔 ============ */
   /* ============ 回旋镖塔（v1.16 重做：折返增伤/穿透/多镖/接镖/猎手标记/风暴镖/镖阵/风痕） ============ */
   hitBoomerang(e, dmg) {
-    // 猎手标记（v1.16）：命中同目标叠加标记，每层受镖伤 +8%（A 深标 +3%/级；上限 3+2×B）
+    // 猎手标记（v1.16.42 重做）：命中同目标叠加标记，标记持续 5 秒（到期自动清零）；
+    //   A 深镖：受标记敌人受伤 +8%/16%/24%（damage 内全来源结算）；B 多标：层数上限 +2/+4/+6；C 猎杀：死亡扩散 1/2/3 个
     const markLv = this.lv('boomerang', '猎手标记');
     let v = dmg;
     if (markLv > 0) {
       const cap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
       e._mark = Math.min(cap, (e._mark || 0) + 1);
-      v = dmg * (1 + (0.08 + 0.03 * this.branchLv('boomerang', '猎手标记', 'A')) * e._mark);
+      e._markT = 5;   // v1.16.42 标记持续 5 秒（每次命中刷新）
       // 标记视觉：目标头顶紫色标记计数
       this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
@@ -1498,7 +1540,9 @@ class CombatSystem {
         .sort((a, b) => b.y - a.y);
       for (let i = 0; i < Math.min(n, cands.length); i++) {
         this.damage(cands[i], pDmg, 'cannon');
-        if (this.branchLv('cannon', '贯穿弹', 'C') > 0) this.applySlow(cands[i], 0.15, 1);
+        // v1.16.42 C 贯透档位式：被贯穿敌人减速 15%/30%/45%
+        const pierceC = this.branchLv('cannon', '贯穿弹', 'C');
+        if (pierceC > 0) this.applySlow(cands[i], [0, 0.15, 0.30, 0.45][pierceC], 1);
         this.fxParticle(cands[i].x, cands[i].y, '#d89e63', 3, 22, 0.3, 90, 4);
       }
     }
@@ -1820,7 +1864,8 @@ class CombatSystem {
   // ===== tickElectric =====
   tickElectric(dt) {
     const g = this.game;
-    // 电·极光电击（v1.16.21 电弧重做改名）：周期从塔口到最近敌人连线（z 字形前进黄色电击动画），线宽 20px 内所有敌人受 80% 伤害；
+    // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整）：每 8 秒从塔口电击最近敌人及塔-最近敌人
+    //   连线**延长线**上的所有敌人（射线判定：投影 t≥0 且垂距 ≤ 半宽），z 字形电光从塔沿连线及延长线前进；
     //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 麻痹电击：命中 20%/级 概率麻痹 1.5s
     const arc = this.lv('electric', '极光电击');
     if (arc > 0) {
@@ -1828,7 +1873,7 @@ class CombatSystem {
       const arcB = this.branchLv('electric', '极光电击', 'B');
       const arcC = this.branchLv('electric', '极光电击', 'C');
       this.timers.arc = (this.timers.arc || 0) + dt;
-      const period = 5 * (1 - 0.2 * (arc - 1));
+      const period = 8;   // v1.16.42 周期固定 8 秒
       if (this.timers.arc >= period) {
         this.timers.arc = 0;
         const ly = this.ly();
@@ -1838,33 +1883,37 @@ class CombatSystem {
         const range = this.range('electric');
         const alive = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
         if (alive.length) {
-          // 最近的敌人（行距离最小）为连线终点
+          // 最近的敌人（行距离最小）为连线基准点
           const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
           const halfW = (20 + [0, 10, 15, 20][arcA]) / 2;
           const dmg = this.shotDmg('electric') * (0.80 + 0.20 * arcB);
           const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
-          const len = Math.hypot(x2 - x1, y2 - y1) || 1;
-          // 连线带内所有敌人（点到线段垂距 ≤ 半宽）
+          const dx = x2 - x1, dy = y2 - y1;
+          const len = Math.hypot(dx, dy) || 1;
+          // v1.16.42 射线判定：塔→最近敌人方向射线（含延长线）上、垂距 ≤ 半宽的所有敌人；记录最远命中投影（动画延长线终点）
+          let farT = 0;
           alive.forEach((o) => {
-            const t = Math.max(0, Math.min(1, ((o.x - x1) * (x2 - x1) + (o.y - y1) * (y2 - y1)) / (len * len)));
-            const px = x1 + (x2 - x1) * t, py = y1 + (y2 - y1) * t;
-            if (Math.hypot(o.x - px, o.y - py) <= halfW) {
-              this.damage(o, dmg, 'electric');
-              // C 麻痹电击：20%/级 概率麻痹 1.5s
-              if (arcC > 0 && Math.random() < 0.20 * arcC) {
-                o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
-                this.applySlow(o, 0.5, 1.5);
-                this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
-              }
+            const t = ((o.x - x1) * dx + (o.y - y1) * dy) / (len * len);
+            if (t < 0) return;
+            const px = x1 + dx * t, py = y1 + dy * t;
+            if (Math.hypot(o.x - px, o.y - py) > halfW) return;
+            this.damage(o, dmg, 'electric');
+            if (t > farT) farT = t;
+            // C 麻痹电击：20%/级 概率麻痹 1.5s
+            if (arcC > 0 && Math.random() < 0.20 * arcC) {
+              o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
+              this.applySlow(o, 0.5, 1.5);
+              this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
             }
           });
-          // 视觉：塔口 → 最近敌人 z 字形前进黄色电击
-          const path = [{ x: tx, y: ty }];
-          for (let s = 1; s < 3; s++) {
-            const t = s / 3;
-            path.push({ x: tx + (x2 - tx) * t + (Math.random() * 30 - 15), y: ty + (y2 - ty) * t + (Math.random() * 30 - 15) });
+          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进黄色电击
+          const ex2 = x1 + dx * farT, ey2 = y1 + dy * farT;
+          const path = [{ x: x1, y: y1 }];
+          for (let s = 1; s < 4; s++) {
+            const t = s / 4;
+            path.push({ x: x1 + (ex2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (ey2 - y1) * t + (Math.random() * 30 - 15) });
           }
-          path.push({ x: x2, y: y2 });
+          path.push({ x: ex2, y: ey2 });
           this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.35, color: '#f4d03f', w: 4 });
           this.fxFlash(x2, y2, '#f4d03f');
         }

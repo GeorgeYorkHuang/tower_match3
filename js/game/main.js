@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.41';       // v1.16.41 三消光球发光效果放大 1.5 倍（光晕/白芯/拖尾/到达涟漪）
+const GAME_VERSION = 'v1.16.42';       // v1.16.42 11 项技能分支补充/重做（真火/散射/毒爆重做/浓瘴/极光电击/接镖节奏/猎手标记/风暴镖十字/卷痕/贯透/碎雷）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

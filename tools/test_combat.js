@@ -401,17 +401,20 @@ t('电·雷暴B：雷击 30%/45%/60% 几率连锁周边敌人（v1.16.21 连雷�
   assert.ok(hurt >= 4, `雷击3个+连锁应覆盖全部4个，实际 ${hurt}`);
 });
 
-t('电·极光电击：连线穿透 80% 伤害 + 线宽判定（v1.16.21）', () => {
+t('电·极光电击：射线延长线穿透 80% 伤害 + 线宽判定（v1.16.42）', () => {
   const g = mkGame({ electric: { 极光电击: { A: 3 } } });
   const c = new CombatSystem(g);
-  const eNear = mkEnemy(1000, 390, 950); g.enemies.push(eNear);   // 最近（行距 153 → 连线终点）
+  const eNear = mkEnemy(1000, 390, 950); g.enemies.push(eNear);   // 最近（行距 153 → 连线终点，t=1.0）
   const eMid = mkEnemy(1000, 375, 950); g.enemies.push(eMid);     // 同 y、x 偏 15 → 线带内（A3 半宽 20）
-  const eFar = mkEnemy(1000, 520, 850); g.enemies.push(eFar);     // 线外（垂距 145）
-  c.update(5.1);   // 周期 5s → 触发
+  const eExt = mkEnemy(1000, 443, 874); g.enemies.push(eExt);     // 塔-最近连线延长线上（t≈1.5、垂距 0）→ 应被击中（v1.16.42）
+  const eOut = mkEnemy(1000, 300, 800); g.enemies.push(eOut);     // 射线上但垂距 ≈159 > 20 → 不受伤害
+  c.update(8.1);   // v1.16.42 周期固定 8s → 触发
   assert.ok(eNear.hp < 1000, '最近目标应受电击伤害');
   assert.ok(eMid.hp < 1000, '连线带内敌人应被穿透电击');
   assert.ok(Math.abs((1000 - eNear.hp) - (1000 - eMid.hp)) < 1e-6, '带内敌人伤害应一致');
-  assert.ok(eFar.hp === 1000, '线外敌人不应受伤害');
+  assert.ok(eExt.hp < 1000, '延长线上的敌人应被电击（v1.16.42）');
+  assert.ok(Math.abs((1000 - eNear.hp) - (1000 - eExt.hp)) < 1e-6, '延长线敌人伤害应与连线带内一致');
+  assert.ok(eOut.hp === 1000, '射线外敌人不应受伤害');
 });
 
 t('电·充能C：共享全塔攻速；B：每层+10%', () => {
@@ -472,12 +475,12 @@ t('火·多重火球：主目标直瞄 + 额外火球无目标散射（沿途碰
   // 主目标移出战场（避免散射弹道优先命中主目标，干扰散射路径验证）
   g.enemies = g.enemies.filter((o) => o !== e1);
   // 额外火球：无 target 的散射弹道（v1.13.13），数量 = n-1 = 5（v1.16.21 基础 5 枚 = 主 + 4 散射，A 速记 1 → 6 枚）
-  //   + C 散射分裂：主目标命中后分裂 4 条 mini 小火球弹道（scatter:true, hitR=30）
+  //   + C 散射分裂（v1.16.42 档位式 3/4/5）：C1 → 分裂 3 条 mini 小火球弹道（scatter:true, hitR=30）
   const scatters = c.shots.filter((s) => s.scatter);
   const mains = scatters.filter((s) => s.hitR === 45);
   const minis = scatters.filter((s) => s.hitR === 30);
   assert.strictEqual(mains.length, 5, `应有 5 条主散射弹道（实际 ${mains.length}）`);
-  assert.strictEqual(minis.length, 4, `C 散射应分裂 4 条小火球弹道（实际 ${minis.length}）`);
+  assert.strictEqual(minis.length, 3, `C 散射应分裂 3 条小火球弹道（v1.16.42 C1=3，实际 ${minis.length}）`);
   mains.concat(minis).forEach((s) => {
     assert.ok(!s.target, '散射弹道不配置目标');
     assert.ok(s.hitR > 0 && s.tx !== s.sx, '散射弹道有碰撞半径与射界终点');
@@ -784,14 +787,16 @@ t('毒·瘴气：城墙上方毒瘴区域内敌人 2s 叠毒 + 标记命中率�
   assert.ok(dot && dot.stack >= 1, '毒瘴内应每 2s 叠毒');
 });
 
-t('毒·毒爆 C：死亡后留毒沼（4s 每秒 +1 层）', () => {
+t('毒·毒爆 C：死亡后留毒沼（v1.16.42 60px/4s 每秒 +1 层 + 泥沼减速，swamp 与毒池区分）', () => {
   const g = mkGame({ poison: { 毒爆: { C: 1 }, 剧毒: 1 } });
   const c = new CombatSystem(g);
   const e1 = mkEnemy(100, 370, 800); g.enemies.push(e1);
   const e2 = mkEnemy(5000, 375, 800); g.enemies.push(e2); // 毒沼范围内
   const orig = Math.random; Math.random = () => 0; // 上毒必中
   try { c.hit('poison', e1, 100); } finally { Math.random = orig; }
-  assert.ok(c.groundDots.some((d) => d.key === 'poison' && d.dps === 0 && d.stackPerSec === 1), '毒爆 C 应留毒沼');
+  const gd = c.groundDots.find((d) => d.key === 'poison' && d.swamp === true);
+  assert.ok(gd, '毒爆 C 应留毒沼（swamp 标记）');
+  assert.ok(gd.r === 60 && gd.ttl === 4 && gd.dps === 0 && gd.stackPerSec === 1, '毒沼应为 60px/4s 纯叠毒');
   c.update(1.0);
   const dot = e2.dots.find((d) => d.type === 'poison');
   assert.ok(dot && dot.stack >= 1, '毒沼应每秒叠毒');
