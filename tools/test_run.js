@@ -155,15 +155,17 @@ t('v1.12 弹药与全局技能结算', () => {
   run.applyMatch('red', '3', 3); run.applyMatch('blue', '3', 3);
   run.applyMatch('green', '3', 3); run.applyMatch('yellow', '3', 3);
   const fire = run.effects.tower('fire');
-  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo, '得塔初始弹药 = startAmmo');
+  // v1.16.37 得塔初始弹药 = 15 + 形状弹药（3连 9 → 24）
+  const startAmmoNow = 15 + CONFIG.GLOBAL_SKILL.ammoShape['3'];
+  assert.strictEqual(fire.ammo, startAmmoNow, '得塔初始弹药 = 15 + 三消弹药(3连)');
   // 塔色消除 → 弹药 +9（3连，v1.13.1 ×3）
   const r1 = run.applyMatch('red', '3', 3);
-  assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.startAmmo + 9, '塔色消除弹药 +9');
+  assert.strictEqual(fire.ammo, startAmmoNow + 9, '塔色消除弹药 +9');
   assert.strictEqual(r1.ammoGain, 9);
-  // 弹药满（50）→ 溢出均分充能两个全局技能：r1 后 34 + 8×9 = 106 → 溢出 56 → 均分各 +28 发
+  // 弹药满（50）→ 溢出均分充能两个全局技能：r1 后 33 + 8×9 = 105 → 溢出 55 → 均分 27+28
   for (let i = 0; i < 8; i++) run.applyMatch('red', '3', 3);
   assert.strictEqual(fire.ammo, CONFIG.GLOBAL_SKILL.ammoMax, '弹药封顶 ammoMax');
-  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 56, '溢出均分入账 56 发');
+  assert.strictEqual(run.shuffleAmmo + run.refillAmmo, 55, '溢出均分入账 55 发');
   // 剩余色消除 → 弹药口径充能 + 半量经验（动态分配 shuffle/refill，断言总入账）
   const expB = run.exp;
   const r2 = run.applyMatch('purple', '4', 4);
@@ -186,7 +188,16 @@ t('v1.12 弹药与全局技能结算', () => {
   assert.strictEqual(mk2(5)._ammoGain('6+', 8), 57, '8消 弹药 +57（30+9×3）');
 });
 
-/* 9. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */
+/* 9. v1.16.37 得塔弹药 = 15 + 形状弹药：4消/5消初次激活有收益 */
+t('v1.16.37 得塔弹药 = 15 + 形状弹药（4消/5消初次激活有收益）', () => {
+  const run = seededRun(6, 7);
+  run.applyMatch('red', '4', 4);   // 直4 得火塔
+  assert.strictEqual(run.effects.tower('fire').ammo, 15 + CONFIG.GLOBAL_SKILL.ammoShape['4'], '4消激活 → 15+18');
+  run.applyMatch('blue', '5', 5);  // 直5 得冰塔
+  assert.strictEqual(run.effects.tower('ice').ammo, 15 + CONFIG.GLOBAL_SKILL.ammoShape['5'], '5消激活 → 15+30');
+});
+
+/* 10. 会话模拟：300 样本阈值对齐（python sim_effects 同口径） */
 console.log(`\n会话模拟 ${SEEDS} 样本交叉验证：`);
 (function () {
   let syn15 = 0, econOk = 0, capOk = 0, pickEarly = 0, slotFull = 0;

@@ -680,7 +680,7 @@ class CombatSystem {
   /** 选择攻击目标：默认射程内 y 最大（最靠城墙） */
   pickTarget(key) {
     const r = this.range(key);
-    const sy = this.ly().slotY + this.ly().slotSize / 2;
+    const sy = this.towerMuzzle(key).y;
     let best = null;
     this.enemies().forEach((e) => {
       if (e.hp <= 0) return;
@@ -709,14 +709,9 @@ class CombatSystem {
     if (ammoT && !regain) ammoT.ammo -= 1;
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
-    const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
-    const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
-    const startX = (750 - rowW) / 2;
-    const slotW = ly.slotSize + ly.slotGap;
-    const idx = g.run.slotOrder.indexOf(key);
-    if (idx < 0) return;
-    const sx = startX + idx * slotW + ly.slotSize / 2;
-    const sy = ly.slotY + ly.slotSize / 2;
+    // v1.16.37 发射点统一走 towerMuzzle（测试战场单塔大槽 / 正式战斗槽位），修复弹道从塔区中间凭空发出
+    const mz = this.towerMuzzle(key);
+    const sx = mz.x, sy = mz.y;
     const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
     const dur = cfg.shot.dur;
     const dmg = this.shotDmg(key);
@@ -930,14 +925,9 @@ class CombatSystem {
     //         A 增发 3→4→5 枚 / B 凝火 +15%/枚 / C 分击不同目标+25%点燃
     const multi = this.lv('fire', '多重火球');
     if (multi > 0) {
-      // 塔发射点（与 attackOnce 同口径）
-      const ly0 = this.ly();
-      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
-      const startX = (750 - rowW) / 2;
-      const slotW = ly0.slotSize + ly0.slotGap;
-      const idx = g.run.slotOrder.indexOf('fire');
-      const fsx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
-      const fsy = ly0.slotY + ly0.slotSize / 2;
+      // 塔发射点（v1.16.37 统一 towerMuzzle）
+      const mz = this.towerMuzzle('fire');
+      const fsx = mz.x, fsy = mz.y;
       const n = 5 + this.branchLv('fire', '多重火球', 'A');          // v1.16.21 基础 5 枚（主 + 4 散射，+2 普通火球）；A 每级 +1
       const perDmg = dmg * 0.44 * (1 + [0, 0.15, 0.30, 0.50][this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
@@ -1100,13 +1090,9 @@ class CombatSystem {
     const multi = this.lv('ice', '多重冰锥');
     if (multi > 0) {
       const g = this.game;
-      const ly0 = this.ly();
-      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
-      const startX = (750 - rowW) / 2;
-      const slotW = ly0.slotSize + ly0.slotGap;
-      const idx = g.run.slotOrder.indexOf('ice');
-      const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
-      const msy = ly0.slotY + ly0.slotSize / 2;
+      // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+      const mz = this.towerMuzzle('ice');
+      const msx = mz.x, msy = mz.y;
       const aLv = this.branchLv('ice', '多重冰锥', 'A');
       const bLv = this.branchLv('ice', '多重冰锥', 'B');
       const cLv = this.branchLv('ice', '多重冰锥', 'C');
@@ -1163,13 +1149,9 @@ class CombatSystem {
     const shard = this.lv('ice', '碎冰');
     if (shard > 0) {
       const g = this.game;
-      const ly0 = this.ly();
-      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
-      const startX = (750 - rowW) / 2;
-      const slotW = ly0.slotSize + ly0.slotGap;
-      const idx = g.run.slotOrder.indexOf('ice');
-      const msx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
-      const msy = ly0.slotY + ly0.slotSize / 2;
+      // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+      const mz = this.towerMuzzle('ice');
+      const msx = mz.x, msy = mz.y;
       const len = Math.hypot(e.x - msx, e.y - msy) || 1;
       const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
       const n = 3 + this.branchLv('ice', '碎冰', 'A');
@@ -1208,13 +1190,9 @@ class CombatSystem {
     const pierce = this.lv('ice', '冰穿刺');
     if (pierce > 0) {
       const g = this.game;
-      const ly0 = this.ly();
-      const rowW = 4 * ly0.slotSize + 3 * ly0.slotGap;
-      const startX = (750 - rowW) / 2;
-      const slotW = ly0.slotSize + ly0.slotGap;
-      const idx = g.run.slotOrder.indexOf('ice');
-      const psx = startX + (idx < 0 ? 0 : idx * slotW) + ly0.slotSize / 2;
-      const psy = ly0.slotY + ly0.slotSize / 2;
+      // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+      const mz = this.towerMuzzle('ice');
+      const psx = mz.x, psy = mz.y;
       const dirLen = Math.hypot(e.x - psx, e.y - psy) || 1;
       const ddx = (e.x - psx) / dirLen, ddy = (e.y - psy) / dirLen;   // 弹道方向（塔→目标）
       const aLv = this.branchLv('ice', '冰穿刺', 'A');
@@ -1293,10 +1271,12 @@ class CombatSystem {
     return d ? d.stack : 1;
   }
 
-  /** 毒塔塔口坐标（毒藤/瘴气/毒棒召唤用，与 attackOnce 同口径） */
+  /** 塔口坐标（普攻/技能弹道统一发射点，v1.16.37 统一口径）：
+   *  正式战斗：塔位槽布局（槽中心）；测试战场：单塔出战大槽（渲染 testFieldLayer 硬编码 x=15/y=1053，中心 65,1103） */
   towerMuzzle(key) {
     const g = this.game;
     const ly = this.ly();
+    if (g.state === 'testfield') return { x: 15 + 50, y: 1053 + 50 };   // 渲染 testFieldLayer 硬编码单塔大槽（100×100，中心 65,1103）
     const n = g.run.slotOrder.length || 4;
     const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
     const startX = (750 - rowW) / 2;
@@ -1840,13 +1820,9 @@ class CombatSystem {
       if (this.timers.arc >= period) {
         this.timers.arc = 0;
         const ly = this.ly();
-        const n = g.run.slotOrder.length || 4; // 测试战场支持 6 塔出战；正式战斗 4 塔（口径不变）
-        const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
-        const startX = (750 - rowW) / 2;
-        const slotW = ly.slotSize + ly.slotGap;
-        const idx = (this.game.run.slotOrder || []).indexOf('electric');
-        const tx = startX + (idx < 0 ? 0 : idx) * slotW + ly.slotSize / 2;
-        const ty = ly.slotY + ly.slotSize / 2;
+        // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+        const mz = this.towerMuzzle('electric');
+        const tx = mz.x, ty = mz.y;
         const range = this.range('electric');
         const alive = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
         if (alive.length) {
@@ -2035,15 +2011,10 @@ class CombatSystem {
       if (this.timers.mine >= 6) {
         this.timers.mine = 0;
         const n = 3 + 2 * this.branchLv('cannon', '地雷阵', 'A');
-        // 塔口坐标（与普攻弹道同口径）
+        // 塔口坐标（v1.16.37 统一 towerMuzzle）
         const ly = this.ly();
-        const nSlots = g.run.slotOrder.length || 4;
-        const rowW = nSlots * ly.slotSize + (nSlots - 1) * ly.slotGap;
-        const startX = (750 - rowW) / 2;
-        const slotW = ly.slotSize + ly.slotGap;
-        const idx = g.run.slotOrder.indexOf('cannon');
-        const fx0 = startX + idx * slotW + ly.slotSize / 2;
-        const fy0 = ly.slotY + ly.slotSize / 2;
+        const mz = this.towerMuzzle('cannon');
+        const fx0 = mz.x, fy0 = mz.y;
         const range = this.range('cannon');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         const topY = ly.areaY + ly.entryH + 10;

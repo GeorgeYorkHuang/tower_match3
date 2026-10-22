@@ -133,7 +133,10 @@ class Run {
       if (owned < CONFIG.TOWER_SLOTS) {
         t.unlock(); gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
-        ammoGain = GS.startAmmo;
+        // v1.16.37 激活塔弹药 = 15 + 本次消除形状弹药（4消/5消初次激活即有收益；上限弹药库上限）
+        const gain = 15 + this._ammoGain(shape, size);
+        t.ammo = Math.min(gain, this.armoryAmmoMax());
+        ammoGain = t.ammo;
       } else {
         // 塔位满：该色未被选中 → 对应全局技能按弹药充能（剩余 2 色动态分配）+ 半量经验
         const skill = this._globalSkillOf(color);

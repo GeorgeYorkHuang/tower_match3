@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.36';       // v1.16.36 风痕断供修复：留痕改空间间隔采样(≥32px)+上限120→240，多镖/疾飞下不再断供
+const GAME_VERSION = 'v1.16.37';       // v1.16.37 塔口弹道修复+三消飞光+激活塔弹药=15+形状弹药
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -610,6 +610,8 @@ class GameMain {
     if (!ret || !ret.settled) return;
     const b = this.meta.relicBonus();
     let ammoSum = 0, shuSum = 0, refSum = 0, towerHit = '';
+    // v1.16.37 三消飞光：消除色块汇聚成光点飞向对应塔位/全局技能按钮（3消白 / 4消蓝 / 5消+金）
+    this._matchBeams(ret);
     ret.settled.forEach((s) => {
       // 圣物·经验珠：三消经验补差（基础经验已由 applyMatch 进整体池；补差也入整体池 v1.8）
       if (b.exp > 0 && s.tower) {
@@ -636,6 +638,42 @@ class GameMain {
       this.toast(`全局技能充能 ${parts.join(' ')}`, '#f7c948');
     }
     // v1.12.1：三消经验升级同样只积累待选，不战斗内弹三选一（波末统一结算）
+  }
+
+  /** v1.16.37 三消飞光：每步消除按颜色汇聚格子中心，光点飞向对应塔位/全局技能按钮（3消白/4消蓝/5消+金） */
+  _matchBeams(ret) {
+    const { boardX, boardY, cell, towerRowY } = this.ly;
+    const stepList = ret.stepList || [];
+    const settledByStep = ret.settledByStep || [];
+    const done = {};
+    settledByStep.forEach((ss, idx) => {
+      const step = stepList[idx];
+      if (!step || !step.matches) return;
+      step.matches.forEach((m) => {
+        if (!m || !m.cells || !m.cells.length) return;
+        const key = idx + ':' + m.color;
+        if (done[key]) return;
+        done[key] = true;
+        let ax = 0, ay = 0;
+        m.cells.forEach(([r, c]) => { ax += boardX + c * cell + cell / 2; ay += boardY + r * cell + cell / 2; });
+        const cx = ax / m.cells.length, cy = ay / m.cells.length;
+        const shape = m.shape || '3';
+        const glow = shape === '3' ? '#ffffff' : (shape === '4' ? '#5dade2' : '#f7c948');
+        const tk = CONFIG.COLORS[m.color] ? CONFIG.COLORS[m.color].tower : null;
+        let ex, ey;
+        if (tk && this.run.effects.tower(tk).level > 0) {
+          const mz = this.combat.towerMuzzle(tk);
+          ex = mz.x; ey = mz.y;
+        } else {
+          // 全局技能色：洗牌左按钮 / 补给右按钮（渲染 globalBtns 同口径：btnW 102、btnH 75、btnY = towerRowY+12）
+          const skill = this.run._globalSkillOf ? this.run._globalSkillOf(m.color) : null;
+          const isShuffle = skill === 'shuffle';
+          ex = isShuffle ? (8 + 51) : (750 - 8 - 102 + 51);
+          ey = towerRowY + 12 + 75 / 2;
+        }
+        this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, t: 0, dur: 0.45 });
+      });
+    });
   }
 
   /* ---------- 渲染 ---------- */
