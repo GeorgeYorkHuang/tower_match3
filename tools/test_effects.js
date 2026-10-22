@@ -54,8 +54,8 @@ t('v1.16.17 塔等级=选择次数+1；建塔不赠选择', () => {
   assert.ok(fire.level > 3 && fire.level <= CONFIG.EXP.towerMaxLevel, `等级随选择增长且封顶 20（实际 ${fire.level}）`);
 });
 
-/* 1. 跨塔三选一（v1.16.28）：候选 3 张、分别来自不同已激活塔（塔池 ≥3 时不重复）、各属于其来源塔池 */
-t('跨塔三选一：3 张候选来自不同已激活塔、属于各自塔池', () => {
+/* 1. 跨塔统一技能池（v1.16.28b）：候选 3 张、每张属于其来源塔池、同技能不重复、无塔配额 */
+t('跨塔统一技能池：3 张候选、同技能限 1、各属于其来源塔池', () => {
   const m = freshManager();
   const fire = m.tower('fire');
   fire.pending = 1;
@@ -63,12 +63,23 @@ t('跨塔三选一：3 张候选来自不同已激活塔、属于各自塔池', 
   assert.strictEqual(queue.length, 1);
   const cands = queue[0].candidates;
   assert.strictEqual(cands.length, CONFIG.EFFECT.pickSize);
-  const froms = new Set(cands.map((e) => e.fromTower));
-  assert.strictEqual(froms.size, cands.length, '候选应来自不同塔（塔池 6 ≥ 3）');
+  assert.strictEqual(new Set(cands.map((e) => e.name)).size, cands.length, '同技能每轮限 1 张卡');
   cands.forEach((e) => {
     const poolNames = CONFIG.EFFECT_POOLS[e.fromTower].map((q) => q.name);
     assert.ok(poolNames.includes(e.name), `${e.name} 应属于 ${e.fromTower} 塔全技能池`);
   });
+});
+
+/* 1b. 仅 1 座激活塔（v1.16.28b）：三选一在该塔内选（单塔池） */
+t('仅 1 座激活塔 → 候选全来自该塔（单塔选）', () => {
+  const m = new EffectManager({ rng: seededRng(1) });
+  m.tower('fire').unlock();
+  m.tower('fire').pending = 1;
+  const queue = m.settlePending();
+  assert.strictEqual(queue.length, 1);
+  const cands = queue[0].candidates;
+  assert.strictEqual(cands.length, CONFIG.EFFECT.pickSize);
+  cands.forEach((e) => assert.strictEqual(e.fromTower, 'fire', '候选全来自唯一激活塔 fire'));
 });
 
 /* 2. 首选保底：首次三选一候选必含标志特效（fire→爆燃） */

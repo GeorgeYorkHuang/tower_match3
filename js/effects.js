@@ -6,7 +6,8 @@
  *   - 特效结构：{ name, branches: { A, B, C } }，分支等级 0-3；
  *     level 派生 = max(分支等级)（激活判定 + 战斗数值读取，兼容 combat.lv()）
  *   - 每塔 3 激活槽（activeSlots）；候选每次 3 个（pickSize）
- *   - 三选一候选跨塔混池（v1.16.28）：每组 3 张候选分别来自随机 3 座已激活塔，各出 1 张卡；
+ *   - 三选一候选跨塔统一技能池（v1.16.28b）：所有已激活塔的技能卡/分支卡摊平进一个大池
+ *     随机抽 3 张（无塔配额，可同塔多张；仅 1 座激活塔时自然单塔选）；
  *     卡分两级（v1.11）：技能卡（未激活技能，type='skill'）——选中=激活（默认分支 A Lv1）；
  *     分支卡（已激活技能的未满分支，type='branch'）——选中=该分支 Lv+1
  *     先选技能；技能激活后，后续升级才会出现分支（分支继续升级，封顶 3）
@@ -279,38 +280,31 @@ class EffectManager {
   tower(key) { return this.towers[key]; }
 
   /**
-   * 跨塔三选一组（v1.16.28）：从已激活塔池（level>0 且有候选）随机抽 pickSize 座不同塔，
-   * 每座塔随机出 1 张候选卡 —— 三个选项分别来自不同塔。
+   * 跨塔统一技能池三选一（v1.16.28b 用户口径）：把所有已激活塔的候选卡（每塔 _choices()：
+   * 未激活技能→技能卡 + 已激活技能→未满分支卡；槽满塔未激活技能已被过滤）摊平成一个大池，
+   * 随机抽 pickSize 张 —— 无塔配额，同一轮可出同一塔多张卡；仅激活 1 座塔时天然单塔选。
    * 返回 { tower, cands, target } 或 null（无候选塔）。
    * target = 组内标志特效名（首选保底：本 run 首次三选一必含任一塔的标志特效卡）。
    */
   _buildGroup(poolKeys) {
     const pickSize = CONFIG.EFFECT.pickSize;
-    const towers = [];
+    const pool = [];
     (poolKeys || Object.keys(this.towers)).forEach((key) => {
       const t = this.towers[key];
-      if (t && t.level > 0 && t._choices().length > 0) towers.push(key);
+      if (t && t.level > 0) {
+        t._choices().forEach((ef) => pool.push(ef));
+      }
     });
-    if (!towers.length) return null;
-    shuffle(towers, this.rng);
-    const cands = [];
-    for (let i = 0; i < pickSize; i++) {
-      const k = towers[i % towers.length];   // 激活塔不足 pickSize 时轮转补足（保证每轮 3 选）
-      const t = this.towers[k];
-      const pool = t._choices();
-      cands.push(pool[Math.floor(this.rng() * pool.length)]);
-    }
+    if (!pool.length) return null;
+    shuffle(pool, this.rng);
+    const cands = pool.slice(0, pickSize);
     // 首选保底：组内替换一张为标志特效卡（若尚未达成）
     if (CONFIG.EFFECT.firstPickGuarantee && !this._firstAnyDone) {
       const hasTgt = cands.some((c) => TARGET_OF[c.fromTower] === c.name);
       if (!hasTgt) {
-        const tgtTowers = towers.filter((k) => TARGET_OF[k] && this.towers[k]._choices().some((c) => c.name === TARGET_OF[k]));
-        if (tgtTowers.length) {
-          const k = tgtTowers[Math.floor(this.rng() * tgtTowers.length)];
-          const tc = this.towers[k]._choices();
-          const tgtC = tc.find((c) => c.name === TARGET_OF[k]) || tc[0];
-          const idx = cands.findIndex((c) => c.fromTower === k);
-          cands[idx >= 0 ? idx : Math.floor(this.rng() * cands.length)] = tgtC;
+        const tgtPool = pool.filter((c) => TARGET_OF[c.fromTower] === c.name);
+        if (tgtPool.length) {
+          cands[Math.floor(this.rng() * cands.length)] = tgtPool[Math.floor(this.rng() * tgtPool.length)];
         }
       }
       this._firstAnyDone = true;
