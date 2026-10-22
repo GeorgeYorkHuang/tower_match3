@@ -940,16 +940,16 @@ t('炮·贯穿弹：爆炸后弹片贯穿身后敌人', () => {
   assert.ok(e2.hp < 1000, '贯穿弹应命中身后敌人');
 });
 
-t('炮·炮火支援：每 12 秒发射炮弹垂直落下（延迟爆炸落点，伤害 60%）', () => {
+t('炮·炮火支援：每 12 秒逐发发射炮弹（间隔 0.1s 升空→悬停→垂直落下，伤害 60%）', () => {
   const g = mkGame({ cannon: { 炮火支援: { A: 1 } } }, ['cannon']);
   const c = new CombatSystem(g);
   g.enemies.push(mkEnemy(1000, 375, 700));
   c.update(12.01);
   assert.ok(c.delayed.length >= 4, 'A1 应降下 4 发延迟落点');
-  assert.ok(c.delayed.every((d) => d.delay > 0.3 && d.delay < 1.2), '落点应延迟至炮弹飞行完毕（升空+下落）后爆炸');
+  assert.ok(c.delayed.every((d) => d.delay >= 1.3 && d.delay <= 1.6), '落点应按逐发间隔 0.1s 依次爆炸（1.3~1.6s）');
   assert.ok(Math.abs(c.delayed[0].dmg / c.shotDmg('cannon') - 0.60) < 0.001, '每发伤害 = 普攻 × 60%');
-  assert.ok(g.fx.some((f) => f.type === 'strike'), '应生成 130px 炮击圈标识');
-  assert.ok(g.fx.some((f) => f.type === 'strikeShell'), '应从塔口发射炮弹（升空→下落弹道）');
+  assert.ok(g.fx.some((f) => f.type === 'strike' && f.offset === 0), '应生成 130px 炮击圈标识（首发无偏移）');
+  assert.ok(g.fx.some((f) => f.type === 'strikeShell' && f.offset === 0.1), '应逐发发射炮弹（第 2 发偏移 0.1s）');
 });
 
 t('炮·地雷阵：每 6 秒从塔口抛投，落地布设后可引爆', () => {

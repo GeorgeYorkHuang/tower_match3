@@ -1996,7 +1996,8 @@ class CombatSystem {
   tickCannon(dt) {
     const g = this.game;
     // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（60%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
-    // v1.16.23：动画重做——炮弹从塔口向天空发射（升空后随机敌人头顶垂直落下），落地瞬间以 130px 炮击圈标识爆炸范围
+    // v1.16.26：逐发弹道——每发间隔 0.1s 从塔口升空（0.3s 至高点 300px），悬停至 1.0s 后 0.3s 垂直落下；
+    //           落地前 0.5s 地面出现 130px 炮击圈标识受击范围（持续至落地爆炸）
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
       this.timers.support = (this.timers.support || 0) + dt;
@@ -2011,14 +2012,12 @@ class CombatSystem {
             const t = alive[Math.floor(Math.random() * alive.length)];
             const px = t.x + (Math.random() - 0.5) * 40;
             const py = t.y + (Math.random() - 0.5) * 40;
-            // 炮弹弹道：塔口升空（0.3s 到高点 300px）→ 垂直落下至落点（约 850px/s）
-            const upT = 0.3;
-            const fallDist = Math.max(60, mus.y - 300 - py);
-            const dur = upT + fallDist / 850;
-            g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, t: 0, dur, upT, seed: Math.random() * 100 });
-            // 落点炮击圈（130px，炮弹飞行期间可见，落地即爆炸）
-            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur, seed: Math.random() * 100 });
-            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: dur, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
+            const off = 0.1 * i;                       // 逐发间隔 0.1s
+            // 炮弹：升空 0.3s → 高点悬停至 1.0s → 0.3s 垂直落下（总 1.3s + 偏移）
+            g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, t: 0, dur: 1.3 + off, offset: off, seed: Math.random() * 100 });
+            // 炮击圈：落地前 0.5s 出现（显示至落地爆炸，时长 0.8s）
+            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur: 0.8 + off, offset: off, seed: Math.random() * 100 });
+            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 1.3 + off, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
           }
         }
       }
