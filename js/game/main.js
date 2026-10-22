@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.30';       // v1.16.30 六项界面优化：加速上移/主界面美化/战场切换/灵动岛/技能页/三选一
+const GAME_VERSION = 'v1.16.31';       // v1.16.31 炮火支援不再悬停（升空消失→头顶重现落下）+ 塔详情分支字号放大/描述防超框
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

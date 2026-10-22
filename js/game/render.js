@@ -476,11 +476,14 @@ class Renderer {
     const lvW = txtW(lvTxt, 15) + 18;
     fillRoundRect(ctx, x + w / 2 + 92, y + 28, lvW, 24, 12, '#f7c948');
     text(ctx, lvTxt, x + w / 2 + 92 + lvW / 2, y + 41, 15, '#5c4a00', 'center');
-    // 技能效果说明（v1.16.30：字号 20→24，容器加高 + 塔色描边）
+    // 技能效果说明（v1.16.30：字号 20→24 并加塔色描边；v1.16.31 改为自动换行最多 2 行，避免超框）
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     fillRoundRect(ctx, x + 40, y + 84, w - 80, 92, 12, 'rgba(255,255,255,0.07)');
     strokeRoundRect(ctx, x + 40, y + 84, w - 80, 92, 12, info.color || '#a55eea', 1);
-    text(ctx, info.desc || '暂无描述', x + w / 2, y + 130, 24, '#e8ecf2', 'center');
+    const descLines = this.wrapText(ctx, info.desc || '暂无描述', w - 80 - 40, 24).slice(0, 2);
+    descLines.forEach((ln, li) => {
+      text(ctx, ln, x + w / 2, y + 118 + li * 32, 24, '#e8ecf2', 'center');
+    });
     // 分隔 + 分支标题
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 196, w - 80, 2);
@@ -514,11 +517,11 @@ class Renderer {
       // 分隔线
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
       ctx.fillRect(cx + 12, cy + 54, cardW - 24, 2);
-      // 分支效果文案（自动换行：2-5 行，v1.16.30 15→17 号、行距 24）
+      // 分支效果文案（自动换行：2-6 行，v1.16.30 15→17 号行距 24；v1.16.31 17→20 号行距 28）
       const txt = isAct ? (info.branchDesc[br] || names[br]) : (info.branchDesc[br] || names[br]);
-      const lines = this.wrapText(ctx, txt, cardW - 20, 17);
+      const lines = this.wrapText(ctx, txt, cardW - 20, 20);
       lines.slice(0, 6).forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, cy + 86 + li * 24, 17, isAct ? '#f1e6b8' : '#b8c2cc', 'center');
+        text(ctx, ln, cx + cardW / 2, cy + 86 + li * 28, 20, isAct ? '#f1e6b8' : '#b8c2cc', 'center');
       });
     });
     // 返回按钮（回到塔详情）
@@ -1545,20 +1548,19 @@ class Renderer {
           ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
         }
       } else if (f.type === 'strikeShell') {
-        // v1.16.26 炮火支援：逐发弹道——每发 offset 偏移后 0.3s 升空至高点 300px、悬停至 1.0s、0.3s 垂直落下
+        // v1.16.31 炮火支援：逐发弹道——0.3s 从塔口升空至高点 300px 后**消失**；发射 1.0s 后
+        //   在目标头顶高 300px 处**出现**并 0.3s 垂直落下打击（第 1 发落地 1.3s，之后每发 +0.1s）
         const t1 = f.t - (f.offset || 0);
         if (t1 < 0 || t1 >= 1.3) return;   // 未发射或已落地
+        if (t1 >= 0.3 && t1 < 1.0) return; // 高点至重现之间：炮弹不可见（不再悬停）
         let mx, my, ang;
         if (t1 < 0.3) {
           const k = t1 / 0.3;
           mx = f.sx; my = f.sy - 300 * k; ang = -Math.PI / 2;
-        } else if (t1 < 1.0) {
-          mx = f.sx; my = f.sy - 300; ang = -Math.PI / 2;   // 高点悬停
         } else {
+          // t1 ≥ 1.0：从目标头顶高 300px 处垂直出现并落下
           const k = (t1 - 1.0) / 0.3;
-          mx = f.sx + (f.tx - f.sx) * k;
-          my = (f.sy - 300) + (f.ty - (f.sy - 300)) * k;
-          ang = Math.atan2(f.ty - (f.sy - 300), f.tx - f.sx);
+          mx = f.tx; my = (f.ty - 300) + 300 * k; ang = Math.PI / 2;
         }
         // 升空段出膛口焰
         if (t1 < 0.3) {
@@ -1585,22 +1587,23 @@ class Renderer {
         ctx.beginPath(); ctx.arc(7, 0, 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       } else if (f.type === 'strike') {
-        // v1.16.26 炮火支援：地面炮击圈——offset 偏移后于落地前 0.5s 出现（炮弹高点悬停期），持续至落地爆炸
+        // v1.16.31 炮火支援：地面炮击圈——offset 偏移后于落地前 0.5s 出现，棕色描边标识 130px 受击范围，持续至落地爆炸
         const t1 = f.t - (f.offset || 0);
         if (t1 < 0.5 || t1 >= 1.3) return;   // 未到预警时刻或已爆炸
         const p = (t1 - 0.5) / 0.8;
         const a = 0.25 + 0.55 * p;   // 淡入
-        ctx.globalAlpha = a * 0.32;
-        ctx.fillStyle = '#f39c12';
+        ctx.globalAlpha = a * 0.30;
+        ctx.fillStyle = '#8d5a2b';
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = a;
-        ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
+        // 棕色描边主圈（受击范围标识）
+        ctx.strokeStyle = '#b0602a'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = a * 0.85;
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+        // 内白圈 + 中心瞄准点
+        ctx.globalAlpha = a * 0.8;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.34, 0, Math.PI * 2); ctx.stroke();
-        // 中心瞄准点（十字 + 圆点）
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2;
         const c = 7;
         ctx.beginPath();
         ctx.moveTo(f.x - c, f.y); ctx.lineTo(f.x + c, f.y);
@@ -1608,8 +1611,8 @@ class Renderer {
         ctx.stroke();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath(); ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2); ctx.fill();
-        // 旋转刻度（8 根短线绕外圈）
-        ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
+        // 旋转刻度（8 根短线绕外圈，棕色）
+        ctx.strokeStyle = '#c07a35'; ctx.lineWidth = 2;
         for (let k = 0; k < 8; k++) {
           const ang = k * 0.785 + (f.seed || 0) + f.t * 3;
           const r1 = f.r * 0.66, r2 = f.r * 0.72;
