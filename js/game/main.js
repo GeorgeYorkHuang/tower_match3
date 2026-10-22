@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.26';       // v1.16.26 炮火支援逐发时序（间隔0.1s升空→悬停→0.3s垂直落下，落地前0.5s炮击圈）
+const GAME_VERSION = 'v1.16.27';       // v1.16.27 技能图标替换为美术资源（images/skillicons）+ 三选一徽章蓝→透明渐变
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
