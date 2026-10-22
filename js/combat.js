@@ -856,15 +856,19 @@ class CombatSystem {
       }
     }
     // 风痕（v1.16）：镖路径每秒留下风痕伤害区（A 久痕 +0.5s/级；B 劲风 +30%/级；C 卷痕减速 15%）
+    // v1.16.36 修正：空间间隔采样（相邻留痕 ≥32px，r=34 伤害区仍连续全覆盖）+ 上限 120→240，
+    //            避免多镖/疾飞高频投掷下活跃点数迅速打满 120 导致风痕整体断供
     if (s.windLv > 0) {
       const wA = this.branchLv('boomerang', '风痕', 'A');
       const wB = this.branchLv('boomerang', '风痕', 'B');
       const wC = this.branchLv('boomerang', '风痕', 'C');
       this.windTrails = this.windTrails || [];
-      if (this.windTrails.length < 120) {
+      const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= 32;
+      if (spaced && this.windTrails.length < 240) {
         const ttl = 1.5 + 0.5 * wA;
         const dps = this.shotDmg('boomerang') * 0.30 * (1 + 0.3 * wB);
         this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: wC > 0 ? 0.15 : 0 });
+        s._wLast = { x: bx, y: by };
       }
       if (Math.random() < 0.5) this.fxParticle(bx, by, '#c39bd3', 1, 14, 0.5, 50, 3);
     }

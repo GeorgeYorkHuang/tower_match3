@@ -855,6 +855,18 @@ t('回旋镖·风痕：镖路径留痕（A 久痕）', () => {
   assert.ok(c.windTrails && c.windTrails.length > 0, '镖路径应留下风痕');
 });
 
+t('回旋镖·风痕：多镖+疾飞高频投掷下风痕持续留痕（v1.16.36 不再因 120 上限断供）', () => {
+  const g = mkGame({ boomerang: { 风痕: 1, 接镖: { A: 3 }, 多镖: { A: 1 } } }, ['boomerang']);
+  const c = new CombatSystem(g);
+  let pushed = 0;
+  const arr = [];
+  Object.defineProperty(arr, 'push', { value: function (x) { pushed++; Array.prototype.push.call(this, x); } });
+  c.windTrails = arr;
+  const e = mkEnemy(1000000, 400, 600); g.enemies.push(e);
+  for (let i = 0; i < 60 * 8; i++) c.update(1 / 60);
+  assert.ok(pushed >= 240, `多镖+疾飞 8 秒内风痕应持续留痕（≥240 点，旧实现约 130 点即断供），实测 ${pushed}`);
+});
+
 t('回旋镖·风暴镖：每 12 秒召唤三圈旋转小飞镖（C 增镖每圈 +1）', () => {
   const g = mkGame({ boomerang: { 风暴镖: { C: 1 } } }, ['boomerang']);
   const c = new CombatSystem(g);

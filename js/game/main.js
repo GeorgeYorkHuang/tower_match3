@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.35';       // v1.16.35 回旋镖返回增光效修正：飞回阶段金白外辉仅学「折返增伤」技能时显示
+const GAME_VERSION = 'v1.16.36';       // v1.16.36 风痕断供修复：留痕改空间间隔采样(≥32px)+上限120→240，多镖/疾飞下不再断供
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
