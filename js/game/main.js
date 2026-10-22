@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.33';       // v1.16.33 战场切换 ◀ ▶ 按钮立体化（投影+渐变玻璃底+高光弧+呼吸光晕）
+const GAME_VERSION = 'v1.16.34';       // v1.16.34 技能描述同步：config desc 去括号、分支统一三档格式、与 SKILLS.md 对齐；三选一移除"来自xx塔"
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

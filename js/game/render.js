@@ -2264,11 +2264,6 @@ class Renderer {
       lines.forEach((ln, li) => {
         text(ctx, ln, cx + cardW / 2, panelY + 20 + li * 26, 19, '#c7d1dc', 'center');
       });
-      // 跨塔候选来源（并入面板底部）
-      if (ef.fromTower && ef.fromTower !== tk) {
-        const fn = (CONFIG.COLORS[CONFIG.TOWERS[ef.fromTower] && CONFIG.TOWERS[ef.fromTower].color] || {}).name || ef.fromTower;
-        text(ctx, `来自${fn}塔`, cx + cardW / 2, panelY + panelH - 6, 16, '#8ea3b8', 'center');
-      }
       // 选择按钮（卡底部；v1.16.30 分支卡 = 金色渐变「确认升级」；技能卡 = 塔色「确认激活」）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
       const btnCol = upgrading ? '#f7c948' : fromTint;
