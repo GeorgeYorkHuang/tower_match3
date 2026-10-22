@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.28';       // v1.16.28 三选一跨塔统一技能池（随机抽3）+ 技能图标居中修复
+const GAME_VERSION = 'v1.16.29';       // v1.16.29 修复技能图标白底（还原透明背景）+ 素材居中
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
