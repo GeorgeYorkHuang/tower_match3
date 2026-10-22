@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.29';       // v1.16.29 修复技能图标白底（还原透明背景）+ 素材居中
+const GAME_VERSION = 'v1.16.30';       // v1.16.30 六项界面优化：加速上移/主界面美化/战场切换/灵动岛/技能页/三选一
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -45,7 +45,8 @@ class GameMain {
     this.testPanel = null;       // {key} 当前配置的塔
     this.testHits = {};          // 测试战场命中区（渲染时重建）
     this.testSpeed = 1;          // 倍速 ×1/×2/×4
-    this.runSpeed = 1;           // v1.16.13 主战斗加速 ×1/×2/×3/×4（战斗区右下角按钮）
+    this.runSpeed = 1;           // v1.16.13 主战斗加速 ×1/×2/×3/×4（v1.16.30 移到城墙上方按钮）
+    this.menuStage = 'ancient';  // v1.16.30 主界面所选战场：ancient 远古 | test 测试（◀ ▶ 切换）
     this.funcLayer = null;       // 底部功能弹层：{type:'shop'|'setting'|'tome'|'help', confirming?, version?}
     this.funcLayerHits = {};     // 功能弹层命中：{bg, close, confirm?}
     this.toasts = [];
@@ -693,7 +694,7 @@ class GameMain {
     const lv = 1 + maxBr;
     const branchName = (br) => (this.renderer.branchName ? this.renderer.branchName(skDef, br) : br);
     return {
-      key, skillName: sk.name, icon: skDef.icon || '?', desc: sk.desc || skDef.desc || '',
+      key, towerKey: key, skillName: sk.name, icon: skDef.icon || '?', desc: sk.desc || skDef.desc || '',
       color: skDef.color || '#a55eea',
       lv, lvMax: lv >= maxLv,
       branches: sk.branches,
@@ -794,6 +795,7 @@ class GameMain {
       gold: m.gold,
       diamond: m.diamond,
       tab: this.menuTab,
+      stage: this.menuStage,           // v1.16.30 主界面所选战场：ancient | test
       keys,
       towerName,
       towerUnlocks: m.towerUnlocks,
@@ -856,11 +858,24 @@ class GameMain {
           this.menuTab = it.data;
           this.menuPanel = null;
           return;
-        case 'stage':
-          this.toast('战场：远古战场（仅此一种）· 奖励已按当前配置', '#7cd6a6');
+        case 'stage': {
+          // v1.16.30 战场卡本体：提示当前所选战场
+          const cur = this.menuStage === 'test' ? '测试战场 · 免三消直测技能' : '远古战场 · 城墙防守 · 怪物攻城 · 消消防线';
+          this.toast(`当前：${cur}`, '#7cd6a6');
           return;
+        }
+        case 'stagePrev':
+        case 'stageNext': {
+          // v1.16.30 ◀ ▶ 切换战场类型（测试战场 / 远古战场）
+          this.menuStage = this.menuStage === 'test' ? 'ancient' : 'test';
+          const nm = this.menuStage === 'test' ? '测试战场' : '远古战场';
+          this.toast(`已切换：${nm}（点击进入战斗按所选战场）`, '#7cd6a6');
+          return;
+        }
         case 'enter':
+          // v1.16.30 按所选战场进入：测试战场 → 免三消直测；远古战场 → 正式战斗
           this.menuPanel = null;
+          if (this.menuStage === 'test') { this.enterTestField(); return; }
           this.newRun(true);
           return;
         case 'testfield':
@@ -1042,11 +1057,15 @@ class GameMain {
       if (h.bg && h.bg.hit(p.x, p.y)) { this.funcLayer = null; return true; }
       return true; // 面板内点击不处理其它
     }
-    // 底部功能键区：打开对应弹层（加速按钮除外）
+    // 加速按钮（v1.16.30 移到城墙上方 · 移动区右下角，独立命中区）
+    if (this.renderer.speedHit && this.renderer.speedHit.hit(p.x, p.y)) {
+      this.cycleRunSpeed();
+      return true;
+    }
+    // 底部功能键区：打开对应弹层
     if (this.funcHits.length) {
       for (const f of this.funcHits) {
         if (f.hit(p.x, p.y)) {
-          if (f.key === 'speed') { this.cycleRunSpeed(); return true; }
           this.funcLayer = { type: f.key, version: GAME_VERSION };
           return true;
         }

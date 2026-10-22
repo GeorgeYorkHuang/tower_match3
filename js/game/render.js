@@ -116,11 +116,11 @@ function skillIconSrc(towerKey, skillName) {
   return f ? `images/skillicons/${towerKey}/${f}.png` : null;
 }
 
-const STATUS_H = L.statusBar.h;             // 72
+const STATUS_H = 120;                       // 状态条区高（v1.16.30 加大顶部安全区：避开 iPhone 灵动岛；原 72）
 const AREA_X = L.actionArea.x;              // 25
-const AREA_Y = STATUS_H;                    // 72
+const AREA_Y = STATUS_H;                    // 120（行动区整体下移 48px，顶部留给金币/波次/协同）
 const AREA_W = L.actionArea.w;              // 700
-const AREA_H = L.actionArea.h;              // 970（入口68+移动822+城墙80）
+const AREA_H = L.actionArea.h - 48;         // 922（压缩行动区高度 48，保持 WALL_Y=967 与下方布局不变）
 const ENTRY_H = L.entryBand.h;              // 68
 const WALL_H = L.wall.h;                    // 75（主体60 + 血条区10 + 底空隙5）
 const WALL_BAR_H = 10;                      // 城墙血条区高度（10px，含血量数字）
@@ -158,24 +158,24 @@ class Renderer {
     this.ly = layout();
   }
 
-  /** 状态条：金币 + 波次 + 波倒计时 */
+  /** 状态条：金币 + 波次 + 波倒计时（v1.16.30 整体下移至安全区，避开 iPhone 灵动岛） */
   status(ctx, s) {
-    const goldIcon = 40;
+    const goldIcon = 44;
     // 金币（图片优先，回退色块 ¥）
-    if (!drawImg(ctx, IMG_SRC.coin, 12, 16, goldIcon, goldIcon)) {
-      fillRoundRect(ctx, 12, 16, goldIcon, goldIcon, 10, '#f7c948');
-      text(ctx, '¥', 32, 36, 22, '#7c5c00', 'center');
+    if (!drawImg(ctx, IMG_SRC.coin, 14, 64, goldIcon, goldIcon)) {
+      fillRoundRect(ctx, 14, 64, goldIcon, goldIcon, 11, '#f7c948');
+      text(ctx, '¥', 36, 86, 22, '#7c5c00', 'center');
     }
-    text(ctx, fmtNum(s.gold), 64, 36, 26, '#f7c948');
+    text(ctx, fmtNum(s.gold), 70, 90, 26, '#f7c948');
     // 波次与倒计时（居中）
-    text(ctx, `第 ${s.wave} 波`, 375, 26, 24, '#ffffff', 'center');
+    text(ctx, `第 ${s.wave} 波`, 375, 70, 24, '#ffffff', 'center');
     if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
-      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 375, 52, 18, '#b8c2cc', 'center');
+      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 375, 98, 18, '#b8c2cc', 'center');
     }
     // 协同状态（右）
     const syn = s.synergies;
     const label = syn[0] && syn[0].done ? '协同✓' : '协同';
-    text(ctx, label, 700, 36, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
+    text(ctx, label, 700, 94, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
     // 底线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(0, STATUS_H - 2, 750, 2);
@@ -257,27 +257,45 @@ class Renderer {
     if (ratio > 0) fillRoundRect(ctx, AREA_X + 7.5, barY + 0.5, (AREA_W - 15) * ratio, barH - 1, 2.5, barCol);
   }
 
-  /** 底部功能键区（三消棋盘下方）：设置 / 塔图鉴 / 商店 / 帮助 */
+  /** 底部功能键区（三消棋盘下方）：设置 / 塔图鉴 / 商店 / 帮助（v1.16.30 移除加速键，加速移到城墙上方） */
   funcBar(ctx, s) {
     const fy = BOARD_Y + L.boardArea.h;           // 1524
     const h = L.funcBar.h;                        // 102
     fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
-    // v1.16.13 底部功能栏 5 键：设置/图鉴/商店/帮助/加速（右下角）
-    const labels = ['⚙ 设置', '📖 塔图鉴', '💰 商店', 'ℹ 帮助', `⏩×${s.runSpeed || 1}`];
-    const keys = ['setting', 'tome', 'shop', 'help', 'speed'];
-    const kw = 140, kh = 78;
+    const labels = ['⚙ 设置', '📖 塔图鉴', '💰 商店', 'ℹ 帮助'];
+    const keys = ['setting', 'tome', 'shop', 'help'];
+    const kw = 150, kh = 80;
     const gap = (750 - labels.length * kw) / (labels.length + 1);
     this.funcHits = [];
     for (let i = 0; i < labels.length; i++) {
       const x = gap + i * (kw + gap);
       const y = fy + (h - kh) / 2;
-      fillRoundRect(ctx, x, y, kw, kh, 14, '#232a36');
-      strokeRoundRect(ctx, x, y, kw, kh, 14, 'rgba(255,255,255,0.14)', 2);
-      text(ctx, labels[i], x + kw / 2, y + kh / 2, 25, i === 4 ? '#7cd6a6' : '#d7dee6', 'center');
+      // v1.16.30 美化：渐变玻璃底 + 顶部高光 + 白描边 + 图标/文字两行
+      const bgrad = ctx.createLinearGradient(0, y, 0, y + kh);
+      bgrad.addColorStop(0, '#2a3342'); bgrad.addColorStop(1, '#1b222e');
+      fillRoundRect(ctx, x + 2, y + 3, kw, kh, 14, 'rgba(0,0,0,0.28)');
+      fillRoundRect(ctx, x, y, kw, kh, 14, bgrad);
+      strokeRoundRect(ctx, x, y, kw, kh, 14, 'rgba(255,255,255,0.16)', 1.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      fillRoundRect(ctx, x + 6, y + 4, kw - 12, 16, 8, ctx.fillStyle);
+      text(ctx, labels[i].split(' ')[0], x + kw / 2, y + 42, 26, '#d7dee6', 'center');
+      text(ctx, labels[i].split(' ')[1], x + kw / 2, y + 66, 17, '#8ea3b8', 'center');
       this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
     }
+    // v1.16.30 加速按钮：移到城墙上方 · 怪物移动区右下角（远离底部功能栏）
+    const spX = 750 - 16 - 124, spY = WALL_Y - 8 - 66, spW = 124, spH = 66;
+    const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
+    const spGrad = ctx.createLinearGradient(0, spY, 0, spY + spH);
+    spGrad.addColorStop(0, spdCol === '#3a4552' ? '#4a5768' : '#6a7a8c');
+    spGrad.addColorStop(1, spdCol);
+    fillRoundRect(ctx, spX + 2, spY + 3, spW, spH, 14, 'rgba(0,0,0,0.30)');
+    fillRoundRect(ctx, spX, spY, spW, spH, 14, spGrad);
+    strokeRoundRect(ctx, spX, spY, spW, spH, 14, 'rgba(255,255,255,0.30)', 1.5);
+    text(ctx, `⏩×${s.runSpeed || 1}`, spX + spW / 2, spY + spH / 2 + 4, 30, '#ffffff', 'center');
+    text(ctx, '加速', spX + spW / 2, spY + spH - 10, 14, 'rgba(255,255,255,0.7)', 'center');
+    this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
   }
 
   /** 分支名称：优先取 config 分支文案「名称：效果」冒号前；无名称（非火塔）取效果短语首词；兜底字母代号（v1.14） */
@@ -433,9 +451,9 @@ class Renderer {
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, '关闭', { bg: '#3a6ea5', fontSize: 26 });
   }
 
-  /** v1.16.11 技能二级详情面板：点击技能卡打开——技能效果 + 三个分支的详细效果与当前等级 */
+  /** v1.16.11 技能二级详情面板：点击技能卡打开——技能效果 + 三个分支的详细效果与当前等级（v1.16.30 美化+描述放大两号） */
   towerSkillLayer(ctx, info, hits) {
-    const w = 688, hgt = 640, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
+    const w = 688, hgt = 660, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
@@ -450,22 +468,25 @@ class Renderer {
     ctx.fillStyle = band; ctx.globalAlpha = 0.5;
     ctx.fillRect(x + 20, y + 8, w - 40, 3);
     ctx.globalAlpha = 1;
-    // 标题：技能名 + 图标 + Lv
-    text(ctx, `${info.icon} ${info.skillName}`, x + w / 2, y + 52, 34, '#ffffff', 'center');
+    // 标题：技能图标（v1.16.30 美术图）+ 技能名 + Lv
+    const tIcon = drawImg(ctx, skillIconSrc(info.towerKey, info.skillName), x + w / 2 - 92, y + 24, 44, 44);
+    if (!tIcon) text(ctx, info.icon || '⚔', x + w / 2 - 70, y + 52, 34, '#ffffff', 'center');
+    text(ctx, `${info.skillName}`, x + w / 2 + 6, y + 52, 34, '#ffffff', 'center');
     const lvTxt = info.lvMax ? 'LvMAX' : `Lv${info.lv}`;
     const lvW = txtW(lvTxt, 15) + 18;
-    fillRoundRect(ctx, x + w / 2 + 30, y + 28, lvW, 24, 12, '#f7c948');
-    text(ctx, lvTxt, x + w / 2 + 30 + lvW / 2, y + 41, 15, '#5c4a00', 'center');
-    // 技能效果说明
+    fillRoundRect(ctx, x + w / 2 + 92, y + 28, lvW, 24, 12, '#f7c948');
+    text(ctx, lvTxt, x + w / 2 + 92 + lvW / 2, y + 41, 15, '#5c4a00', 'center');
+    // 技能效果说明（v1.16.30：字号 20→24，容器加高 + 塔色描边）
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    fillRoundRect(ctx, x + 40, y + 82, w - 80, 76, 12, 'rgba(255,255,255,0.07)');
-    text(ctx, info.desc || '暂无描述', x + w / 2, y + 120, 20, '#e8ecf2', 'center');
+    fillRoundRect(ctx, x + 40, y + 84, w - 80, 92, 12, 'rgba(255,255,255,0.07)');
+    strokeRoundRect(ctx, x + 40, y + 84, w - 80, 92, 12, info.color || '#a55eea', 1);
+    text(ctx, info.desc || '暂无描述', x + w / 2, y + 130, 24, '#e8ecf2', 'center');
     // 分隔 + 分支标题
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(x + 40, y + 182, w - 80, 2);
-    text(ctx, '升级分支', x + 40, y + 212, 22, '#b8c2cc', 'left');
-    // 三个分支横排卡片：分支名 / 效果文案 / 当前等级
-    const cardW = 196, cardH = 300, gap = 16, cardTop = y + 240;
+    ctx.fillRect(x + 40, y + 196, w - 80, 2);
+    text(ctx, '升级分支', x + 40, y + 226, 22, '#b8c2cc', 'left');
+    // 三个分支横排卡片：分支名 / 效果文案（v1.16.30 15→17 号）/ 当前等级
+    const cardW = 196, cardH = 288, gap = 16, cardTop = y + 254;
     const brs = ['A', 'B', 'C'];
     const names = { A: info.bA || '分支A', B: info.bB || '分支B', C: info.bC || '分支C' };
     brs.forEach((br, i) => {
@@ -481,27 +502,27 @@ class Renderer {
       ctx.fillStyle = isAct ? '#f7c948' : 'rgba(255,255,255,0.22)';
       ctx.beginPath(); ctx.arc(cx + 28, cy + 32, 15, 0, Math.PI * 2); ctx.fill();
       text(ctx, br, cx + 28, cy + 33, 15, isAct ? '#5c4a00' : '#cfd6df', 'center');
-      text(ctx, names[br], cx + 50, cy + 33, 17, '#ffffff', 'left');
+      text(ctx, names[br], cx + 50, cy + 33, 18, '#ffffff', 'left');
       // 等级徽章（未选显示"未解锁"）
       if (isAct) {
         const bw2 = 44, bh2 = 20;
         fillRoundRect(ctx, cx + cardW - 56, cy + 22, bw2, bh2, 10, '#f7c948');
         text(ctx, `Lv${lv}`, cx + cardW - 34, cy + 33, 13, '#5c4a00', 'center');
       } else {
-        text(ctx, '未解锁', cx + cardW - 42, cy + 33, 12, 'rgba(255,255,255,0.35)', 'right');
+        text(ctx, '未解锁', cx + cardW - 42, cy + 33, 13, 'rgba(255,255,255,0.35)', 'right');
       }
       // 分隔线
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
       ctx.fillRect(cx + 12, cy + 54, cardW - 24, 2);
-      // 分支效果文案（自动换行：2-4 行）
+      // 分支效果文案（自动换行：2-5 行，v1.16.30 15→17 号、行距 24）
       const txt = isAct ? (info.branchDesc[br] || names[br]) : (info.branchDesc[br] || names[br]);
-      const lines = this.wrapText(ctx, txt, cardW - 24, 16);
-      lines.slice(0, 5).forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, cy + 86 + li * 22, 15, isAct ? '#f1e6b8' : '#b8c2cc', 'center');
+      const lines = this.wrapText(ctx, txt, cardW - 20, 17);
+      lines.slice(0, 6).forEach((ln, li) => {
+        text(ctx, ln, cx + cardW / 2, cy + 86 + li * 24, 17, isAct ? '#f1e6b8' : '#b8c2cc', 'center');
       });
     });
     // 返回按钮（回到塔详情）
-    hits.back = button(ctx, x + 150, y + hgt - 78, w - 300, 54, '返回', { bg: info.color || '#a55eea', fontSize: 24 });
+    hits.back = button(ctx, x + 150, y + hgt - 74, w - 300, 54, '返回', { bg: info.color || '#a55eea', fontSize: 24 });
   }
 
   /** 文本自动换行（中文按宽度断行，供分支详情卡片使用） */
@@ -2204,47 +2225,61 @@ class Renderer {
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
       text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
-      // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范）
+      // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范；v1.16.30 文字区美化）
       const nameY = topY + 224;
       // v1.14 提示优化：分支卡 = 金色胶囊标签（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
+      // v1.16.30：分支卡标签加大 + 金色呼吸 glow（更明显提示）
       const tSize = 17;
       const tagTxt = upgrading
         ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
         : '新技能';
       ctx.font = `bold ${tSize}px sans-serif`;
-      const tW = txtW(tagTxt, tSize) + 22;
-      const tX = cx + cardW / 2 - tW / 2, tY = nameY - 42;
+      const tW = txtW(tagTxt, tSize) + 24;
+      const tX = cx + cardW / 2 - tW / 2, tY = nameY - 44;
+      const tagGlow = upgrading ? 0.22 + 0.14 * breathe : 0;
       if (upgrading) {
-        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(247,201,72,0.18)');
-        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#f7c948', 1.5);
+        ctx.globalAlpha = cAlpha * tagGlow;
+        fillRoundRect(ctx, tX - 4, tY - 4, tW + 8, 38, 19, '#f7c948');
+        ctx.globalAlpha = cAlpha;
+        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(247,201,72,0.20)');
+        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#f7c948', 2);
       } else {
         fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(142,163,184,0.16)');
         strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#8ea3b8', 1.5);
       }
       text(ctx, tagTxt, cx + cardW / 2, tY + 16, tSize, upgrading ? '#f7c948' : '#8ea3b8', 'center');
+      // 技能名（金色大字 + 轻微阴影）
+      text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
-      // 下方：更详细的技能描述（换行居中）
+      // v1.16.30 描述区玻璃面板：更清晰的文字展示层
       const desc = descOf(ef);
       const lines = wrapLines(desc, 8);
+      const panelY = topY + 258;
+      const panelH = lines.length * 26 + 30;
+      fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(0,0,0,0.26)');
+      strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.08)', 1);
       lines.forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, topY + 268 + li * 26, 19, '#c7d1dc', 'center');
+        text(ctx, ln, cx + cardW / 2, panelY + 20 + li * 26, 19, '#c7d1dc', 'center');
       });
-      // 跨塔候选来源
+      // 跨塔候选来源（并入面板底部）
       if (ef.fromTower && ef.fromTower !== tk) {
         const fn = (CONFIG.COLORS[CONFIG.TOWERS[ef.fromTower] && CONFIG.TOWERS[ef.fromTower].color] || {}).name || ef.fromTower;
-        text(ctx, `来自${fn}`, cx + cardW / 2, topY + 268 + lines.length * 26 + 24, 17, '#8ea3b8', 'center');
+        text(ctx, `来自${fn}塔`, cx + cardW / 2, panelY + panelH - 6, 16, '#8ea3b8', 'center');
       }
-      // 选择按钮（卡底部；v1.16.7 塔色渐变立体：投影 + 高光）
+      // 选择按钮（卡底部；v1.16.30 分支卡 = 金色渐变「确认升级」；技能卡 = 塔色「确认激活」）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
+      const btnCol = upgrading ? '#f7c948' : fromTint;
+      const btnDark = upgrading ? '#d99e16' : '#243e57';
+      const btnTxt = upgrading ? '确认升级' : '确认激活';
       fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
       const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
-      btnGrad.addColorStop(0, lighten(fromTint, 1.28));
-      btnGrad.addColorStop(1, fromTint);
+      btnGrad.addColorStop(0, lighten(btnCol, 1.25));
+      btnGrad.addColorStop(1, btnDark);
       fillRoundRect(ctx, btnX, btnY, btnW, btnH, 14, btnGrad);
-      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 14, 'rgba(255,255,255,0.30)', 1.5);
+      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 14, 'rgba(255,255,255,0.35)', 1.5);
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       fillRoundRect(ctx, btnX + 6, btnY + 5, btnW - 12, 14, 7, ctx.fillStyle);
-      text(ctx, '选择', btnX + btnW / 2, btnY + btnH / 2, 28, '#ffffff', 'center');
+      text(ctx, btnTxt, btnX + btnW / 2, btnY + btnH / 2, 26, upgrading ? '#5c4a00' : '#ffffff', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
     ctx.globalAlpha = 1;
@@ -2358,20 +2393,20 @@ class Renderer {
     // 背景
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    // 状态条
+    // 状态条（v1.16.30 整体下移避开灵动岛）
     const tgrad = ctx.createLinearGradient(0, 0, 0, STATUS_H);
     tgrad.addColorStop(0, '#16233a'); tgrad.addColorStop(1, '#0d1117');
     ctx.fillStyle = tgrad; ctx.fillRect(0, 0, 750, STATUS_H);
-    push('tf_back', null, 8, 6, 80, 60);
-    fillRoundRect(ctx, 16, 14, 64, 44, 10, 'rgba(255,255,255,0.1)');
-    text(ctx, '◀', 48, 45, 28, '#ffffff', 'center');
-    text(ctx, '测试战场', 320, 34, 26, '#ffffff', 'center');
-    text(ctx, '城墙无敌 · 弹药恒满 · 免三消', 375, 58, 15, '#8ea3b8', 'center');
-    push('tf_speed', null, 630, 8, 112, 56);
+    push('tf_back', null, 8, 52, 80, 60);
+    fillRoundRect(ctx, 16, 60, 64, 44, 10, 'rgba(255,255,255,0.1)');
+    text(ctx, '◀', 48, 91, 28, '#ffffff', 'center');
+    text(ctx, '测试战场', 320, 80, 26, '#ffffff', 'center');
+    text(ctx, '城墙无敌 · 弹药恒满 · 免三消', 375, 104, 15, '#8ea3b8', 'center');
+    push('tf_speed', null, 630, 54, 112, 56);
     const spdCol = s.speed >= 4 ? '#ff8c42' : s.speed >= 2 ? '#f7c948' : '#5b6b7c';
-    fillRoundRect(ctx, 636, 12, 100, 48, 10, 'rgba(0,0,0,0.35)');
-    strokeRoundRect(ctx, 636, 12, 100, 48, 10, spdCol, 1.5);
-    text(ctx, `⏩×${s.speed}`, 686, 43, 24, '#ffffff', 'center');
+    fillRoundRect(ctx, 636, 58, 100, 48, 10, 'rgba(0,0,0,0.35)');
+    strokeRoundRect(ctx, 636, 58, 100, 48, 10, spdCol, 1.5);
+    text(ctx, `⏩×${s.speed}`, 686, 89, 24, '#ffffff', 'center');
     // 行动区底
     if (!drawImg(ctx, IMG_SRC.actionArea, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
@@ -2560,21 +2595,56 @@ class Renderer {
     return hits;
   }
 
-  /** 战斗主页：战场卡（约 1/4 屏高）+ 进入战斗（2/3 屏处）+ 4 个宝箱槽 */
+  /** 战斗主页：战场卡（约 1/4 屏高，v1.16.30 支持 ◀ ▶ 切换测试/远古战场）+ 进入战斗 + 4 个宝箱槽 */
   menuBattle(ctx, s, push) {
-    // 战场卡：占屏幕约 1/4 高度（1626/4 ≈ 406）
     const sx = 55, sy = 400, sw = 640, sh = 392;
-    push('stage', { id: 'ruins' }, sx, sy, sw, sh);
+    const stage = s.stage || 'ancient';
+    const isTest = stage === 'test';
+    const tint = isTest ? '#a88bff' : '#2ecc71';
+    const tintDark = isTest ? '#6d5bd0' : '#1f8c5f';
+    const title = isTest ? '🧪 测试战场' : '🏰 远古战场';
+    const subtitle = isTest ? '免三消直测塔技能效果' : '城墙防守 · 怪物攻城 · 消消防线';
+    push('stage', { id: stage }, sx, sy, sw, sh);
+    // 战场卡（v1.16.30 美化：渐变底 + 斜向光带 + 城齿装饰 + 塔色描边 + 呼吸光晕）
+    const breath = 0.06 + 0.04 * Math.sin(Date.now() / 500);
+    ctx.save();
+    ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.clip();
     const sgrad = ctx.createLinearGradient(0, sy, 0, sy + sh);
-    sgrad.addColorStop(0, '#1c3a2e'); sgrad.addColorStop(1, '#0e2018');
-    ctx.fillStyle = sgrad; roundRect(ctx, sx, sy, sw, sh, 22); ctx.fill();
-    strokeRoundRect(ctx, sx, sy, sw, sh, 22, '#2ecc71', 2.5);
-    // 战场标题
-    text(ctx, '🏰 远古战场', 375, sy + 92, 46, '#ffffff', 'center');
-    text(ctx, '城墙防守 · 怪物攻城 · 消消防线', 375, sy + 146, 24, '#8ea3b8', 'center');
+    sgrad.addColorStop(0, isTest ? '#2b2347' : '#1c3a2e'); sgrad.addColorStop(1, isTest ? '#151229' : '#0e2018');
+    ctx.fillStyle = sgrad; ctx.fillRect(sx, sy, sw, sh);
+    // 斜向光带（左上→右下 3 条低透明）
+    ctx.globalAlpha = 0.05; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 18;
+    for (let k = -1; k <= 2; k++) {
+      const bx = sx + k * 260;
+      ctx.beginPath(); ctx.moveTo(bx, sy + sh); ctx.lineTo(bx + 560, sy); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // 城齿装饰横带（卡片底部，象征城墙防线）
+    ctx.fillStyle = isTest ? 'rgba(168,139,255,0.14)' : 'rgba(46,204,113,0.14)';
+    for (let cx2 = sx + 16; cx2 < sx + sw - 16; cx2 += 44) {
+      ctx.fillRect(cx2, sy + sh - 34, 26, 16);
+    }
+    ctx.fillRect(sx + 16, sy + sh - 20, sw - 32, 8);
+    ctx.restore();
+    ctx.globalAlpha = 1 + breath;
+    strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
+    ctx.globalAlpha = 1;
+    // 战场标题 + 左右切换箭头（v1.16.30：◀ ▶ 点击切换战场类型）
+    const arW = 58, arH = 58, arY = sy + 62;
+    const arrow = (ax, dir) => {
+      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arW / 2, arY - arH / 2, arW, arH);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.arc(ax, arY, arW / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = tint; ctx.lineWidth = 2; ctx.stroke();
+      text(ctx, dir, ax, arY + 2, 34, '#ffffff', 'center');
+    };
+    arrow(sx + 62, '‹');
+    arrow(sx + sw - 62, '›');
+    text(ctx, title, 375, sy + 92, 46, '#ffffff', 'center');
+    text(ctx, subtitle, 375, sy + 146, 24, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
     // 奖励说明
-    fillRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, 'rgba(46,204,113,0.10)');
-    strokeRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, 'rgba(46,204,113,0.35)', 1);
+    fillRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.10)' : 'rgba(46,204,113,0.10)');
+    strokeRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.35)' : 'rgba(46,204,113,0.35)', 1);
     const rewards = [
       ['💛 金币', ''],
       ['📦 宝箱', ''],
@@ -2582,16 +2652,17 @@ class Renderer {
     ];
     rewards.forEach((r, i) => {
       text(ctx, r[0], sx + 70 + i * 200, sy + 226, 24, '#f7c948', 'left');
-      // text(ctx, r[1], sx + 70 + i * 200, sy + 264, 17, '#8ea3b8', 'left');
     });
-    text(ctx, '点击选择战场（目前仅此一种）', 375, sy + sh - 40, 19, '#5a8a72', 'center');
+    text(ctx, '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
     // 进入战斗：屏幕 2/3 处（1626×2/3 ≈ 1084）
     const ey = 850, eh = 80;
     push('enter', null, 75, ey, 600, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
-    bgrad.addColorStop(0, '#2ecc71'); bgrad.addColorStop(1, '#1f8c5f');
+    bgrad.addColorStop(0, tint); bgrad.addColorStop(1, tintDark);
     ctx.fillStyle = bgrad; roundRect(ctx, 100, ey, 550, eh, 22); ctx.fill();
     strokeRoundRect(ctx, 100, ey, 550, eh, 22, 'rgba(255,255,255,0.4)', 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
     // v1.14 测试战场入口（进入战斗下方）：免三消直测塔技能效果
     const ty = 940, th = 74;
@@ -2609,6 +2680,9 @@ class Renderer {
       const opening = s.chestOpening && i === 0;
       fillRoundRect(ctx, bx, by, bw, bh, 16, has ? '#3a2b1a' : '#141a22');
       strokeRoundRect(ctx, bx, by, bw, bh, 16, opening ? '#f7c948' : (has ? '#d89e63' : '#232b36'), opening ? 2 : 1.2);
+      // v1.16.30 宝箱槽高光条（立体感）
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      fillRoundRect(ctx, bx + 10, by + 8, bw - 20, 14, 7, ctx.fillStyle);
       if (opening) {
         text(ctx, '⏳', bx + bw / 2, by + 52, 40, '#f7c948', 'center');
         text(ctx, `${s.chestRemain}s`, bx + bw / 2, by + 92, 24, '#f7c948', 'center');
