@@ -731,7 +731,7 @@ class CombatSystem {
     }
     // 弹道（视觉）+ 命中（逻辑）
     // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
-    const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target };
+    const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target, fold: key === 'boomerang' && this.lv('boomerang', '折返增伤') > 0 };
     if (key === 'fire' && this.lv('fire', '多重火球') > 0) {
       // 多重火球：弹道由 hitFire 自行推送多枚（扇形分离），此处不再推普通弹道避免重叠
       g.playSfx('shot', 0.25);
@@ -787,7 +787,7 @@ class CombatSystem {
         const ex = sx + rx * cos - ry * sin;
         const ey = sy + rx * sin + ry * cos;
         this.shots.push({ key, dmg: perDmg, t: 0, dur: bDur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
-        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key });
+        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key, fold: this.lv('boomerang', '折返增伤') > 0 });
       }
     } else {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });

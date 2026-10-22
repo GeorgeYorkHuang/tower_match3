@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.34';       // v1.16.34 技能描述同步：config desc 去括号、分支统一三档格式、与 SKILLS.md 对齐；三选一移除"来自xx塔"
+const GAME_VERSION = 'v1.16.35';       // v1.16.35 回旋镖返回增光效修正：飞回阶段金白外辉仅学「折返增伤」技能时显示
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

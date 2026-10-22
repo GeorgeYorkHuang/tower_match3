@@ -1183,8 +1183,8 @@ class Renderer {
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
-          // v1.16.6 折返段强化：飞回阶段（p>=0.5）镖身金白外辉，表现折返增伤/更强回程；镖阵（ring）紫金光晕
-          if (p >= 0.5 || f.ring) {
+          // v1.16.35 折返段强化外辉：飞回阶段（p>=0.5）镖身金白外辉，仅学「折返增伤」技能时显示（不再无条件亮）；镖阵（ring）紫金光晕
+          if ((f.fold && p >= 0.5) || f.ring) {
             const glowCol = f.ring ? '#c39bd3' : '#ffe08a';
             ctx.globalAlpha = (f.ring ? 0.55 : 0.35 + 0.3 * Math.sin(p * 18));
             ctx.fillStyle = glowCol;
