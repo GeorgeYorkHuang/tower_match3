@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.39';       // v1.16.39 塔口坐标固定 4 槽：初次得塔/未满 4 塔时飞光与弹道不再指向塔区中心
+const GAME_VERSION = 'v1.16.40';       // v1.16.40 三消光球飞行路径：先下坠减速再加速（反向抛物线）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -672,7 +672,7 @@ class GameMain {
           ex = isShuffle ? (8 + 51) : (750 - 8 - 102 + 51);
           ey = towerRowY + 12 + 75 / 2;
         }
-        this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, t: 0, dur: 0.45 });
+        this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, t: 0, dur: 0.65 });   // v1.16.40 dur 0.65：0.4s 下坠段(约100px/s减速) + 0.25s 加速段
       });
     });
   }

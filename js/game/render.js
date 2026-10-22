@@ -2022,15 +2022,28 @@ class Renderer {
         ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.type === 'beamp') {
-        // v1.16.38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮（ease-out）
-        //   · 动态拖尾（前 6 帧位置渐变光点）· 三层光晕（外柔光/中彩光/白芯）· 到达涟漪 + 星芒闪光
+        // v1.16.38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮
+        // v1.16.40 轨迹优化（反向抛物线）：分段运动——
+        //   ① 下坠段 p∈[0,0.4]：光球竖直下落，速度 2·24/0.4=120px/s → 匀减速至 0（≈用户 100px/s 初速量级），
+        //      位移 s=24·w(2-w)（w=p/0.4，先快后慢=减速），深度 24px；
+        //   ② 加速段 p∈(0.4,1]：从最低点 (x0,y0+24) 以 q² 加速弧线冲向目标（速度 0 → 快），轨迹先下沉后上扬 = 反向抛物线
+        //   · 动态拖尾（前 8 帧位置渐变光点）· 三层光晕（外柔光/中彩光/白芯）· 到达涟漪 + 星芒闪光
         const p = Math.min(1, f.t / f.dur);
-        const e = 1 - Math.pow(1 - p, 2.2);
-        const x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e;
+        let x, y;
+        if (p <= 0.4) {
+          const w = p / 0.4;
+          const s = 24 * w * (2 - w);
+          x = f.x0; y = f.y0 + s;
+        } else {
+          const q = (p - 0.4) / 0.6;
+          const qq = q * q;
+          x = f.x0 + (f.x1 - f.x0) * qq;
+          y = f.y0 + 24 + (f.y1 - f.y0 - 24) * qq;
+        }
         const col = f.color || '#ffffff';
         if (!f.trail) f.trail = [];
         f.trail.push({ x, y });
-        if (f.trail.length > 6) f.trail.shift();
+        if (f.trail.length > 8) f.trail.shift();
         // 拖尾：越靠后越淡越小
         for (let ti = 0; ti < f.trail.length - 1; ti++) {
           const tp = f.trail[ti];
