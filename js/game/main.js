@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.43';       // v1.16.43 攻城修复：无塔时怪物到城墙也扣血（siegeEnemies 独立）
+const GAME_VERSION = 'v1.16.44';       // v1.16.44 主界面移除「测试战场」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -923,11 +923,6 @@ class GameMain {
           this.menuPanel = null;
           if (this.menuStage === 'test') { this.enterTestField(); return; }
           this.newRun(true);
-          return;
-        case 'testfield':
-          // v1.14 测试战场入口（主界面战斗页）
-          this.menuPanel = null;
-          this.enterTestField();
           return;
         case 'relicDex':
           // 圣物图鉴：查看全部圣物图标（未获取锁定，获取后显示性能）

@@ -2909,14 +2909,7 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
-    // v1.14 测试战场入口（进入战斗下方）：免三消直测塔技能效果
-    const ty = 940, th = 74;
-    push('testfield', null, 75, ty, 600, th);
-    const tgrad = ctx.createLinearGradient(0, ty, 0, ty + th);
-    tgrad.addColorStop(0, '#6d5bd0'); tgrad.addColorStop(1, '#4a3aa8');
-    ctx.fillStyle = tgrad; roundRect(ctx, 100, ty, 550, th, 20); ctx.fill();
-    strokeRoundRect(ctx, 100, ty, 550, th, 20, 'rgba(255,255,255,0.35)', 1.5);
-    text(ctx, '🧪 测试战场 · 免三消直测技能', 375, ty + 44, 32, '#ffffff', 'center');
+    // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
     // 4 个宝箱槽
     for (let i = 0; i < 4; i++) {
       const bx = 40 + i * 170, by = 1050, bw = 160, bh = 140;
