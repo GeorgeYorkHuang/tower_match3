@@ -105,7 +105,7 @@ class TowerBuild {
         // v1.13.4：槽满 3 技能后不再刷新未激活技能
         if (!slotsFull) {
           cands.push({
-            name: ef.name, icon: cfg.icon, color: cfg.color, desc: cfg.desc || '',
+            name: ef.name, icon: cfg.icon, color: cfg.color, desc: cfg.pick || cfg.desc || '',
             type: 'skill', fromTower: this.key, level: 0,
           });
         }
@@ -116,9 +116,11 @@ class TowerBuild {
         const canUp = raised.length ? raised : BRANCH_KEYS;
         const br = canUp.find((b) => ef.branches[b] < CONFIG.EFFECT.maxLevel);
         if (br !== undefined) {
+          const brk = br.toLowerCase();
           cands.push({
             name: ef.name, icon: cfg.icon, color: cfg.color,
-            desc: cfg[br.toLowerCase()] || cfg.desc || '',
+            // v1.16.46：三选一短描述优先（ap/bp/cp），缺失回退详细分支文案
+            desc: cfg[brk + 'p'] || cfg[brk] || cfg.desc || '',
             type: 'branch', branch: br, branchLv: ef.branches[br],
             fromTower: this.key, level: ef.level,
           });

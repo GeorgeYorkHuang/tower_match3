@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.45';       // v1.16.45 三选一 UI 优化（去待选/防重叠防溢出）+ 破防结算退出修复
+const GAME_VERSION = 'v1.16.46';       // v1.16.46 三选一描述精简（48 技能 pick + 144 分支短描述，与塔详情详细描述分离）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
