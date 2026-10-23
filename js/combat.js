@@ -625,11 +625,16 @@ class CombatSystem {
         this.fxParticle(e.x, e.y - 10, '#7dcea0', 3, 24, 0.4, 80, 4);
       }
     }
-    // 毒·瘴气（v1.16.21 重做）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——每 2s 叠毒 1 层 + 命中率下降标记；B 中毒 dot 伤 +30%；C 瘴内中毒敌攻击降低
+    // 毒·瘴气（v1.16.21 重做；v1.16.47 毒雾区域渲染）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——
+    //   每 2s 叠毒 1 层 + 命中率下降标记；B 中毒 dot 伤 +20~40%；C 瘴内中毒敌攻击降低
     const miasma = this.lv('poison', '瘴气');
     if (miasma > 0) {
       const wallY = (this.game.ly && this.game.ly.wallY) ? this.game.ly.wallY : 967;
       const half = 20 * (1 + 0.2 * this.branchLv('poison', '瘴气', 'A'));
+      // v1.16.47：毒雾驻场 fx（城墙上方翻滚毒雾条带；全帧只推入一次，失活时在 else 分支移除）
+      if (!this.game.fx.some((f) => f.kind === 'miasma')) {
+        this.game.fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - 50, w: 750, half, t: 0, dur: 1e9 });
+      }
       const inM = Math.abs(e.y - (wallY - 50)) <= half;
       e._miasma = inM;
       if (inM) {
@@ -647,6 +652,8 @@ class CombatSystem {
     } else {
       e._miasma = false;
       e._miasmaAtkMult = 1;
+      // v1.16.47：瘴气未激活/失效时移除毒雾驻场 fx
+      this.game.fx = this.game.fx.filter((f) => !(f.kind === 'miasma'));
     }
   }
 
@@ -1645,6 +1652,8 @@ class CombatSystem {
             const maxHp = this.game.run.lineMaxHp || CONFIG.LINE.hp;
             this.game.run.lineHp = Math.min(maxHp, this.game.run.lineHp + iw.heal);
           }
+          // v1.16.47：冰盾碎裂白光一闪
+          this.fxFlash(375, this.ly().wallY, '#ffffff', 0.3);
           this.fxRing(375, this.ly().wallY, '#7fd4ff', 300, 0.5, 5);
           this.fxParticle(375, this.ly().wallY, '#b8e6ff', 16, 90, 0.6, 160, 6);
           this.iceWall = null;
@@ -1661,6 +1670,8 @@ class CombatSystem {
         this.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: this.ly().wallY, t: 0, dur: this.iceWall.ttl });
         this.fxRing(375, this.ly().wallY, '#7fd4ff', 320, 0.6, 5);
         this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
+        // v1.16.47：冰盾生成寒光一闪
+        this.fxFlash(375, this.ly().wallY, '#d6f0ff');
       }
     }
   }
@@ -1821,6 +1832,8 @@ class CombatSystem {
             if (Math.hypot(o.x - px, o.y - py) > halfW) return;
             this.damage(o, dmg, 'electric');
             if (t > farT) farT = t;
+            // v1.16.47：命中的每个敌人电弧闪光
+            this.fxFlash(o.x, o.y, '#f4d03f');
             // C 麻痹电击：20%/级 概率麻痹 1.5s
             if (arcC > 0 && Math.random() < 0.20 * arcC) {
               o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
@@ -1828,7 +1841,7 @@ class CombatSystem {
               this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
             }
           });
-          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进黄色电击
+          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进黄色电击（v1.16.47 强化：粗电弧+光晕+起点终点闪光+延长线火花）
           const ex2 = x1 + dx * farT, ey2 = y1 + dy * farT;
           const path = [{ x: x1, y: y1 }];
           for (let s = 1; s < 4; s++) {
@@ -1836,8 +1849,11 @@ class CombatSystem {
             path.push({ x: x1 + (ex2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (ey2 - y1) * t + (Math.random() * 30 - 15) });
           }
           path.push({ x: ex2, y: ey2 });
-          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.35, color: '#f4d03f', w: 4 });
+          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.45, color: '#ffe08a', w: 5, glow: true });
+          this.fxFlash(tx, ty, '#f4d03f');
           this.fxFlash(x2, y2, '#f4d03f');
+          this.fxRing(x2, y2, '#f4d03f', 30, 0.3, 3);
+          this.fxParticle(ex2, ey2, '#f4d03f', 8, 60, 0.5, 140, 5);
         }
       }
     }

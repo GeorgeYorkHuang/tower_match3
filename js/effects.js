@@ -119,8 +119,8 @@ class TowerBuild {
           const brk = br.toLowerCase();
           cands.push({
             name: ef.name, icon: cfg.icon, color: cfg.color,
-            // v1.16.46：三选一短描述优先（ap/bp/cp），缺失回退详细分支文案
-            desc: cfg[brk + 'p'] || cfg[brk] || cfg.desc || '',
+            // v1.16.47：三选一短描述优先（ap/bp/cp 为三档数组，按分支当前等级取升级后档），缺失回退详细分支文案
+            desc: tierText(cfg[brk + 'p'], ef.branches[br]) || cfg[brk] || cfg.desc || '',
             type: 'branch', branch: br, branchLv: ef.branches[br],
             fromTower: this.key, level: ef.level,
           });
@@ -441,6 +441,14 @@ class EffectManager {
 }
 
 /* ---------- 工具 ---------- */
+
+/** 三档文案按分支等级取档（v1.16.47）：ap/bp/cp 为 [Lv1→2, Lv2→3, Lv3→4] 数组；
+ *  lv = 分支当前等级（0→取 Lv1→2 档、1→Lv2→3 档、2→Lv3→4 档，封顶最后一档）；非数组原样返回 */
+function tierText(v, lv) {
+  if (Array.isArray(v)) return v[Math.min(Math.max(0, lv || 0), v.length - 1)] || '';
+  return v || '';
+}
+
 function shuffle(arr, rng) {
   const rand = rng || Math.random;
   for (let i = arr.length - 1; i > 0; i--) {

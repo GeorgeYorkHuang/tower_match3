@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.46';       // v1.16.46 三选一描述精简（48 技能 pick + 144 分支短描述，与塔详情详细描述分离）
+const GAME_VERSION = 'v1.16.47';       // v1.16.47 三选一逐档文案 + 塔详情分支区美化 + 极光电击/冰墙/毒瘴特效重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

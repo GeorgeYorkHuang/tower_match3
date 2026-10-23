@@ -480,7 +480,7 @@ class Renderer {
 
   /** v1.16.11 技能二级详情面板：点击技能卡打开——技能效果 + 三个分支的详细效果与当前等级（v1.16.30 美化+描述放大两号） */
   towerSkillLayer(ctx, info, hits) {
-    const w = 688, hgt = 660, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
+    const w = 688, hgt = 720, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
@@ -515,40 +515,46 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 196, w - 80, 2);
     text(ctx, '升级分支', x + 40, y + 226, 22, '#b8c2cc', 'left');
-    // 三个分支横排卡片：分支名 / 效果文案（v1.16.30 15→17 号）/ 当前等级
-    const cardW = 196, cardH = 288, gap = 16, cardTop = y + 254;
+    // 三个分支横排卡片：分支名 / 效果文案 / 当前等级（v1.16.47：面板加高、字号放大、卡片美化）
+    const cardW = 196, cardH = 330, gap = 16, cardTop = y + 268;
     const brs = ['A', 'B', 'C'];
     const names = { A: info.bA || '分支A', B: info.bB || '分支B', C: info.bC || '分支C' };
     brs.forEach((br, i) => {
       const cx = x + 28 + i * (cardW + gap), cy = cardTop;
       const lv = (info.branches && info.branches[br]) || 0;
       const isAct = lv > 0;
+      // 卡片底色（激活：暗金渐变；未激活：深色冷灰）
       const cardGrad = ctx.createLinearGradient(cx, cy, cx, cy + cardH);
-      cardGrad.addColorStop(0, 'rgba(255,255,255,0.09)');
-      cardGrad.addColorStop(1, isAct ? 'rgba(247,201,72,0.10)' : 'rgba(20,24,31,0.96)');
+      cardGrad.addColorStop(0, isAct ? 'rgba(247,201,72,0.16)' : 'rgba(255,255,255,0.06)');
+      cardGrad.addColorStop(1, isAct ? 'rgba(247,201,72,0.04)' : 'rgba(24,28,38,0.96)');
       fillRoundRect(ctx, cx, cy, cardW, cardH, 14, cardGrad);
-      strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, isAct ? '#f7c948' : 'rgba(255,255,255,0.16)', isAct ? 2 : 1.5);
-      // 分支标识字母圆徽 + 名称
-      ctx.fillStyle = isAct ? '#f7c948' : 'rgba(255,255,255,0.22)';
-      ctx.beginPath(); ctx.arc(cx + 28, cy + 32, 15, 0, Math.PI * 2); ctx.fill();
-      text(ctx, br, cx + 28, cy + 33, 15, isAct ? '#5c4a00' : '#cfd6df', 'center');
-      text(ctx, names[br], cx + 50, cy + 33, 18, '#ffffff', 'left');
+      strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, isAct ? '#f7c948' : 'rgba(255,255,255,0.18)', isAct ? 2.5 : 1.5);
+      // 顶部高光条（塔色细线，激活分支金色更亮）
+      ctx.fillStyle = isAct ? '#f7c948' : (info.color || '#a55eea');
+      ctx.globalAlpha = isAct ? 0.85 : 0.5;
+      ctx.fillRect(cx + 16, cy + 6, cardW - 32, 3);
+      ctx.globalAlpha = 1;
+      // 分支字母圆徽（放大）+ 分支名（放大；徽章与名称纵向堆叠避免 5 字分支名重叠）
+      ctx.fillStyle = isAct ? '#f7c948' : 'rgba(255,255,255,0.24)';
+      ctx.beginPath(); ctx.arc(cx + 30, cy + 40, 17, 0, Math.PI * 2); ctx.fill();
+      text(ctx, br, cx + 30, cy + 42, 18, isAct ? '#5c4a00' : '#cfd6df', 'center');
+      text(ctx, names[br], cx + cardW / 2, cy + 74, 20, isAct ? '#ffd98a' : '#e8ecf2', 'center');
       // 等级徽章（未选显示"未解锁"）
       if (isAct) {
-        const bw2 = 44, bh2 = 20;
-        fillRoundRect(ctx, cx + cardW - 56, cy + 22, bw2, bh2, 10, '#f7c948');
-        text(ctx, `Lv${lv}`, cx + cardW - 34, cy + 33, 13, '#5c4a00', 'center');
+        const bw2 = 46, bh2 = 22;
+        fillRoundRect(ctx, cx + cardW - 60, cy + 18, bw2, bh2, 11, '#f7c948');
+        text(ctx, `Lv${lv}`, cx + cardW - 37, cy + 31, 15, '#5c4a00', 'center');
       } else {
-        text(ctx, '未解锁', cx + cardW - 42, cy + 33, 13, 'rgba(255,255,255,0.35)', 'right');
+        text(ctx, '未解锁', cx + cardW - 42, cy + 31, 15, 'rgba(255,255,255,0.40)', 'right');
       }
       // 分隔线
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      ctx.fillRect(cx + 12, cy + 54, cardW - 24, 2);
-      // 分支效果文案（自动换行：2-6 行，v1.16.30 15→17 号行距 24；v1.16.31 17→20 号行距 28）
-      const txt = isAct ? (info.branchDesc[br] || names[br]) : (info.branchDesc[br] || names[br]);
-      const lines = this.wrapText(ctx, txt, cardW - 20, 20);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(cx + 14, cy + 86, cardW - 28, 2);
+      // 分支效果文案（v1.16.47：20→24 号、行距 28→34、最多 6 行，激活分支金色高亮）
+      const txt = info.branchDesc[br] || names[br];
+      const lines = this.wrapText(ctx, txt, cardW - 18, 24);
       lines.slice(0, 6).forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, cy + 86 + li * 28, 20, isAct ? '#f1e6b8' : '#b8c2cc', 'center');
+        text(ctx, ln, cx + cardW / 2, cy + 112 + li * 34, 24, isAct ? '#f1e6b8' : '#c6d0da', 'center');
       });
     });
     // 返回按钮（回到塔详情）
@@ -1316,8 +1322,15 @@ class Renderer {
         }
       } else if (f.kind === 'zigzag') {
         // v1.13.19 锯齿电弧（塔口→目标）：多段折线 + 每帧轻微抖动 + 白芯
+        // v1.16.47：glow 模式先画宽幅光晕（极光电击主弧更醒目）
         const p = f.path;
         if (p && p.length > 1) {
+          if (f.glow) {
+            ctx.strokeStyle = f.color || '#f4d03f'; ctx.lineWidth = (f.w || 3) + 8; ctx.globalAlpha = 0.22;
+            ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
+            for (let i = 1; i < p.length; i++) { const j = Math.random() * 7 - 3.5; ctx.lineTo(p[i].x + j, p[i].y + j); }
+            ctx.stroke();
+          }
           ctx.strokeStyle = f.color || '#f4d03f'; ctx.lineWidth = (f.w || 3) + 1.5; ctx.globalAlpha = 0.4;
           ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
           for (let i = 1; i < p.length; i++) { const j = Math.random() * 5 - 2.5; ctx.lineTo(p[i].x + j, p[i].y + j); }
@@ -1384,32 +1397,106 @@ class Renderer {
         }
         ctx.globalAlpha = 1;
       } else if (f.kind === 'icewall') {
-        // v1.13.25 冰墙（城墙冰霜护盾）：横贯城墙的半透明冰墙 + 顶部冰刺 + 冰晶呼吸
+        // v1.13.25 冰墙（城墙冰霜护盾）；v1.16.47 重做：渐变冰层 + 锐利冰刺 + 寒光呼吸 + 冰晶纹理 + 底部冰雾
         const fp = Math.min(1, f.t / f.dur);
         const breathe = 1 + 0.06 * Math.sin(Date.now() / 260);
         const wy = (f.y || this.ly.wallY);
-        // 主体墙体（冰蓝半透明，中央略厚）
-        ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.20 * (1 - fp * 0.35);
-        ctx.fillRect(f.x - (f.r || 350) / 2, wy - 16 * breathe, (f.r || 350), 30 * breathe);
-        ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.35 * (1 - fp * 0.4);
-        ctx.fillRect(f.x - (f.r || 350) / 2, wy - 6 * breathe, (f.r || 350), 10 * breathe);
-        // 顶部冰刺
-        ctx.fillStyle = '#a9d6f5'; ctx.globalAlpha = 0.7;
-        for (let k = 0; k < 7; k++) {
-          const bx = f.x - (f.r || 350) / 2 + ((k + 0.5) * (f.r || 350)) / 7;
-          const h = (10 + (k % 3) * 6) * breathe;
+        const r = f.r || 350;
+        const x0 = f.x - r / 2, x1 = f.x + r / 2;
+        // 外发光呼吸描边（寒光）
+        ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.35 + 0.2 * Math.sin(Date.now() / 260);
+        ctx.beginPath(); ctx.moveTo(x0 + 14, wy); ctx.lineTo(x1 - 14, wy);
+        ctx.stroke();
+        // 垂直渐变冰层（上浅下深，梯形墙体）
+        const iceG = ctx.createLinearGradient(0, wy - 30 * breathe, 0, wy);
+        iceG.addColorStop(0, 'rgba(214,240,255,0.55)');
+        iceG.addColorStop(0.6, 'rgba(127,212,255,0.30)');
+        iceG.addColorStop(1, 'rgba(80,170,240,0.18)');
+        ctx.fillStyle = iceG;
+        ctx.globalAlpha = 1 - fp * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(x0 + 6, wy);
+        ctx.lineTo(x0 + 10, wy - 26 * breathe);
+        ctx.lineTo(x1 - 10, wy - 26 * breathe);
+        ctx.lineTo(x1 - 6, wy);
+        ctx.closePath(); ctx.fill();
+        // 顶部冰刺（锐利、9 根交错）
+        ctx.fillStyle = '#a9d6f5'; ctx.globalAlpha = 0.85;
+        for (let k = 0; k < 9; k++) {
+          const bx = x0 + ((k + 0.5) * r) / 9;
+          const h = (12 + (k % 4) * 8) * breathe;
+          const w2 = 5 + (k % 3) * 2;
           ctx.beginPath();
-          ctx.moveTo(bx - 7, wy - 2);
-          ctx.lineTo(bx, wy - 14 - h);
-          ctx.lineTo(bx + 7, wy - 2);
+          ctx.moveTo(bx - w2, wy - 22 * breathe);
+          ctx.lineTo(bx, wy - 30 * breathe - h);
+          ctx.lineTo(bx + w2, wy - 22 * breathe);
           ctx.closePath(); ctx.fill();
+        }
+        // 墙面冰晶纹理（菱形网格 2 行）
+        ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.4;
+        for (let ky = 0; ky < 2; ky++) {
+          for (let kx = 0; kx < 12; kx++) {
+            const cx2 = x0 + ((kx + 0.5) * r) / 12 + ((ky % 2) ? 12 : 0);
+            const cy2 = wy - 4 - ky * 9;
+            ctx.beginPath();
+            ctx.moveTo(cx2, cy2 - 3);
+            ctx.lineTo(cx2 + 3, cy2);
+            ctx.lineTo(cx2, cy2 + 3);
+            ctx.lineTo(cx2 - 3, cy2);
+            ctx.closePath(); ctx.fill();
+          }
         }
         // 冰晶粒子（呼吸闪烁）
         ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.5 + 0.3 * Math.sin(Date.now() / 180 + f.x);
-        for (let k = 0; k < 5; k++) {
-          const px = f.x - (f.r || 350) / 2 + ((f.x * 7 + k * 131) % (f.r || 350));
+        for (let k = 0; k < 6; k++) {
+          const px = x0 + ((f.x * 7 + k * 131) % r);
           ctx.beginPath(); ctx.arc(px, wy - (8 + ((f.x * 13 + k * 71) % 34)), 2.2, 0, Math.PI * 2); ctx.fill();
         }
+        // 底部冰雾上浮粒子
+        ctx.globalAlpha = 0.3;
+        for (let k = 0; k < 6; k++) {
+          const a = (Date.now() / 1400 + k / 6) % 1;
+          const px = x0 + ((f.x * 11 + k * 97) % r);
+          ctx.fillStyle = '#d6f0ff';
+          ctx.beginPath(); ctx.arc(px, wy - 2 - a * 22, 2.6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'miasma') {
+        // v1.16.47 瘴气毒雾：城墙上方条带，多层粒子翻滚（绿雾）+ 呼吸浓淡 + 边界提示线（驻场 fx）
+        const breathe = 1 + 0.10 * Math.sin(Date.now() / 400);
+        const wy = (f.y !== undefined ? f.y : (this.ly.wallY - 50));
+        const w = f.w || 750, half = f.half || 20;
+        const t0 = Date.now() / 1000;
+        // 底层浓雾（整条渐变带）
+        const fogG = ctx.createLinearGradient(0, wy - half * breathe, 0, wy + half * breathe);
+        fogG.addColorStop(0, 'rgba(46,204,113,0)');
+        fogG.addColorStop(0.5, 'rgba(46,204,113,0.30)');
+        fogG.addColorStop(1, 'rgba(46,204,113,0.06)');
+        ctx.fillStyle = fogG;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, wy - half);
+        ctx.quadraticCurveTo(w * 0.5, wy - half * (1.6 * breathe), w, wy - half);
+        ctx.lineTo(w, wy + half);
+        ctx.quadraticCurveTo(w * 0.5, wy + half * (1.4 * breathe), 0, wy + half);
+        ctx.closePath(); ctx.fill();
+        // 翻滚粒子团（两层，横向漂移）
+        ctx.globalAlpha = 0.5;
+        for (let k = 0; k < 10; k++) {
+          const drift = (t0 * 18 + k * 73) % w;
+          const px = drift;
+          const py = wy - half * 0.6 + Math.sin(t0 * 2 + k) * half * 0.7;
+          const rad = (5 + ((k * 13) % 8)) * breathe;
+          ctx.fillStyle = k % 2 ? 'rgba(126,226,168,0.35)' : 'rgba(46,204,113,0.30)';
+          ctx.beginPath(); ctx.arc(px, py, rad, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // 毒雾顶部边界线（提示条带范围）
+        ctx.strokeStyle = 'rgba(126,226,168,0.35)'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, wy - half);
+        ctx.quadraticCurveTo(w * 0.5, wy - half * (1.6 * breathe), w, wy - half);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === 'icebloom') {
         // v1.13.28 冰花帧动画：4 帧绽放序列（images/icebloom/icebloom1-4.png，按进度选帧）
