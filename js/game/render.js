@@ -2299,21 +2299,13 @@ class Renderer {
     };
     // v1.11：候选自带两级描述（技能卡=基础 desc；分支卡=分支 a/b/c 文案）
     const descOf = (ef) => ef.desc || defOf(ef.name, ef.fromTower).desc || '';
-    // 顶部：仅保留待选胶囊居中（v1.9：去掉"塔升级"标题，升级候选为跨塔随机）
-    const gt = group.target; // settlePending 提供标志特效名；升级三选一（buildUpgradeQueue）为 null
-    const capW = 148, capH = 46;
-    const capX = x + (w - capW) / 2, capY = y + 34;
-    fillRoundRect(ctx, capX, capY, capW, capH, capH / 2, 'rgba(247,201,72,0.15)');
-    strokeRoundRect(ctx, capX, capY, capW, capH, capH / 2, '#f7c948', 1.5);
-    text(ctx, `待选 ×${pending}`, capX + capW / 2, capY + capH / 2, 24, '#f7c948', 'center');
-    // 分隔线
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(x + 28, y + 96, w - 56, 2);
+    // v1.16.45 移除顶部「待选 ×N」胶囊与分隔线（用户要求），卡片区整体上移，三卡垂直布局重排：
+    //   图标 → 技能名 → 分支标签 → 描述面板 → 确认按钮，互不重叠且描述不压按钮
     // 候选卡片：横向三卡并排；卡框/顶部条/按钮/图标底色 = 所属塔色（v1.7 用户要求）
     const gap = 16;
     const cardW = (w - 56 - gap * 2) / 3;     // (640-56-32)/3 = 184
     const cardH = h - 118 - 70;               // 660-188 = 472
-    const topY = y + 118;
+    const topY = y + 92;                      // v1.16.45 原 y+118，去顶后上移 26px
     // 中文按字数换行（技能描述，卡内居中）
     const wrapLines = (s, max) => {
       const arr = [];
@@ -2391,8 +2383,9 @@ class Renderer {
       ctx.beginPath(); ctx.arc(cx + cardW / 2 - 34, topY + 28, 6, 0, Math.PI * 2);
       ctx.fillStyle = fromTint; ctx.fill();
       text(ctx, fromName, cx + cardW / 2 + 2, topY + 33, 20, '#dbe4ee', 'center');
-      // 上 1/3：技能图标（v1.16.7 六边形徽章：渐变填充 + 白描边 + 旋转虚线光环 + 流光 + 等级角标）
-      const iconCx = cx + cardW / 2, iconCy = topY + 118, ir = 52;
+      // v1.16.45 技能图标区上移（iconCy = topY+88，六边形徽章 50px，图标 88px 素材区 topY+44~132；
+      // 与顶部源塔名条（topY+14~42）不重叠；技能名在 topY+166，图标素材底 132 → 4px 间隙）
+      const iconCx = cx + cardW / 2, iconCy = topY + 88, ir = 50;
       // 旋转虚线光环（缓慢公转，提示"可选/可强化"）
       ctx.save();
       ctx.translate(iconCx, iconCy);
@@ -2451,17 +2444,17 @@ class Renderer {
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
       text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
-      // 中间：技能介绍（技能名 = 金色 40px 大字，v1.10 用户规范；v1.16.30 文字区美化）
-      const nameY = topY + 224;
-      // v1.14 提示优化：分支卡 = 金色胶囊标签（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
-      // v1.16.30：分支卡标签加大 + 金色呼吸 glow（更明显提示）
+      // v1.16.45 技能名（金色 40px 大字，随图标区上移：nameY = topY+166）
+      const nameY = topY + 166;
+      // v1.16.45 分支标签胶囊改放技能名下方（tY = nameY+14），与名字不再重叠：
+      // 分支卡 = 金色胶囊（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
       const tSize = 17;
       const tagTxt = upgrading
         ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
         : '新技能';
       ctx.font = `bold ${tSize}px sans-serif`;
       const tW = txtW(tagTxt, tSize) + 24;
-      const tX = cx + cardW / 2 - tW / 2, tY = nameY - 44;
+      const tX = cx + cardW / 2 - tW / 2, tY = nameY + 14;
       const tagGlow = upgrading ? 0.22 + 0.14 * breathe : 0;
       if (upgrading) {
         ctx.globalAlpha = cAlpha * tagGlow;
@@ -2477,10 +2470,14 @@ class Renderer {
       // 技能名（金色大字 + 轻微阴影）
       text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
-      // v1.16.30 描述区玻璃面板：更清晰的文字展示层
+      // v1.16.30 描述区玻璃面板：v1.16.45 上移至标签下方（panelY=topY+226），最多 4 行（30 字内描述），
+      // 超出截断并加省略号，保证不压「确认激活/升级」按钮
       const desc = descOf(ef);
-      const lines = wrapLines(desc, 8);
-      const panelY = topY + 258;
+      const rawLines = wrapLines(desc, 8);
+      const clipped = rawLines.length > 4;
+      const lines = rawLines.slice(0, 4);
+      if (clipped) lines[3] = lines[3] + '…';
+      const panelY = topY + 226;
       const panelH = lines.length * 26 + 30;
       fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(0,0,0,0.26)');
       strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.08)', 1);
@@ -2535,7 +2532,9 @@ class Renderer {
     text(ctx, '防线失守', x + w / 2, y + 70, 44, '#ff6b6b', 'center');
     text(ctx, `坚守到第 ${s.wave} 波`, x + w / 2, y + 140, 26, '#dfe6ee', 'center');
     text(ctx, `金币 ${fmtNum(s.gold)} · 协同 ${s.synDoneCount}/2`, x + w / 2, y + 190, 22, '#9fb2c3', 'center');
-    restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 });
+    // v1.16.45 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
+    // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
+    restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
     restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 });
   }
 

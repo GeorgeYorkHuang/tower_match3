@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.44';       // v1.16.44 主界面移除「测试战场」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
+const GAME_VERSION = 'v1.16.45';       // v1.16.45 三选一 UI 优化（去待选/防重叠防溢出）+ 破防结算退出修复
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
