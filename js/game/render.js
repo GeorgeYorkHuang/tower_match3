@@ -1232,31 +1232,37 @@ class Renderer {
       const x = f.x + (endX - f.x) * p;
       const y = f.y + (endY - f.y) * p;
       if (f.kind === 'bolt') {
-        // 闪电折线（每帧抖动形成闪烁）+ 双层描边（白内亮 + 彩外辉）+ 命中电花（末端随目标）
-        ctx.lineWidth = 10.1; ctx.globalAlpha = 0.22;
-        ctx.strokeStyle = '#ffffff';
-        ctx.beginPath(); ctx.moveTo(f.x, f.y);
-        const seg = 6;
+        // v1.16.49 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
+        // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
+        const seg = 10, jit = 8;
+        const pts = [];
         for (let i = 1; i < seg; i++) {
-          ctx.lineTo(f.x + (endX - f.x) * (i / seg) + (Math.random() * 36 - 18), f.y + (endY - f.y) * (i / seg) + (Math.random() * 36 - 18));
+          const q = i / seg;
+          pts.push({ x: f.x + (endX - f.x) * q + (Math.random() * jit * 2 - jit), y: f.y + (endY - f.y) * q + (Math.random() * jit * 2 - jit) });
         }
-        ctx.lineTo(endX, endY); ctx.stroke();
-        ctx.strokeStyle = f.color; ctx.lineWidth = 6.75; ctx.globalAlpha = 0.95;
-        ctx.beginPath(); ctx.moveTo(f.x, f.y);
-        for (let i = 1; i < seg; i++) {
-          ctx.lineTo(f.x + (endX - f.x) * (i / seg) + (Math.random() * 36 - 18), f.y + (endY - f.y) * (i / seg) + (Math.random() * 36 - 18));
-        }
-        ctx.lineTo(endX, endY); ctx.stroke();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.25; ctx.globalAlpha = 0.9;
-        ctx.beginPath(); ctx.moveTo(f.x, f.y);
-        for (let i = 1; i < seg; i++) {
-          ctx.lineTo(f.x + (endX - f.x) * (i / seg) + (Math.random() * 36 - 18), f.y + (endY - f.y) * (i / seg) + (Math.random() * 36 - 18));
-        }
-        ctx.lineTo(endX, endY); ctx.stroke();
+        const trace = (color, w, alpha) => {
+          ctx.strokeStyle = color; ctx.lineWidth = w; ctx.globalAlpha = alpha;
+          ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(f.x, f.y);
+          for (const pt of pts) ctx.lineTo(pt.x, pt.y);
+          ctx.lineTo(x, y); ctx.stroke();
+        };
+        trace(f.color, 6, 0.16);        // 外辉光（淡，贴近主条）
+        trace(f.color, 3.4, 0.9);       // 主条（细）
+        trace('#ffffff', 1.3, 0.95);    // 白芯（最细）
+        // 前端电球（领跑，带辉光）
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = f.color;
+        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fill();
+        // 命中电花（末端，p→1 时爆发）
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(endX, endY, 9 + p * 15.75, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(endX, endY, 7 + p * 13, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
+        ctx.lineCap = 'butt';
       } else if (f.kind === 'arc') {
         // 回旋镖 v1.9：椭圆大弧（塔出发 → 越过怪物最远点 → 继续绕回塔，非折返）
         //         镖体重绘为双翼回旋镖造型 + 高速自旋

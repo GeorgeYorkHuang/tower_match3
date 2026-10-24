@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.48';       // v1.16.48 加速按钮去底色 + 战斗特效随倍速同频（弹道/技能演出不再慢半拍）
+const GAME_VERSION = 'v1.16.49';       // v1.16.49 极光电击重做（方案C 树状分支闪电）+ 电塔普攻弹道改细长条闪电
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

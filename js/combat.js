@@ -1825,12 +1825,14 @@ class CombatSystem {
           const len = Math.hypot(dx, dy) || 1;
           // v1.16.42 射线判定：塔→最近敌人方向射线（含延长线）上、垂距 ≤ 半宽的所有敌人；记录最远命中投影（动画延长线终点）
           let farT = 0;
+          const hitList = [];
           alive.forEach((o) => {
             const t = ((o.x - x1) * dx + (o.y - y1) * dy) / (len * len);
             if (t < 0) return;
             const px = x1 + dx * t, py = y1 + dy * t;
             if (Math.hypot(o.x - px, o.y - py) > halfW) return;
             this.damage(o, dmg, 'electric');
+            hitList.push(o);
             if (t > farT) farT = t;
             // v1.16.47：命中的每个敌人电弧闪光
             this.fxFlash(o.x, o.y, '#f4d03f');
@@ -1841,7 +1843,30 @@ class CombatSystem {
               this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
             }
           });
-          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进黄色电击（v1.16.47 强化：粗电弧+光晕+起点终点闪光+延长线火花）
+          // v1.16.49 重做（方案C 树状分支闪电）：每个主线命中敌人向 90 码内随机 1~2 个其他敌人分支小电弧，
+          //   每分支造成主线伤害 40%（与 B 增伤叠加）；分支不再递归分支
+          if (hitList.length) {
+            const hitSet = new Set(hitList);
+            hitList.forEach((src) => {
+              const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - src.x, o.y - src.y) <= 90);
+              if (!cands.length) return;
+              const nB = 1 + (Math.random() < 0.5 ? 1 : 0);
+              for (let k = 0; k < nB && cands.length; k++) {
+                const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+                hitSet.add(tgt);
+                this.damage(tgt, dmg * 0.4, 'electric');
+                this.fxFlash(tgt.x, tgt.y, '#7fc7ff');
+                const cpath = [
+                  { x: src.x, y: src.y },
+                  { x: src.x + (tgt.x - src.x) * 0.5 + (Math.random() * 26 - 13), y: src.y + (tgt.y - src.y) * 0.5 + (Math.random() * 26 - 13) },
+                  { x: tgt.x, y: tgt.y },
+                ];
+                this.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
+              }
+            });
+          }
+          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进金色主弧（v1.16.47 强化粗电弧+光晕；
+          // v1.16.49 主弧时长 0.45→0.6s 支撑电网演出）
           const ex2 = x1 + dx * farT, ey2 = y1 + dy * farT;
           const path = [{ x: x1, y: y1 }];
           for (let s = 1; s < 4; s++) {
@@ -1849,7 +1874,7 @@ class CombatSystem {
             path.push({ x: x1 + (ex2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (ey2 - y1) * t + (Math.random() * 30 - 15) });
           }
           path.push({ x: ex2, y: ey2 });
-          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.45, color: '#ffe08a', w: 5, glow: true });
+          this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.6, color: '#ffe08a', w: 5, glow: true });
           this.fxFlash(tx, ty, '#f4d03f');
           this.fxFlash(x2, y2, '#f4d03f');
           this.fxRing(x2, y2, '#f4d03f', 30, 0.3, 3);
