@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.55';       // v1.16.55 塔DPS改随塔自身等级 + 三选一卡片上下扩展/来源塔标签外置/标签放大美化
+const GAME_VERSION = 'v1.16.56';       // v1.16.56 三选一面板上移露出防御塔区+暂停可点塔看详情+塔详情技能卡图标/名称/等级重调
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -1145,6 +1145,13 @@ class GameMain {
     if (this.state === 'picking') {
       const group = this.pickQueue[this.pickIndex];
       if (!group || !group.candidates || !group.candidates.length) return true;
+      // v1.16.56：三选一暂停中，点击下方露出的防御塔位 → 打开塔详情（可查看技能详情，关闭后回到三选一）
+      const si = this.towerSlotAt(p);
+      const slot = this.sceneState().towers[si] || null;
+      if (si >= 0 && slot) {
+        this.towerInfo = { ...slot, slotIdx: si };
+        return true;
+      }
       for (let i = 0; i < group.candidates.length; i++) {
         if (this.pickHits[i] && this.pickHits[i].hit(p.x, p.y)) {
           const res = this.run.applyChoice(group.tower, group.candidates[i]);
