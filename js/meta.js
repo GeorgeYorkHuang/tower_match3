@@ -34,7 +34,12 @@ class Meta {
     this.chestTimer = null;      // { endAt: ms }
     this.dailyPicks = null;      // { date, picks: [{relic, price}] }
     this.towerUnlocks = [];
+    this.runCodex = {};            // v1.16.60 局内圣遗物图鉴解锁 { id: 1 }（获得过才显示）
   }
+
+  /* ---------- 局内圣遗物图鉴 ---------- */
+  codexOwned(id) { return (this.runCodex[id] || 0) > 0; }
+  codexUnlock(id) { this.runCodex[id] = 1; }
 
   /* ---------- 圣物 ---------- */
   relicDef(id) { return CONFIG.RELIC.list.find((r) => r.id === id) || null; }
@@ -142,6 +147,7 @@ class Meta {
       chestTimer: this.chestTimer,
       dailyPicks: this.dailyPicks,
       towerUnlocks: this.towerUnlocks,
+      runCodex: this.runCodex,
     };
   }
   static fromJSON(d) {
@@ -154,6 +160,7 @@ class Meta {
     m.chests = d.chests || 0;
     m.chestTimer = d.chestTimer || null;
     m.dailyPicks = d.dailyPicks || null;
+    m.runCodex = d.runCodex || {};    // v1.16.60 局内圣遗物图鉴解锁（旧档无此字段 → 空）
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
     // v4 及以下迁移：装备过的圣物视为已拥有（+1）；技能卡/技能槽丢弃（技能回归默认 3 个）

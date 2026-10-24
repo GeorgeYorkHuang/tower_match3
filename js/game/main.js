@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.59';       // v1.16.59 来源塔标签文字居中+塔详情技能卡1.5倍+怪物掉宝箱点击三选一+怪物强度加快1.5倍+Boss关红叹号
+const GAME_VERSION = 'v1.16.60';       // v1.16.60 圣遗物体系落库(6塔×16+通用16,含emoji图标) + 战场宝箱改局内圣遗物三选一 + 弹药箱三消充能+5/三消之力/智慧典籍/全局充能接入 + 怪物debuff图标渲染
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -76,6 +76,7 @@ class GameMain {
     this._postPick = null;       // 升级三选一完成后回到的状态（'waveclear' / null=战斗）
     // 战斗内圣物宝箱三选一：精英掉落入队，逐次弹层（暂停战斗）
     this.pendingRelicPicks = []; // [{ candidates: [{id,name,icon,desc}×3] }]
+    this.runRelics = [];         // v1.16.60 本局已获得的局内圣遗物 id 列表（rougelike，本局生效）
     this.relicPick = null;       // 当前圣物三选一弹层
     this.relicPickHits = [];     // 圣物三选一候选命中区
     this.newRun(false);
@@ -606,18 +607,21 @@ class GameMain {
     }
   }
 
-  /** v1.16.59 战场宝箱点击 → 生成圣物三选一（洗牌圣物表取 3 个不同圣物，优先低拥有数） */
+  /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池），洗牌取 3 */
   spawnRelicPick() {
-    const pool = CONFIG.RELIC.list.slice()
-      .sort((a, b) => (this.meta.relicCount(a.id) - this.meta.relicCount(b.id)))
-      .slice(0, Math.max(3, CONFIG.RELIC.list.length));
+    const RR = CONFIG.RELIC_RUN;
+    // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
+    const ownedKeys = this.run.slotOrder || [];
+    let pool = [];
+    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => pool.push({ def: d, tint: k })); });
+    RR.common.forEach((d) => pool.push({ def: d, tint: 'common' }));
+    if (!pool.length) return;
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
     }
-    const cands = pool.slice(0, 3).map((def) => ({
-      id: def.id, name: def.name, icon: def.icon,
-      desc: def.desc(this.meta.relicLevel(def.id) + 1),
+    const cands = pool.slice(0, 3).map(({ def, tint }) => ({
+      id: def.id, name: def.name, icon: def.icon, desc: def.desc, run: true, tint,
     }));
     this.pendingRelicPicks.push({ candidates: cands });
   }
@@ -1020,14 +1024,25 @@ class GameMain {
     }
   }
 
-  /** 圣物宝箱三选一：选择一项 → 获取圣物，回战斗；队列清空后检查升级待选 */
+  /** 圣物宝箱三选一：选择一项 → 获取圣物，回战斗；队列清空后检查升级待选
+   *  v1.16.60 战场宝箱候选为局内圣遗物（run:true）：本局生效 + 图鉴解锁；非 run 走养成圣物 */
   relicPickChoice(i) {
     const c = this.relicPick && this.relicPick.candidates[i];
     if (!c) return;
-    this.meta.addRelic(c.id);
-    this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name }); // v1.9：本局圣物展示
-    this.save.save();
-    this.toast(`获得圣物 ${c.icon}${c.name}`, '#f7c948');
+    if (c.run) {
+      // 局内圣遗物（rougelike）：本局生效 + 图鉴解锁（跨局记录）
+      this.runRelics.push(c.id);
+      this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
+      this.meta.codexUnlock(c.id);
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name });
+      this.save.save();
+      this.toast('获得圣遗物 ' + c.icon + c.name, '#f7c948');
+    } else {
+      this.meta.addRelic(c.id);
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name }); // v1.9：本局圣物展示
+      this.save.save();
+      this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
+    }
     this.relicPick = null;
     this.state = 'fighting';
     if (this.pendingRelicPicks.length) return; // 还有宝箱：下帧继续弹

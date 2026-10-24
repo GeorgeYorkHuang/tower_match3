@@ -802,6 +802,7 @@ class Renderer {
       this.drawEnemyBody(ctx, e, x, y, size, isElite);
       this.drawEnemyDebuffs(ctx, e, x, y, size);
       this.drawEnemyBar(ctx, e, x, y, size);
+      this.drawEnemyDebuffIcons(ctx, e, x, y, size);
     });
   }
 
@@ -1068,6 +1069,40 @@ class Renderer {
     }
     ctx.fillStyle = '#ff6b6b';
     ctx.fillRect(bx, by, bw * ratio, bh);
+  }
+
+  /** v1.16.60 怪物 debuff 图标：血条上方横向排布（半透明圆底 + 专属 emoji + 边框色 + 剩余秒数小字），每个 debuff 一个小图标 */
+  drawEnemyDebuffIcons(ctx, e, x, y, size) {
+    const items = [];
+    // 多段 DoT：灼烧 / 中毒（dot 列表逐项）
+    (e.dots || []).forEach((d) => {
+      if (d.type === 'burn') items.push({ icon: '🔥', tint: '#ff6b35', left: d.ttl });
+      else if (d.type === 'poison') items.push({ icon: '☠️', tint: '#27ae60', left: d.ttl });
+    });
+    // 流血 / 冻结 / 麻痹 / 冰缓 / 猎手标记 / 毒藤缠绕
+    if (e.bleedT > 0) items.push({ icon: '🩸', tint: '#c0392b', left: e.bleedT });
+    if (e.frozen > 0) items.push({ icon: '🧊', tint: '#5dade2', left: e.frozen });
+    if (e.paralyzed > 0) items.push({ icon: '😵', tint: '#f4d03f', left: e.paralyzed });
+    if (e.slow && e.slow.ttl > 0) items.push({ icon: '🥶', tint: '#85c1e9', left: e.slow.ttl });
+    if ((e._mark || 0) > 0) items.push({ icon: '🎯', tint: '#c39bd3', left: e._markT || 0 });
+    if ((e._vineT || 0) > 0) items.push({ icon: '🌿', tint: '#58d68d', left: e._vineT });
+    if (!items.length) return;
+    const r = 10, gap = 24;
+    // 血条在 y-6（高 4）；图标整体位于血条上方：圆心 y-18（圆顶 y-28、圆底 y-8）
+    const icY = y - 18;
+    const total = items.length * gap;
+    let cx0 = x + size / 2 - total / 2 + r;
+    if (cx0 < x) cx0 = x + r;  // 图标过多时贴左排，避免超界
+    items.slice(0, 5).forEach((it, i) => {
+      const cx = cx0 + i * gap;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath(); ctx.arc(cx, icY, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = it.tint; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx, icY, r, 0, Math.PI * 2); ctx.stroke();
+      text(ctx, it.icon, cx, icY + 1, 12, '#ffffff', 'center');
+      if (it.left > 0) text(ctx, Math.ceil(it.left), cx + r + 3, icY - r + 2, 9, '#ffffff', 'left');
+    });
+    if (items.length > 5) text(ctx, '+' + (items.length - 5), cx0 + 5 * gap, icY, 10, '#ffd34d', 'left');
   }
 
   /* ============ 区C · 技能特效层（地面持续效果 / 弹道与技能 fx） ============ */
@@ -3228,27 +3263,30 @@ class Renderer {
     ctx.fillRect(0, 0, 750, LOGIC_H);
     fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
     strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
-    text(ctx, '圣物宝箱 · 三选一', 375, y + 58, 36, '#7ca8ff', 'center');
-    text(ctx, '获得圣物即常驻生效（重复获取可升级）', 375, y + 98, 19, '#8ea3b8', 'center');
+    text(ctx, '圣遗物宝箱 · 三选一', 375, y + 58, 36, '#7ca8ff', 'center');
+    text(ctx, '获得圣遗物本局生效；塔圣遗物仅对应塔在场时出现', 375, y + 98, 19, '#8ea3b8', 'center');
     // 3 个候选卡片
     const bw = 188, bh = 240, gap = 16;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
     const cy = y + 132;
     pick.candidates.forEach((c, i) => {
       const cx = startX + i * (bw + gap);
+      const tint = c.tint ? (TOWER_TINT[c.tint] || '#f7c948') : '#f7c948';
       fillRoundRect(ctx, cx, cy, bw, bh, 16, '#232c38');
       strokeRoundRect(ctx, cx, cy, bw, bh, 16, '#7ca8ff', 1.5);
-      // 图标圆底
+      // 图标圆底（塔圣遗物用塔色、通用用金色）
       ctx.beginPath(); ctx.arc(cx + bw / 2, cy + 62, 40, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(124,168,255,0.18)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+      ctx.fillStyle = tint + '2e'; ctx.fill();
+      ctx.strokeStyle = tint; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(cx + bw / 2, cy + 62, 40, 0, Math.PI * 2); ctx.stroke();
       text(ctx, c.icon, cx + bw / 2, cy + 64, 44, '#ffffff', 'center');
       text(ctx, c.name, cx + bw / 2, cy + 118, 24, '#ffffff', 'center');
-      // 效果描述（两行）
-      const descLines = c.desc ? c.desc.split('；') : [''];
-      text(ctx, descLines[0] || '', cx + bw / 2, cy + 152, 16, '#9fb2c3', 'center');
-      text(ctx, descLines[1] || '', cx + bw / 2, cy + 174, 16, '#9fb2c3', 'center');
+      // 效果描述（单段长文 → 按字数自适应切两行）
+      const d = c.desc || '';
+      const line1 = d.length > 13 ? d.slice(0, 13) : d;
+      const line2 = d.length > 13 ? d.slice(13) : '';
+      text(ctx, line1, cx + bw / 2, cy + 152, 16, '#9fb2c3', 'center');
+      text(ctx, line2, cx + bw / 2, cy + 174, 16, '#9fb2c3', 'center');
       // 选择按钮
       const btnX = cx + 24, btnY = cy + bh - 58, btnW = bw - 48, btnH = 46;
       fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#2c3542');

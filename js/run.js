@@ -64,6 +64,12 @@ class Run {
     this._directSeq = ['red', 'green'];
     this._directDone = 0;
     this.slotOrder = [];      // 先消先得：塔获得顺序（前 TOWER_SLOTS 个占槽）
+    this.runRelic = {};       // v1.16.60 局内圣遗物（rougelike）本局生效计数 { id: count }
+  }
+
+  /** 局内圣遗物拥有数（未获得返回 0） */
+  relicRun(id) {
+    return this.runRelic[id] || 0;
   }
 
   _weightsFor() {
@@ -86,9 +92,16 @@ class Run {
 
   /* ---------- 波内：消除结算 ---------- */
 
-  /** 整体经验：升级需求 = base × growth^expLevel（L0 起：30 / 42 / 58.8 ...） */
+  /** 整体经验：升级需求 = base × growth^expLevel（L0 起：30 / 42 / 58.8 ...）；v1.16.60 智慧典籍 -10% */
   expNeed() {
-    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.expLevel);
+    let need = CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.expLevel);
+    if (this.relicRun('cm_tome') > 0) need *= 0.9;
+    return need;
+  }
+
+  /** v1.16.60 三消之力：每次三消获得的经验 +30%（适用各消除路径） */
+  _relicExp(v) {
+    return Math.round(v * (1 + 0.3 * this.relicRun('cm_triple')));
   }
 
   /**
@@ -127,27 +140,30 @@ class Run {
     let ammoGain = 0, shuffleGain = 0, refillGain = 0;
     if (!t) {
       // 兜底（6 色均有塔池，理论上不触发）
-      this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
+      this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
     } else if (t.level === 0) {
       const owned = Object.keys(this.effects.towers).filter((k) => this.effects.tower(k).level > 0).length;
       if (owned < CONFIG.TOWER_SLOTS) {
         t.unlock(); gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
         // v1.16.37 激活塔弹药 = 15 + 本次消除形状弹药（4消/5消初次激活即有收益；上限弹药库上限）
-        const gain = 15 + this._ammoGain(shape, size);
+        // v1.16.60 弹药箱：每次三消充能弹药 +5
+        const gain = 15 + this._ammoGain(shape, size) + 5 * this.relicRun('cm_ammobox');
         t.ammo = Math.min(gain, this.armoryAmmoMax());
         ammoGain = t.ammo;
       } else {
         // 塔位满：该色未被选中 → 对应全局技能按弹药充能（剩余 2 色动态分配）+ 半量经验
+        // v1.16.60 全局充能 +40%、弹药箱 +5
         const skill = this._globalSkillOf(color);
-        const ammo = this._ammoGain(shape, size);
+        const ammo = Math.round(this._ammoGain(shape, size) * (1 + 0.4 * this.relicRun('cm_charge')) + 5 * this.relicRun('cm_ammobox'));
         if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
         else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
-        this.gainExp(Math.floor(exp * CONFIG.PENALTY_RATIO));
+        this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
       }
     } else {
       // 塔色：弹药按形状供给 + 整体经验；弹药满 → 溢出均分充能两个全局技能（弹药口径）
-      const gain = this._ammoGain(shape, size);
+      // v1.16.60 弹药箱：三消充能弹药 +5
+      const gain = this._ammoGain(shape, size) + 5 * this.relicRun('cm_ammobox');
       const before = t.ammo;
       t.ammo = Math.min(before + gain, this.armoryAmmoMax());
       ammoGain = t.ammo - before;
@@ -157,7 +173,7 @@ class Run {
         shuffleGain = this._chargeAmmo('shuffle', half);
         refillGain = this._chargeAmmo('refill', over - half);
       }
-      this.gainExp(exp);
+      this.gainExp(this._relicExp(exp));
       target = t;
     }
     // 更新待选峰值
