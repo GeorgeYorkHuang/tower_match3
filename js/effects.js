@@ -426,12 +426,11 @@ class EffectManager {
     return this._synPairs().map((pair, i) => ({ pair, done: this.synergyDone[i] }));
   }
 
-  /** 单塔 DPS（v1.8：按整体等级成长；含协同乘区；与模拟一致以第一协同组为基准） */
+  /** 单塔 DPS（v1.16.55：按塔自身等级成长，不再随整体等级；含协同乘区；与模拟一致以第一协同组为基准） */
   towerDps(key) {
     const t = this.towers[key];
     if (!t) return 0;
-    const lv = (this.run && this.run.expLevel !== undefined) ? Math.max(1, this.run.expLevel) : t.level;
-    return t.dps(this.synergyDone[0], lv);
+    return t.dps(this.synergyDone[0], t.level);
   }
 
   /** 全塔总 DPS（防线结算用） */

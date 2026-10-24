@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.54';       // v1.16.54 塔详情分支卡：图标/分支名/等级徽章放大 50%，卡高 330→360
+const GAME_VERSION = 'v1.16.55';       // v1.16.55 塔DPS改随塔自身等级 + 三选一卡片上下扩展/来源塔标签外置/标签放大美化
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

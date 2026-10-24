@@ -2394,10 +2394,11 @@ class Renderer {
     // v1.16.45 移除顶部「待选 ×N」胶囊与分隔线（用户要求），卡片区整体上移，三卡垂直布局重排：
     //   图标 → 技能名 → 分支标签 → 描述面板 → 确认按钮，互不重叠且描述不压按钮
     // 候选卡片：横向三卡并排；卡框/顶部条/按钮/图标底色 = 所属塔色（v1.7 用户要求）
+    // v1.16.55：卡片上移 28px 且加高 48px（472→520）——上下扩展留出更宽松的内部排布；来源塔标签移出卡外正上方
     const gap = 16;
     const cardW = (w - 56 - gap * 2) / 3;     // (640-56-32)/3 = 184
-    const cardH = h - 118 - 70;               // 660-188 = 472
-    const topY = y + 92;                      // v1.16.45 原 y+118，去顶后上移 26px
+    const cardH = 520;                        // v1.16.55 原 h-118-70=472 → 520（上下各扩 24/28）
+    const topY = y + 64;                      // v1.16.55 原 y+92，上移 28px 给卡外来源塔标签留位
     // 中文按字数换行（技能描述，卡内居中）
     const wrapLines = (s, max) => {
       const arr = [];
@@ -2425,6 +2426,23 @@ class Renderer {
         ? (CONFIG.COLORS[CONFIG.TOWERS[fromKey] && CONFIG.TOWERS[fromKey].color] || {}).name || fromKey
         : tName;
       const fromTint = TOWER_TINT[fromKey] || tint;
+      // v1.16.55 来源塔标签：移出卡片、置于卡片正上方居中（塔色渐变胶囊 + 圆点 + 塔名），与卡片居中对齐
+      //（fromKey/fromName/fromTint 沿用上方已有定义）
+      const tagSize = 21;
+      const srcTxt = fromName;
+      const srcW = txtW(srcTxt, tagSize) + 44;
+      const srcX = cx + cardW / 2 - srcW / 2, srcY = topY - 42;
+      const srcGrad = ctx.createLinearGradient(0, srcY, 0, srcY + 34);
+      srcGrad.addColorStop(0, lighten(fromTint, 1.25));
+      srcGrad.addColorStop(1, '#1c2634');
+      fillRoundRect(ctx, srcX + 2, srcY + 3, srcW, 34, 17, 'rgba(0,0,0,0.35)');
+      fillRoundRect(ctx, srcX, srcY, srcW, 34, 17, srcGrad);
+      strokeRoundRect(ctx, srcX, srcY, srcW, 34, 17, 'rgba(255,255,255,0.5)', 1.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      fillRoundRect(ctx, srcX + 5, srcY + 3, srcW - 10, 10, 5, ctx.fillStyle);
+      ctx.beginPath(); ctx.arc(srcX + 22, srcY + 17, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff'; ctx.globalAlpha = cAlpha * 0.9; ctx.fill(); ctx.globalAlpha = cAlpha;
+      text(ctx, srcTxt, srcX + 22 + 12, srcY + 21, tagSize, '#ffffff', 'left');
       // v1.16.7 卡片外发光（呼吸脉动；目标卡金色强呼吸）
       const glowCol = (isTarget && !upgrading) ? '#f7c948' : fromTint;
       const glowA = (isTarget && !upgrading) ? 0.16 + 0.14 * breathe : 0.08 + 0.05 * breathe;
@@ -2470,14 +2488,10 @@ class Renderer {
         fillRoundRect(ctx, cx + cardW - 64, topY + 10, 52, 24, 12, 'rgba(39,174,96,0.92)');
         text(ctx, '目标', cx + cardW - 38, topY + 23, 16, '#ffffff', 'center');
       }
-      // v1.9 框顶部标识来源塔：塔色圆点 + 塔名条
-      fillRoundRect(ctx, cx + 4, topY + 14, cardW - 8, 28, 6, 'rgba(255,255,255,0.07)');
-      ctx.beginPath(); ctx.arc(cx + cardW / 2 - 34, topY + 28, 6, 0, Math.PI * 2);
-      ctx.fillStyle = fromTint; ctx.fill();
-      text(ctx, fromName, cx + cardW / 2 + 2, topY + 33, 20, '#dbe4ee', 'center');
-      // v1.16.45 技能图标区上移（iconCy = topY+88，六边形徽章 50px，图标 88px 素材区 topY+44~132；
-      // 与顶部源塔名条（topY+14~42）不重叠；技能名在 topY+166，图标素材底 132 → 4px 间隙）
-      const iconCx = cx + cardW / 2, iconCy = topY + 88, ir = 50;
+      // v1.16.55 来源塔标签已移至卡片正上方，卡内不再绘制塔名条
+      // v1.16.55 技能图标区（iconCy=topY+86，六边形徽章 50px，图标 88px 素材区 topY+42~130；
+      // 来源塔标签已移至卡外，卡内顶部仅保留「目标」胶囊，与图标区互不重叠）
+      const iconCx = cx + cardW / 2, iconCy = topY + 86, ir = 50;
       // 旋转虚线光环（缓慢公转，提示"可选/可强化"）
       ctx.save();
       ctx.translate(iconCx, iconCy);
@@ -2536,45 +2550,57 @@ class Renderer {
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
       text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
-      // v1.16.45 技能名（金色 40px 大字，随图标区上移：nameY = topY+166）
-      const nameY = topY + 166;
-      // v1.16.45 分支标签胶囊改放技能名下方（tY = nameY+14），与名字不再重叠：
-      // 分支卡 = 金色胶囊（分支名 · LvX → Y）；技能卡 = 灰胶囊「新技能」
-      const tSize = 17;
+      // v1.16.55 技能名（金色 40px 大字，nameY=topY+182，与图标底 130 留 12px、与下方标签留 20px）
+      const nameY = topY + 182;
+      // v1.16.55 分支标签胶囊（放大美化）：分支卡 = 金色渐变胶囊（分支名 · LvX → Y）；技能卡 = 塔色渐变「新技能」
+      //   字号 17→21、胶囊 30→38 高，带投影/高光/呼吸光晕，与技能名（基线 nameY）留 20px
+      const tSize = 21;
       const tagTxt = upgrading
         ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
         : '新技能';
       ctx.font = `bold ${tSize}px sans-serif`;
-      const tW = txtW(tagTxt, tSize) + 24;
-      const tX = cx + cardW / 2 - tW / 2, tY = nameY + 14;
-      const tagGlow = upgrading ? 0.22 + 0.14 * breathe : 0;
+      const tW = txtW(tagTxt, tSize) + 34;
+      const tX = cx + cardW / 2 - tW / 2, tY = nameY + 20;
+      const tagGlow = 0.20 + 0.12 * breathe;
+      fillRoundRect(ctx, tX + 2, tY + 3, tW, 38, 19, 'rgba(0,0,0,0.32)');
       if (upgrading) {
+        const tGrad = ctx.createLinearGradient(0, tY, 0, tY + 38);
+        tGrad.addColorStop(0, lighten('#f7c948', 1.2));
+        tGrad.addColorStop(1, '#d99e16');
         ctx.globalAlpha = cAlpha * tagGlow;
-        fillRoundRect(ctx, tX - 4, tY - 4, tW + 8, 38, 19, '#f7c948');
+        fillRoundRect(ctx, tX - 3, tY - 3, tW + 6, 44, 22, '#f7c948');
         ctx.globalAlpha = cAlpha;
-        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(247,201,72,0.20)');
-        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#f7c948', 2);
+        fillRoundRect(ctx, tX, tY, tW, 38, 19, tGrad);
+        strokeRoundRect(ctx, tX, tY, tW, 38, 19, '#ffedb0', 2);
       } else {
-        fillRoundRect(ctx, tX, tY, tW, 30, 15, 'rgba(142,163,184,0.16)');
-        strokeRoundRect(ctx, tX, tY, tW, 30, 15, '#8ea3b8', 1.5);
+        const sGrad = ctx.createLinearGradient(0, tY, 0, tY + 38);
+        sGrad.addColorStop(0, lighten(fromTint, 1.25));
+        sGrad.addColorStop(1, '#243e57');
+        ctx.globalAlpha = cAlpha * tagGlow;
+        fillRoundRect(ctx, tX - 3, tY - 3, tW + 6, 44, 22, fromTint);
+        ctx.globalAlpha = cAlpha;
+        fillRoundRect(ctx, tX, tY, tW, 38, 19, sGrad);
+        strokeRoundRect(ctx, tX, tY, tW, 38, 19, 'rgba(255,255,255,0.55)', 1.5);
       }
-      text(ctx, tagTxt, cx + cardW / 2, tY + 16, tSize, upgrading ? '#f7c948' : '#8ea3b8', 'center');
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      fillRoundRect(ctx, tX + 5, tY + 3, tW - 10, 10, 5, ctx.fillStyle);
+      text(ctx, tagTxt, cx + cardW / 2, tY + 21, tSize, upgrading ? '#5c4a00' : '#ffffff', 'center');
       // 技能名（金色大字 + 轻微阴影）
       text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
-      // v1.16.30 描述区玻璃面板：v1.16.45 上移至标签下方（panelY=topY+226），最多 4 行（30 字内描述），
-      // 超出截断并加省略号，保证不压「确认激活/升级」按钮
+      // v1.16.55 描述区玻璃面板（panelY=topY+262，胶囊下方留 22px；字号 19→21、行距 26→30，最多 4 行），
+      // 超出截断加省略号，与下方「确认激活/升级」按钮保持间距
       const desc = descOf(ef);
       const rawLines = wrapLines(desc, 8);
       const clipped = rawLines.length > 4;
       const lines = rawLines.slice(0, 4);
       if (clipped) lines[3] = lines[3] + '…';
-      const panelY = topY + 226;
-      const panelH = lines.length * 26 + 30;
+      const panelY = topY + 262;
+      const panelH = lines.length * 30 + 34;
       fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(0,0,0,0.26)');
       strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.08)', 1);
       lines.forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, panelY + 20 + li * 26, 19, '#c7d1dc', 'center');
+        text(ctx, ln, cx + cardW / 2, panelY + 22 + li * 30, 21, '#c7d1dc', 'center');
       });
       // 选择按钮（卡底部；v1.16.30 分支卡 = 金色渐变「确认升级」；技能卡 = 塔色「确认激活」）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;

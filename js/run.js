@@ -46,9 +46,9 @@ class Run {
     this.board = new Board({ difficulty: this.difficulty });
     this.board.init();
     this.effects = new EffectManager({ rng: this.rng });
-    this.effects.run = this;      // v1.8：整体经验 → 塔 DPS 按整体等级成长
+    this.effects.run = this;      // v1.8：整体经验池（v1.16.55 塔 DPS 不再随整体等级成长）
     this.exp = 0;                 // v1.8：整体经验池（塔不再单独获取经验）
-    this.expLevel = 0;            // 整体等级（经验条/等级圆显示；塔 DPS 成长依据）
+    this.expLevel = 0;            // 整体等级（经验条/等级圆显示；升级发放三选一——v1.16.55 不再影响塔 DPS）
     this._upCount = {};           // 各塔累计升级次数（均衡轮转，跨波记忆）
     this.wave = 0;
     this.lineHp = CONFIG.LINE.hp;

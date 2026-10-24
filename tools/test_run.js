@@ -142,11 +142,15 @@ t('v1.8 整体经验：消除入池、升级发放待选、DPS 按整体等级�
   run.gainExp(run.expNeed() - run.exp);   // 恰好升一级
   assert.strictEqual(run.expLevel, beforeLv + 1, '整体等级应 +1');
   assert.strictEqual(totalPending(), bp + 1, '已有塔待选应 +1');
-  // DPS：整体等级 1 → 基础 DPS（无特效乘区时 = baseDps）
+  // DPS（v1.16.55 改随塔自身等级）：塔等级 1 → 基础 DPS（无特效乘区时 = baseDps）
   const dps1 = run.effects.towerDps('fire');
-  assert.ok(Math.abs(dps1 - CONFIG.TOWERS.fire.baseDps) < 1e-6, '整体等级 1 塔 DPS 应为基础 DPS');
-  run.gainExp(run.expNeed());  // 再升一级（整体等级 2）
-  assert.ok(run.effects.towerDps('fire') > dps1, '整体等级提升 → 塔 DPS 应成长');
+  assert.ok(Math.abs(dps1 - CONFIG.TOWERS.fire.baseDps) < 1e-6, '塔等级 1 塔 DPS 应为基础 DPS');
+  run.gainExp(run.expNeed());  // 整体等级再升一级
+  assert.strictEqual(run.effects.towerDps('fire'), dps1, '整体等级提升 → 塔 DPS 不应变化（随塔自身等级）');
+  // 塔自身等级提升 → DPS 成长（模拟一次三选一选中：塔等级 +1）
+  const fire2 = run.effects.tower('fire');
+  fire2.level = Math.min(fire2.level + 1, CONFIG.EXP.towerMaxLevel);
+  assert.ok(run.effects.towerDps('fire') > dps1, '塔自身等级提升 → 塔 DPS 应成长');
 });
 
 /* 8. v1.12 弹药：塔色供弹 + 满溢出均分全局累计弹药 + 累计封顶/消耗（v1.12.4 弹药口径） */
