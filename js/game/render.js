@@ -509,8 +509,8 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 196, w - 80, 2);
     text(ctx, '升级分支', x + 40, y + 226, 22, '#b8c2cc', 'left');
-    // 三个分支横排卡片：分支名 / 效果文案 / 当前等级（v1.16.47：面板加高、字号放大、卡片美化）
-    const cardW = 196, cardH = 330, gap = 16, cardTop = y + 268;
+    // 三个分支横排卡片：分支名 / 效果文案 / 当前等级（v1.16.47：面板加高、字号放大、卡片美化；v1.16.54：卡内图标/分支名/等级徽章再放大 50%）
+    const cardW = 196, cardH = 360, gap = 16, cardTop = y + 268;
     const brs = ['A', 'B', 'C'];
     const names = { A: info.bA || '分支A', B: info.bB || '分支B', C: info.bC || '分支C' };
     brs.forEach((br, i) => {
@@ -528,27 +528,28 @@ class Renderer {
       ctx.globalAlpha = isAct ? 0.85 : 0.5;
       ctx.fillRect(cx + 16, cy + 6, cardW - 32, 3);
       ctx.globalAlpha = 1;
-      // 分支字母圆徽（放大）+ 分支名（放大；徽章与名称纵向堆叠避免 5 字分支名重叠）
+      // 分支字母圆徽（v1.16.54 放大 50%：r 17→26、字母 18→27）
       ctx.fillStyle = isAct ? '#f7c948' : 'rgba(255,255,255,0.24)';
-      ctx.beginPath(); ctx.arc(cx + 30, cy + 40, 17, 0, Math.PI * 2); ctx.fill();
-      text(ctx, br, cx + 30, cy + 42, 18, isAct ? '#5c4a00' : '#cfd6df', 'center');
-      text(ctx, names[br], cx + cardW / 2, cy + 74, 20, isAct ? '#ffd98a' : '#e8ecf2', 'center');
-      // 等级徽章（未选显示"未解锁"）
+      ctx.beginPath(); ctx.arc(cx + 40, cy + 48, 26, 0, Math.PI * 2); ctx.fill();
+      text(ctx, br, cx + 40, cy + 49, 27, isAct ? '#5c4a00' : '#cfd6df', 'center');
+      // 分支名（v1.16.54 放大 50%：20→30 号）
+      text(ctx, names[br], cx + cardW / 2, cy + 100, 30, isAct ? '#ffd98a' : '#e8ecf2', 'center');
+      // 等级徽章（未选显示"未解锁"）（v1.16.54 放大：46×22→66×32、文字 15→21）
       if (isAct) {
-        const bw2 = 46, bh2 = 22;
-        fillRoundRect(ctx, cx + cardW - 60, cy + 18, bw2, bh2, 11, '#f7c948');
-        text(ctx, `Lv${lv}`, cx + cardW - 37, cy + 31, 15, '#5c4a00', 'center');
+        const bw2 = 66, bh2 = 32;
+        fillRoundRect(ctx, cx + cardW - 88, cy + 16, bw2, bh2, 16, '#f7c948');
+        text(ctx, `Lv${lv}`, cx + cardW - 55, cy + 31, 21, '#5c4a00', 'center');
       } else {
-        text(ctx, '未解锁', cx + cardW - 42, cy + 31, 15, 'rgba(255,255,255,0.40)', 'right');
+        text(ctx, '未解锁', cx + cardW - 60, cy + 31, 21, 'rgba(255,255,255,0.40)', 'right');
       }
       // 分隔线
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(cx + 14, cy + 86, cardW - 28, 2);
+      ctx.fillRect(cx + 14, cy + 118, cardW - 28, 2);
       // 分支效果文案（v1.16.47：20→24 号、行距 28→34、最多 6 行，激活分支金色高亮）
       const txt = info.branchDesc[br] || names[br];
       const lines = this.wrapText(ctx, txt, cardW - 18, 24);
       lines.slice(0, 6).forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, cy + 112 + li * 34, 24, isAct ? '#f1e6b8' : '#c6d0da', 'center');
+        text(ctx, ln, cx + cardW / 2, cy + 146 + li * 34, 24, isAct ? '#f1e6b8' : '#c6d0da', 'center');
       });
     });
     // 返回按钮（回到塔详情）
