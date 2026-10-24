@@ -217,7 +217,12 @@ class Renderer {
     // 入口带
     fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
     text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
-    if (s.hasBoss) text(ctx, 'BOSS', AREA_X + AREA_W - 100, AREA_Y + ENTRY_H / 2, 20, '#ff6b6b', 'right');
+    // v1.16.59 Boss 关：出怪口红色感叹号闪烁提醒（交替显隐）
+    if (s.hasBoss) {
+      const bossBlink = (Date.now() / 280) % 1 < 0.55;
+      if (bossBlink) text(ctx, '⚠', AREA_X + AREA_W - 132, AREA_Y + ENTRY_H / 2, 26, '#ff6b6b', 'right');
+      text(ctx, 'BOSS', AREA_X + AREA_W - 100, AREA_Y + ENTRY_H / 2, 22, bossBlink ? '#ff6b6b' : '#b3403a', 'right');
+    }
     // v1.8 整体经验条：出怪区最上方横条 + 右侧等级圆
     if (s.expLevel !== undefined) {
       const exX = AREA_X + 190, exY = AREA_Y + 14, exW = AREA_W - 300, exH = 16;
@@ -334,7 +339,8 @@ class Renderer {
 
   /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX；v1.16.11 美化+卡可点击进二级详情） */
   towerInfoLayer(ctx, info, hits) {
-    const w = 688, hgt = 720, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
+    // v1.16.59 技能卡竖排 + 元素整体放大 1.5 倍：面板加高至整屏（hgt=LOGIC_H, y=0）
+    const w = 688, hgt = LOGIC_H, x = (750 - w) / 2, y = 0;
     // 遮罩（点遮罩关闭）
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -379,12 +385,14 @@ class Renderer {
     if (!skills.length) {
       text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 290, 20, 'rgba(255,255,255,0.45)', 'center');
     } else {
-      // v1.16.56：3 张技能卡横向排列（宽 206 × 高 330），卡内：图标 → 技能名+Lv 徽章 → 三分支名称徽章横排
-      const cardW = 206, cardH = 330, gap = 20, cardTop = y + 252;
+      // v1.16.59：3 张技能卡竖向排列（宽 300 × 高 400，间隔 24），元素整体 1.5 倍放大：
+      //   图标圆 ir 34→50 / 素材 58→87px，技能名 27→40 号，Lv 徽章 32→48 高 18→27 号，
+      //   分支徽章 66×56→90×84、字号 15/13→22/19
+      const cardW = 300, cardH = 400, gap = 24, cardTop = y + 252;
       const pool = CONFIG.EFFECT_POOLS[info.key] || [];
       const maxLv = 1 + ((CONFIG.EFFECT && CONFIG.EFFECT.maxLevel) || 3); // 分支满 3 级 → 技能 Lv4 = LvMAX
       skills.forEach((sk, i) => {
-        const cx = x + 24 + i * (cardW + gap), cy = cardTop;
+        const cx = x + (w - cardW) / 2, cy = cardTop + i * (cardH + gap);
         hits.skill = hits.skill || [];
         hits.skill[i] = { hit: (px, py) => px >= cx && px <= cx + cardW && py >= cy && py <= cy + cardH };
         // v1.16.11 美化：玻璃渐变卡（左上亮右下暗）+ 底部塔色光晕 + 斜向高光条 + 呼吸描边
@@ -410,9 +418,9 @@ class Renderer {
         // 呼吸描边高亮
         const brAlpha = 0.14 + 0.08 * Math.sin(Date.now() / 700 + i * 1.3);
         strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, TOWER_TINT[info.key] || '#3a6ea5', brAlpha * 4);
-        // 图标（发光圆底 = 塔色渐变 + 白色内圈；v1.16.56 ir 27→34 放大）
+        // 图标（发光圆底 = 塔色渐变 + 白色内圈；v1.16.59 ir 34→50、素材 58→87px）
         const skDef = pool.find((q) => q.name === sk.name) || {};
-        const icx = cx + cardW / 2, icy = cy + 64, ir = 34;
+        const icx = cx + cardW / 2, icy = cy + 88, ir = 50;
         const halo = ctx.createRadialGradient(icx, icy, 2, icx, icy, ir * 1.7);
         halo.addColorStop(0, lighten(TOWER_TINT[info.key] || '#3a6ea5', 1.5));
         halo.addColorStop(1, 'rgba(0,0,0,0)');
@@ -426,29 +434,29 @@ class Renderer {
         ctx.fillStyle = grad; ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2); ctx.stroke();
-        // 图标（v1.16.27：优先美术图片，缺失回退 emoji；v1.16.56 44→58px）
-        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 29, icy - 29, 58, 58);
+        // 图标（v1.16.27：优先美术图片，缺失回退 emoji；v1.16.59 58→87px）
+        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 43.5, icy - 43.5, 87, 87);
         if (!skIconOk) {
-          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 4, 28, '#000', 'center');
+          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 6, 42, '#000', 'center');
           ctx.globalAlpha = 1;
-          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 3, 28, '#ffffff', 'center');
+          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 5, 42, '#ffffff', 'center');
         }
-        // 技能名（v1.16.56 22→27 号）
-        text(ctx, sk.name, cx + cardW / 2, cy + 128, 27, '#ffffff', 'center');
-        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.16.56 徽章 24→32 高、15→18 号）
+        // 技能名（v1.16.59 27→40 号）
+        text(ctx, sk.name, cx + cardW / 2, cy + 178, 40, '#ffffff', 'center');
+        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.16.59 徽章 32→48 高、18→27 号）
         const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
         const lv = 1 + maxBr;
         const lvTxt = lv >= maxLv ? 'LvMAX' : `Lv${lv}`;
-        const lvSize = 18;
-        const lvW = txtW(lvTxt, lvSize) + 26;
-        const lvY = cy + 152;
-        const lvGrad = ctx.createLinearGradient(cx + cardW / 2 - lvW / 2, lvY, cx + cardW / 2 - lvW / 2, lvY + 32);
+        const lvSize = 27;
+        const lvW = txtW(lvTxt, lvSize) + 34;
+        const lvY = cy + 208;
+        const lvGrad = ctx.createLinearGradient(cx + cardW / 2 - lvW / 2, lvY, cx + cardW / 2 - lvW / 2, lvY + 48);
         lvGrad.addColorStop(0, '#ffe08a'); lvGrad.addColorStop(1, '#e6b93f');
-        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 32, 16, lvGrad);
-        strokeRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 32, 16, 'rgba(255,255,255,0.6)', 1);
-        text(ctx, lvTxt, cx + cardW / 2, lvY + 18, lvSize, '#5c4a00', 'center');
-        // 分支徽章横排（v1.13.16：只显示已选择升级的分支；v1.16.56 徽章 54×48→66×56、字号 12/11→15/13）
-        const bw = 66, bh = 56, bY = cy + 206;
+        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 48, 24, lvGrad);
+        strokeRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 48, 24, 'rgba(255,255,255,0.6)', 1);
+        text(ctx, lvTxt, cx + cardW / 2, lvY + 24, lvSize, '#5c4a00', 'center');
+        // 分支徽章横排（v1.13.16：只显示已选择升级的分支；v1.16.59 徽章 66×56→90×84、字号 15/13→22/19）
+        const bw = 90, bh = 84, bY = cy + 284;
         const activeBrs = ['A', 'B', 'C'].filter((br) => (sk.branches[br] || 0) > 0);
         if (activeBrs.length) {
           const totalW = activeBrs.length * bw + (activeBrs.length - 1) * 4;
@@ -456,16 +464,16 @@ class Renderer {
           activeBrs.forEach((br, bi) => {
             const l = sk.branches[br] || 0;
             const bx = startX + bi * (bw + 4);
-            fillRoundRect(ctx, bx, bY, bw, bh, 8, 'rgba(247,201,72,0.22)');
-            strokeRoundRect(ctx, bx, bY, bw, bh, 8, '#f7c948', 1.5);
-            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 20, 15, '#f7c948', 'center');
-            text(ctx, `Lv${l}`, bx + bw / 2, bY + 40, 13, '#f7c948', 'center');
+            fillRoundRect(ctx, bx, bY, bw, bh, 12, 'rgba(247,201,72,0.22)');
+            strokeRoundRect(ctx, bx, bY, bw, bh, 12, '#f7c948', 1.5);
+            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 26, 22, '#f7c948', 'center');
+            text(ctx, `Lv${l}`, bx + bw / 2, bY + 54, 19, '#f7c948', 'center');
           });
         } else {
-          text(ctx, '未选分支', cx + cardW / 2, bY + 30, 16, 'rgba(255,255,255,0.35)', 'center');
+          text(ctx, '未选分支', cx + cardW / 2, bY + 42, 24, 'rgba(255,255,255,0.35)', 'center');
         }
         // 右下角"详情 ›"提示（可点击）
-        text(ctx, '详情 ›', cx + cardW - 14, cy + cardH - 18, 14, 'rgba(255,255,255,0.45)', 'right');
+        text(ctx, '详情 ›', cx + cardW - 16, cy + cardH - 20, 21, 'rgba(255,255,255,0.45)', 'right');
       });
     }
     // 关闭按钮
@@ -1063,6 +1071,36 @@ class Renderer {
   }
 
   /* ============ 区C · 技能特效层（地面持续效果 / 弹道与技能 fx） ============ */
+
+  /** v1.16.59 战场宝箱：怪物掉落实体，点击后开启圣物三选一；金色宝箱 + 呼吸光晕 + 点击提示 */
+  fieldChests(ctx, list) {
+    if (!list || !list.length) return;
+    const now = Date.now();
+    list.forEach((c) => {
+      const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
+      const s = 56;
+      // 呼吸光晕
+      const g = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, s * 1.5);
+      g.addColorStop(0, '#ffd34d'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.globalAlpha = 0.22 + 0.12 * b;
+      ctx.beginPath(); ctx.arc(c.x, c.y, s * 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      // 箱体（金色渐变 + 投影）
+      fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, 'rgba(0,0,0,0.35)');
+      const bg = ctx.createLinearGradient(c.x - s / 2, c.y - s / 2 + 10, c.x - s / 2, c.y + s / 2);
+      bg.addColorStop(0, '#ffe08a'); bg.addColorStop(1, '#c8860a');
+      fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, bg);
+      // 箱盖
+      fillRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, '#f7c948');
+      strokeRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
+      // 锁扣
+      fillRoundRect(ctx, c.x - 8, c.y - 6, 16, 16, 4, '#8a5c00');
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath(); ctx.arc(c.x, c.y + 2, 3, 0, Math.PI * 2); ctx.fill();
+      // 点击提示
+      text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
+    });
+  }
 
   /** 地面持续效果（v1.16.1）：毒池毒液池（深绿帧动画冒泡）+ 毒棒召唤物（帧动画图标）——画在敌人下层 */
   groundFx(ctx, combat) {
@@ -2440,7 +2478,8 @@ class Renderer {
       strokeRoundRect(ctx, srcX, srcY, srcW, srcH, 24, 'rgba(255,255,255,0.5)', 1.5);
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       fillRoundRect(ctx, srcX + 6, srcY + 4, srcW - 12, 12, 6, ctx.fillStyle);
-      text(ctx, srcTxt, cx + cardW / 2, srcY + srcH / 2 + 11, tagSize, '#ffffff', 'center');
+      // v1.16.59 文字垂直居中（text 的 y 为中线：y = 胶囊中心 srcY+srcH/2）
+      text(ctx, srcTxt, cx + cardW / 2, srcY + srcH / 2, tagSize, '#ffffff', 'center');
       // v1.16.7 卡片外发光（呼吸脉动；目标卡金色强呼吸）
       const glowCol = (isTarget && !upgrading) ? '#f7c948' : fromTint;
       const glowA = (isTarget && !upgrading) ? 0.16 + 0.14 * breathe : 0.08 + 0.05 * breathe;

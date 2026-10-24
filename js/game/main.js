@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.58';       // v1.16.58 三选一：新技能/分支标签与描述栏下移10px + 分支标签自适应字号防越框
+const GAME_VERSION = 'v1.16.59';       // v1.16.59 来源塔标签文字居中+塔详情技能卡1.5倍+怪物掉宝箱点击三选一+怪物强度加快1.5倍+Boss关红叹号
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -96,6 +96,7 @@ class GameMain {
     this.combat.reset();
     this._postPick = null;
     this.battleRelics = []; // v1.9：本局获得的圣物（精英三选一选择后入列，展示于经验条下方）
+    this.fieldChests = [];  // v1.16.59：战场宝箱实体（怪物掉落，点击后开启圣物三选一）{x,y,t,kind}
     if (enterBattle) {
       this.enterBattle();
     } else {
@@ -350,6 +351,8 @@ class GameMain {
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
       this.waveTime += bdt;
+      // v1.16.59 战场宝箱生命周期：20s 未点击自动消失
+      this.fieldChests = this.fieldChests.filter((c) => { c.t += bdt; return c.t < 20; });
       // 陆续投放本波敌人（非一次性同屏）
       this.wave.tick(bdt);
       this.stepEnemies(bdt);
@@ -586,33 +589,37 @@ class GameMain {
     this.run.gainExp(gained);
     // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
-    // 精英怪：概率掉落圣物宝箱（寻宝罗盘加成）→ 战斗内三选一（暂停战斗弹层）
+    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成）→ 点击后开启圣物三选一（v1.16.59 不再击杀即弹层）
     if (e.type === 'elite') {
       const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest);
       if (Math.random() < chance) {
-        // 候选：洗牌圣物表取 3 个不同圣物（优先低拥有数排序后洗牌）
-        const pool = CONFIG.RELIC.list.slice()
-          .sort((a, b) => (this.meta.relicCount(a.id) - this.meta.relicCount(b.id)))
-          .slice(0, Math.max(3, CONFIG.RELIC.list.length));
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
-        }
-        const cands = pool.slice(0, 3).map((def) => ({
-          id: def.id, name: def.name, icon: def.icon,
-          desc: def.desc(this.meta.relicLevel(def.id) + 1),
-        }));
-        this.pendingRelicPicks.push({ candidates: cands });
-        this.toast('精英掉落圣物宝箱 📦', '#f7c948');
-        this.save.save();
+        this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
+        this.toast('精英掉落宝箱 📦 点击开启', '#f7c948');
       }
     }
-    // Boss：掉落宝箱（每 5 波）
+    // Boss：掉落战场宝箱（点击三选一）+ 主界面宝箱计数（每 5 波）
     if (e.isBoss) {
+      this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
       this.meta.chests += 1;
-      this.toast('Boss 掉落宝箱 📦', '#f7c948');
+      this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
       this.save.save();
     }
+  }
+
+  /** v1.16.59 战场宝箱点击 → 生成圣物三选一（洗牌圣物表取 3 个不同圣物，优先低拥有数） */
+  spawnRelicPick() {
+    const pool = CONFIG.RELIC.list.slice()
+      .sort((a, b) => (this.meta.relicCount(a.id) - this.meta.relicCount(b.id)))
+      .slice(0, Math.max(3, CONFIG.RELIC.list.length));
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    const cands = pool.slice(0, 3).map((def) => ({
+      id: def.id, name: def.name, icon: def.icon,
+      desc: def.desc(this.meta.relicLevel(def.id) + 1),
+    }));
+    this.pendingRelicPicks.push({ candidates: cands });
   }
 
   /* ---------- 三消联动：圣物经验加成补差 + 塔额外攻击（多消不同特效） ---------- */
@@ -714,6 +721,8 @@ class GameMain {
     this.renderer.groundFx(ctx, this.combat);
     this.renderer.enemies(ctx, this.enemies);
     this.renderer.fx(ctx, this.fx);
+    // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）
+    this.renderer.fieldChests(ctx, this.fieldChests);
     this.renderer.toast(ctx, this.toasts);
     if (this.state === 'picking') {
       const group = this.pickQueue[this.pickIndex];
@@ -1116,6 +1125,15 @@ class GameMain {
       }
     }
     if (this.state === 'fighting') {
+      // v1.16.59 战场宝箱：点击 → 圣物三选一（优先于其它战斗按钮）
+      for (let i = this.fieldChests.length - 1; i >= 0; i--) {
+        const c = this.fieldChests[i];
+        if (Math.abs(p.x - c.x) < 44 && Math.abs(p.y - c.y) < 44) {
+          this.fieldChests.splice(i, 1);
+          this.spawnRelicPick();
+          return true;
+        }
+      }
       // 战斗中点全局技能按钮 → 释放技能（v1.12：左=全局洗牌，右=全局冰冻）
       const btns = this.renderer.globalBtns || [];
       for (const b of btns) {

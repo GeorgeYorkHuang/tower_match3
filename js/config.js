@@ -191,7 +191,7 @@ module.exports = {
     maxWave: 50,                // 模拟/关卡上限
   },
   ENEMY: {
-    hpBase: 2000, hpGrowth: 1.30,          // 敌人血量 = 2000 × 1.30^(w-1)（v1.12 调试：比 v1.11 再翻一倍）
+    hpBase: 2000, hpGrowth: 1.45,          // 敌人血量 = 2000 × 1.45^(w-1)（v1.16.59 强度提升加快 1.5 倍：1.30→1.45）
     countPerWave: '6 + 3 × wave',          // 每波数量（实现时按表达式解析）
     bossEvery: 5,                          // 每 5 波 1 只 Boss（5,10,15...），掉宝箱
     bossHpMult: 8,                         // v1.16.11 Boss 强化：5→8 倍血量
