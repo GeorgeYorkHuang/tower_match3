@@ -76,8 +76,7 @@ const SKILL_NUM = {
                 spreadP: 0.30 },                   // 基础：传染 30% 概率
   },
   electric: {
-    '极光电击': { period: 8,                       // 周期固定 8s（v1.16.42）
-                halfW: [0, 10, 15, 20] },          // A 阔域：线宽增量
+    '极光电击': { period: 8 },                     // 周期固定 8s（v1.16.51 分叉范围/数量由 A/C 分支内联）
     '过载':   { deton: [0, 0.20, 0.30, 0.40] },    // A 弹载：消耗层数伤害
     '麻痹':   { cond: [0, 0.20, 0.30, 0.40] },     // C 导电：邻近传导概率
   },
@@ -1797,9 +1796,10 @@ class CombatSystem {
 
   tickElectric(dt) {
     const g = this.game;
-    // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 改裂电）：每 8 秒从塔口电击最近敌人及塔-最近敌人
-    //   连线**延长线**上的所有敌人（射线判定：投影 t≥0 且垂距 ≤ 半宽），z 字形电光从塔沿连线及延长线前进；
-    //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 裂电：分叉电弧命中数量每级 +1（1→2→3→4）
+    // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 裂电；
+    //   v1.16.51 基础重做）：每 8 秒电击最近敌人（不再穿透延长线），并向 (100+20×A) 码内分叉电弧命中 3+arcC 个敌人
+    //   （各造成主线伤害 40%）；A 扩域：分叉寻敌范围 +20/级（100→120→140→160）；
+    //   B 增伤 +20%/级（80→100/120/140%）；C 裂电：分叉命中数量 +1/级（3→4→5→6）
     const arc = this.lv('electric', '极光电击');
     if (arc > 0) {
       const arcA = this.branchLv('electric', '极光电击', 'A');
@@ -1809,70 +1809,47 @@ class CombatSystem {
       const period = 8;   // v1.16.42 周期固定 8 秒
       if (this.timers.arc >= period) {
         this.timers.arc = 0;
-        const ly = this.ly();
         // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
         const mz = this.towerMuzzle('electric');
         const tx = mz.x, ty = mz.y;
         const range = this.range('electric');
         const alive = this.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
         if (alive.length) {
-          // 最近的敌人（行距离最小）为连线基准点
+          // 最近的敌人（行距离最小）为电击目标（v1.16.51：不再沿延长线穿透，仅此一目标受主线伤害）
           const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
-          const halfW = (20 + SKILL_NUM.electric['极光电击'].halfW[arcA]) / 2;
           const dmg = this.shotDmg('electric') * (0.80 + 0.20 * arcB);
           const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
-          const dx = x2 - x1, dy = y2 - y1;
-          const len = Math.hypot(dx, dy) || 1;
-          // v1.16.42 射线判定：塔→最近敌人方向射线（含延长线）上、垂距 ≤ 半宽的所有敌人；记录最远命中投影（动画延长线终点）
-          let farT = 0;
-          const hitList = [];
-          alive.forEach((o) => {
-            const t = ((o.x - x1) * dx + (o.y - y1) * dy) / (len * len);
-            if (t < 0) return;
-            const px = x1 + dx * t, py = y1 + dy * t;
-            if (Math.hypot(o.x - px, o.y - py) > halfW) return;
-            this.damage(o, dmg, 'electric');
-            hitList.push(o);
-            if (t > farT) farT = t;
-            // v1.16.47：命中的每个敌人电弧闪光
-            this.fxFlash(o.x, o.y, '#f4d03f');
-          });
-          // v1.16.49 树状分支闪电：每个主线命中敌人向 90 码内其他敌人分支小电弧，每分支造成主线伤害 40%
-          // v1.16.50 C 分支重做为「裂电」：分叉命中数量每级 +1（C0=1、C1=2、C2=3、C3=4），分支不再递归分支
-          if (hitList.length) {
-            const hitSet = new Set(hitList);
-            hitList.forEach((src) => {
-              const nB = 1 + arcC;
-              for (let k = 0; k < nB; k++) {
-                const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - src.x, o.y - src.y) <= 90);
-                if (!cands.length) return;
-                const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
-                hitSet.add(tgt);
-                this.damage(tgt, dmg * 0.4, 'electric');
-                this.fxFlash(tgt.x, tgt.y, '#7fc7ff');
-                const cpath = [
-                  { x: src.x, y: src.y },
-                  { x: src.x + (tgt.x - src.x) * 0.5 + (Math.random() * 26 - 13), y: src.y + (tgt.y - src.y) * 0.5 + (Math.random() * 26 - 13) },
-                  { x: tgt.x, y: tgt.y },
-                ];
-                this.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
-              }
-            });
+          this.damage(nearest, dmg, 'electric');
+          this.fxFlash(nearest.x, nearest.y, '#f4d03f');
+          // v1.16.51 分叉电弧：从最近敌向 (100+20×A) 码内分叉 3+arcC 个敌人，各 40% 主线伤害（不递归、不重复）
+          const hitSet = new Set([nearest]);
+          const branchRange = 100 + 20 * arcA;   // A 扩域：100→120→140→160 码
+          const nB = 3 + arcC;                   // C 裂电：3→4→5→6 个
+          for (let k = 0; k < nB; k++) {
+            const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - nearest.x, o.y - nearest.y) <= branchRange);
+            if (!cands.length) break;
+            const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+            hitSet.add(tgt);
+            this.damage(tgt, dmg * 0.4, 'electric');
+            this.fxFlash(tgt.x, tgt.y, '#7fc7ff');
+            const cpath = [
+              { x: nearest.x, y: nearest.y },
+              { x: nearest.x + (tgt.x - nearest.x) * 0.5 + (Math.random() * 26 - 13), y: nearest.y + (tgt.y - nearest.y) * 0.5 + (Math.random() * 26 - 13) },
+              { x: tgt.x, y: tgt.y },
+            ];
+            this.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
           }
-          // 视觉：塔口 → 最近敌人 → 射线延长线终点，z 字形前进金色主弧（v1.16.47 强化粗电弧+光晕；
-          // v1.16.49 主弧时长 0.45→0.6s 支撑电网演出）
-          const ex2 = x1 + dx * farT, ey2 = y1 + dy * farT;
+          // 视觉：塔口 → 最近敌人 金色主弧（v1.16.47 强化粗电弧+光晕；v1.16.49 0.6s）
           const path = [{ x: x1, y: y1 }];
           for (let s = 1; s < 4; s++) {
             const t = s / 4;
-            path.push({ x: x1 + (ex2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (ey2 - y1) * t + (Math.random() * 30 - 15) });
+            path.push({ x: x1 + (x2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (y2 - y1) * t + (Math.random() * 30 - 15) });
           }
-          path.push({ x: ex2, y: ey2 });
+          path.push({ x: x2, y: y2 });
           this.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.6, color: '#ffe08a', w: 5, glow: true });
           this.fxFlash(tx, ty, '#f4d03f');
-          this.fxFlash(x2, y2, '#f4d03f');
           this.fxRing(x2, y2, '#f4d03f', 30, 0.3, 3);
-          this.fxParticle(ex2, ey2, '#f4d03f', 8, 60, 0.5, 140, 5);
+          this.fxParticle(nearest.x, nearest.y, '#f4d03f', 6, 50, 0.45, 120, 5);
         }
       }
     }

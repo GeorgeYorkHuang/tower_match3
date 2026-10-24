@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.50';       // v1.16.50 极光电击 C 分支重做：麻痹电击 → 裂电（分叉命中数量每级 +1）
+const GAME_VERSION = 'v1.16.51';       // v1.16.51 极光电击基础重做：不再穿透延长线，分叉命中 3 个；A 扩域(寻敌+20/级)、C 裂电(分叉+1/级)
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
