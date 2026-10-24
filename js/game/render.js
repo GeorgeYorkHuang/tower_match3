@@ -311,17 +311,11 @@ class Renderer {
       text(ctx, labels[i].split(' ')[1], x + kw / 2, y + 66, 17, '#8ea3b8', 'center');
       this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
     }
-    // v1.16.30 加速按钮：移到城墙上方 · 怪物移动区右下角（远离底部功能栏）
+    // v1.16.30 加速按钮：城墙上方 · 怪物移动区右下角
+    // v1.16.48 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
     const spX = 750 - 16 - 124, spY = WALL_Y - 8 - 66, spW = 124, spH = 66;
     const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
-    const spGrad = ctx.createLinearGradient(0, spY, 0, spY + spH);
-    spGrad.addColorStop(0, spdCol === '#3a4552' ? '#4a5768' : '#6a7a8c');
-    spGrad.addColorStop(1, spdCol);
-    fillRoundRect(ctx, spX + 2, spY + 3, spW, spH, 14, 'rgba(0,0,0,0.30)');
-    fillRoundRect(ctx, spX, spY, spW, spH, 14, spGrad);
-    strokeRoundRect(ctx, spX, spY, spW, spH, 14, 'rgba(255,255,255,0.30)', 1.5);
-    text(ctx, `⏩×${s.runSpeed || 1}`, spX + spW / 2, spY + spH / 2 + 4, 30, '#ffffff', 'center');
-    text(ctx, '加速', spX + spW / 2, spY + spH - 10, 14, 'rgba(255,255,255,0.7)', 'center');
+    text(ctx, `⏩×${s.runSpeed || 1}`, spX + spW / 2, spY + spH / 2 + 4, 30, spdCol, 'center');
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
   }
 

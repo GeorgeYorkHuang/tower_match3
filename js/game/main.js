@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.47';       // v1.16.47 三选一逐档文案 + 塔详情分支区美化 + 极光电击/冰墙/毒瘴特效重做
+const GAME_VERSION = 'v1.16.48';       // v1.16.48 加速按钮去底色 + 战斗特效随倍速同频（弹道/技能演出不再慢半拍）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -320,8 +320,11 @@ class GameMain {
   update(dt) {
     // toast 过期
     this.toasts = this.toasts.filter((t) => (t.ttl -= dt) > 0);
-    // 特效推进
-    this.fx = this.fx.filter((f) => { f.t += dt; return f.t < f.dur; });
+    // 特效推进（v1.16.48：战斗状态内随倍速加速——弹道/爆炸/粒子/技能演出与怪物移速、塔攻速同频，
+    //  避免"逻辑快、动画慢"的不和谐；菜单/弹层等状态倍速为 1 不受影响）
+    const fxMul = (this.state === 'fighting' || this.state === 'testfield')
+      ? (this.state === 'testfield' ? this.testSpeed : this.runSpeed) : 1;
+    this.fx = this.fx.filter((f) => { f.t += dt * fxMul; return f.t < f.dur; });
     // 三消动画推进（交换 → 消除 → 逐级连锁，由 match3 控制器管理）
     this.match3.update(dt);
     // 主界面：宝箱开箱倒计时完成 → 发卡；每日精选跨天自动刷新
