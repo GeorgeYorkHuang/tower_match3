@@ -2550,15 +2550,17 @@ class Renderer {
       text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
       // v1.16.55 技能名（金色 40px 大字，nameY=topY+182，与图标底 130 留 12px、与下方标签留 20px）
       const nameY = topY + 182;
-      // v1.16.55 分支标签胶囊（放大美化）：分支卡 = 金色渐变胶囊（分支名 · LvX → Y）；技能卡 = 塔色渐变「新技能」
-      //   字号 17→21、胶囊 30→38 高，带投影/高光/呼吸光晕，与技能名（基线 nameY）留 20px
+      // v1.16.57 分支标签胶囊：新技能/分支标签整体下移 10px（tY = nameY+30）；
+      //   分支文字较长（分支名 · LvX → Y）时字号 21→最小 16 自适应，保证胶囊不超出卡片外框
       const tSize = 21;
       const tagTxt = upgrading
         ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
         : '新技能';
-      ctx.font = `bold ${tSize}px sans-serif`;
-      const tW = txtW(tagTxt, tSize) + 34;
-      const tX = cx + cardW / 2 - tW / 2, tY = nameY + 20;
+      let tSizeA = tSize;
+      let tW = txtW(tagTxt, tSizeA) + 34;
+      while (tW > cardW - 20 && tSizeA > 16) { tSizeA -= 1; tW = txtW(tagTxt, tSizeA) + 34; }
+      ctx.font = `bold ${tSizeA}px sans-serif`;
+      const tX = cx + cardW / 2 - tW / 2, tY = nameY + 30;
       const tagGlow = 0.20 + 0.12 * breathe;
       fillRoundRect(ctx, tX + 2, tY + 3, tW, 38, 19, 'rgba(0,0,0,0.32)');
       if (upgrading) {
@@ -2582,18 +2584,18 @@ class Renderer {
       }
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       fillRoundRect(ctx, tX + 5, tY + 3, tW - 10, 10, 5, ctx.fillStyle);
-      text(ctx, tagTxt, cx + cardW / 2, tY + 21, tSize, upgrading ? '#5c4a00' : '#ffffff', 'center');
+      text(ctx, tagTxt, cx + cardW / 2, tY + 21, tSizeA, upgrading ? '#5c4a00' : '#ffffff', 'center');
       // 技能名（金色大字 + 轻微阴影）
       text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
-      // v1.16.55 描述区玻璃面板（panelY=topY+262，胶囊下方留 22px；字号 19→21、行距 26→30，最多 4 行），
+      // v1.16.57 描述区玻璃面板（panelY=topY+272，胶囊下方留 22px；字号 21、行距 30，最多 4 行），
       // 超出截断加省略号，与下方「确认激活/升级」按钮保持间距
       const desc = descOf(ef);
       const rawLines = wrapLines(desc, 8);
       const clipped = rawLines.length > 4;
       const lines = rawLines.slice(0, 4);
       if (clipped) lines[3] = lines[3] + '…';
-      const panelY = topY + 262;
+      const panelY = topY + 272;
       const panelH = lines.length * 30 + 34;
       fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(0,0,0,0.26)');
       strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.08)', 1);
