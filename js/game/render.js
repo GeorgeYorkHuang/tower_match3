@@ -1234,29 +1234,33 @@ class Renderer {
       if (f.kind === 'bolt') {
         // v1.16.49 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
         // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
+        // v1.16.52 末端吸附：p ≥ 0.9 时弹头/闪电条终点直接贴合目标中心——fx 在 t ≥ dur 时即被移除、
+        //   末帧不渲染，无吸附时弹头只能推进到 p≈0.93（30fps），细长条末端明显停在怪物中心旁边
         const seg = 10, jit = 8;
         const pts = [];
         for (let i = 1; i < seg; i++) {
           const q = i / seg;
           pts.push({ x: f.x + (endX - f.x) * q + (Math.random() * jit * 2 - jit), y: f.y + (endY - f.y) * q + (Math.random() * jit * 2 - jit) });
         }
+        const hx = (p >= 0.9) ? endX : x;
+        const hy = (p >= 0.9) ? endY : y;
         const trace = (color, w, alpha) => {
           ctx.strokeStyle = color; ctx.lineWidth = w; ctx.globalAlpha = alpha;
           ctx.lineCap = 'round';
           ctx.beginPath(); ctx.moveTo(f.x, f.y);
           for (const pt of pts) ctx.lineTo(pt.x, pt.y);
-          ctx.lineTo(x, y); ctx.stroke();
+          ctx.lineTo(hx, hy); ctx.stroke();
         };
         trace(f.color, 6, 0.16);        // 外辉光（淡，贴近主条）
         trace(f.color, 3.4, 0.9);       // 主条（细）
         trace('#ffffff', 1.3, 0.95);    // 白芯（最细）
-        // 前端电球（领跑，带辉光）
+        // 前端电球（领跑，吸附时落在目标中心）
         ctx.globalAlpha = 0.35;
         ctx.fillStyle = f.color;
-        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, hy, 11, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.95;
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fill();
         // 命中电花（末端，p→1 时爆发）
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.fillStyle = '#ffffff';
