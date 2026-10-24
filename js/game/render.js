@@ -2395,11 +2395,11 @@ class Renderer {
     // v1.16.45 移除顶部「待选 ×N」胶囊与分隔线（用户要求），卡片区整体上移，三卡垂直布局重排：
     //   图标 → 技能名 → 分支标签 → 描述面板 → 确认按钮，互不重叠且描述不压按钮
     // 候选卡片：横向三卡并排；卡框/顶部条/按钮/图标底色 = 所属塔色（v1.7 用户要求）
-    // v1.16.55：卡片上移 28px 且加高 48px（472→520）——上下扩展留出更宽松的内部排布；来源塔标签移出卡外正上方
+    // v1.16.55：卡片上移 28px 且加高 48px（472→520）；v1.16.57：整体下移 30px（topY = y+94）兼顾下方塔区露出
     const gap = 16;
     const cardW = (w - 56 - gap * 2) / 3;     // (640-56-32)/3 = 184
     const cardH = 520;                        // v1.16.55 原 h-118-70=472 → 520（上下各扩 24/28）
-    const topY = y + 64;                      // v1.16.55 原 y+92，上移 28px 给卡外来源塔标签留位
+    const topY = y + 94;                      // v1.16.57 原 y+64，整体下移 30px
     // 中文按字数换行（技能描述，卡内居中）
     const wrapLines = (s, max) => {
       const arr = [];
@@ -2427,23 +2427,20 @@ class Renderer {
         ? (CONFIG.COLORS[CONFIG.TOWERS[fromKey] && CONFIG.TOWERS[fromKey].color] || {}).name || fromKey
         : tName;
       const fromTint = TOWER_TINT[fromKey] || tint;
-      // v1.16.55 来源塔标签：移出卡片、置于卡片正上方居中（塔色渐变胶囊 + 圆点 + 塔名），与卡片居中对齐
-      //（fromKey/fromName/fromTint 沿用上方已有定义）
-      const tagSize = 21;
-      const srcTxt = fromName;
-      const srcW = txtW(srcTxt, tagSize) + 44;
-      const srcX = cx + cardW / 2 - srcW / 2, srcY = topY - 42;
-      const srcGrad = ctx.createLinearGradient(0, srcY, 0, srcY + 34);
+      // v1.16.57 来源塔标签：卡片正上方、宽度=卡片宽、仅塔名（去掉「（P1）」类括号后缀）、无圆点、字号 21→31
+      //（fromKey/fromName/fromTint 沿用上方已有定义；tName 等可能含「炮塔（P1）」后缀）
+      const tagSize = 31;
+      const srcTxt = String(fromName || '').replace(/（[^）]*）|\([^)]*\)/g, '');
+      const srcX = cx, srcY = topY - 58, srcW = cardW, srcH = 48;
+      const srcGrad = ctx.createLinearGradient(0, srcY, 0, srcY + srcH);
       srcGrad.addColorStop(0, lighten(fromTint, 1.25));
       srcGrad.addColorStop(1, '#1c2634');
-      fillRoundRect(ctx, srcX + 2, srcY + 3, srcW, 34, 17, 'rgba(0,0,0,0.35)');
-      fillRoundRect(ctx, srcX, srcY, srcW, 34, 17, srcGrad);
-      strokeRoundRect(ctx, srcX, srcY, srcW, 34, 17, 'rgba(255,255,255,0.5)', 1.5);
+      fillRoundRect(ctx, srcX + 2, srcY + 3, srcW, srcH, 24, 'rgba(0,0,0,0.35)');
+      fillRoundRect(ctx, srcX, srcY, srcW, srcH, 24, srcGrad);
+      strokeRoundRect(ctx, srcX, srcY, srcW, srcH, 24, 'rgba(255,255,255,0.5)', 1.5);
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      fillRoundRect(ctx, srcX + 5, srcY + 3, srcW - 10, 10, 5, ctx.fillStyle);
-      ctx.beginPath(); ctx.arc(srcX + 22, srcY + 17, 7, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff'; ctx.globalAlpha = cAlpha * 0.9; ctx.fill(); ctx.globalAlpha = cAlpha;
-      text(ctx, srcTxt, srcX + 22 + 12, srcY + 21, tagSize, '#ffffff', 'left');
+      fillRoundRect(ctx, srcX + 6, srcY + 4, srcW - 12, 12, 6, ctx.fillStyle);
+      text(ctx, srcTxt, cx + cardW / 2, srcY + srcH / 2 + 11, tagSize, '#ffffff', 'center');
       // v1.16.7 卡片外发光（呼吸脉动；目标卡金色强呼吸）
       const glowCol = (isTarget && !upgrading) ? '#f7c948' : fromTint;
       const glowA = (isTarget && !upgrading) ? 0.16 + 0.14 * breathe : 0.08 + 0.05 * breathe;

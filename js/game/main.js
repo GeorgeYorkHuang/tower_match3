@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.56';       // v1.16.56 三选一面板上移露出防御塔区+暂停可点塔看详情+塔详情技能卡图标/名称/等级重调
+const GAME_VERSION = 'v1.16.57';       // v1.16.57 三选一卡片下移30px + 来源塔标签等宽/无圆点/去后缀/字号31
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
