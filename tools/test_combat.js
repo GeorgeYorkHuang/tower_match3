@@ -401,20 +401,20 @@ t('电·雷暴B：雷击 30%/45%/60% 几率连锁周边敌人（v1.16.21 连雷�
   assert.ok(hurt >= 4, `雷击3个+连锁应覆盖全部4个，实际 ${hurt}`);
 });
 
-t('电·极光电击：射线延长线穿透 80% 伤害 + 线宽判定（v1.16.42）', () => {
+t('电·极光电击：电击最近敌人 + 分叉 3 个（v1.16.51 基础重做，A3 范围 160 码）', () => {
   const g = mkGame({ electric: { 极光电击: { A: 3 } } });
   const c = new CombatSystem(g);
-  const eNear = mkEnemy(1000, 390, 950); g.enemies.push(eNear);   // 最近（行距 153 → 连线终点，t=1.0）
-  const eMid = mkEnemy(1000, 375, 950); g.enemies.push(eMid);     // 同 y、x 偏 15 → 线带内（A3 半宽 20）
-  const eExt = mkEnemy(1000, 443, 874); g.enemies.push(eExt);     // 塔-最近连线延长线上（t≈1.5、垂距 0）→ 应被击中（v1.16.42）
-  const eOut = mkEnemy(1000, 300, 800); g.enemies.push(eOut);     // 射线上但垂距 ≈159 > 20 → 不受伤害
-  c.update(8.1);   // v1.16.42 周期固定 8s → 触发
-  assert.ok(eNear.hp < 1000, '最近目标应受电击伤害');
-  assert.ok(eMid.hp < 1000, '连线带内敌人应被穿透电击');
-  assert.ok(Math.abs((1000 - eNear.hp) - (1000 - eMid.hp)) < 1e-6, '带内敌人伤害应一致');
-  assert.ok(eExt.hp < 1000, '延长线上的敌人应被电击（v1.16.42）');
-  assert.ok(Math.abs((1000 - eNear.hp) - (1000 - eExt.hp)) < 1e-6, '延长线敌人伤害应与连线带内一致');
-  assert.ok(eOut.hp === 1000, '射线外敌人不应受伤害');
+  const eNear = mkEnemy(1000, 390, 950); g.enemies.push(eNear);   // 最近（行距 153）→ 主线电击目标
+  const eMid = mkEnemy(1000, 375, 950); g.enemies.push(eMid);     // 距最近 15px → 分叉命中
+  const eExt = mkEnemy(1000, 443, 874); g.enemies.push(eExt);     // 距最近 ≈93px（A3 分叉范围 160 内）→ 分叉命中
+  const eOut = mkEnemy(1000, 300, 800); g.enemies.push(eOut);     // 距最近 ≈175px > 160 → 不受伤害
+  c.update(8.1);   // 周期固定 8s → 触发
+  assert.ok(eNear.hp < 1000, '最近目标应受主线电击伤害');
+  const mainDmg = 1000 - eNear.hp;
+  assert.ok(eMid.hp < 1000 && eExt.hp < 1000, '分叉范围内敌人应被分叉电击');
+  assert.ok(Math.abs((1000 - eMid.hp) - mainDmg * 0.4) < 1e-6, '分叉伤害应为主线 40%');
+  assert.ok(Math.abs((1000 - eExt.hp) - mainDmg * 0.4) < 1e-6, 'eExt 分叉伤害应与 eMid 一致（40%）');
+  assert.ok(eOut.hp === 1000, '分叉范围外敌人不应受伤害');
 });
 
 t('电·充能C：共享全塔攻速；B：每层+10%', () => {
