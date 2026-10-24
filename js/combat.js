@@ -280,6 +280,7 @@ class CombatSystem {
       if (hitE) {
         if (s.fx) s.fx.t = s.fx.dur;
         this.damage(hitE, s.dmg, 'electric');
+        this.tryAttackDebuff('electric', hitE, s.dmg);   // v1.16.53 活电电球属普攻强化：统一麻痹判定（吃麻痹技能加成）
         this.fxFlash(hitE.x, hitE.y, '#f4d03f');
         this.fxParticle(hitE.x, hitE.y, '#f4d03f', 5, 30, 0.3, 120, 4);
         return false;
@@ -1014,6 +1015,7 @@ class CombatSystem {
       if (Math.hypot(e.x - bx, e.y - by) <= r) {
         s.hitIds[e.id] = true;
         this.damage(e, s.dmg, 'boomerang');
+        this.tryAttackDebuff('boomerang', e, s.dmg);   // v1.16.53 多镖扫过属普攻强化：统一流血判定（吃放血技能加成）
       }
     }
     // 风痕（v1.16）：镖路径每秒留下风痕伤害区（A 久痕 +0.5s/级；B 劲风 +30%/级；C 卷痕减速 15%）
@@ -1035,6 +1037,81 @@ class CombatSystem {
     }
   }
 
+  /**
+   * 普攻 debuff 统一判定（v1.16.53）：普攻与**普攻强化攻击**（电·连锁/活电/电磁场、火·多重火球、
+   *   冰·多重冰锥/碎冰、镖·多镖等）命中均走此判定——各塔基础 20% 概率，学对应 dot 强化技能后
+   *   概率提升（公式与普攻一致：基础 20% + 技能 +25%[电·麻痹为 +20%] + A 分支每级 +15%）
+   */
+  tryAttackDebuff(key, o, dmg) {
+    if (key === 'fire') {
+      // 灼烧（v1.16.21）：基础 20%；学「点燃」+25%（A 炽焰每级再 +15%）
+      const ignite = this.lv('fire', '点燃');
+      let burnProb = 0.20;
+      if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
+      if (Math.random() < burnProb) this.applyBurn(o, dmg, 'fire');
+    } else if (key === 'ice') {
+      // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
+      const frost = this.lv('ice', '寒霜');
+      const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0);
+      if (Math.random() < probSlow) {
+        const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')];
+        const ttl = 3 + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
+        this.applySlow(o, mult, ttl);
+        this.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
+      }
+      // 冰冻（v1.16.21）：学技能后 20% 概率冻结 + A 档位；B 深结 时长 +1/1.5/2s
+      const frzLv = this.lv('ice', '冰冻');
+      if (frzLv > 0) {
+        const prob = 0.20 + SKILL_NUM.ice['冰冻'].prob[this.branchLv('ice', '冰冻', 'A')];
+        if (Math.random() < prob) {
+          const dur = 2 + SKILL_NUM.ice['冰冻'].dur[this.branchLv('ice', '冰冻', 'B')];
+          o.frozen = Math.max(o.frozen || 0, dur);
+          this.fxFlash(o.x, o.y, '#d6f0ff', 0.28);
+          this.fxRing(o.x, o.y, '#7fd4ff', 46, 0.4, 4);
+          this.fxParticle(o.x, o.y, '#b8e6ff', 10, 60, 0.5, 130, 5);
+        }
+      }
+    } else if (key === 'electric') {
+      // 麻痹（v1.16.53）：基础 20%；学麻痹 +20%（20→40）；A 每级 +15%（40→55→70→85）；时长 2s + B 0.5s/级；
+      //   C 导电：被麻痹时附近 100px 敌人 20%/30%/40% 概率被传导麻痹（1s）
+      const paraLv = this.lv('electric', '麻痹');
+      const pA = this.branchLv('electric', '麻痹', 'A');
+      const pB = this.branchLv('electric', '麻痹', 'B');
+      const pC = this.branchLv('electric', '麻痹', 'C');
+      if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA)) {
+        const dur = 2 + 0.5 * pB;
+        o.paralyzed = Math.max(o.paralyzed || 0, dur);
+        this.applySlow(o, 0.5, dur);
+        this.fxParticle(o.x, o.y, '#f4d03f', 8, 50, 0.4, 140, 5);
+        if (pC > 0) {
+          const cProb = SKILL_NUM.electric['麻痹'].cond[pC];
+          this.enemies().forEach((q) => {
+            if (q === o || q.hp <= 0 || Math.hypot(q.x - o.x, q.y - o.y) > 100) return;
+            if (Math.random() < cProb) {
+              q.paralyzed = Math.max(q.paralyzed || 0, 1);
+              this.applySlow(q, 0.5, 1);
+              this.fxParticle(q.x, q.y, '#f4d03f', 4, 30, 0.35, 110, 4);
+            }
+          });
+        }
+      }
+    } else if (key === 'poison') {
+      // 中毒（v1.16.21）：基础 20%；学剧毒 +25% + A 每级 +15%
+      let prob = 0.20;
+      const toxic = this.lv('poison', '剧毒');
+      if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
+      if (Math.random() < prob) {
+        this.applyPoison(o, dmg, 'poison', 1);
+        this.fxParticle(o.x, o.y, '#7ee2a8', 6, 44, 0.45, 100, 5);
+      }
+    } else if (key === 'boomerang') {
+      // 流血（v1.16.21）：基础 20%；学放血 +25%（20→45）+ A 刺骨 +15%/级（45→90%）
+      const bleedLv = this.lv('boomerang', '放血');
+      const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0);
+      if (Math.random() < bleedChance) this.applyBleed(o, dmg);
+    }
+  }
+
   /* ---------- 六塔命中行为 ---------- */
   hit(key, e, dmg) {
     const g = this.game;
@@ -1051,6 +1128,7 @@ class CombatSystem {
         for (let i = 0; i < n && cands.length; i++) {
           const pick = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
           this.damage(pick, emDmg, 'electric');
+          this.tryAttackDebuff('electric', pick, emDmg);   // v1.16.53 电磁场微型连锁属普攻强化：同样判定麻痹（吃麻痹技能加成）
           this.fxFlash(pick.x, pick.y, '#f4d03f');
         }
         this.fxRing(e.x, e.y, '#f4d03f', 110, 0.3, 3);
@@ -1079,11 +1157,8 @@ class CombatSystem {
     const g = this.game;
     // v1.16.21：火焰鹰眼已重做为「烈焰墙」（周期技），此处不再有普攻乘区
 
-    // 普攻灼烧（v1.16.21）：基础 20% 概率灼烧；学「点燃」后命中附加灼烧几率 +25%（A 炽焰每级再 +15%）
-    const ignite = this.lv('fire', '点燃');
-    let burnProb = 0.20;
-    if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
-    if (Math.random() < burnProb) this.applyBurn(e, dmg, 'fire');
+    // 普攻灼烧（v1.16.21→v1.16.53 统一判定）：基础 20%；学「点燃」+25%（A 炽焰每级 +15%）；强化攻击同吃此加成
+    this.tryAttackDebuff('fire', e, dmg);
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
     const mainMult = big > 0 ? 1.1 : 1;
@@ -1112,6 +1187,7 @@ class CombatSystem {
       const cLv = this.branchLv('fire', '多重火球', 'C');
       const strike = (o, d, ang) => {
         this.damage(o, d, 'fire');
+        this.tryAttackDebuff('fire', o, d);   // v1.16.53 多重火球散射命中属普攻强化：统一灼烧判定
         this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
         this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
@@ -1125,7 +1201,7 @@ class CombatSystem {
             const mStrike = (m2) => {
               this.damage(m2, dmg * 0.25, 'fire');
               this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
-              if (Math.random() < 0.20) this.applyBurn(m2, dmg, 'fire');
+              this.tryAttackDebuff('fire', m2, dmg);   // v1.16.53 分裂小火球属普攻强化：统一灼烧判定（吃点燃技能加成）
             };
             this.shots.push({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
             g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
@@ -1389,30 +1465,9 @@ class CombatSystem {
     this.fxParticle(e.x, e.y, '#eaf6ff', 6, 44, 0.30, 130, 5);
     this.fxParticle(e.x, e.y, '#a9d6f5', 4, 62, 0.35, 90, 4);
     this.fxRing(e.x, e.y, '#d6f0ff', 16, 0.2, 2);
-    // 普攻冰缓（v1.16.21）：基础 20% 概率造成冰缓（减速30%·持续3s）；学寒霜后 +25% 并 A 极寒每级 +15%（45→60→75→90%）
-    //   B 凝结 冰缓时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
-    const frost = this.lv('ice', '寒霜');
-    const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0);
-    if (Math.random() < probSlow) {
-      const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')];
-      const ttl = 3 + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
-      this.applySlow(e, mult, ttl);
-      // 冰缓视觉：浅蓝冰雾粒子
-      this.fxParticle(e.x, e.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
-    }
-    // 冰冻（v1.16.21）：基础 20% 概率冻结（冻结不能移动·2s）；A 冻结 +15%/30%/45%；B 深结 时长 +1/1.5/2s；C 碎冰在死亡时结算
-    const frzLv = this.lv('ice', '冰冻');
-    if (frzLv > 0) {
-      const prob = 0.20 + SKILL_NUM.ice['冰冻'].prob[this.branchLv('ice', '冰冻', 'A')];
-      if (Math.random() < prob) {
-        const dur = 2 + SKILL_NUM.ice['冰冻'].dur[this.branchLv('ice', '冰冻', 'B')];
-        e.frozen = Math.max(e.frozen || 0, dur);
-        // 冰冻视觉：冻结凝固闪光 + 冰蓝扩散环 + 冰晶粒子
-        this.fxFlash(e.x, e.y, '#d6f0ff', 0.28);
-        this.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
-        this.fxParticle(e.x, e.y, '#b8e6ff', 10, 60, 0.5, 130, 5);
-      }
-    }
+    // 普攻冰缓+冰冻（v1.16.21→v1.16.53 统一判定）：冰缓基础 20%（寒霜 +25% + A 极寒每级 +15%）；
+    //   冰冻学技能后 20%（A 档位）；强化攻击同吃此加成
+    this.tryAttackDebuff('ice', e, dmg);
     // 多重冰锥（v1.13.23 仿多重火球）：主目标直瞄 + 额外冰锥等角度扇形散射（无目标，射界消失或命中即止）
     //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 增殖（v1.16.21）：10/14/18 枚超小型冰锥（1/3大小·每枚10%·各自索敌·20%冰缓）
     const multi = this.lv('ice', '多重冰锥');
@@ -1433,9 +1488,9 @@ class CombatSystem {
         const hitR = 30;                             // 超小冰锥碰撞半径更小
         const strike = (o, d) => {
           this.damage(o, d, 'ice');
+          this.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
           this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
           this.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
-          if (Math.random() < 0.20) this.applySlow(o, 0.3, 3);   // 20% 冰缓（减速30%·3s）
         };
         const targets = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('ice', o.x, o.y));
         for (let i = 0; i < n; i++) {
@@ -1452,6 +1507,7 @@ class CombatSystem {
         const hitR = 45;                                     // 散射冰锥碰撞半径
         const strike = (o, d) => {                           // 命中结算（主目标直瞄与散射弹道共用）
           this.damage(o, d, 'ice');
+          this.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
           this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
           this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
           this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
@@ -1491,6 +1547,7 @@ class CombatSystem {
       const hitR = 45;
       const strike = (o, d) => {
         this.damage(o, d, 'ice');
+        this.tryAttackDebuff('ice', o, d);   // v1.16.53 碎冰小碎冰属普攻强化：统一冰缓/冰冻判定（C 冻结为其专属保留）
         // v1.13.27 碎冰命中：冰晶迸发 + 闪光 + 小环
         this.fxFlash(o.x, o.y, '#d6f0ff', 0.22);
         this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
@@ -1651,9 +1708,9 @@ class CombatSystem {
             const maxHp = this.game.run.lineMaxHp || CONFIG.LINE.hp;
             this.game.run.lineHp = Math.min(maxHp, this.game.run.lineHp + iw.heal);
           }
-          // v1.16.47：冰盾碎裂白光一闪
+          // v1.16.47：冰盾碎裂白光一闪（v1.16.53 扩散环扩至整墙）
           this.fxFlash(375, this.ly().wallY, '#ffffff', 0.3);
-          this.fxRing(375, this.ly().wallY, '#7fd4ff', 300, 0.5, 5);
+          this.fxRing(375, this.ly().wallY, '#7fd4ff', 700, 0.5, 5);
           this.fxParticle(375, this.ly().wallY, '#b8e6ff', 16, 90, 0.6, 160, 6);
           this.iceWall = null;
         }
@@ -1666,8 +1723,8 @@ class CombatSystem {
           reflect: SKILL_NUM.ice['冰墙'].reflect[this.branchLv('ice', '冰墙', 'B')],   // B 反伤 30%/60%/90%
           heal: SKILL_NUM.ice['冰墙'].heal[this.branchLv('ice', '冰墙', 'C')],      // C 融暖结束回血 +50/+100/+150
         };
-        this.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: this.ly().wallY, t: 0, dur: this.iceWall.ttl });
-        this.fxRing(375, this.ly().wallY, '#7fd4ff', 320, 0.6, 5);
+        this.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: this.ly().wallY, r: 700, t: 0, dur: this.iceWall.ttl });   // v1.16.53 r=700 覆盖整座城墙（25~725）
+        this.fxRing(375, this.ly().wallY, '#7fd4ff', 700, 0.6, 5);
         this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
         // v1.16.47：冰盾生成寒光一闪
         this.fxFlash(375, this.ly().wallY, '#d6f0ff');
@@ -1716,31 +1773,9 @@ class CombatSystem {
         }
       }
     }
-    // 麻痹（v1.16.21 调平）：电塔基础 20%；学麻痹技能 +25%；A 分支每级 +15%（45→60→75→90%）；时长 2s + B 分支 0.5s/级；目标减速 50% 并停止攻击
-    // C 导电：被麻痹时附近 100px 敌人 20%/30%/40% 概率被传导麻痹（1s）
-    const paraLv = this.lv('electric', '麻痹');
-    const pA = this.branchLv('electric', '麻痹', 'A');
-    const pB = this.branchLv('electric', '麻痹', 'B');
-    const pC = this.branchLv('electric', '麻痹', 'C');
-    if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.25 : 0) + 0.15 * pA)) {
-      const dur = 2 + 0.5 * pB;
-      e.paralyzed = Math.max(e.paralyzed || 0, dur);
-      this.applySlow(e, 0.5, dur);
-      // 麻痹视觉：金黄电火花
-      this.fxParticle(e.x, e.y, '#f4d03f', 8, 50, 0.4, 140, 5);
-      // C 导电：100px 内其它敌人 20%/30%/40% 概率被传导麻痹
-      if (pC > 0) {
-        const cProb = SKILL_NUM.electric['麻痹'].cond[pC];
-        this.enemies().forEach((o) => {
-          if (o === e || o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > 100) return;
-          if (Math.random() < cProb) {
-            o.paralyzed = Math.max(o.paralyzed || 0, 1);
-            this.applySlow(o, 0.5, 1);
-            this.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.35, 110, 4);
-          }
-        });
-      }
-    }
+    // 麻痹（v1.16.21 调平；v1.16.53 统一判定 + 重调）：电塔基础 20%；学麻痹 +20%（20→40）；A 每级 +15%（40→55→70→85%）；
+    //   时长 2s + B 0.5s/级；目标减速 50% 并停止攻击；C 导电传导；普攻强化攻击（连锁/活电/电磁场）同吃此判定
+    this.tryAttackDebuff('electric', e, dmg);
     // 活电（v1.13.18 改电球，v1.13.19 更名）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
     const bounce = this.lv('electric', '活电');
     if (bounce > 0 && e.paralyzed > 0) {
@@ -1782,6 +1817,7 @@ class CombatSystem {
         this.fxBeam(cur.x, cur.y, next.x, next.y, '#f4d03f', 0.25, 3.5);
         let cDmg = dmg * (1 - decay);
         this.damage(next, cDmg, 'electric');
+        this.tryAttackDebuff('electric', next, cDmg);   // v1.16.53 连锁命中属普攻强化：统一麻痹判定（吃麻痹技能加成）
         // C 回能：每次连锁命中缩短电塔攻击间隔（3%/级）
         if (chainC > 0 && this.atkTimers.electric !== undefined) {
           this.atkTimers.electric = Math.max(0, this.atkTimers.electric - this.interval('electric') * 0.03 * chainC);
@@ -1907,14 +1943,8 @@ class CombatSystem {
 
   /* ============ 毒塔（v1.15 重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气） ============ */
   hitPoison(e, dmg) {
-    // v1.16.21 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）
-    let prob = 0.20;
-    const toxic = this.lv('poison', '剧毒');
-    if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
-    if (Math.random() < prob) {
-      this.applyPoison(e, dmg, 'poison', 1);
-      this.fxParticle(e.x, e.y, '#7ee2a8', 6, 44, 0.45, 100, 5);
-    }
+    // v1.16.21 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）——v1.16.53 统一判定
+    this.tryAttackDebuff('poison', e, dmg);
     this.damage(e, dmg, 'poison');
   }
 
@@ -2178,10 +2208,8 @@ class CombatSystem {
       this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
     this.damage(e, v, 'boomerang');
-    // 普攻流血（v1.16.21）：20% 概率；「放血」+25%（20→45%）、A 刺骨 +15%/级（45→90%）
-    const bleedLv = this.lv('boomerang', '放血');
-    const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0);
-    if (Math.random() < bleedChance) this.applyBleed(e, v);
+    // 普攻流血（v1.16.21→v1.16.53 统一判定）：20% 概率；「放血」+25%（20→45%）、A 刺骨 +15%/级（45→90%）
+    this.tryAttackDebuff('boomerang', e, v);
     // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
     const fold = this.lv('boomerang', '折返增伤');
     if (fold > 0) {

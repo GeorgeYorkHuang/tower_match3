@@ -306,23 +306,23 @@ t('电·麻痹：命中概率麻痹', () => {
   assert.ok(e.paralyzed > 0, '应进入麻痹状态');
 });
 
-t('电·麻痹A满B满：90%概率 + 时长3.5s + 减速50%（v1.16.21 基础+25% A+15%/级）', () => {
+t('电·麻痹A满B满：85%概率 + 时长3.5s + 减速50%（v1.16.53 基础20% + 技能+20% + A+15%/级 → 40/55/70/85%）', () => {
   const g = mkGame({ electric: { 麻痹: { A: 3, B: 3 } } });
   const c = new CombatSystem(g);
   const e = mkEnemy(1000, 375, 800); g.enemies.push(e);
   const orig = Math.random;
   try {
-    Math.random = () => 0.89;  // 0.89 < 0.90 → A=3 满概率 20+25+3×15=90% 应触发
+    Math.random = () => 0.84;  // 0.84 < 0.85 → A=3 满概率 20+20+3×15=85% 应触发
     c.hit('electric', e, 100);
   } finally { Math.random = orig; }
-  assert.ok(e.paralyzed > 0, 'A=3 满概率 90% 应触发麻痹');
+  assert.ok(e.paralyzed > 0, 'A=3 满概率 85% 应触发麻痹');
   assert.ok(e.paralyzed >= 3.5 - 1e-6, 'B=3 时长应为 2 + 0.5×3 = 3.5s');
   assert.ok(e.slow && e.slow.mult <= 0.5 + 1e-6, '麻痹应附带 50% 减速');
-  // 概率外不触发：0.91 > 0.90
+  // 概率外不触发：0.86 > 0.85
   const e2 = mkEnemy(1000, 375, 800); g.enemies.push(e2);
   const orig2 = Math.random;
-  try { Math.random = () => 0.91; c.hit('electric', e2, 100); } finally { Math.random = orig2; }
-  assert.ok(e2.paralyzed === 0, '概率外（0.91 > 90%）不应麻痹');
+  try { Math.random = () => 0.86; c.hit('electric', e2, 100); } finally { Math.random = orig2; }
+  assert.ok(e2.paralyzed === 0, '概率外（0.86 > 85%）不应麻痹');
 });
 
 t('电·过载A：命中麻痹目标叠层，3层消耗并填充1发弹药', () => {

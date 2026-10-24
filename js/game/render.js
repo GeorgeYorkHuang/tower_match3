@@ -1405,7 +1405,7 @@ class Renderer {
         const fp = Math.min(1, f.t / f.dur);
         const breathe = 1 + 0.06 * Math.sin(Date.now() / 260);
         const wy = (f.y || this.ly.wallY);
-        const r = f.r || 350;
+        const r = f.r || 700;   // v1.16.53 默认铺满整座城墙（25~725）
         const x0 = f.x - r / 2, x1 = f.x + r / 2;
         // 外发光呼吸描边（寒光）
         ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.35 + 0.2 * Math.sin(Date.now() / 260);
