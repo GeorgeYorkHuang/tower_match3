@@ -1797,9 +1797,9 @@ class CombatSystem {
 
   tickElectric(dt) {
     const g = this.game;
-    // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整）：每 8 秒从塔口电击最近敌人及塔-最近敌人
+    // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 改裂电）：每 8 秒从塔口电击最近敌人及塔-最近敌人
     //   连线**延长线**上的所有敌人（射线判定：投影 t≥0 且垂距 ≤ 半宽），z 字形电光从塔沿连线及延长线前进；
-    //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 麻痹电击：命中 20%/级 概率麻痹 1.5s
+    //   A 阔域：线宽 +10/15/20px；B 增伤 +20%/级（80→100/120/140%）；C 裂电：分叉电弧命中数量每级 +1（1→2→3→4）
     const arc = this.lv('electric', '极光电击');
     if (arc > 0) {
       const arcA = this.branchLv('electric', '极光电击', 'A');
@@ -1836,22 +1836,16 @@ class CombatSystem {
             if (t > farT) farT = t;
             // v1.16.47：命中的每个敌人电弧闪光
             this.fxFlash(o.x, o.y, '#f4d03f');
-            // C 麻痹电击：20%/级 概率麻痹 1.5s
-            if (arcC > 0 && Math.random() < 0.20 * arcC) {
-              o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
-              this.applySlow(o, 0.5, 1.5);
-              this.fxParticle(o.x, o.y, '#f4d03f', 6, 40, 0.4, 130, 5);
-            }
           });
-          // v1.16.49 重做（方案C 树状分支闪电）：每个主线命中敌人向 90 码内随机 1~2 个其他敌人分支小电弧，
-          //   每分支造成主线伤害 40%（与 B 增伤叠加）；分支不再递归分支
+          // v1.16.49 树状分支闪电：每个主线命中敌人向 90 码内其他敌人分支小电弧，每分支造成主线伤害 40%
+          // v1.16.50 C 分支重做为「裂电」：分叉命中数量每级 +1（C0=1、C1=2、C2=3、C3=4），分支不再递归分支
           if (hitList.length) {
             const hitSet = new Set(hitList);
             hitList.forEach((src) => {
-              const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - src.x, o.y - src.y) <= 90);
-              if (!cands.length) return;
-              const nB = 1 + (Math.random() < 0.5 ? 1 : 0);
-              for (let k = 0; k < nB && cands.length; k++) {
+              const nB = 1 + arcC;
+              for (let k = 0; k < nB; k++) {
+                const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - src.x, o.y - src.y) <= 90);
+                if (!cands.length) return;
                 const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
                 hitSet.add(tgt);
                 this.damage(tgt, dmg * 0.4, 'electric');
