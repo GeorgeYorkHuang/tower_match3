@@ -339,8 +339,8 @@ class Renderer {
 
   /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX；v1.16.11 美化+卡可点击进二级详情） */
   towerInfoLayer(ctx, info, hits) {
-    // v1.16.59 技能卡竖排 + 元素整体放大 1.5 倍：面板加高至整屏（hgt=LOGIC_H, y=0）
-    const w = 688, hgt = LOGIC_H, x = (750 - w) / 2, y = 0;
+    // v1.16.62 三技能卡横向一排（面板回到适中高度）：卡片 205×320 ×3，元素整体小于竖排版
+    const w = 688, hgt = 880, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
     // 遮罩（点遮罩关闭）
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -359,40 +359,82 @@ class Renderer {
     ctx.fillStyle = band; ctx.globalAlpha = 0.35;
     ctx.fillRect(x + 20, y + 8, w - 40, 3);
     ctx.globalAlpha = 1;
-    // 标题：塔名 + 塔自身等级（v1.16.17 塔等级 = 累计选择次数 + 1，不再显示整体总等级）
-    text(ctx, `${info.name}塔 · 等级 Lv.${info.level}`, x + w / 2, y + 48, 34, '#ffffff', 'center');
-    // 攻击 / 攻击间隔 / DPS（统计条：三项一行并排，背景胶囊）
-    const statY = y + 118, statW = 180;
+    // 标题：塔名 + 塔自身等级（v1.16.70 下移至 y+64，上方留白更多）
+    text(ctx, `${info.name}塔 · 等级 Lv.${info.level}`, x + w / 2, y + 64, 34, '#ffffff', 'center');
+    // 攻击 / 攻击间隔 / DPS / 弹药（v1.16.70：外框 648×200 边框 5px；标题标签 17 号下沿贴胶囊上沿；数值 29 号；图标 29 号同强调色）
+    const statW = 300, statH = 56, colGap = 20, rowGap = 26;
+    const sx0 = x + (w - (statW * 2 + colGap)) / 2;
+    // 整体外框：包裹 4 胶囊 + 外部标签（框中心对齐标题下沿与分隔线区间中心）
+    const boxX = sx0 - 14, boxY = y + 96, boxW = 648, boxH = 200;
+    const bgrad = ctx.createLinearGradient(0, boxY, 0, boxY + boxH);
+    bgrad.addColorStop(0, 'rgba(255,255,255,0.06)'); bgrad.addColorStop(1, 'rgba(255,255,255,0.015)');
+    fillRoundRect(ctx, boxX, boxY, boxW, boxH, 14, bgrad);
+    strokeRoundRect(ctx, boxX, boxY, boxW, boxH, 14, `${TOWER_TINT[info.key] || '#3d4553'}44`, 5);
+    ctx.globalAlpha = 0.4;
+    fillRoundRect(ctx, boxX + 6, boxY + 5, boxW - 12, 14, 7, 'rgba(255,255,255,0.08)');
+    ctx.globalAlpha = 1;
     const stats = [
-      { label: '攻击', val: `${info.atk || 0}`, color: '#f7c948' },
-      { label: '间隔', val: `${(info.interval || 0).toFixed(1)}s`, color: '#9fb2c3' },
-      { label: 'DPS', val: `${Math.round(info.dps)}`, color: '#7ea8d8' },
+      { label: '攻击', icon: '⚔', val: `${info.atk || 0}`, color: '#f7c948' },
+      { label: '间隔', icon: '⏱', val: `${(info.interval || 0).toFixed(1)}s`, color: '#9fb2c3' },
+      { label: 'DPS', icon: '🏹', val: `${Math.round(info.dps)}`, color: '#7ea8d8' },
+      { label: '弹药', icon: 'bullet', val: `${info.ammo || 0}`, color: '#7ef0a3' },
     ];
     stats.forEach((s, si) => {
-      const sx = x + 24 + si * (statW + 14);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      fillRoundRect(ctx, sx, statY - 26, statW, 46, 12, 'rgba(255,255,255,0.06)');
-      text(ctx, s.label, sx + 14, statY - 6, 14, 'rgba(255,255,255,0.5)', 'left');
-      text(ctx, s.val, sx + statW - 14, statY - 6, 22, s.color, 'right');
+      const row = Math.floor(si / 2);
+      const sx = sx0 + (si % 2) * (statW + colGap);
+      const sy = row === 0 ? y + 130 : y + 212;       // 胶囊顶（行距 26：行 1 底 186 与行 2 标签 204 不重叠）
+      // 标签：胶囊外部左上方，纯文字无底色（18 号，文字下沿贴齐胶囊上沿：中心 = capTop - 9）
+      text(ctx, s.label, sx, row === 0 ? y + 121 : y + 203, 18, s.color, 'left');
+      // 胶囊底：浅色玻璃渐变（v1.16.71 内部提亮）+ 塔色描边
+      const sg = ctx.createLinearGradient(0, sy, 0, sy + statH);
+      sg.addColorStop(0, 'rgba(255,255,255,0.22)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.12)'); sg.addColorStop(1, 'rgba(255,255,255,0.06)');
+      fillRoundRect(ctx, sx, sy, statW, statH, statH / 2, sg);
+      strokeRoundRect(ctx, sx, sy, statW, statH, statH / 2, `${TOWER_TINT[info.key] || '#3d4553'}99`, 2);
+      // 顶部内高光（加亮）
+      ctx.globalAlpha = 0.7;
+      fillRoundRect(ctx, sx + 8, sy + 4, statW - 16, statH / 2 - 4, (statH / 2 - 4) / 2, 'rgba(255,255,255,0.14)');
+      ctx.globalAlpha = 1;
+      // 底部暗影（立体感）
+      ctx.globalAlpha = 0.25;
+      fillRoundRect(ctx, sx + 10, sy + statH - 10, statW - 20, 6, 3, 'rgba(0,0,0,0.25)');
+      ctx.globalAlpha = 1;
+      // 小图标：胶囊左内侧（垂直居中，与数值同字号、同标签色；弹药为自定义子弹图形）
+      if (s.icon === 'bullet') {
+        const ix = sx + 26, iy = sy + statH / 2;
+        ctx.save(); ctx.translate(ix, iy);
+        ctx.fillStyle = 'rgba(222,230,240,0.92)';                       // 弹壳
+        fillRoundRect(ctx, -16, -7, 20, 14, 3);
+        ctx.fillStyle = s.color;                                        // 弹头（塔色）
+        ctx.beginPath(); ctx.moveTo(4, -7); ctx.lineTo(16, 0); ctx.lineTo(4, 7); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffd34d';                                      // 金色底火带
+        ctx.fillRect(-16, -3, 20, 6);
+        ctx.restore();
+      } else {
+        text(ctx, s.icon, sx + 26, sy + statH / 2, 29, s.color, 'center');
+      }
+      // 数值：居中大号 + 同色光晕
+      ctx.shadowColor = s.color; ctx.shadowBlur = 10;
+      text(ctx, s.val, sx + statW / 2 + 10, sy + statH / 2 - 1, 29, s.color, 'center');
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
     });
     // 分隔线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(x + 40, y + 192, w - 80, 2);
+    ctx.fillRect(x + 40, y + 310, w - 80, 2);
     // 技能标题 + 提示
-    text(ctx, '技能', x + 40, y + 222, 22, '#b8c2cc', 'left');
-    text(ctx, '点击技能卡查看详情与升级分支', x + w - 40, y + 222, 14, 'rgba(255,255,255,0.4)', 'right');
+    text(ctx, '技能', x + 40, y + 340, 22, '#b8c2cc', 'left');
+    text(ctx, '点击技能卡查看详情与升级分支', x + w - 40, y + 340, 14, 'rgba(255,255,255,0.4)', 'right');
     const skills = info.skills || [];
     if (!skills.length) {
       text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 290, 20, 'rgba(255,255,255,0.45)', 'center');
     } else {
-      // v1.16.59 3 张技能卡竖向排列；v1.16.61 卡内元素整体缩小（1.5 倍 → 约 1.2 倍基准）：
-      //   图标圆 ir 50→40 / 素材 87→70px，技能名 40→32 号，Lv 徽章 48→38 高 27→22 号，
-      //   分支徽章 90×84→80×68、字号 22/19→18/15，卡片 300×400→260×330
-      const cardW = 260, cardH = 330, gap = 20, cardTop = y + 250;
+      // v1.16.62：3 张技能卡横向一排（宽 205 × 高 320，间隔 16），卡内元素对应缩小：
+      //   图标圆 ir 40→30 / 素材 70→52px，技能名 32→26 号，Lv 徽章 38→30 高 22→18 号，
+      //   分支徽章 80×68→60×50、字号 18/15→13/12
+      const cardW = 205, cardH = 320, gap = 16, cardTop = y + 368;
       const pool = CONFIG.EFFECT_POOLS[info.key] || [];
       const maxLv = 1 + ((CONFIG.EFFECT && CONFIG.EFFECT.maxLevel) || 3); // 分支满 3 级 → 技能 Lv4 = LvMAX
       skills.forEach((sk, i) => {
-        const cx = x + (w - cardW) / 2, cy = cardTop + i * (cardH + gap);
+        const cx = x + 22 + i * (cardW + gap), cy = cardTop;
         hits.skill = hits.skill || [];
         hits.skill[i] = { hit: (px, py) => px >= cx && px <= cx + cardW && py >= cy && py <= cy + cardH };
         // v1.16.11 美化：玻璃渐变卡（左上亮右下暗）+ 底部塔色光晕 + 斜向高光条 + 呼吸描边
@@ -418,62 +460,71 @@ class Renderer {
         // 呼吸描边高亮
         const brAlpha = 0.14 + 0.08 * Math.sin(Date.now() / 700 + i * 1.3);
         strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, TOWER_TINT[info.key] || '#3a6ea5', brAlpha * 4);
-        // 图标（发光圆底 = 塔色渐变 + 白色内圈；v1.16.61 ir 50→40、素材 87→70px）
+        // 图标（v1.16.63 美化：外圈光晕 + 径向渐变圆底 + 白描边 + 顶部高光；美术素材优先，缺失回退 emoji）
         const skDef = pool.find((q) => q.name === sk.name) || {};
-        const icx = cx + cardW / 2, icy = cy + 74, ir = 40;
-        const halo = ctx.createRadialGradient(icx, icy, 2, icx, icy, ir * 1.7);
-        halo.addColorStop(0, lighten(TOWER_TINT[info.key] || '#3a6ea5', 1.5));
-        halo.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = halo; ctx.globalAlpha = 0.5;
-        ctx.beginPath(); ctx.arc(icx, icy, ir * 1.7, 0, Math.PI * 2); ctx.fill();
+        const icx = cx + cardW / 2, icy = cy + 64, ir = 32;
+        const tint = TOWER_TINT[info.key] || '#3a6ea5';
+        const halo = ctx.createRadialGradient(icx, icy, 2, icx, icy, ir * 1.9);
+        halo.addColorStop(0, lighten(tint, 1.5)); halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = halo; ctx.globalAlpha = 0.55;
+        ctx.beginPath(); ctx.arc(icx, icy, ir * 1.9, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
-        const grad = ctx.createLinearGradient(icx - ir, icy - ir, icx + ir, icy + ir);
-        grad.addColorStop(0, lighten(TOWER_TINT[info.key] || '#3a6ea5', 1.35));
-        grad.addColorStop(1, TOWER_TINT[info.key] || '#3a6ea5');
+        const grad = ctx.createRadialGradient(icx - ir * 0.3, icy - ir * 0.4, ir * 0.15, icx, icy, ir);
+        grad.addColorStop(0, lighten(tint, 1.55)); grad.addColorStop(0.75, lighten(tint, 1.15)); grad.addColorStop(1, tint);
         ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2);
         ctx.fillStyle = grad; ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2); ctx.stroke();
-        // 图标（v1.16.27：优先美术图片，缺失回退 emoji；v1.16.61 87→70px）
-        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 35, icy - 35, 70, 70);
+        // 顶部高光（小半月）
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(icx, icy, ir * 0.9, Math.PI * 1.06, Math.PI * 1.52);
+        ctx.arc(icx, icy, ir * 0.62, Math.PI * 1.52, Math.PI * 1.06, true);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255,255,255,0.30)'; ctx.fill();
+        ctx.restore();
+        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 28, icy - 28, 56, 56);
         if (!skIconOk) {
-          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 5, 34, '#000', 'center');
+          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 4, 27, '#000', 'center');
           ctx.globalAlpha = 1;
-          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 4, 34, '#ffffff', 'center');
+          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 3, 27, '#ffffff', 'center');
         }
-        // 技能名（v1.16.61 40→32 号）
-        text(ctx, sk.name, cx + cardW / 2, cy + 152, 32, '#ffffff', 'center');
-        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.16.61 徽章 48→38 高、27→22 号）
+        // 技能名 + 总等级标（v1.16.64：角标移到图标右上方）
+        text(ctx, sk.name, cx + cardW / 2, cy + 126, 26, '#ffffff', 'center');
         const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
-        const lv = 1 + maxBr;
-        const lvTxt = lv >= maxLv ? 'LvMAX' : `Lv${lv}`;
-        const lvSize = 22;
-        const lvW = txtW(lvTxt, lvSize) + 28;
-        const lvY = cy + 178;
-        const lvGrad = ctx.createLinearGradient(cx + cardW / 2 - lvW / 2, lvY, cx + cardW / 2 - lvW / 2, lvY + 38);
-        lvGrad.addColorStop(0, '#ffe08a'); lvGrad.addColorStop(1, '#e6b93f');
-        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 38, 19, lvGrad);
-        strokeRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 38, 19, 'rgba(255,255,255,0.6)', 1);
-        text(ctx, lvTxt, cx + cardW / 2, lvY + 19, lvSize, '#5c4a00', 'center');
-        // 分支徽章横排（v1.13.16：只显示已选择升级的分支；v1.16.61 徽章 90×84→80×68、字号 22/19→18/15）
-        const bw = 80, bh = 68, bY = cy + 242;
+        const lvTxt = (1 + maxBr) >= maxLv ? 'LvMAX' : `Lv${1 + maxBr}`;
+        const lvS = lvTxt === 'LvMAX' ? 11 : 12;
+        const lvW3 = txtW(lvTxt, lvS) + 14, lvX3 = icx + ir - 14, lvY3 = icy - ir - 10;
+        const lvG3 = ctx.createLinearGradient(lvX3, lvY3, lvX3, lvY3 + 22);
+        lvG3.addColorStop(0, '#ffe08a'); lvG3.addColorStop(1, '#e6b93f');
+        fillRoundRect(ctx, lvX3, lvY3, lvW3, 22, 11, lvG3);
+        strokeRoundRect(ctx, lvX3, lvY3, lvW3, 22, 11, 'rgba(255,255,255,0.7)', 1);
+        text(ctx, lvTxt, lvX3 + lvW3 / 2, lvY3 + 11, lvS, '#5c4a00', 'center');
+        // 技能分支 + 等级（v1.16.64：单分支——只显示等级最高的当前分支；金色渐变行 + 左侧色条 + 进度点 + Lv 胶囊）
+        const bW = 176, bX = cx + (cardW - bW) / 2, bY = cy + 160, bH = 76;
         const activeBrs = ['A', 'B', 'C'].filter((br) => (sk.branches[br] || 0) > 0);
         if (activeBrs.length) {
-          const totalW = activeBrs.length * bw + (activeBrs.length - 1) * 4;
-          const startX = cx + (cardW - totalW) / 2;
-          activeBrs.forEach((br, bi) => {
-            const l = sk.branches[br] || 0;
-            const bx = startX + bi * (bw + 4);
-            fillRoundRect(ctx, bx, bY, bw, bh, 10, 'rgba(247,201,72,0.22)');
-            strokeRoundRect(ctx, bx, bY, bw, bh, 10, '#f7c948', 1.5);
-            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 22, 18, '#f7c948', 'center');
-            text(ctx, `Lv${l}`, bx + bw / 2, bY + 45, 15, '#f7c948', 'center');
-          });
+          const br = activeBrs.reduce((p, c) => ((sk.branches[c] || 0) > (sk.branches[p] || 0) ? c : p));
+          const l = sk.branches[br] || 0;
+          const bg = ctx.createLinearGradient(bX, bY, bX, bY + bH);
+          bg.addColorStop(0, 'rgba(247,201,72,0.24)'); bg.addColorStop(1, 'rgba(247,201,72,0.07)');
+          fillRoundRect(ctx, bX, bY, bW, bH, 12, bg);
+          strokeRoundRect(ctx, bX, bY, bW, bH, 12, 'rgba(247,201,72,0.8)', 1.5);
+          fillRoundRect(ctx, bX + 8, bY + 12, 5, bH - 24, 2.5, '#f7c948');
+          text(ctx, this.branchName(skDef, br), bX + 24, bY + 28, 16, '#f7c948', 'left');
+          for (let pi = 0; pi < 3; pi++) {
+            const px = bX + 26 + pi * 16, py = bY + 54;
+            ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fillStyle = pi < l ? '#f7c948' : 'rgba(247,201,72,0.22)'; ctx.fill();
+          }
+          const lvW2 = txtW(`Lv${l}`, 13) + 16, lvX = bX + bW - 10 - lvW2;
+          fillRoundRect(ctx, lvX, bY + 14, lvW2, 30, 15, '#f7c948');
+          text(ctx, `Lv${l}`, lvX + lvW2 / 2, bY + 29, 13, '#5c4a00', 'center');
         } else {
-          text(ctx, '未选分支', cx + cardW / 2, bY + 34, 20, 'rgba(255,255,255,0.35)', 'center');
+          text(ctx, '未选分支', cx + cardW / 2, bY + bH / 2 + 2, 14, 'rgba(255,255,255,0.35)', 'center');
         }
         // 右下角"详情 ›"提示（可点击）
-        text(ctx, '详情 ›', cx + cardW - 16, cy + cardH - 18, 17, 'rgba(255,255,255,0.45)', 'right');
+        text(ctx, '详情 ›', cx + cardW - 14, cy + cardH - 16, 15, 'rgba(255,255,255,0.45)', 'right');
       });
     }
     // 关闭按钮

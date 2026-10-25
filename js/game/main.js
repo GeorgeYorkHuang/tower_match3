@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.60';       // v1.16.60 圣遗物体系落库(6塔×16+通用16,含emoji图标) + 战场宝箱改局内圣遗物三选一 + 弹药箱三消充能+5/三消之力/智慧典籍/全局充能接入 + 怪物debuff图标渲染
+const GAME_VERSION = 'v1.16.71';       // v1.16.71 塔详情UI：属性胶囊化(2×2网格+外框5px边框+标签外置+子弹图标+浅色美化) + 图标/字号整体系列调优(61~71) + 新增弹药属性
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
