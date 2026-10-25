@@ -3525,9 +3525,73 @@ class Renderer {
     if (page < pages - 1) { push(pageKey, 1, 414, 970, 56, 34); fillRoundRect(ctx, 414, 970, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 414, 970, 56, 34, 10, '#7ca8ff', 1); text(ctx, '下一页 ›', 442, 993, 15, '#7ca8ff', 'center'); }
   }
 
-  /** 圣物页（v1.16.78 重设计）：局内圣遗物图鉴网格 + 未解锁占位卡 + 详情/升星 */
+  /** 圣遗物主页（v1.16.82）：全部圣遗物单页滚动浏览（无分页）；卡片高 210（+40%）上1/3 图标居中留白 + 名字居中行 + 描述 */
   menuRelic(ctx, s, push) {
-    this._menuRelicGrid(ctx, s, push, 'relicPage', true);
+    const list = this._relicRunList();
+    const unlocked = list.filter((d) => this._relicUnlocked(s, d.id)).length;
+    // 顶部固定区：宝箱入口 + 图鉴计数
+    push('chest', null, 55, 262, 250, 42);
+    fillRoundRect(ctx, 55, 262, 250, 42, 10, '#3a2b1a');
+    strokeRoundRect(ctx, 55, 262, 250, 42, 10, '#d89e63', 1.2);
+    text(ctx, `📦 宝箱 ×${s.chests} 点击开启`, 180, 290, 18, '#ffffff', 'center');
+    text(ctx, `圣遗物图鉴 ${unlocked}/${list.length}`, 330, 290, 26, '#ffffff', 'left');
+    text(ctx, '↕ 上下滑动浏览全部', 640, 291, 16, '#5a6c80', 'right');
+    // 滚动视口
+    const vy0 = 330, vy1 = 1492;
+    const PER_ROW = 4, cw = 149, ch = 210, gx = 14, gy = 14;
+    const rows = Math.ceil(list.length / PER_ROW);
+    const contentH = rows * (ch + gy);
+    const maxScroll = Math.max(0, contentH - (vy1 - vy0));
+    this._relicMaxScroll = maxScroll;
+    const scroll = Math.max(0, Math.min(s.relicScroll || 0, maxScroll));
+    ctx.save();
+    ctx.beginPath(); ctx.rect(40, vy0, 670, vy1 - vy0); ctx.clip();
+    list.forEach((d, i) => {
+      const col = i % PER_ROW, row = Math.floor(i / PER_ROW);
+      const rx = 55 + col * (cw + gx), ry2 = vy0 + row * (ch + gy) - scroll;
+      if (ry2 > vy1 || ry2 + ch < vy0) return;   // 视口外跳过
+      const rar = CONFIG.relicRarity(d.id);
+      const rc = this._relicRarColor(rar);
+      const owned = this._relicUnlocked(s, d.id);
+      const icx = rx + cw / 2, icy = ry2 + 12 + 34;   // 圆心：顶部留白 12 + 半径 34（与未解锁?圈同径）
+      fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
+      strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
+      if (owned) {
+        // 前 1/3：圣遗物图片居中（64px，含留白）
+        const src = relicIconSrc(d.id);
+        if (!(src && drawImg(ctx, src, icx - 32, icy - 32, 64, 64))) {
+          ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+          ctx.fillStyle = rc; ctx.globalAlpha = 0.22; ctx.fill(); ctx.globalAlpha = 1;
+          text(ctx, d.icon, icx, icy + 2, 34, '#ffffff', 'center');
+        }
+        // 星级角标（右上角小字）
+        const star = s.relicStars[d.id] || 1;
+        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 14, rc, 'right');
+        // 名字（单独一行居中）
+        text(ctx, d.name, icx, ry2 + 98, 19, '#ffffff', 'center');
+        // 描述（wrapText 最多 3 行，不出卡）
+        const dls = this.wrapText(ctx, d.desc || '', cw - 24, 13).slice(0, 3);
+        dls.forEach((ln, li) => text(ctx, ln, icx, ry2 + 128 + li * 21, 13, '#9fb2c3', 'center'));
+      } else {
+        // 未解锁：? 图标圈（同尺寸同位）+ 未解锁提示
+        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+        ctx.fillStyle = '#151a22'; ctx.fill();
+        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
+        text(ctx, '未解锁', icx, ry2 + 98, 19, '#4a5a6e', 'center');
+        text(ctx, `${rar.toUpperCase()} · 战斗获取碎片解锁`, icx, ry2 + 128, 13, '#3d4c5e', 'center');
+      }
+      push(owned ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
+    });
+    ctx.restore();
+    // 右侧滚动条（maxScroll>0 时显示）
+    if (maxScroll > 0) {
+      const vh = vy1 - vy0;
+      const th = Math.max(40, vh * vh / contentH);
+      const ty = vy0 + (vh - th) * (scroll / maxScroll);
+      fillRoundRect(ctx, 734, vy0, 4, vh, 2, 'rgba(255,255,255,0.06)');
+      fillRoundRect(ctx, 734, ty, 4, th, 2, 'rgba(124,168,255,0.55)');
+    }
   }
 
   /** 圣物图鉴面板：同主页网格（未解锁占位卡 / 已解锁可点详情） */

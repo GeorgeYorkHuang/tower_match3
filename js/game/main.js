@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.81';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.16.82';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -1064,6 +1064,7 @@ class GameMain {
       daily,
       dailyPrice: CONFIG.DAILY.price,
       panel: this.menuPanel,
+      relicScroll: this.relicScroll || 0,   // v1.16.82 圣遗物页滚动位置
       relicDexPage: this.relicDexPage,   // v1.16.78 圣物图鉴分页（主页与图鉴面板共用）
       /* v1.16.76 激励系统状态 */
       field: CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient,
@@ -1640,6 +1641,11 @@ class GameMain {
       const t = e && e.touches && e.touches[0];
       if (!t) return;
       const p = this.toLogic(t.clientX, t.clientY);
+      // v1.16.82 圣遗物页滑动浏览：延迟点击判定到 touchend（拖动不触发卡点）
+      if (this.state === 'menu' && this.menuTab === 'relic' && !this.menuPanel) {
+        this._relicDrag = { y0: p.y, scroll0: this.relicScroll || 0, moved: false, p };
+        return;
+      }
       // 状态/弹层/按钮命中分发（模块化 v1.13.11：dispatchTouch 独立方法）
       if (this.dispatchTouch(p)) return;
       // 棋盘点击/滑动准备
@@ -1651,6 +1657,15 @@ class GameMain {
       this._touchStart = { x: p.x, y: p.y };
     };
     const onMove = (e) => {
+      const t0 = e && e.touches && e.touches[0];
+      // v1.16.82 圣遗物页拖动滚动
+      if (this._relicDrag && t0) {
+        const d = this._relicDrag;
+        const p = this.toLogic(t0.clientX, t0.clientY);
+        if (Math.abs(p.y - d.y0) > 12) d.moved = true;
+        if (d.moved) this.relicScroll = Math.max(0, Math.min(d.scroll0 - (p.y - d.y0), this._relicMaxScroll || 0));
+        return;
+      }
       if (this.towerInfo) return; // 详情弹层打开时锁定交换
       if (this.funcLayer) return; // 功能弹层打开时锁定交换
       if (this.state !== 'fighting' || !startCell || this.swapped) return;
@@ -1677,6 +1692,14 @@ class GameMain {
       lastCell = cell;
     };
     const onEnd = () => {
+      // v1.16.82 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
+      if (this._relicDrag) {
+        const d = this._relicDrag;
+        this._relicDrag = null;
+        this._touchStart = null; moved = false; startCell = null; lastCell = null; this.selected = null;
+        if (!d.moved && this.state === 'menu') this.dispatchTouch(d.p);
+        return;
+      }
       // 点击交换：无滑动 + 战斗态 + 无动画 → 选中/交换/取消
       if (!moved && startCell && this.state === 'fighting' && !this.anim && !this.swapped) {
         const [r, c] = startCell;
