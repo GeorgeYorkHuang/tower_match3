@@ -3816,8 +3816,9 @@ class Renderer {
     const nextM = CONFIG.MILESTONES.find((m) => m > g.run.wave);
     if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#a86bff', 'center');
     // 按钮
-    hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 安全撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 }).hit;
-    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续深入 · 阵亡保底 30%', { bg: '#3a6ea5', fontSize: 25 }).hit;
+    // v1.16.86 修复：button() 返回 {hit} 对象，dispatchTouch 按 .hit 调用；此前误存裸函数导致按钮永不命中
+    hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 安全撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 });
+    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续深入 · 阵亡保底 30%', { bg: '#3a6ea5', fontSize: 25 });
   }
 
   /** v1.16.76 圣遗物升星面板：1★ 解锁 → 2★ 效果升级 → 3★ 质变（碎片+金币[+星辉石]） */
