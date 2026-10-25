@@ -119,6 +119,15 @@ function skillIconSrc(towerKey, skillName) {
   return f ? `images/skillicons/${towerKey}/${f}.png` : null;
 }
 
+/* v1.16.61 局内圣遗物图标（images/relic/<塔系>/<id>.png，缺失时回退 emoji） */
+function relicIconSrc(id) {
+  const dir = { fire_: 'fire', ice_: 'ice', poison_: 'poison', elec_: 'electric', boo_: 'boomerang', can_: 'cannon', cm_: 'universal' };
+  for (const [pre, cat] of Object.entries(dir)) {
+    if (typeof id === 'string' && id.startsWith(pre)) return `images/relic/${cat}/${id}.png`;
+  }
+  return null;
+}
+
 const STATUS_H = 140;                       // 状态条区高（v1.16.72 扩展至 y140：顶部安全区更充裕，避开灵动岛与右上小程序胶囊）
 const AREA_X = L.actionArea.x;              // 25
 const AREA_Y = STATUS_H;                    // 140（行动区整体下移，顶部留给金币/波次/协同）
@@ -188,7 +197,7 @@ class Renderer {
 
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
 
-  /** 状态条：金币 + 波次 + 波倒计时 + 协同（v1.16.72 扩展至 y140，元素下移避开灵动岛与右上微信小程序按钮） */
+  /** 状态条：金币 + 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
   status(ctx, s) {
     const goldIcon = 44;
     // 金币（左下安全区：避开灵动岛与右上小程序胶囊）
@@ -197,15 +206,35 @@ class Renderer {
       text(ctx, '¥', 36, 98, 22, '#7c5c00', 'center');
     }
     text(ctx, fmtNum(s.gold), 70, 102, 26, '#f7c948');
-    // 波次与倒计时（居中，整体下移至灵动岛下方）
-    text(ctx, `第 ${s.wave} 波`, 375, 94, 24, '#ffffff', 'center');
+    // 波次与倒计时（居中，同一行）
+    text(ctx, `第 ${s.wave} 波`, 330, 94, 24, '#ffffff', 'center');
     if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
-      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 375, 122, 18, '#b8c2cc', 'center');
+      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 468, 94, 20, '#b8c2cc', 'center');
     }
     // 协同状态（右，下移避开右上微信小程序按钮）
     const syn = s.synergies;
     const label = syn[0] && syn[0].done ? '协同✓' : '协同';
     text(ctx, label, 690, 114, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
+    // v1.16.73 本局圣遗物行：前 10 个图标 + 总数（点击区域 relicBarHit 供 main.js 弹详情）
+    const rels = s.battleRelics || [];
+    if (rels.length) {
+      const rx = 130, ry = 116, rIcon = 24, rGap = 30, rMax = 10;
+      const shown = rels.slice(0, rMax);
+      shown.forEach((rc, i) => {
+        const icx = rx + i * rGap + rIcon / 2;
+        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 13, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+        const rSrc = relicIconSrc(rc.id);
+        if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
+          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 14, '#ffffff', 'center');
+        }
+      });
+      text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 16, 'rgba(255,255,255,0.55)', 'left');
+      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: rIcon + 16 }; // 圣遗物行点击区
+    } else {
+      this.relicBarHit = null;
+    }
     // 底线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(0, STATUS_H - 2, 750, 2);
@@ -238,20 +267,6 @@ class Renderer {
       ctx.fillStyle = '#f7c948'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.stroke();
       text(ctx, `${s.expLevel}`, rcx, rcy + 2, 30, '#5c4a00', 'center');
-    }
-    // v1.9 本局获得圣物：经验条下方图标行（精英掉落三选一选择后入列）
-    if (s.battleRelics && s.battleRelics.length) {
-      const rx = AREA_X + 190, ry = AREA_Y + 38;
-      s.battleRelics.forEach((rc, i) => {
-        const icx = rx + i * 40;
-        ctx.globalAlpha = 0.9;
-        ctx.beginPath(); ctx.arc(icx + 13, ry + 15, 15, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(247,201,72,0.20)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(247,201,72,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.globalAlpha = 1;
-        text(ctx, rc.icon, icx + 13, ry + 18, 24, '#ffffff', 'center');
-      });
-      text(ctx, `圣物 ×${s.battleRelics.length}`, rx + s.battleRelics.length * 40 + 8, ry + 18, 18, 'rgba(255,255,255,0.5)', 'left');
     }
     // 敌群血条（入口带下方细条）
     progressBar(ctx, AREA_X + 12, AREA_Y + ENTRY_H - 8, AREA_W - 24, 6, s.enemyHpRatio, '#ff6b6b', 'rgba(255,255,255,0.15)');
@@ -2888,6 +2903,11 @@ class Renderer {
     // 入口带
     fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
     text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
+    // v1.16.73 测试战场：添加圣遗物（三选一，可反复添加测试效果）
+    push('tf_addRelic', null, 250, AREA_Y + 14, 140, 40);
+    fillRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, 'rgba(0,0,0,0.35)');
+    strokeRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, '#7ca8ff', 1.5);
+    text(ctx, '＋ 添加圣遗物', 320, AREA_Y + 40, 15, '#7ca8ff', 'center');
     text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
     // 城墙（测试战场恒满）
     this.wall(ctx, s.lineHp, s.lineMaxHp);
@@ -3319,7 +3339,7 @@ class Renderer {
   /** 战斗内圣物宝箱三选一弹层（精英掉落 · 暂停战斗）：3 个候选卡片，点选获取 */
   relicPickLayer(ctx, pick, onPick) {
     if (!pick || !pick.candidates) return;
-    const w = 640, h = 420;
+    const w = 640, h = 500; // v1.16.73 纵向扩容 420→500，描述三行防出框
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -3327,35 +3347,130 @@ class Renderer {
     strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
     text(ctx, '圣遗物宝箱 · 三选一', 375, y + 58, 36, '#7ca8ff', 'center');
     text(ctx, '获得圣遗物本局生效；塔圣遗物仅对应塔在场时出现', 375, y + 98, 19, '#8ea3b8', 'center');
-    // 3 个候选卡片
-    const bw = 188, bh = 240, gap = 16;
+    // 3 个候选卡片（v1.16.73 纵向扩容：bh 240→300）
+    const bw = 188, bh = 300, gap = 16;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
-    const cy = y + 132;
+    const cy = y + 128;
     pick.candidates.forEach((c, i) => {
       const cx = startX + i * (bw + gap);
       const tint = c.tint ? (TOWER_TINT[c.tint] || '#f7c948') : '#f7c948';
       fillRoundRect(ctx, cx, cy, bw, bh, 16, '#232c38');
       strokeRoundRect(ctx, cx, cy, bw, bh, 16, '#7ca8ff', 1.5);
-      // 图标圆底（塔圣遗物用塔色、通用用金色）
-      ctx.beginPath(); ctx.arc(cx + bw / 2, cy + 62, 40, 0, Math.PI * 2);
+      // 图标：直接用圆底直径大小（v1.16.73 直径 80→100，图标 100×100 撑满圆底）
+      const dia = 100;
+      const icx = cx + bw / 2, icy = cy + 76;
+      ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2);
       ctx.fillStyle = tint + '2e'; ctx.fill();
       ctx.strokeStyle = tint; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx + bw / 2, cy + 62, 40, 0, Math.PI * 2); ctx.stroke();
-      text(ctx, c.icon, cx + bw / 2, cy + 64, 44, '#ffffff', 'center');
-      text(ctx, c.name, cx + bw / 2, cy + 118, 24, '#ffffff', 'center');
-      // 效果描述（单段长文 → 按字数自适应切两行）
+      ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2); ctx.stroke();
+      const cSrc = relicIconSrc(c.id);
+      if (!(cSrc && drawImg(ctx, cSrc, icx - dia / 2, icy - dia / 2, dia, dia))) {
+        text(ctx, c.icon, icx, icy + 4, 48, '#ffffff', 'center');
+      }
+      text(ctx, c.name, cx + bw / 2, cy + 152, 24, '#ffffff', 'center');
+      // 效果描述（v1.16.73 按宽度换行，最多 3 行，防出框）
       const d = c.desc || '';
-      const line1 = d.length > 13 ? d.slice(0, 13) : d;
-      const line2 = d.length > 13 ? d.slice(13) : '';
-      text(ctx, line1, cx + bw / 2, cy + 152, 16, '#9fb2c3', 'center');
-      text(ctx, line2, cx + bw / 2, cy + 174, 16, '#9fb2c3', 'center');
+      const maxW = bw - 20;
+      const lines = [];
+      let cur = '';
+      for (const ch of d) {
+        const test = cur + ch;
+        const testW = test.length * 16 + (test.match(/[A-Za-z0-9.%+\-×]/g) || []).length * 4;
+        if (testW > maxW && cur) { lines.push(cur); cur = ch; if (lines.length >= 3) break; }
+        else cur = test;
+      }
+      if (lines.length < 3 && cur) lines.push(cur);
+      lines.forEach((ln, li) => {
+        text(ctx, ln, cx + bw / 2, cy + 182 + li * 22, 16, '#9fb2c3', 'center');
+      });
       // 选择按钮
-      const btnX = cx + 24, btnY = cy + bh - 58, btnW = bw - 48, btnH = 46;
+      const btnX = cx + 24, btnY = cy + bh - 62, btnW = bw - 48, btnH = 46;
       fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#2c3542');
       strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#f7c948', 1.5);
       text(ctx, '选择', btnX + btnW / 2, btnY + btnH / 2, 24, '#f7c948', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
+  }
+
+  /** v1.16.73 本局圣遗物详情弹层（点击顶部状态栏圣遗物行打开）：分页列表，每页 8 行，▲▼ 翻页 */
+  relicDetailLayer(ctx, relics, page, onPick) {
+    const w = 640, h = 760;
+    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
+    strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
+    text(ctx, '本局圣遗物', 375, y + 54, 34, '#ffffff', 'center');
+    text(ctx, `已获得 ×${relics.length} · 圣遗物获得即本局生效`, 375, y + 92, 18, '#8ea3b8', 'center');
+    // 关闭（右上）
+    ctx.beginPath(); ctx.arc(x + w - 50, y + 44, 20, 0, Math.PI * 2);
+    ctx.fillStyle = '#3a4553'; ctx.fill();
+    text(ctx, '✕', x + w - 50, y + 52, 26, '#ffffff', 'center');
+    onPick.close = { hit: (px, py) => Math.abs(px - (x + w - 50)) < 30 && Math.abs(py - (y + 44)) < 30 };
+    if (!relics.length) return;
+    // 分页列表（每页 8 行）
+    const per = 8, pages = Math.ceil(relics.length / per);
+    const pg = Math.min(Math.max(page || 0, 0), pages - 1);
+    const list = relics.slice(pg * per, pg * per + per);
+    let ry = y + 130;
+    list.forEach((r) => {
+      fillRoundRect(ctx, x + 40, ry, w - 80, 64, 12, '#20262f');
+      ctx.beginPath(); ctx.arc(x + 76, ry + 32, 18, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+      const rSrc = relicIconSrc(r.id);
+      if (!(rSrc && drawImg(ctx, rSrc, x + 61, ry + 17, 30, 30))) text(ctx, r.icon, x + 76, ry + 34, 22, '#ffffff', 'center');
+      text(ctx, r.name, x + 110, ry + 26, 20, '#ffffff', 'left');
+      const dd = String(r.desc || '');
+      const brief = dd.length > 22 ? dd.slice(0, 22) + '…' : dd;
+      text(ctx, brief, x + 110, ry + 52, 15, '#9fb2c3', 'left');
+      ry += 74;
+    });
+    // 翻页：▲ ▼ + 页码
+    const by = y + 130 + per * 74 + 8;
+    fillRoundRect(ctx, x + 40, by, 120, 46, 12, '#2c3542');
+    strokeRoundRect(ctx, x + 40, by, 120, 46, 12, '#7ca8ff', 1.2);
+    text(ctx, '▲ 上一页', x + 100, by + 30, 18, pages > 1 ? '#9fb2c3' : '#5a6c80', 'center');
+    text(ctx, `${pg + 1} / ${pages}`, 375, by + 30, 20, '#f7c948', 'center');
+    fillRoundRect(ctx, x + w - 160, by, 120, 46, 12, '#2c3542');
+    strokeRoundRect(ctx, x + w - 160, by, 120, 46, 12, '#7ca8ff', 1.2);
+    text(ctx, '下一页 ▼', x + w - 100, by + 30, 18, pages > 1 ? '#9fb2c3' : '#5a6c80', 'center');
+    onPick.prev = { hit: (px, py) => px >= x + 40 && px <= x + 160 && py >= by && py <= by + 46 };
+    onPick.next = { hit: (px, py) => px >= x + w - 160 && px <= x + w - 40 && py >= by && py <= by + 46 };
+  }
+
+  /** v1.16.73 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁三角+BOSS */
+  battleHints(ctx, waveHint, bossHint) {
+    const now = Date.now();
+    // 进入下一波：战斗区正中透明文字（无面板背景）
+    if (waveHint && now < waveHint.until) {
+      const yc = (AREA_Y + WALL_Y) / 2 - 40;
+      ctx.globalAlpha = 0.95;
+      text(ctx, '进入', 375, yc, 30, 'rgba(255,255,255,0.72)', 'center');
+      text(ctx, waveHint.text, 375, yc + 54, 52, '#7ef0a3', 'center');
+      ctx.globalAlpha = 1;
+    }
+    // Boss 警告：红色三角感叹号 + BOSS 字样，0.5s 闪烁，4s 自动消失
+    if (bossHint && now < bossHint.until) {
+      if (Math.floor(now / 500) % 2 !== 0) return; // 闪烁：半秒显示半秒隐藏
+      const yc = (AREA_Y + WALL_Y) / 2 - 20;
+      const R = 46;
+      ctx.save();
+      ctx.translate(375, yc);
+      ctx.beginPath();
+      ctx.moveTo(0, -R);
+      ctx.lineTo(R * 0.92, R * 0.62);
+      ctx.lineTo(-R * 0.92, R * 0.62);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(230,57,70,0.88)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-5, -R * 0.45, 10, R * 0.55);
+      ctx.beginPath(); ctx.arc(0, R * 0.32, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      text(ctx, 'BOSS', 375, yc + R + 36, 30, '#ff4757', 'center');
+    }
   }
 }
 

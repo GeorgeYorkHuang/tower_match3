@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.72';       // v1.16.72 战场宝箱三帧动画接入（关→半开→全开0.5s→圣物三选一） + 顶部状态条扩展至y140（避开灵动岛/右上小程序胶囊） + 电塔普攻末端全程吸附目标中心
+const GAME_VERSION = 'v1.16.73';       // v1.16.73 圣遗物三选一图标放大+纵向扩容 + 顶部状态栏圣遗物行/本局详情弹层 + 测试战场添加圣遗物 + 波间自动过渡(2s透明提示)+每5波Boss闪烁警告(4s)
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -54,6 +54,8 @@ class GameMain {
     this.swapped = false;
     this.waveClear = null;
     this.waveClearBtn = {};
+    this.waveHint = null;  // v1.16.73 波间透明提示（2s 自动消失，不暂停）
+    this.bossHint = null;  // v1.16.73 每 5 波 Boss 警告（4s 闪烁，不暂停）
     // 开局引导：先消先得（消除 3 连 → 获得对应塔上槽）
     this.toasts.push({ msg: '滑动相邻方块消除 3 连 · 获得对应塔', color: '#9fb2c3', ttl: 3.2 });
     // 打击特效与音效（模块化 v1.13.11：SfxManager 独立管理）
@@ -96,8 +98,10 @@ class GameMain {
     this.pickCell = null; // 点击交换选中格
     this.combat.reset();
     this._postPick = null;
-    this.battleRelics = []; // v1.9：本局获得的圣物（精英三选一选择后入列，展示于经验条下方）
+    this.battleRelics = []; // v1.16.73：本局获得的圣物（状态栏圣遗物行展示前10个 + 点击查看详情）
     this.fieldChests = [];  // v1.16.59：战场宝箱实体（怪物掉落，点击后开启圣物三选一）{x,y,t,kind}
+    this.relicDetail = null;      // v1.16.73：本局圣遗物详情弹层 {page}（点击顶部状态栏圣遗物行打开，战斗暂停）
+    this.relicDetailHits = {};    // 详情弹层命中区（close/prev/next）
     if (enterBattle) {
       this.enterBattle();
     } else {
@@ -494,21 +498,25 @@ class GameMain {
       this.sfx.stopBgm();
       return;
     }
-    this.waveClear = {
-      wave: this.run.wave,
-      waveGold: res.waveGold,
-      pending: 0,
-    };
-    this.state = 'waveclear';
+    // v1.16.73 波间不弹确认窗：直接结算进入下一波（有升级待选先弹三选一），并弹 2s 透明提示
+    this.waveClearNext();
   }
 
-  /** 波次弹窗点击 → 有待升级先三选一，否则下一波 */
+  /** v1.16.73 波清结算：先三选一（升级待选），无待选直接自动进入下一波；不弹确认窗 */
   waveClearNext() {
     this._postPick = 'waveclear';
     if (this.flushUpgrades()) return;
     this._postPick = null;
+    this.startNextWave();
+  }
+
+  /** v1.16.73 自动进入下一波 + 2s 透明提示；每 5 波弹 4s Boss 闪烁警告（均不暂停进度） */
+  startNextWave() {
     this.state = 'fighting';
-    this.wave.start();
+    this.wave.start(); // run.wave += 1
+    const w = this.run.wave;
+    this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
+    this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;
   }
 
   /** 塔升级三选一：把全部待升级（pending）生成跨塔候选队列并进入 picking；无待升级返回 false */
@@ -540,8 +548,7 @@ class GameMain {
     this.pickIndex = 0;
     if (this._postPick === 'waveclear') {
       this._postPick = null;
-      this.state = 'waveclear';   // v1.12.1 修复：先离开 picking 态，否则 waveClearNext→flushUpgrades 会误判“已在 picking”提前返回，卡死在空队列
-      this.waveClearNext();
+      this.startNextWave(); // v1.16.73 三选一完成 → 自动进入下一波（不再回确认窗）
       return;
     }
     this.state = 'fighting';
@@ -563,6 +570,7 @@ class GameMain {
     this.state = 'fighting';
     this.waveTime = 0;
     this.battleRelics = [];
+    this.relicDetail = null; // v1.16.73 圣遗物详情弹层清理（restart）
     this.enterBattle();
   }
 
@@ -580,11 +588,23 @@ class GameMain {
     this._postPick = null;
     this.pendingRelicPicks = [];
     this.relicPick = null;
+    this.relicDetail = null; // v1.16.73 圣遗物详情弹层清理
     this.testPanel = null;   // v1.14 测试战场配置面板清理
     this.testSpeed = 1;
     this.run.effects.setActiveKeys(null); // v1.16.4 离开测试战场恢复全部塔生效
     this.sfx.stopBgm();
     this.save.save();
+  }
+
+  /** v1.16.73 测试战场：添加圣遗物 → 弹圣物三选一（可反复添加，测试任意圣遗物效果） */
+  testAddRelic() {
+    this.pendingRelicPicks = []; // 测试战场逐次弹层，不积累队列
+    this.spawnRelicPick();       // 复用局内圣遗物候选生成（在场塔塔池 + 通用池）
+    if (!this.pendingRelicPicks.length) { this.toast('暂无可用圣遗物池', '#9fb2c3'); return; }
+    this._relicReturnState = 'testfield'; // 选择完成后回到测试战场
+    this.relicPick = this.pendingRelicPicks.shift();
+    this.relicPickHits = [];
+    this.state = 'relicpick';
   }
 
   /* ---------- 击杀奖励：经验（圣物加成，v1.8 入整体池）/ 精英圣物掉落 / Boss 宝箱 ---------- */
@@ -718,10 +738,11 @@ class GameMain {
       this.renderer.toast(ctx, this.toasts);
       return;
     }
-    // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）
-    if (this.state === 'testfield') {
+    // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）；v1.16.73 测试战场弹圣遗物三选一时底层保持测试战场
+    if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
       this.renderer.toast(ctx, this.toasts);
+      if (this.state === 'relicpick') this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits);
       return;
     }
     const st = this.sceneState();
@@ -744,10 +765,13 @@ class GameMain {
     if (this.state === 'relicpick') {
       this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits);
     }
-    if (this.state === 'waveclear') {
-      this.waveClearBtn = this.renderer.waveClearLayer(ctx, st, this.waveClearBtn);
+    // v1.16.73 本局圣遗物详情弹层（战斗暂停）
+    if (this.relicDetail) {
+      this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
     }
     if (this.state === 'gameover') this.renderer.gameOver(ctx, st, this.restartBtn);
+    // v1.16.73 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁
+    this.renderer.battleHints(ctx, this.waveHint, this.bossHint);
     // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
     if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
     else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
@@ -896,6 +920,7 @@ class GameMain {
         case 'tf_spawn_e': this.spawnTestEnemies('elite', 2); return true;
         case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
         case 'tf_clear': this.clearTestEnemies(); return true;
+        case 'tf_addRelic': this.testAddRelic(); return true; // v1.16.73 测试战场添加圣遗物
         case 'tf_slot': this.testPanel = { key: it.data }; return true;
         case 'tf_switch': this.switchTestTower(it.data); return true;
         case 'panel_close': this.testPanel = null; return true;
@@ -1042,19 +1067,21 @@ class GameMain {
       this.runRelics.push(c.id);
       this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
       this.meta.codexUnlock(c.id);
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name });
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc }); // v1.16.73 详情弹层需要 desc
       this.save.save();
       this.toast('获得圣遗物 ' + c.icon + c.name, '#f7c948');
     } else {
       this.meta.addRelic(c.id);
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name }); // v1.9：本局圣物展示
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc }); // v1.9：本局圣物展示；v1.16.73 带 desc
       this.save.save();
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
     }
     this.relicPick = null;
-    this.state = 'fighting';
+    // v1.16.73 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
+    this.state = this._relicReturnState || 'fighting';
+    this._relicReturnState = null;
     if (this.pendingRelicPicks.length) return; // 还有宝箱：下帧继续弹
-    if (this.run.effects.pendingTotal() > 0) this.flushUpgrades(); // 顺带处理升级待选
+    if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades(); // 顺带处理升级待选
   }
 
   /** 激励视频广告：配置广告位后播放，完整观看回调发奖；未配置/失败时提示 */
@@ -1083,6 +1110,21 @@ class GameMain {
   /* ---------- 触摸 ---------- */
   /** 触摸状态分发（模块化 v1.13.11：从 bindTouch 抽出，返回 true=已消费该触摸） */
   dispatchTouch(p) {
+    // v1.16.73 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
+    if (this.relicDetail) {
+      const h = this.relicDetailHits;
+      if (h.close && h.close.hit(p.x, p.y)) { this.relicDetail = null; this.state = 'fighting'; return true; }
+      if (h.next && h.next.hit(p.x, p.y)) {
+        const pages = Math.ceil(this.battleRelics.length / 8);
+        this.relicDetail.page = Math.min((this.relicDetail.page || 0) + 1, Math.max(pages - 1, 0));
+        return true;
+      }
+      if (h.prev && h.prev.hit(p.x, p.y)) {
+        this.relicDetail.page = Math.max((this.relicDetail.page || 0) - 1, 0);
+        return true;
+      }
+      return true; // 面板内点击不处理其它
+    }
     // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
     if (this.state === 'menu') { this.onMenuTap(p); return true; }
     // 技能二级详情弹层打开中：点返回/遮罩 → 回到塔详情；再次点关闭逻辑在塔详情分支
@@ -1148,6 +1190,13 @@ class GameMain {
       }
     }
     if (this.state === 'fighting') {
+      // v1.16.73 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
+      const rb = this.renderer.relicBarHit;
+      if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
+        this.relicDetail = { page: 0 };
+        this.state = 'relicDetail'; // 详情查看中战斗暂停
+        return true;
+      }
       // v1.16.72 战场宝箱：点击 → 播放开箱帧动画（关→半开→全开 0.5s）→ 动画完弹圣物三选一；动画中不可再点
       for (let i = this.fieldChests.length - 1; i >= 0; i--) {
         const c = this.fieldChests[i];
@@ -1176,11 +1225,6 @@ class GameMain {
     // v1.14 测试战场触摸分发：技能面板弹层优先，其次控制条/塔槽/返回/倍速
     if (this.state === 'testfield') {
       if (this.onTestFieldTap(p)) return true;
-    }
-    // 波次结束弹窗：点「继续」→ 三选一 / 下一波
-    if (this.state === 'waveclear') {
-      if (this.waveClearBtn.hit && this.waveClearBtn.hit(p.x, p.y)) this.waveClearNext();
-      return true;
     }
     // 弹层按钮判定
     if (this.state === 'picking') {
