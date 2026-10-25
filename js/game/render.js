@@ -2995,13 +2995,13 @@ class Renderer {
         '8. 局内金币在战斗结束统一结算为银币（招财符可加成）',
         '9. 城墙血量归零即失败，注意防守',
       ];
-      let hy = y + 96;
+      let hy = y + 90;
       lines.forEach((ln) => {
-        const ls = this.wrapText(ctx, ln, w - 100, 23).slice(0, 3);
-        const bh = ls.length * 30 + 18;
+        const ls = this.wrapText(ctx, ln, w - 90, 24).slice(0, 3);
+        const bh = ls.length * 30 + 12;
         fillRoundRect(ctx, x + 30, hy, w - 60, bh, 10, '#1d242e');
-        ls.forEach((t2, li) => text(ctx, t2, x + 50, hy + 24 + li * 30, 23, '#d7dee6', 'left'));
-        hy += bh + 8;
+        ls.forEach((t2, li) => text(ctx, t2, x + 46, hy + 20 + li * 30, 24, '#d7dee6', 'left'));
+        hy += bh + 6;
       });
     }
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#3a6ea5', fontSize: 26 });
