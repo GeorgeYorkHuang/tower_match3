@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.71';       // v1.16.71 塔详情UI：属性胶囊化(2×2网格+外框5px边框+标签外置+子弹图标+浅色美化) + 图标/字号整体系列调优(61~71) + 新增弹药属性
+const GAME_VERSION = 'v1.16.72';       // v1.16.72 战场宝箱三帧动画接入（关→半开→全开0.5s→圣物三选一） + 顶部状态条扩展至y140（避开灵动岛/右上小程序胶囊） + 电塔普攻末端全程吸附目标中心
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -352,8 +352,16 @@ class GameMain {
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
       this.waveTime += bdt;
-      // v1.16.59 战场宝箱生命周期：20s 未点击自动消失
-      this.fieldChests = this.fieldChests.filter((c) => { c.t += bdt; return c.t < 20; });
+      // v1.16.72 战场宝箱生命周期：20s 未点击自动消失；点击后播放 0.5s 开箱动画（关闭→半开→全开），动画完触发圣物三选一
+      this.fieldChests = this.fieldChests.filter((c) => {
+        c.t += bdt;
+        if (c.animT != null) {
+          c.animT += bdt;
+          if (c.animT >= 0.5) { this.spawnRelicPick(); return false; } // 开箱完成 → 弹三选一
+          return true; // 动画播放中不受 20s 消失计时影响
+        }
+        return c.t < 20;
+      });
       // 陆续投放本波敌人（非一次性同屏）
       this.wave.tick(bdt);
       this.stepEnemies(bdt);
@@ -1140,12 +1148,12 @@ class GameMain {
       }
     }
     if (this.state === 'fighting') {
-      // v1.16.59 战场宝箱：点击 → 圣物三选一（优先于其它战斗按钮）
+      // v1.16.72 战场宝箱：点击 → 播放开箱帧动画（关→半开→全开 0.5s）→ 动画完弹圣物三选一；动画中不可再点
       for (let i = this.fieldChests.length - 1; i >= 0; i--) {
         const c = this.fieldChests[i];
+        if (c.animT != null) continue; // 开箱动画播放中
         if (Math.abs(p.x - c.x) < 44 && Math.abs(p.y - c.y) < 44) {
-          this.fieldChests.splice(i, 1);
-          this.spawnRelicPick();
+          c.animT = 0; // 启动开箱动画（main.js 主循环推进，0.5s 后弹三选一）
           return true;
         }
       }

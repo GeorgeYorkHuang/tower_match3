@@ -61,6 +61,9 @@ const IMG_SRC = {
   enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
   runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
   coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
+  chestClosed: 'images/ui/chest_closed.png', // v1.16.72 战场宝箱三帧动画：关闭帧（掉落显示）
+  chestHalf: 'images/ui/chest_half.png',      // 半开帧（动画中段）
+  chestOpen: 'images/ui/chest_open.png',      // 全开帧（动画末段，金光绽放）
   actionArea: 'images/ui/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
   wall: 'images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
   towerRow: 'images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
@@ -116,11 +119,11 @@ function skillIconSrc(towerKey, skillName) {
   return f ? `images/skillicons/${towerKey}/${f}.png` : null;
 }
 
-const STATUS_H = 120;                       // 状态条区高（v1.16.30 加大顶部安全区：避开 iPhone 灵动岛；原 72）
+const STATUS_H = 140;                       // 状态条区高（v1.16.72 扩展至 y140：顶部安全区更充裕，避开灵动岛与右上小程序胶囊）
 const AREA_X = L.actionArea.x;              // 25
-const AREA_Y = STATUS_H;                    // 120（行动区整体下移 48px，顶部留给金币/波次/协同）
+const AREA_Y = STATUS_H;                    // 140（行动区整体下移，顶部留给金币/波次/协同）
 const AREA_W = L.actionArea.w;              // 700
-const AREA_H = L.actionArea.h - 48;         // 922（压缩行动区高度 48，保持 WALL_Y=967 与下方布局不变）
+const AREA_H = L.actionArea.h - 68;         // 902（压缩行动区高度 68，保持 WALL_Y=967 与下方布局不变）
 const ENTRY_H = L.entryBand.h;              // 68
 const WALL_H = L.wall.h;                    // 75（主体60 + 血条区10 + 底空隙5）
 const WALL_BAR_H = 10;                      // 城墙血条区高度（10px，含血量数字）
@@ -185,24 +188,24 @@ class Renderer {
 
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
 
-  /** 状态条：金币 + 波次 + 波倒计时（v1.16.30 整体下移至安全区，避开 iPhone 灵动岛） */
+  /** 状态条：金币 + 波次 + 波倒计时 + 协同（v1.16.72 扩展至 y140，元素下移避开灵动岛与右上微信小程序按钮） */
   status(ctx, s) {
     const goldIcon = 44;
-    // 金币（图片优先，回退色块 ¥）
-    if (!drawImg(ctx, IMG_SRC.coin, 14, 64, goldIcon, goldIcon)) {
-      fillRoundRect(ctx, 14, 64, goldIcon, goldIcon, 11, '#f7c948');
-      text(ctx, '¥', 36, 86, 22, '#7c5c00', 'center');
+    // 金币（左下安全区：避开灵动岛与右上小程序胶囊）
+    if (!drawImg(ctx, IMG_SRC.coin, 14, 76, goldIcon, goldIcon)) {
+      fillRoundRect(ctx, 14, 76, goldIcon, goldIcon, 11, '#f7c948');
+      text(ctx, '¥', 36, 98, 22, '#7c5c00', 'center');
     }
-    text(ctx, fmtNum(s.gold), 70, 90, 26, '#f7c948');
-    // 波次与倒计时（居中）
-    text(ctx, `第 ${s.wave} 波`, 375, 70, 24, '#ffffff', 'center');
+    text(ctx, fmtNum(s.gold), 70, 102, 26, '#f7c948');
+    // 波次与倒计时（居中，整体下移至灵动岛下方）
+    text(ctx, `第 ${s.wave} 波`, 375, 94, 24, '#ffffff', 'center');
     if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
-      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 375, 98, 18, '#b8c2cc', 'center');
+      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 375, 122, 18, '#b8c2cc', 'center');
     }
-    // 协同状态（右）
+    // 协同状态（右，下移避开右上微信小程序按钮）
     const syn = s.synergies;
     const label = syn[0] && syn[0].done ? '协同✓' : '协同';
-    text(ctx, label, 700, 94, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
+    text(ctx, label, 690, 114, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
     // 底线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(0, STATUS_H - 2, 750, 2);
@@ -1158,33 +1161,40 @@ class Renderer {
 
   /* ============ 区C · 技能特效层（地面持续效果 / 弹道与技能 fx） ============ */
 
-  /** v1.16.59 战场宝箱：怪物掉落实体，点击后开启圣物三选一；金色宝箱 + 呼吸光晕 + 点击提示 */
+  /** v1.16.72 战场宝箱：怪物掉落实体，点击后播放三帧开箱动画（关→半开→全开）→ 开启后弹出圣物三选一；金色宝箱图片 + 呼吸光晕 + 点击提示 */
   fieldChests(ctx, list) {
     if (!list || !list.length) return;
     const now = Date.now();
     list.forEach((c) => {
-      const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
       const s = 56;
-      // 呼吸光晕
+      const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱动画播放中（main.js 推进）
+      const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
+      // 呼吸光晕（开启中加强）
       const g = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, s * 1.5);
       g.addColorStop(0, '#ffd34d'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.globalAlpha = 0.22 + 0.12 * b;
+      ctx.fillStyle = g; ctx.globalAlpha = opening ? 0.4 : 0.22 + 0.12 * b;
       ctx.beginPath(); ctx.arc(c.x, c.y, s * 1.5, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      // 箱体（金色渐变 + 投影）
-      fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, 'rgba(0,0,0,0.35)');
-      const bg = ctx.createLinearGradient(c.x - s / 2, c.y - s / 2 + 10, c.x - s / 2, c.y + s / 2);
-      bg.addColorStop(0, '#ffe08a'); bg.addColorStop(1, '#c8860a');
-      fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, bg);
-      // 箱盖
-      fillRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, '#f7c948');
-      strokeRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
-      // 锁扣
-      fillRoundRect(ctx, c.x - 8, c.y - 6, 16, 16, 4, '#8a5c00');
-      ctx.fillStyle = '#ffd34d';
-      ctx.beginPath(); ctx.arc(c.x, c.y + 2, 3, 0, Math.PI * 2); ctx.fill();
-      // 点击提示
-      text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
+      // 地面投影
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(c.x, c.y + s / 2 + 4, s / 2 * 0.85, 6, 0, 0, Math.PI * 2); ctx.fill();
+      // 三帧动画：关闭(0~0.3) → 半开(0.3~0.65) → 全开(0.65~1)
+      const p = opening ? Math.min(1, c.animT / 0.5) : 0;
+      const src = p < 0.3 ? IMG_SRC.chestClosed : (p < 0.65 ? IMG_SRC.chestHalf : IMG_SRC.chestOpen);
+      if (!drawImg(ctx, src, c.x - s / 2, c.y - s / 2, s, s)) {
+        // 回退：金色渐变箱体（图片未加载时）
+        fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, 'rgba(0,0,0,0.35)');
+        const bg = ctx.createLinearGradient(c.x - s / 2, c.y - s / 2 + 10, c.x - s / 2, c.y + s / 2);
+        bg.addColorStop(0, '#ffe08a'); bg.addColorStop(1, '#c8860a');
+        fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, bg);
+        fillRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, '#f7c948');
+        strokeRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
+        fillRoundRect(ctx, c.x - 8, c.y - 6, 16, 16, 4, '#8a5c00');
+        ctx.fillStyle = '#ffd34d';
+        ctx.beginPath(); ctx.arc(c.x, c.y + 2, 3, 0, Math.PI * 2); ctx.fill();
+      }
+      // 点击提示（未开启时显示）
+      if (!opening) text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
     });
   }
 
@@ -1361,14 +1371,15 @@ class Renderer {
         // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
         // v1.16.52 末端吸附：p ≥ 0.9 时弹头/闪电条终点直接贴合目标中心——fx 在 t ≥ dur 时即被移除、
         //   末帧不渲染，无吸附时弹头只能推进到 p≈0.93（30fps），细长条末端明显停在怪物中心旁边
+        // v1.16.72 普攻开始时末端即吸附怪物：闪电条终点始终 = 目标当前中心（发射第一帧细长条就连到怪物），
+        //   前端电球沿 塔口→目标 连线领跑推进（p=1 时恰好落在目标中心），命中电花始终在目标身上
         const seg = 10, jit = 8;
         const pts = [];
         for (let i = 1; i < seg; i++) {
           const q = i / seg;
           pts.push({ x: f.x + (endX - f.x) * q + (Math.random() * jit * 2 - jit), y: f.y + (endY - f.y) * q + (Math.random() * jit * 2 - jit) });
         }
-        const hx = (p >= 0.9) ? endX : x;
-        const hy = (p >= 0.9) ? endY : y;
+        const hx = endX, hy = endY;   // 闪电条末端：全程吸附目标中心
         const trace = (color, w, alpha) => {
           ctx.strokeStyle = color; ctx.lineWidth = w; ctx.globalAlpha = alpha;
           ctx.lineCap = 'round';
@@ -1379,13 +1390,13 @@ class Renderer {
         trace(f.color, 6, 0.16);        // 外辉光（淡，贴近主条）
         trace(f.color, 3.4, 0.9);       // 主条（细）
         trace('#ffffff', 1.3, 0.95);    // 白芯（最细）
-        // 前端电球（领跑，吸附时落在目标中心）
+        // 前端电球（沿 塔口→目标 连线领跑推进，命中时恰好落在目标中心）
         ctx.globalAlpha = 0.35;
         ctx.fillStyle = f.color;
-        ctx.beginPath(); ctx.arc(hx, hy, 11, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.95;
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fill();
         // 命中电花（末端，p→1 时爆发）
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.fillStyle = '#ffffff';
