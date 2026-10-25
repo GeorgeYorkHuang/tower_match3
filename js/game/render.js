@@ -3529,13 +3529,18 @@ class Renderer {
   menuRelic(ctx, s, push) {
     const list = this._relicRunList();
     const unlocked = list.filter((d) => this._relicUnlocked(s, d.id)).length;
-    // 顶部固定区：宝箱入口 + 图鉴计数
-    push('chest', null, 55, 262, 250, 42);
-    fillRoundRect(ctx, 55, 262, 250, 42, 10, '#3a2b1a');
-    strokeRoundRect(ctx, 55, 262, 250, 42, 10, '#d89e63', 1.2);
-    text(ctx, `📦 宝箱 ×${s.chests} 点击开启`, 180, 290, 18, '#ffffff', 'center');
-    text(ctx, `圣遗物图鉴 ${unlocked}/${list.length}`, 330, 290, 26, '#ffffff', 'left');
-    text(ctx, '↕ 上下滑动浏览全部', 640, 291, 16, '#5a6c80', 'right');
+    // 顶部固定区：标题 + 解锁进度条（v1.16.84 移除宝箱按钮与滑动提示）
+    text(ctx, '圣遗物图鉴', 55, 290, 26, '#ffffff', 'left');
+    const px0 = 250, pw = 460, py = 278;
+    fillRoundRect(ctx, px0, py, pw, 24, 12, 'rgba(255,255,255,0.08)');
+    const ratio = list.length ? unlocked / list.length : 0;
+    if (ratio > 0) {
+      const pg = ctx.createLinearGradient(px0, 0, px0 + pw, 0);
+      pg.addColorStop(0, '#a86bff'); pg.addColorStop(1, '#f7c948');
+      fillRoundRect(ctx, px0, py, Math.max(24, pw * ratio), 24, 12, pg);
+    }
+    strokeRoundRect(ctx, px0, py, pw, 24, 12, '#a86bff', 1.2);
+    text(ctx, `${unlocked} / ${list.length}`, px0 + pw / 2, py + 13, 16, '#ffffff', 'center');
     // 滚动视口
     const vy0 = 330, vy1 = 1492;
     const PER_ROW = 4, cw = 149, ch = 210, gx = 14, gy = 14;
