@@ -61,9 +61,11 @@ const IMG_SRC = {
   enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
   runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
   coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
-  chestClosed: 'images/ui/chest_closed.png', // v1.16.72 战场宝箱三帧动画：关闭帧（掉落显示）
-  chestHalf: 'images/ui/chest_half.png',      // 半开帧（动画中段）
-  chestOpen: 'images/ui/chest_open.png',      // 全开帧（动画末段，金光绽放）
+  chestClosed: 'images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
+  chestQuarter: 'images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
+  chestHalf: 'images/ui/chest_half.png',      // 半开帧（帧3）
+  chestFast: 'images/ui/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
+  chestOpen: 'images/ui/chest_open.png',      // 全开帧（帧5，金光绽放）
   actionArea: 'images/ui/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
   wall: 'images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
   towerRow: 'images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
@@ -76,6 +78,18 @@ const BOARD_IMG = {
   purple: 'images/board/boomerang.png', orange: 'images/board/cannon.png',
 };
 const imgCache = {};
+// v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
+const MENU_TABS = [
+  ['battle', '⚔', '战斗'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴'],
+];
+const MENU_TAB_THEME = {
+  battle: { main: '#e8603c', dark: '#8c2f18', top: 'rgba(58,26,32,0.9)' },
+  shop:   { main: '#e0a92f', dark: '#8a6212', top: 'rgba(51,39,15,0.9)' },
+  relic:  { main: '#a86bff', dark: '#5c33a8', top: 'rgba(41,26,61,0.9)' },
+  codex:  { main: '#4d8fd6', dark: '#26517e', top: 'rgba(21,42,71,0.9)' },
+};
+const TOWER_HEX = { red: '#ff6b6b', blue: '#5dade2', green: '#58d68d', yellow: '#f4d03f', purple: '#af7ac5', orange: '#e67e22' };
+const TOWERS_COLOR = (k) => (CONFIG.TOWERS[k] || {}).color;
 function loadImg(src) {
   if (src in imgCache) return imgCache[src];
   if (typeof wx !== 'undefined' && wx.createImage) {
@@ -117,6 +131,37 @@ const SKILL_ICON = {
 function skillIconSrc(towerKey, skillName) {
   const f = (SKILL_ICON[towerKey] || {})[skillName];
   return f ? `images/skillicons/${towerKey}/${f}.png` : null;
+}
+
+/* v1.16.74 技能帧动画（精灵表横向条带，images/anims/<set>_<variant>.png） */
+const ANIM_SHEETS = {
+  explosion: { orange: ['images/anims/anim_explosion_orange.png', 10], blue: ['images/anims/anim_explosion_blue.png', 10], green: ['images/anims/anim_explosion_green.png', 10] },
+  fallstrike: { orange: ['images/anims/anim_fallstrike_orange.png', 8], blue: ['images/anims/anim_fallstrike_blue.png', 8] },
+  spark: { gold: ['images/anims/anim_spark_gold.png', 6] },
+};
+/* fx 颜色 → 帧动画变体：绿系→green、蓝系→blue、其余→orange */
+function animVariantOf(color) {
+  const m = /^#([0-9a-f]{6})$/i.exec(color || '');
+  if (!m) return 'orange';
+  const v = parseInt(m[1], 16), r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+  if (g > r && g > b) return 'green';
+  if (b > r && b >= g) return 'blue';
+  return 'orange';
+}
+/* 按进度 p(0..1) 绘制精灵表第 idx 帧，加法混合；表未加载返回 false 由调用方兜底 */
+function drawAnimSheet(ctx, set, variant, x, y, size, p) {
+  const conf = ANIM_SHEETS[set] && ANIM_SHEETS[set][variant];
+  if (!conf) return false;
+  const img = loadImg(conf[0]);
+  if (!img || !img.width) return false;
+  const n = conf[1];
+  const idx = Math.max(0, Math.min(n - 1, Math.floor(p * n)));
+  const fw = img.width / n;
+  const prev = ctx.globalCompositeOperation;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(img, idx * fw, 0, fw, img.height, x - size / 2, y - size / 2, size, size);
+  ctx.globalCompositeOperation = prev;
+  return true;
 }
 
 /* v1.16.61 局内圣遗物图标（images/relic/<塔系>/<id>.png，缺失时回退 emoji） */
@@ -1182,31 +1227,72 @@ class Renderer {
     const now = Date.now();
     list.forEach((c) => {
       const s = 56;
-      const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱动画播放中（main.js 推进）
+      const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
+      // v1.16.74 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
+      let fx = c.x, fy = c.y, scale = 1;
+      if (opening && c.stage === 'fly') {
+        const p = Math.min(1, c.flyT / 0.7);
+        const e = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p); // ease-in-out
+        fx = c.x + (375 - c.x) * e;
+        fy = c.y + (560 - c.y) * e;
+        scale = 1 + 1.6 * e; // 56 → 最大 ≈146
+      }
       const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
-      // 呼吸光晕（开启中加强）
-      const g = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, s * 1.5);
+      // 呼吸光晕（开启中加强；飞行中随位置与放大）
+      const gR = s * 1.5 * scale;
+      const g = ctx.createRadialGradient(fx, fy, 4, fx, fy, gR);
       g.addColorStop(0, '#ffd34d'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.globalAlpha = opening ? 0.4 : 0.22 + 0.12 * b;
-      ctx.beginPath(); ctx.arc(c.x, c.y, s * 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g; ctx.globalAlpha = opening ? 0.42 : 0.22 + 0.12 * b;
+      ctx.beginPath(); ctx.arc(fx, fy, gR, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      // 地面投影
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.ellipse(c.x, c.y + s / 2 + 4, s / 2 * 0.85, 6, 0, 0, Math.PI * 2); ctx.fill();
-      // 三帧动画：关闭(0~0.3) → 半开(0.3~0.65) → 全开(0.65~1)
-      const p = opening ? Math.min(1, c.animT / 0.5) : 0;
-      const src = p < 0.3 ? IMG_SRC.chestClosed : (p < 0.65 ? IMG_SRC.chestHalf : IMG_SRC.chestOpen);
-      if (!drawImg(ctx, src, c.x - s / 2, c.y - s / 2, s, s)) {
+      // 地面投影（仅静止时）
+      if (!opening) {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath(); ctx.ellipse(c.x, c.y + s / 2 + 4, s / 2 * 0.85, 6, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      // 五帧动画（v1.16.75）：关闭 → 微开 → 半开 → 快开 → 全开，0.4s 播完；飞行阶段恒用全开帧
+      const p = opening ? Math.min(1, c.animT / 0.4) : 0;
+      const src = (opening && c.stage === 'fly') ? IMG_SRC.chestOpen
+        : (p < 0.2 ? IMG_SRC.chestClosed : (p < 0.4 ? IMG_SRC.chestQuarter : (p < 0.6 ? IMG_SRC.chestHalf : (p < 0.8 ? IMG_SRC.chestFast : IMG_SRC.chestOpen))));
+      const ss = s * scale;
+      if (!drawImg(ctx, src, fx - ss / 2, fy - ss / 2, ss, ss)) {
         // 回退：金色渐变箱体（图片未加载时）
-        fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, 'rgba(0,0,0,0.35)');
-        const bg = ctx.createLinearGradient(c.x - s / 2, c.y - s / 2 + 10, c.x - s / 2, c.y + s / 2);
+        fillRoundRect(ctx, fx - ss / 2, fy - ss / 2 + 10, ss, ss - 10, 8, 'rgba(0,0,0,0.35)');
+        const bg = ctx.createLinearGradient(fx - ss / 2, fy - ss / 2 + 10, fx - ss / 2, fy + ss / 2);
         bg.addColorStop(0, '#ffe08a'); bg.addColorStop(1, '#c8860a');
-        fillRoundRect(ctx, c.x - s / 2, c.y - s / 2 + 10, s, s - 10, 8, bg);
-        fillRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, '#f7c948');
-        strokeRoundRect(ctx, c.x - s / 2 - 3, c.y - s / 2, s + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
-        fillRoundRect(ctx, c.x - 8, c.y - 6, 16, 16, 4, '#8a5c00');
+        fillRoundRect(ctx, fx - ss / 2, fy - ss / 2 + 10, ss, ss - 10, 8, bg);
+        fillRoundRect(ctx, fx - ss / 2 - 3, fy - ss / 2, ss + 6, 18, 6, '#f7c948');
+        strokeRoundRect(ctx, fx - ss / 2 - 3, fy - ss / 2, ss + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
+        fillRoundRect(ctx, fx - 8, fy - 6, 16, 16, 4, '#8a5c00');
         ctx.fillStyle = '#ffd34d';
-        ctx.beginPath(); ctx.arc(c.x, c.y + 2, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(fx, fy + 2, 3, 0, Math.PI * 2); ctx.fill();
+      }
+      // v1.16.74 飞行金光：轨迹粒子 + 到达中心时的光爆
+      if (opening && c.stage === 'fly') {
+        const p = Math.min(1, c.flyT / 0.7);
+        for (let k = 0; k < 8; k++) {
+          const kk = ((k * 0.618 + 0.2) % 1);
+          if (kk > p) continue;
+          const tx = c.x + (375 - c.x) * kk, ty = c.y + (560 - c.y) * kk;
+          const fade = Math.max(0, 1 - (p - kk) * 2.4);
+          ctx.fillStyle = k % 2 ? '#ffd34d' : '#fff6d8';
+          ctx.globalAlpha = 0.8 * fade;
+          ctx.beginPath(); ctx.arc(tx, ty, 2.5 + 1.6 * scale, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // 到达中心光爆（后 30% 时间）
+        if (p > 0.7) {
+          const bp = (p - 0.7) / 0.3;
+          const br = 40 + 130 * bp;
+          const bg2 = ctx.createRadialGradient(375, 560, 6, 375, 560, br);
+          bg2.addColorStop(0, 'rgba(255,244,214,0.9)');
+          bg2.addColorStop(0.4, 'rgba(255,211,77,0.45)');
+          bg2.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = bg2;
+          ctx.globalAlpha = 0.9 * (1 - bp * 0.4);
+          ctx.beginPath(); ctx.arc(375, 560, br, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       }
       // 点击提示（未开启时显示）
       if (!opening) text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
@@ -1999,41 +2085,28 @@ class Renderer {
 
   fxBoom(ctx, f) {
       const p = Math.min(1, f.t / f.dur);
-      const n = 1 + Math.floor(p * 18); // explosion1..19
-      const r = 14 + p * 26;
-      if (!drawImg(ctx, `images/explosion${n}.png`, f.x - r, f.y - r, r * 2, r * 2)) {
+      // v1.16.74 统一爆炸演出：anim_explosion 精灵表按颜色变体播放
+      // （替换原 images/explosionN 序列帧，并移除 v1.16.6 程序化"爆炸增强"叠加段，避免重叠渲染）
+      const size = (f.r ? f.r * 2.4 : 108);
+      if (!drawAnimSheet(ctx, 'explosion', animVariantOf(f.color), f.x, f.y, size, p)) {
+        // 兜底：精灵表未加载时简版闪光圆
+        const r = 14 + p * 26;
         ctx.globalAlpha = (1 - p) * 0.8;
         ctx.fillStyle = f.color || '#ff9f43';
         ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // v1.16.6 爆炸增强：冲击波扩散环 + 亮心闪光 + 辐射火粒（重炮/地雷/炮火支援/炮台通用）
-      ctx.globalAlpha = (1 - p) * 0.5;
-      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(f.x, f.y, r * 0.7 + (1 - p) * 46, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = (1 - p) * 0.3;
-      ctx.strokeStyle = (f.color || '#ff9f43');
-      ctx.beginPath(); ctx.arc(f.x, f.y, r + (1 - p) * 58, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = Math.max(0, (1 - p) * 9);
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 6 + (1 - p) * 16, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = (1 - p) * 0.8;
-      ctx.fillStyle = (f.color || '#ff9f43');
-      for (let k = 0; k < 8; k++) {
-        const a = k * 0.785 + f.t * 7 + (f.seed || 0);
-        ctx.beginPath();
-        ctx.arc(f.x + Math.cos(a) * (10 + (1 - p) * 52), f.y + Math.sin(a) * (10 + (1 - p) * 52) * 0.85, 2.4 - (1 - p) * 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
   }
 
   fxFlashFx(ctx, f) {
       const p = Math.min(1, f.t / f.dur);
-      ctx.globalAlpha = (1 - p) * 0.9;
-      ctx.fillStyle = f.color || '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
+      // v1.16.74 命中火花：anim_spark 四芒星（6帧/15fps），替换原程序化闪光圆（避免重叠渲染）
+      if (!drawAnimSheet(ctx, 'spark', 'gold', f.x, f.y, 60, p)) {
+        ctx.globalAlpha = (1 - p) * 0.9;
+        ctx.fillStyle = f.color || '#ffffff';
+        ctx.beginPath(); ctx.arc(f.x, f.y, 6 + p * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
   }
 
   fxVine(ctx, f) {
@@ -2378,15 +2451,18 @@ class Renderer {
         ctx.fillStyle = '#ffe08a';
         ctx.beginPath(); ctx.arc(cx - br * 0.2, cy - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
       } else {
-        // 落地小爆焰（淡出）
+        // v1.16.74 落地爆焰：anim_fallstrike 冲击段（帧3-7 映射 0.25s），替换原程序化小爆焰（避免重叠渲染）
         const k = Math.min(1, (f.t - FALL) / 0.25);
-        ctx.globalAlpha = 0.9 * (1 - k);
-        ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 + k * 1.6), 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = (1 - k) * 0.9;
-        ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-        ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
+        if (!drawAnimSheet(ctx, 'fallstrike', 'orange', f.tx, f.ty, 96, (3 + k * 4.99) / 8)) {
+          // 兜底：原小爆焰
+          ctx.globalAlpha = 0.9 * (1 - k);
+          ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 + k * 1.6), 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = (1 - k) * 0.9;
+          ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       }
   }
 
@@ -3051,11 +3127,13 @@ class Renderer {
   menuLayer(ctx, s, hits) {
     const items = [];
     const push = (key, data, x, y, w, h) => items.push({ key, data, rect: { x, y, w, h }, hit: (px, py) => px >= x - 0.5 && px <= x + w + 0.5 && py >= y - 0.5 && py <= y + h + 0.5 });
-    // 背景 + 顶部渐变
+    // v1.16.75 分页主题背景：每页一张氛围底图（未加载时回退纯色底）
+    const theme = MENU_TAB_THEME[s.tab] || MENU_TAB_THEME.battle;
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
+    drawImg(ctx, `images/menubg/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
     const grad = ctx.createLinearGradient(0, 0, 0, 170);
-    grad.addColorStop(0, '#16233a'); grad.addColorStop(1, '#0d1117');
+    grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 170);
     text(ctx, '消消防线', 40, 92, 52, '#ffffff', 'left');
     // 金币
@@ -3066,20 +3144,47 @@ class Renderer {
     fillRoundRect(ctx, 520, 56, 150, 58, 29, 'rgba(124,168,255,0.12)');
     strokeRoundRect(ctx, 520, 56, 150, 58, 29, '#7ca8ff', 1.5);
     text(ctx, `💎 ${s.diamond}`, 595, 94, 30, '#7ca8ff', 'center');
-    // 内容区（battle / shop / relic）
+    // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
+    else if (s.tab === 'codex') this.menuCodex(ctx, s, push);
     else this.menuRelic(ctx, s, push);
-    // 底部大分页标签（屏幕最下方，3 个）
-    const tabY = 1504, tabH = 100, tabW = 216, tabGap = 14;
-    const tabs = [['battle', '⚔ 战斗'], ['shop', '🏪 商店'], ['relic', '💎 圣物']];
-    tabs.forEach(([key, label], i) => {
-      const tx = 40 + i * (tabW + tabGap);
+    // v1.16.75 底部大分页标签（4 个）：激活页签与页面"融为一体"——
+    // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
+    const tabY = 1504, tabH = 100, tabW = 163, tabGap = 12, x0 = 31;
+    const tabs = MENU_TABS;
+    // 激活页签向上光束（页面↔页签的视觉连接）
+    const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
+    ag.addColorStop(0, 'rgba(0,0,0,0)');
+    ag.addColorStop(1, theme.main + '55');
+    ctx.fillStyle = ag; ctx.fillRect(x0, tabY - 70, tabW * 4 + tabGap * 3, 70);
+    tabs.forEach(([key, icon, label], i) => {
+      const tx = x0 + i * (tabW + tabGap);
       push('tab', key, tx, tabY, tabW, tabH);
       const active = s.tab === key;
-      fillRoundRect(ctx, tx, tabY, tabW, tabH, 16, active ? '#1f8c5f' : '#1b2230');
-      strokeRoundRect(ctx, tx, tabY, tabW, tabH, 16, active ? '#2ecc71' : '#2b3648', active ? 2 : 1);
-      text(ctx, label, tx + tabW / 2, tabY + tabH / 2, 30, active ? '#ffffff' : '#8ea3b8', 'center');
+      const th = MENU_TAB_THEME[key];
+      if (active) {
+        // 同页主题色渐变（上亮下稍暗）+ 仅上圆角，与屏幕底边贴合
+        const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
+        tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
+        ctx.beginPath();
+        ctx.moveTo(tx, tabY + tabH);
+        ctx.lineTo(tx, tabY + 16);
+        ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
+        ctx.lineTo(tx + tabW - 16, tabY);
+        ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
+        ctx.lineTo(tx + tabW, tabY + tabH);
+        ctx.closePath();
+        ctx.fillStyle = tg; ctx.fill();
+        // 顶部亮条
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, ctx.fillStyle);
+        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
+      } else {
+        fillRoundRect(ctx, tx, tabY, tabW, tabH, 16, 'rgba(20,26,36,0.92)');
+        strokeRoundRect(ctx, tx, tabY, tabW, tabH, 16, '#2b3648', 1);
+        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + tabH / 2, 26, '#8ea3b8', 'center');
+      }
     });
     // 子面板
     if (s.panel) {
@@ -3123,17 +3228,22 @@ class Renderer {
     ctx.globalAlpha = 1 + breath;
     strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
     ctx.globalAlpha = 1;
-    // 战场标题
-    text(ctx, title, 375, sy + 92, 46, '#ffffff', 'center');
-    text(ctx, subtitle, 375, sy + 146, 24, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
-    // 奖励说明（v1.16.31 切换战场时内容同步适配）
-    fillRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.10)' : 'rgba(46,204,113,0.10)');
-    strokeRoundRect(ctx, sx + 40, sy + 180, sw - 80, 130, 14, isTest ? 'rgba(168,139,255,0.35)' : 'rgba(46,204,113,0.35)', 1);
+    // v1.16.75 战场徽章图标（顶边中央骑缝挂章；保持卡片大小不变）
+    const badge = drawImg(ctx, isTest ? 'images/menubg/icon_stage_test.png' : 'images/menubg/icon_stage_ancient.png', 375 - 36, sy - 30, 72, 72);
+    if (!badge) { ctx.beginPath(); ctx.arc(375, sy + 6, 30, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill(); text(ctx, isTest ? '🧪' : '🏰', 375, sy + 8, 30, '#ffffff', 'center'); }
+    // 战场标题（为挂章下移让位）
+    text(ctx, isTest ? '测试战场' : '远古战场', 375, sy + 106, 46, '#ffffff', 'center');
+    text(ctx, subtitle, 375, sy + 154, 24, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
+    // 奖励说明（v1.16.31 切换战场时内容同步适配；v1.16.75 修复仅显示 emoji 的问题）
+    fillRoundRect(ctx, sx + 40, sy + 184, sw - 80, 118, 14, isTest ? 'rgba(168,139,255,0.10)' : 'rgba(46,204,113,0.10)');
+    strokeRoundRect(ctx, sx + 40, sy + 184, sw - 80, 118, 14, isTest ? 'rgba(168,139,255,0.35)' : 'rgba(46,204,113,0.35)', 1);
     const rewards = isTest
-      ? ['⚔ 直测技能', '🛡 城墙无敌', '⚡ 弹药恒满']
-      : ['💛 金币', '📦 宝箱', '💎 圣物'];
-    rewards.forEach((r, i) => {
-      text(ctx, r[0], sx + 62 + i * 180, sy + 226, 24, '#f7c948', 'left');
+      ? [['⚔', '直测技能'], ['🛡', '城墙无敌'], ['⚡', '弹药恒满']]
+      : [['💛', '金币'], ['📦', '宝箱'], ['💎', '圣物']];
+    rewards.forEach(([emo, label], i) => {
+      const rx2 = sx + 62 + i * 180;
+      text(ctx, emo, rx2, sy + 228, 26, '#f7c948', 'left');
+      text(ctx, label, rx2 + 36, sy + 229, 22, '#e8e2d0', 'left');
     });
     text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
     // ◀ ▶ 战场切换箭头：放在战场描述卡外侧左右两边（v1.16.31；v1.16.33 立体化：投影+渐变玻璃底+高光弧+呼吸光晕）
@@ -3322,6 +3432,62 @@ class Renderer {
     });
   }
 
+  /** 塔图鉴页（v1.16.75）：6 塔页签 + 塔数据/技能详情；回旋镖/炮塔需金币学习解锁 */
+  menuCodex(ctx, s, push) {
+    const th = MENU_TAB_THEME.codex;
+    const keys = Object.keys(CONFIG.TOWERS);
+    const colorName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k].color] || {}).name || k;
+    const shotName = { line: '直线弹道', bolt: '闪电折线', arc: '回旋弧线', mortar: '抛物线炮弹' };
+    const learnCost = { boomerang: 3000, cannon: 5000 };
+    // 塔选择 chips（6 个）
+    const cw = 112, ch = 78, cg = 8, cx0 = 19, cy0 = 210;
+    keys.forEach((k, i) => {
+      const cx = cx0 + i * (cw + cg), learned = !!s.towerCodex[k];
+      const cName = colorName(k);
+      const cCol = TOWER_HEX[TOWERS_COLOR(k)] || '#8ea3b8';
+      push('codexSel', k, cx, cy0, cw, ch);
+      const sel = s.codexSel === k;
+      fillRoundRect(ctx, cx, cy0, cw, ch, 12, sel ? (learned ? 'rgba(77,143,214,0.28)' : 'rgba(77,143,214,0.14)') : 'rgba(22,29,40,0.88)');
+      strokeRoundRect(ctx, cx, cy0, cw, ch, 12, sel ? th.main : (learned ? cCol : '#2b3648'), sel ? 2 : 1);
+      text(ctx, learned ? cName : '🔒', cx + cw / 2, cy0 + 32, 20, learned ? '#ffffff' : '#5a6c80', 'center');
+      text(ctx, CONFIG.TOWERS[k].p1 ? 'P1 塔' : '基础塔', cx + cw / 2, cy0 + 60, 14, learned ? '#8ea3b8' : '#3a4553', 'center');
+    });
+    // 详情：选中塔
+    const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
+    const T = CONFIG.TOWERS[k];
+    const learned = !!s.towerCodex[k];
+    const cCol = TOWER_HEX[T.color] || '#8ea3b8';
+    const dx = 40, dw = 670, dy = 312;
+    fillRoundRect(ctx, dx, dy, dw, 152, 16, learned ? 'rgba(22,29,40,0.9)' : 'rgba(16,21,29,0.94)');
+    strokeRoundRect(ctx, dx, dy, dw, 152, 16, learned ? cCol : '#2b3648', learned ? 1.6 : 1);
+    text(ctx, learned ? colorName(k) : '？？？', dx + 26, dy + 44, 30, learned ? '#ffffff' : '#4a5a6e', 'left');
+    text(ctx, learned ? `伤害 ${T.baseDps}/s · 成长 ×${T.grow}` : '完成学习后解锁塔数据', dx + 26, dy + 82, 19, learned ? '#9fb2c3' : '#3a4553', 'left');
+    if (learned) {
+      text(ctx, `射程 ${T.range} · 攻速 ${T.atkInterval}s/发 · ${shotName[T.shot.kind] || T.shot.kind}`, dx + 26, dy + 116, 18, '#6f8499', 'left');
+    } else {
+      const cost = learnCost[k] || 3000;
+      push('codexLearn', k, dx + dw - 196, dy + 40, 170, 72);
+      fillRoundRect(ctx, dx + dw - 196, dy + 40, 170, 72, 12, 'rgba(247,201,72,0.14)');
+      strokeRoundRect(ctx, dx + dw - 196, dy + 40, 170, 72, 12, '#f7c948', 1.5);
+      text(ctx, `📖 学习`, dx + dw - 111, dy + 66, 22, '#f7c948', 'center');
+      text(ctx, `${cost} 💰`, dx + dw - 111, dy + 96, 20, s.gold >= cost ? '#f7c948' : '#a05a3c', 'center');
+    }
+    // 技能列表（2 列 × 4 行，锁塔灰显）
+    const pool = CONFIG.EFFECT_POOLS[k] || [];
+    text(ctx, learned ? '技能池（8 特效 × 3 分支）' : '技能池（学习后查看）', 55, dy + 196, 24, '#ffffff', 'left');
+    const sw2 = 330, sh2 = 96, sg = 10, sy0 = dy + 226;
+    pool.forEach((sk, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const gx = 55 + col * (sw2 + sg), gy = sy0 + row * (sh2 + sg);
+      fillRoundRect(ctx, gx, gy, sw2, sh2, 12, learned ? 'rgba(22,29,40,0.88)' : 'rgba(16,21,29,0.9)');
+      strokeRoundRect(ctx, gx, gy, sw2, sh2, 12, learned ? (sk.p0 ? sk.color : '#3a4553') : '#232b36', sk.p0 && learned ? 1.4 : 1);
+      text(ctx, learned ? sk.icon : '🔒', gx + 30, gy + 38, 24, learned ? '#ffffff' : '#4a5a6e', 'center');
+      text(ctx, learned ? sk.name : '未解锁', gx + 62, gy + 39, 21, learned ? '#ffffff' : '#4a5a6e', 'left');
+      text(ctx, learned ? (sk.desc || sk.pick || '') : '？？？', gx + 24, gy + 72, 14, '#8ea3b8', 'left');
+      if (learned && sk.p0) text(ctx, 'P0', gx + sw2 - 30, gy + 34, 15, sk.color, 'center');
+    });
+  }
+
   /** 子面板外壳：遮罩 + 面板 + 标题 + 关闭（hgt 可自定义高度） */
   _menuPanelShell(ctx, s, push, title, hgt) {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
@@ -3337,38 +3503,96 @@ class Renderer {
   }
 
   /** 战斗内圣物宝箱三选一弹层（精英掉落 · 暂停战斗）：3 个候选卡片，点选获取 */
-  relicPickLayer(ctx, pick, onPick) {
+  /** v1.16.74 圣物三选一：华丽金色主题 + 弹出动画（scale 0.62→1 渐入，300ms） */
+  relicPickLayer(ctx, pick, onPick, elapsed) {
     if (!pick || !pick.candidates) return;
+    // v1.16.74 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
+    const pe = Math.min(1, (elapsed || 0) / 500);
+    const es = 1 + 2.70158 * Math.pow(pe - 1, 3) + 1.70158 * Math.pow(pe - 1, 2);
+    const sc = pe >= 1 ? 1 : Math.max(0.2, es);
+    const al = pe >= 1 ? 1 : Math.min(1, pe * 1.6);
+    ctx.save();
+    ctx.globalAlpha = al;
+    ctx.translate(375, 560);
+    ctx.scale(sc, sc);
+    ctx.translate(-375, -560);
+
     const w = 640, h = 500; // v1.16.73 纵向扩容 420→500，描述三行防出框
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    // 全屏遮罩：中心暖光、四角压暗（比纯黑更有"显现"感）
+    const mask = ctx.createRadialGradient(375, 560, 60, 375, 560, 900);
+    mask.addColorStop(0, 'rgba(30,20,6,0.78)');
+    mask.addColorStop(1, 'rgba(8,6,10,0.92)');
+    ctx.fillStyle = mask;
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
-    strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
-    text(ctx, '圣遗物宝箱 · 三选一', 375, y + 58, 36, '#7ca8ff', 'center');
-    text(ctx, '获得圣遗物本局生效；塔圣遗物仅对应塔在场时出现', 375, y + 98, 19, '#8ea3b8', 'center');
+    // 背景星光粒子（确定性伪随机闪烁）
+    const now = Date.now();
+    for (let i = 0; i < 26; i++) {
+      const sx = (i * 97.3) % 750, sy = ((i * 61.7) % LOGIC_H);
+      const tw = 0.4 + 0.6 * Math.abs(Math.sin(now / 700 + i * 1.37));
+      ctx.fillStyle = i % 3 ? '#ffd34d' : '#fff6d8';
+      ctx.globalAlpha = 0.35 * tw;
+      ctx.beginPath(); ctx.arc(sx, sy, i % 4 === 0 ? 2.2 : 1.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = al;
+    // 主窗口：暗金渐变底 + 双层金描边
+    const bg = ctx.createLinearGradient(0, y, 0, y + h);
+    bg.addColorStop(0, '#2a2112'); bg.addColorStop(0.5, '#241b0e'); bg.addColorStop(1, '#1d1a10');
+    fillRoundRect(ctx, x, y, w, h, 20, bg);
+    strokeRoundRect(ctx, x - 3, y - 3, w + 6, h + 6, 23, '#c8860a', 3);
+    strokeRoundRect(ctx, x, y, w, h, 20, '#ffd34d', 1.5);
+    // 顶部金色光柱
+    const beam = ctx.createLinearGradient(375, y - 6, 375, y + 120);
+    beam.addColorStop(0, 'rgba(255,211,77,0.0)');
+    beam.addColorStop(0.4, 'rgba(255,211,77,0.34)');
+    beam.addColorStop(1, 'rgba(255,211,77,0.0)');
+    ctx.fillStyle = beam;
+    ctx.fillRect(375 - 90, y - 6, 180, 126);
+    // 圣物纹章（菱形宝石）
+    const gx = 375, gy = y + 44;
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.rotate(Math.PI / 4);
+    const gem = ctx.createLinearGradient(-12, -12, 12, 12);
+    gem.addColorStop(0, '#fff2b3'); gem.addColorStop(0.5, '#ffd34d'); gem.addColorStop(1, '#c8860a');
+    ctx.fillStyle = gem;
+    ctx.fillRect(-12, -12, 24, 24);
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(-12, -12, 24, 24);
+    ctx.restore();
+    text(ctx, '圣物显现', 375, y + 76, 38, '#ffd34d', 'center');
+    text(ctx, '获得圣遗物本局生效 · 塔圣遗物仅对应塔在场时出现', 375, y + 112, 18, '#c9b27a', 'center');
     // 3 个候选卡片（v1.16.73 纵向扩容：bh 240→300）
     const bw = 188, bh = 300, gap = 16;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
-    const cy = y + 128;
+    const cy = y + 138;
     pick.candidates.forEach((c, i) => {
       const cx = startX + i * (bw + gap);
       const tint = c.tint ? (TOWER_TINT[c.tint] || '#f7c948') : '#f7c948';
-      fillRoundRect(ctx, cx, cy, bw, bh, 16, '#232c38');
-      strokeRoundRect(ctx, cx, cy, bw, bh, 16, '#7ca8ff', 1.5);
-      // 图标：直接用圆底直径大小（v1.16.73 直径 80→100，图标 100×100 撑满圆底）
+      // 卡片：暗金底 + 金色描边 + 外侧柔光
+      const cg = ctx.createLinearGradient(0, cy, 0, cy + bh);
+      cg.addColorStop(0, '#2b2313'); cg.addColorStop(1, '#211b0e');
+      fillRoundRect(ctx, cx, cy, bw, bh, 16, cg);
+      strokeRoundRect(ctx, cx, cy, bw, bh, 16, 'rgba(255,211,77,0.85)', 1.8);
+      const glow = ctx.createRadialGradient(cx + bw / 2, cy + 76, 20, cx + bw / 2, cy + 76, 130);
+      glow.addColorStop(0, tint + '38'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(cx + bw / 2, cy + 76, 130, 0, Math.PI * 2); ctx.fill();
+      // 图标：双环发光（外环 tint 呼吸 + 内环白描）
       const dia = 100;
       const icx = cx + bw / 2, icy = cy + 76;
       ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2);
       ctx.fillStyle = tint + '2e'; ctx.fill();
-      ctx.strokeStyle = tint; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = tint; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(icx, icy, dia / 2 + 5, 0, Math.PI * 2); ctx.stroke();
       const cSrc = relicIconSrc(c.id);
       if (!(cSrc && drawImg(ctx, cSrc, icx - dia / 2, icy - dia / 2, dia, dia))) {
         text(ctx, c.icon, icx, icy + 4, 48, '#ffffff', 'center');
       }
-      text(ctx, c.name, cx + bw / 2, cy + 152, 24, '#ffffff', 'center');
-      // 效果描述（v1.16.73 按宽度换行，最多 3 行，防出框）
+      text(ctx, c.name, cx + bw / 2, cy + 158, 25, '#ffe9a8', 'center');
+      // 效果描述（按宽度换行，最多 3 行，防出框）
       const d = c.desc || '';
       const maxW = bw - 20;
       const lines = [];
@@ -3381,15 +3605,20 @@ class Renderer {
       }
       if (lines.length < 3 && cur) lines.push(cur);
       lines.forEach((ln, li) => {
-        text(ctx, ln, cx + bw / 2, cy + 182 + li * 22, 16, '#9fb2c3', 'center');
+        text(ctx, ln, cx + bw / 2, cy + 190 + li * 22, 16, '#c9b27a', 'center');
       });
-      // 选择按钮
+      // 选择按钮：金色渐变
       const btnX = cx + 24, btnY = cy + bh - 62, btnW = bw - 48, btnH = 46;
-      fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#2c3542');
-      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#f7c948', 1.5);
-      text(ctx, '选择', btnX + btnW / 2, btnY + btnH / 2, 24, '#f7c948', 'center');
+      const btnG = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
+      btnG.addColorStop(0, '#3d2f14'); btnG.addColorStop(1, '#2a1f0c');
+      fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, btnG);
+      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#ffd34d', 1.5);
+      text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, '#ffd34d', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
+    // 底部提示
+    text(ctx, '✦ 选择后立即生效 · 本局结束失效 ✦', 375, y + h - 26, 17, '#8a7a4a', 'center');
+    ctx.restore();
   }
 
   /** v1.16.73 本局圣遗物详情弹层（点击顶部状态栏圣遗物行打开）：分页列表，每页 8 行，▲▼ 翻页 */

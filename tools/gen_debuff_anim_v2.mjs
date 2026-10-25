@@ -31,7 +31,7 @@ function glowDot(x, y, r, c, core, op) {
 /* 灼烧：5 缕火舌沿上半弧向上舔 + 余烬上飘 */
 function burn(f, n) {
   const t = f / n;
-  let p = ring(0.5 + 0.2 * Math.sin(t * TAU), '#ff8c42');
+  let p = '';
   for (let k = 0; k < 5; k++) {
     const ang = -Math.PI * 0.88 + (k / 4) * Math.PI * 0.76; // -158°..-22°
     const bx = C + Math.cos(ang) * 33, by = C + Math.sin(ang) * 33;
@@ -52,7 +52,7 @@ function burn(f, n) {
 /* 中毒：两侧毒泡上升+到顶爆裂成环 + 顶部毒雾团 */
 function poison(f, n) {
   const t = f / n;
-  let p = ring(0.45 + 0.2 * Math.sin(t * TAU), '#7ed957');
+  let p = '';
   for (let k = 0; k < 4; k++) {
     const at = (t + hash(k * 6.1)) % 1;
     const side = k % 2 === 0 ? -1 : 1;
@@ -74,7 +74,7 @@ function poison(f, n) {
 /* 流血：顶部 3 道血珠沿边缘下滑拉长 + 落点小溅 */
 function bleed(f, n) {
   const t = f / n;
-  let p = ring(0.45 + 0.2 * Math.sin(t * TAU + 2), '#ff4d4d');
+  let p = '';
   for (let k = 0; k < 3; k++) {
     const ang = -Math.PI / 2 + (k - 1) * 0.85;
     const at = (t + hash(k * 2.9)) % 1;
@@ -94,7 +94,7 @@ function bleed(f, n) {
 /* 冰缓/冻结：7 枚锐利冰棱沿全环外刺 + 闪烁星芒，缓慢逆旋 */
 function frost(f, n) {
   const t = f / n;
-  let p = ring(0.5 + 0.2 * Math.sin(t * TAU + 4), '#5dade2');
+  let p = '';
   for (let k = 0; k < 7; k++) {
     const ang = -t * TAU + k * TAU / 7 + hash(k * 3.3) * 0.3;
     const tw = 0.6 + 0.4 * Math.sin(t * TAU + k * 1.7);
@@ -114,7 +114,6 @@ function shock(f, n) {
   const t = f / n;
   let p = '';
   // 断续环：dash 随帧跳动
-  p += `<circle cx="${C}" cy="${C}" r="41" fill="none" stroke="#ffe45c" stroke-width="2.5" opacity="${0.35 + 0.4 * hash(f * 7.1)}" stroke-dasharray="26 14" stroke-dashoffset="${-f * 17}" filter="url(#b1)"/>`;
   for (let k = 0; k < 2; k++) {
     const a0 = hash(f * 13.3 + k * 9.1) * TAU, span = 0.5 + hash(k * 4.2 + f) * 0.45;
     const rBase = 32;

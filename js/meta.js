@@ -35,7 +35,12 @@ class Meta {
     this.dailyPicks = null;      // { date, picks: [{relic, price}] }
     this.towerUnlocks = [];
     this.runCodex = {};            // v1.16.60 局内圣遗物图鉴解锁 { id: 1 }（获得过才显示）
+    this.towerCodex = { fire: 1, ice: 1, poison: 1, electric: 1 }; // v1.16.75 塔图鉴已学习塔（基础四塔默认解锁）
   }
+
+  /* ---------- 塔图鉴（v1.16.75） ---------- */
+  towerLearned(key) { return !!this.towerCodex[key]; }
+  learnTower(key) { this.towerCodex[key] = 1; }
 
   /* ---------- 局内圣遗物图鉴 ---------- */
   codexOwned(id) { return (this.runCodex[id] || 0) > 0; }
@@ -148,6 +153,7 @@ class Meta {
       dailyPicks: this.dailyPicks,
       towerUnlocks: this.towerUnlocks,
       runCodex: this.runCodex,
+      towerCodex: this.towerCodex,
     };
   }
   static fromJSON(d) {
@@ -161,6 +167,8 @@ class Meta {
     m.chestTimer = d.chestTimer || null;
     m.dailyPicks = d.dailyPicks || null;
     m.runCodex = d.runCodex || {};    // v1.16.60 局内圣遗物图鉴解锁（旧档无此字段 → 空）
+    // v1.16.75 塔图鉴已学习塔（旧档无此字段 → 基础四塔默认解锁）
+    m.towerCodex = Object.assign({ fire: 1, ice: 1, poison: 1, electric: 1 }, d.towerCodex || {});
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
     // v4 及以下迁移：装备过的圣物视为已拥有（+1）；技能卡/技能槽丢弃（技能回归默认 3 个）

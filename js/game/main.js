@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.73';       // v1.16.73 圣遗物三选一图标放大+纵向扩容 + 顶部状态栏圣遗物行/本局详情弹层 + 测试战场添加圣遗物 + 波间自动过渡(2s透明提示)+每5波Boss闪烁警告(4s)
+const GAME_VERSION = 'v1.16.75';       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -71,7 +71,8 @@ class GameMain {
     // 局外数据（主界面）：金币 / 圣物 / 宝箱 / 每日精选
     this.meta = this.save.applyMeta(this.saveData);
     // 主界面状态
-    this.menuTab = 'battle';     // battle / shop / relic（v1.4 移除 config 页签）
+    this.menuTab = 'battle';     // battle / shop / relic / codex（v1.16.75 新增塔图鉴页签）
+    this.codexSel = 'fire';      // v1.16.75 塔图鉴当前选中塔
     this.menuPanel = null;       // 子面板：{ type:'relicDex' }
     this.menuHits = [];          // 主界面命中区（渲染时重建）
     this._rewardedAd = null;     // 激励视频广告实例（惰性创建）
@@ -100,6 +101,7 @@ class GameMain {
     this._postPick = null;
     this.battleRelics = []; // v1.16.73：本局获得的圣物（状态栏圣遗物行展示前10个 + 点击查看详情）
     this.fieldChests = [];  // v1.16.59：战场宝箱实体（怪物掉落，点击后开启圣物三选一）{x,y,t,kind}
+    this._chestBusy = false; // v1.16.74 宝箱开箱→飞行动画期间锁定战斗输入
     this.relicDetail = null;      // v1.16.73：本局圣遗物详情弹层 {page}（点击顶部状态栏圣遗物行打开，战斗暂停）
     this.relicDetailHits = {};    // 详情弹层命中区（close/prev/next）
     if (enterBattle) {
@@ -344,6 +346,7 @@ class GameMain {
       if (this.pendingRelicPicks.length) {
         this.relicPick = this.pendingRelicPicks.shift();
         this.relicPickHits = [];
+        this.relicPick.t = 0; // v1.16.74 三选一窗口弹出动画（缩放渐入）
         this.state = 'relicpick';
         this.toast('圣物宝箱 · 三选一', '#f7c948');
         return;
@@ -356,12 +359,17 @@ class GameMain {
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
       this.waveTime += bdt;
-      // v1.16.72 战场宝箱生命周期：20s 未点击自动消失；点击后播放 0.5s 开箱动画（关闭→半开→全开），动画完触发圣物三选一
+      // v1.16.74 战场宝箱生命周期：20s 未点击自动消失；点击后开箱(0.4s 四帧)→飞向屏幕中心放大(0.6s)→弹圣物三选一（全程 1s）
       this.fieldChests = this.fieldChests.filter((c) => {
         c.t += bdt;
         if (c.animT != null) {
-          c.animT += bdt;
-          if (c.animT >= 0.5) { this.spawnRelicPick(); return false; } // 开箱完成 → 弹三选一
+          if (c.stage === 'fly') {
+            c.flyT += bdt;
+            if (c.flyT >= 0.6) { this.spawnRelicPick(); return false; } // 飞行到位 → 弹三选一
+          } else {
+            c.animT += bdt;
+            if (c.animT >= 0.4) { c.stage = 'fly'; c.flyT = 0; } // 开箱完成 → 飞向屏幕中心
+          }
           return true; // 动画播放中不受 20s 消失计时影响
         }
         return c.t < 20;
@@ -604,6 +612,7 @@ class GameMain {
     this._relicReturnState = 'testfield'; // 选择完成后回到测试战场
     this.relicPick = this.pendingRelicPicks.shift();
     this.relicPickHits = [];
+    this.relicPick.t = 0; // v1.16.74 弹出动画
     this.state = 'relicpick';
   }
 
@@ -652,6 +661,7 @@ class GameMain {
       id: def.id, name: def.name, icon: def.icon, desc: def.desc, run: true, tint,
     }));
     this.pendingRelicPicks.push({ candidates: cands });
+    this._chestBusy = false; // v1.16.74 动画完成解锁战斗输入
   }
 
   /* ---------- 三消联动：圣物经验加成补差 + 塔额外攻击（多消不同特效） ---------- */
@@ -763,7 +773,8 @@ class GameMain {
       this.renderer.pickLayer(ctx, group, pending, this.pickHits);
     }
     if (this.state === 'relicpick') {
-      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits);
+      if (!this.relicPick.t) this.relicPick.t = Date.now(); // 弹出动画首帧
+      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t);
     }
     // v1.16.73 本局圣遗物详情弹层（战斗暂停）
     if (this.relicDetail) {
@@ -890,6 +901,8 @@ class GameMain {
       diamond: m.diamond,
       tab: this.menuTab,
       stage: this.menuStage,           // v1.16.30 主界面所选战场：ancient | test
+      codexSel: this.codexSel,         // v1.16.75 塔图鉴选中塔
+      towerCodex: this.meta.towerCodex, // v1.16.75 已学习塔 { key: 1 }
       keys,
       towerName,
       towerUnlocks: m.towerUnlocks,
@@ -953,6 +966,23 @@ class GameMain {
           this.menuTab = it.data;
           this.menuPanel = null;
           return;
+        case 'codexSel':
+          // v1.16.75 塔图鉴：切换选中塔
+          this.codexSel = it.data;
+          return;
+        case 'codexLearn': {
+          // v1.16.75 塔图鉴：金币学习解锁塔（回旋镖 3000 / 炮塔 5000）
+          const key = it.data;
+          if (this.meta.towerCodex[key]) return;
+          const cost = key === 'cannon' ? 5000 : 3000;
+          if (this.meta.gold < cost) { this.toast('金币不足', '#ff6b6b'); return; }
+          this.meta.gold -= cost;
+          this.meta.learnTower(key);
+          this.save.save();
+          const nm = (CONFIG.COLORS[CONFIG.TOWERS[key] && CONFIG.TOWERS[key].color] || {}).name || key;
+          this.toast(`已学习 ${nm}，塔图鉴解锁！`, '#f7c948');
+          return;
+        }
         case 'stage': {
           // v1.16.30 战场卡本体：提示当前所选战场
           const cur = this.menuStage === 'test' ? '测试战场 · 免三消直测技能' : '远古战场 · 城墙防守 · 怪物攻城 · 消消防线';
@@ -1190,6 +1220,8 @@ class GameMain {
       }
     }
     if (this.state === 'fighting') {
+      // v1.16.74 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
+      if (this._chestBusy) return true;
       // v1.16.73 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
       const rb = this.renderer.relicBarHit;
       if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
@@ -1197,12 +1229,13 @@ class GameMain {
         this.state = 'relicDetail'; // 详情查看中战斗暂停
         return true;
       }
-      // v1.16.72 战场宝箱：点击 → 播放开箱帧动画（关→半开→全开 0.5s）→ 动画完弹圣物三选一；动画中不可再点
+      // v1.16.74 战场宝箱：点击 → 开箱→飞向屏幕中心放大→弹圣物三选一；动画期间锁定其他战斗输入
       for (let i = this.fieldChests.length - 1; i >= 0; i--) {
         const c = this.fieldChests[i];
-        if (c.animT != null) continue; // 开箱动画播放中
+        if (c.animT != null) continue; // 开箱/飞行动画播放中
         if (Math.abs(p.x - c.x) < 44 && Math.abs(p.y - c.y) < 44) {
-          c.animT = 0; // 启动开箱动画（main.js 主循环推进，0.5s 后弹三选一）
+          c.animT = 0; c.stage = 'open'; // 启动动画序列
+          this._chestBusy = true;
           return true;
         }
       }
