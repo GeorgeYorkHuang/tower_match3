@@ -69,8 +69,6 @@
       { "type": "file", "value": "images/anims/debuff_frost_base.png" },
       { "type": "file", "value": "images/anims/debuff_poison_base.png" },
       { "type": "file", "value": "images/anims/debuff_shock_base.png" },
-      { "type": "file", "value": "images/relic/*/sheet_*.png" },
-      { "type": "file", "value": "images/relic/*/mapping.json" },
       { "type": "file", "value": "images/ui/action_area.jpg" },
       { "type": "file", "value": "images/ui/action_area_plain.jpg" },
       { "type": "file", "value": "images/ui/battle_bg.jpg" },
