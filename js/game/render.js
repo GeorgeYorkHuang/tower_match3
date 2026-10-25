@@ -3529,7 +3529,7 @@ class Renderer {
     const list = this._relicRunList();
     const unlocked = list.filter((d) => this._relicUnlocked(s, d.id)).length;
     // 顶部固定区：标题 + 解锁进度条（v1.16.84 移除宝箱按钮与滑动提示）
-    text(ctx, '圣遗物图鉴', 55, 290, 26, '#ffffff', 'left');
+    text(ctx, '圣遗物图鉴', 55, 290, 32, '#ffffff', 'left');
     const px0 = 250, pw = 460, py = 278;
     fillRoundRect(ctx, px0, py, pw, 24, 12, 'rgba(255,255,255,0.08)');
     const ratio = list.length ? unlocked / list.length : 0;
@@ -3539,7 +3539,7 @@ class Renderer {
       fillRoundRect(ctx, px0, py, Math.max(24, pw * ratio), 24, 12, pg);
     }
     strokeRoundRect(ctx, px0, py, pw, 24, 12, '#a86bff', 1.2);
-    text(ctx, `${unlocked} / ${list.length}`, px0 + pw / 2, py + 13, 16, '#ffffff', 'center');
+    text(ctx, `${unlocked} / ${list.length}`, px0 + pw / 2, py + 13, 20, '#ffffff', 'center');
     // 滚动视口
     const vy0 = 330, vy1 = 1492;
     const PER_ROW = 4, cw = 149, ch = 210, gx = 14, gy = 14;
@@ -3561,47 +3561,47 @@ class Renderer {
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
       if (owned) {
-        // 上 2/3：圣遗物图片居中（96px，四周留白）
+        // 上 2/3：圣遗物图片居中（104px，四周留白）
         const src = relicIconSrc(d.id);
-        if (!(src && drawImg(ctx, src, icx - 48, icy - 48, 96, 96))) {
-          ctx.beginPath(); ctx.arc(icx, icy, 44, 0, Math.PI * 2);
+        if (!(src && drawImg(ctx, src, icx - 52, icy - 52, 104, 104))) {
+          ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
           ctx.fillStyle = rc; ctx.globalAlpha = 0.22; ctx.fill(); ctx.globalAlpha = 1;
-          text(ctx, d.icon, icx, icy + 2, 40, '#ffffff', 'center');
+          text(ctx, d.icon, icx, icy + 2, 44, '#ffffff', 'center');
         }
         // 星级角标（右上角小字）
         const star = s.relicStars[d.id] || 1;
-        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 15, rc, 'right');
+        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 18, rc, 'right');
         // 下 1/3：上 2/3 为名字居中，下为收集进度条（左右各留 12px 白）
-        text(ctx, d.name, icx, ry2 + 162, 20, '#ffffff', 'center');
+        text(ctx, d.name, icx, ry2 + 162, 24, '#ffffff', 'center');
         const c3 = CONFIG.STAR_UP.cost[star + 1];
         const need3 = c3 ? c3.shards : 0;
         const sh3 = s.shards[d.id] || 0;
-        const bw = cw - 24, bx = rx + 12, by = ry2 + 192, bh = 10;
-        fillRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.10)');
+        const bw = cw - 24, bx = rx + 12, by = ry2 + 188, bh = 14;
+        fillRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.10)');
         let ratio3 = 0, lbl3 = '', col3 = '#7ca8ff';
         if (star >= 3) { ratio3 = 1; lbl3 = '已满级'; col3 = '#f7c948'; }
         else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; col3 = sh3 >= need3 ? '#f7c948' : '#7ca8ff'; }
-        if (ratio3 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * ratio3), bh, 5, col3);
-        strokeRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.16)', 1);
-        text(ctx, lbl3, icx, by + 6, 10, '#ffffff', 'center');
+        if (ratio3 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * ratio3), bh, 7, col3);
+        strokeRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.16)', 1);
+        text(ctx, lbl3, icx, by + 8, 13, '#ffffff', 'center');
       } else {
         // 未解锁：? 图标圈（居中于上 2/3 区）
-        ctx.beginPath(); ctx.arc(icx, icy, 44, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
         ctx.fillStyle = '#151a22'; ctx.fill();
         ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 40, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 162, 20, '#4a5a6e', 'center');
+        text(ctx, '?', icx, icy + 5, 46, rc, 'center');
+        text(ctx, '未解锁', icx, ry2 + 162, 24, '#4a5a6e', 'center');
         // 底部：解锁碎片收集进度条（阈值 = DUPLICATE_SHARDS）
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
-        const bw = cw - 24, bx = rx + 12, by = ry2 + 192, bh = 10;
-        fillRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.06)');
+        const bw = cw - 24, bx = rx + 12, by = ry2 + 188, bh = 14;
+        fillRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.06)');
         if (thr > 0) {
           const r4 = Math.min(1, sh4 / thr);
-          if (r4 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * r4), bh, 5, '#3d4c5e');
-          text(ctx, `${sh4}/${thr}`, icx, by + 6, 10, '#3d4c5e', 'center');
+          if (r4 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * r4), bh, 7, '#3d4c5e');
+          text(ctx, `${sh4}/${thr}`, icx, by + 8, 13, '#3d4c5e', 'center');
         }
-        strokeRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.10)', 1);
+        strokeRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.10)', 1);
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
@@ -3625,26 +3625,26 @@ class Renderer {
     this._menuRelicGrid(ctx, s, push, 'relicPage', false);
   }
 
-  /** 圣遗物详情面板（v1.16.87 重设计）：无标题 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
+  /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
   menuRelicInfo(ctx, s, push) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    this._menuPanelShell(ctx, s, push, '', 780);   // v1.16.87 不再显示「圣遗物详情」标题
+    const oy = this._menuPanelShell(ctx, s, push, '', 780, true);   // v1.16.91 面板在屏幕内垂直居中
     const rar = CONFIG.relicRarity(id);
     const rc = this._relicRarColor(rar);
     const owned = this._relicUnlocked(s, id);
     const star = owned ? (s.relicStars[id] || 1) : 0;
     // ---- 头部：图标圆框居中 + 名称 + 稀有度·星级 ----
-    ctx.beginPath(); ctx.arc(375, 268, 56, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(375, oy + 92, 56, 0, Math.PI * 2);
     ctx.fillStyle = '#151a22'; ctx.fill();
     ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.stroke();
     const src = relicIconSrc(id);
-    if (!(src && drawImg(ctx, src, 375 - 46, 268 - 46, 92, 92))) text(ctx, d.icon, 375, 274, 44, '#ffffff', 'center');
-    text(ctx, d.name, 375, 368, 34, '#ffffff', 'center');
-    text(ctx, `${rar.toUpperCase()} · ${owned ? star + '★' : '未解锁'}`, 375, 408, 20, rc, 'center');
+    if (!(src && drawImg(ctx, src, 375 - 46, oy + 92 - 46, 92, 92))) text(ctx, d.icon, 375, oy + 98, 44, '#ffffff', 'center');
+    text(ctx, d.name, 375, oy + 192, 40, '#ffffff', 'center');
+    text(ctx, `${rar.toUpperCase()} · ${owned ? star + '★' : '未解锁'}`, 375, oy + 232, 26, rc, 'center');
     // ---- 1★/2★/3★ 三栏效果（当前等级金框高亮；wrapText 防出框）----
-    const colW = 204, colGap = 24, colY = 444, colH = 258;
+    const colW = 204, colGap = 24, colY = oy + 268, colH = 296;
     const colX0 = (750 - (colW * 3 + colGap * 2)) / 2;
     const cols = [
       { lbl: '1★', txt: d.desc || '（暂无）', col: '#7cd6a6' },
@@ -3656,10 +3656,10 @@ class Renderer {
       const active = owned && star === ci + 1;
       fillRoundRect(ctx, cx0, colY, colW, colH, 14, active ? 'rgba(247,201,72,0.10)' : 'rgba(255,255,255,0.04)');
       strokeRoundRect(ctx, cx0, colY, colW, colH, 14, active ? '#f7c948' : 'rgba(255,255,255,0.14)', active ? 2.5 : 1);
-      text(ctx, c.lbl, cx0 + colW / 2, colY + 32, 24, active ? '#f7c948' : c.col, 'center');
-      fillRoundRect(ctx, cx0 + 30, colY + 54, colW - 60, 1.5, 0.75, active ? 'rgba(247,201,72,0.5)' : 'rgba(255,255,255,0.12)');
-      const lines = this.wrapText(ctx, c.txt, colW - 24, 16).slice(0, 8);
-      lines.forEach((ln, li) => text(ctx, ln, cx0 + 12, colY + 82 + li * 23, 16, active ? '#ffe9a8' : '#9fb2c3', 'left'));
+      text(ctx, c.lbl, cx0 + colW / 2, colY + 34, 30, active ? '#f7c948' : c.col, 'center');
+      fillRoundRect(ctx, cx0 + 30, colY + 62, colW - 60, 1.5, 0.75, active ? 'rgba(247,201,72,0.5)' : 'rgba(255,255,255,0.12)');
+      const lines = this.wrapText(ctx, c.txt, colW - 24, 22).slice(0, 7);
+      lines.forEach((ln, li) => text(ctx, ln, cx0 + 12, colY + 92 + li * 28, 22, active ? '#ffe9a8' : '#9fb2c3', 'left'));
     });
     // ---- 碎片收集进度（升星按钮上方：文字 + 进度条）----
     const shards = s.shards[id] || 0;
@@ -3667,23 +3667,23 @@ class Renderer {
     const need = cost ? cost.shards : 0;
     const cur = CONFIG.relicNum(id, star);
     const next = CONFIG.relicNum(id, star + 1);
-    const pw2 = 380, px0 = (750 - pw2) / 2, py2 = 748;
-    text(ctx, `碎片 ${shards} / ${need} · 金币 ${cost ? cost.gold : 0}`, 375, 726, 18, '#c9b98a', 'center');
+    const pw2 = 380, px0 = (750 - pw2) / 2, py2 = oy + 616;
+    text(ctx, `碎片 ${shards} / ${need} · 金币 ${cost ? cost.gold : 0}`, 375, oy + 594, 20, '#c9b98a', 'center');
     fillRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.08)');
     const pr = need > 0 ? Math.min(1, shards / need) : 0;
     if (pr > 0) fillRoundRect(ctx, px0, py2, Math.max(16, pw2 * pr), 16, 8, pr >= 1 ? '#f7c948' : '#7ca8ff');
     strokeRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.18)', 1);
-    // ---- 底部居中升星按钮（底部留白 32px）----
+    // ---- 底部居中升星按钮（底部留白 28px）----
     if (!owned) {
-      text(ctx, '战斗中获取碎片解锁圣遗物', 375, 880, 22, '#5a6c80', 'center');
+      text(ctx, '战斗中获取碎片解锁圣遗物', 375, oy + 714, 26, '#5a6c80', 'center');
     } else if (cost && star < 3) {
-      push('relicStar', id, 205, 852, 340, 76);
-      fillRoundRect(ctx, 205, 852, 340, 76, 14, '#1b2230');
-      strokeRoundRect(ctx, 205, 852, 340, 76, 14, rc, 2);
-      text(ctx, `升到 ${star + 1}★`, 375, 882, 24, rc, 'center');
-      text(ctx, `数值 ${cur} → ${next}`, 375, 910, 16, '#8ea3b8', 'center');
+      push('relicStar', id, 205, oy + 676, 340, 76);
+      fillRoundRect(ctx, 205, oy + 676, 340, 76, 14, '#1b2230');
+      strokeRoundRect(ctx, 205, oy + 676, 340, 76, 14, rc, 2);
+      text(ctx, `升到 ${star + 1}★`, 375, oy + 706, 26, rc, 'center');
+      text(ctx, `数值 ${cur} → ${next}`, 375, oy + 734, 18, '#8ea3b8', 'center');
     } else {
-      text(ctx, '已达满级 3★', 375, 890, 24, '#f7c948', 'center');
+      text(ctx, '已达满级 3★', 375, oy + 714, 28, '#f7c948', 'center');
     }
   }
 
@@ -3723,7 +3723,7 @@ class Renderer {
       if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - 40) / 2, ty0 + 8, 40, 40)) {
         drawTowerGlyph(ctx, k, cx + (tw2 - 40) / 2, ty0 + 8, 40);
       }
-      text(ctx, colorName(k), cx + tw2 / 2, ty0 + 66, 17, sel ? '#ffffff' : '#8ea3b8', 'center');
+      text(ctx, colorName(k), cx + tw2 / 2, ty0 + 66, 23, sel ? '#ffffff' : '#8ea3b8', 'center');
     });
     // ---- 详情面板（紧贴标签行底部，无间隙）----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
@@ -3734,16 +3734,18 @@ class Renderer {
     fillRoundRect(ctx, dx, dy, dw, 148, 0, panelBg);
     fillRoundRect(ctx, dx, dy + 134, dw, 14, 7, panelBg);   // 底部补圆角
     fillRoundRect(ctx, dx, dy, 5, 148, 2.5, cCol);          // 左侧塔色竖条
-    text(ctx, colorName(k), dx + 30, dy + 40, 32, '#ffffff', 'left');
+    text(ctx, colorName(k), dx + 30, dy + 38, 38, '#ffffff', 'left');
     const stat1 = `伤害 ${T.baseDps}/s · 成长 ×${T.grow} · 射程 ${T.range} · 攻速 ${T.atkInterval}s/发`;
-    text(ctx, stat1, dx + 30, dy + 78, 20, '#c9d6e4', 'left');
+    text(ctx, stat1, dx + 30, dy + 78, 26, '#c9d6e4', 'left');
     const stat2 = `${shotName[T.shot.kind] || T.shot.kind} · 能量上限 ${GS.energyMax || 50} · 普攻耗能 ${GS.perAttack || 0.5}/发 · 耗尽伤害 ×${GS.weakDmg || 0.5}`;
-    text(ctx, stat2, dx + 30, dy + 112, 17, '#8ea3b8', 'left');
-    // ---- 技能池卡片（v1.16.81：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
+    this.wrapText(ctx, stat2, dw - 60, 23).slice(0, 2).forEach((ln, li) => {
+      text(ctx, ln, dx + 30, dy + 112 + li * 28, 23, '#8ea3b8', 'left');
+    });
+    // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
-    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 190, 24, '#ffffff', 'left');
+    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 190, 30, '#ffffff', 'left');
     const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
-    const cw3 = 300, ch3 = 188;               // 卡片宽高（高 +30）
+    const cw3 = 300, ch3 = 210;               // 卡片宽高（+22 容纳大字号）
     const gx0 = Math.round(750 * 0.05);       // 5% 左边距 = 38
     const colX = [gx0, 750 - gx0 - cw3];      // 两列对称
     const gy0 = dy + 218;                     // 首行 y 维持不变
@@ -3770,44 +3772,44 @@ class Renderer {
       strokeRoundRect(ctx, gx + 1.5, gy + 1.5, cw3 - 3, ch3 - 3, 12, 'rgba(255,255,255,0.22)', 1.2);
       fillRoundRect(ctx, gx + 10, gy + 2.5, cw3 - 20, 2.5, 1.2, hexA(cMain, 0.75));   // 顶棱高光
       fillRoundRect(ctx, gx + 10, gy + ch3 - 5, cw3 - 20, 2.5, 1.2, 'rgba(0,0,0,0.45)'); // 底棱阴影
-      // ---- 上 1/4 区：图标 + 技能名左右排布 ----
-      if (!drawImg(ctx, skillIconSrc(k, sk.name), gx + 18, gy + 12, 56, 56)) {
-        fillRoundRect(ctx, gx + 18, gy + 12, 56, 56, 12, hexA(cMain, 0.25));
-        text(ctx, sk.icon || '?', gx + 46, gy + 42, 30, '#ffffff', 'center');
+      // ---- 上区：图标 + 技能名左右排布 ----
+      if (!drawImg(ctx, skillIconSrc(k, sk.name), gx + 16, gy + 10, 64, 64)) {
+        fillRoundRect(ctx, gx + 16, gy + 10, 64, 64, 12, hexA(cMain, 0.25));
+        text(ctx, sk.icon || '?', gx + 48, gy + 44, 32, '#ffffff', 'center');
       }
-      text(ctx, sk.name, gx + 88, gy + 34, 27, '#ffffff', 'left');
-      text(ctx, sk.type || '', gx + 88, gy + 60, 14, hexA(cMain, 0.9), 'left');
+      text(ctx, sk.name, gx + 92, gy + 30, 33, '#ffffff', 'left');
+      text(ctx, sk.type || '', gx + 92, gy + 62, 20, hexA(cMain, 0.9), 'left');
       // 分隔线（塔色渐隐），上下分区
-      fillRoundRect(ctx, gx + 18, gy + 78, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
+      fillRoundRect(ctx, gx + 18, gy + 82, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
       // ---- 下区：技能描述（左右各留 20px 白）----
-      const descLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 19).slice(0, 3);
+      const descLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 25).slice(0, 3);
       descLines.forEach((ln, li) => {
-        text(ctx, ln, gx + 20, gy + 98 + li * 26, 19, '#d7e2ee', 'left');
+        text(ctx, ln, gx + 20, gy + 102 + li * 32, 25, '#d7e2ee', 'left');
       });
-      // 右下角入口（15px 右对齐，不出卡）
-      text(ctx, '点击查看详情 >>>', gx + cw3 - 18, gy + ch3 - 16, 15, hexA(cMain, 0.95), 'right');
+      // 右下角入口（21px 右对齐，不出卡）
+      text(ctx, '点击查看详情 >>>', gx + cw3 - 18, gy + ch3 - 14, 21, hexA(cMain, 0.95), 'right');
     });
   }
 
-  /** v1.16.78 技能分支面板：从图鉴技能卡点入，展示基础效果 + A/B/C 分支逐级效果 */
+  /** v1.16.91 技能分支面板（大字号）：从图鉴技能卡点入，展示基础效果 + A/B/C 分支逐级效果 */
   codexSkillPanel(ctx, s, push) {
     const p = s.panel || {};
     const towerKey = p.tower || s.codexSel || 'fire';
     const sk = (CONFIG.EFFECT_POOLS[towerKey] || [])[p.idx];
     if (!sk) return;
-    this._menuPanelShell(ctx, s, push, sk.name, 900);
+    this._menuPanelShell(ctx, s, push, sk.name, 1100);
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
     // 头部：美术图标 + 基础效果（wrapText 防出框）
     if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), 70, 258, 84, 84)) {
       fillRoundRect(ctx, 70, 258, 84, 84, 14, 'rgba(255,255,255,0.08)');
       text(ctx, sk.icon || '?', 112, 310, 42, '#ffffff', 'center');
     }
-    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 480, 22).slice(0, 3);
+    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 470, 28).slice(0, 3);
     baseLines.forEach((ln, li) => {
-      text(ctx, ln, 190, 282 + li * 32, 22, '#c9d6e4', 'left');
+      text(ctx, ln, 190, 282 + li * 34, 28, '#c9d6e4', 'left');
     });
     // 三分支：A/B/C（config 扁平键 a/ap, b/bp, c/cp；a='分支名：概述'，ap=逐级效果数组）
-    let by = 380;
+    let by = 390;
     [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk]) => {
       const overview = sk[ak] || '';
       if (!overview) return;
@@ -3815,19 +3817,19 @@ class Renderer {
       const bName = bi > 0 ? overview.slice(0, bi) : overview;
       const bDesc = bi > 0 ? overview.slice(bi + 1) : '';
       const lvls = sk[pk] || [];
-      fillRoundRect(ctx, 60, by, 630, 164, 14, 'rgba(255,255,255,0.05)');
-      strokeRoundRect(ctx, 60, by, 630, 164, 14, cCol, 1.2);
-      fillRoundRect(ctx, 76, by + 16, 44, 44, 10, cCol);
-      text(ctx, bk, 98, by + 46, 26, '#0d1117', 'center');
-      text(ctx, `${bName}（${bk} 分支）`, 140, by + 30, 25, '#ffffff', 'left');
+      fillRoundRect(ctx, 60, by, 630, 206, 14, 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, 60, by, 630, 206, 14, cCol, 1.2);
+      fillRoundRect(ctx, 76, by + 18, 48, 48, 10, cCol);
+      text(ctx, bk, 100, by + 50, 30, '#0d1117', 'center');
+      text(ctx, `${bName}（${bk} 分支）`, 140, by + 32, 31, '#ffffff', 'left');
       // 分支概述（wrapText 最多 1 行）
-      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, 520, 18)[0] || '', 140, by + 62, 18, '#c9d6e4', 'left');
-      // 逐级效果 Lv→Lv+1（17px，最多 3 行，wrapText 防出框）
+      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, 510, 24)[0] || '', 140, by + 74, 24, '#c9d6e4', 'left');
+      // 逐级效果 Lv→Lv+1（23px，最多 3 行，wrapText 防出框）
       lvls.slice(0, 3).forEach((t, li) => {
-        const ln = this.wrapText(ctx, `Lv${li + 1}→${li + 2} ${t}`, 500, 17)[0] || '';
-        text(ctx, ln, 140, by + 94 + li * 24, 17, '#9fb2c3', 'left');
+        const ln = this.wrapText(ctx, `Lv${li + 1}→${li + 2} ${t}`, 490, 23)[0] || '';
+        text(ctx, ln, 140, by + 110 + li * 30, 23, '#9fb2c3', 'left');
       });
-      by += 176;
+      by += 220;
     });
   }
 
@@ -3923,10 +3925,10 @@ class Renderer {
   }
 
   /** 子面板外壳：遮罩 + 面板 + 标题 + 关闭（hgt 可自定义高度） */
-  _menuPanelShell(ctx, s, push, title, hgt) {
+  _menuPanelShell(ctx, s, push, title, hgt, centered) {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    const w = 700, h = hgt || 640, x = 25, y = 180;
+    const w = 700, h = hgt || 640, x = 25, y = centered ? Math.round((LOGIC_H - h) / 2) : 180;
     fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
     strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
     text(ctx, title, 375, y + 54, 34, '#ffffff', 'center');
@@ -3934,6 +3936,7 @@ class Renderer {
     ctx.beginPath(); ctx.arc(x + w - 50, y + 46, 20, 0, Math.PI * 2);
     ctx.fillStyle = '#3a4553'; ctx.fill();
     text(ctx, '✕', x + w - 50, y + 54, 26, '#ffffff', 'center');
+    return y;
   }
 
   /** 战斗内圣物宝箱三选一弹层（精英掉落 · 暂停战斗）：3 个候选卡片，点选获取 */
