@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.88';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.16.89';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -1503,10 +1503,11 @@ class GameMain {
       this.cycleRunSpeed();
       return true;
     }
-    // 底部功能键区：打开对应弹层
+    // 底部功能键区：打开对应弹层（v1.16.89 商店并入功能条：点击弹出商店面板）
     if (this.funcHits.length) {
       for (const f of this.funcHits) {
         if (f.hit(p.x, p.y)) {
+          if (f.key === 'shop') { this.shopOpen = true; return true; }
           this.funcLayer = { type: f.key, version: GAME_VERSION };
           return true;
         }
@@ -1515,13 +1516,8 @@ class GameMain {
     if (this.state === 'fighting') {
       // v1.16.74 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
       if (this._chestBusy) return true;
-      // v1.16.77 局内商店：点开不暂停；商店按钮 / 商品格 / 关闭钮
+      // v1.16.89 局内商店：入口移至底部功能条，此处仅处理面板内点击（关闭钮 / 商品格）
       if (this.shopOpen === undefined) this.shopOpen = false;
-      const sbtn = this.renderer.shopBtnRect;
-      if (sbtn && p.x >= sbtn.x && p.x <= sbtn.x + sbtn.w && p.y >= sbtn.y && p.y <= sbtn.y + sbtn.h) {
-        this.shopOpen = !this.shopOpen;
-        return true;
-      }
       if (this.shopOpen) {
         const scl = this.renderer.shopCloseRect;
         if (scl && p.x >= scl.x && p.x <= scl.x + scl.w && p.y >= scl.y && p.y <= scl.y + scl.h) { this.shopOpen = false; return true; }

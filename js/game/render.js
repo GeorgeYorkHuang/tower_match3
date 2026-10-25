@@ -376,8 +376,9 @@ class Renderer {
     fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
-    const labels = ['⚙ 设置', 'ℹ 帮助'];
-    const keys = ['setting', 'help'];
+    // v1.16.89 底部功能条三键：设置 / 帮助 / 商店（商店改入分页栏，点击弹出面板）
+    const labels = ['⚙ 设置', 'ℹ 帮助', '🛒 商店'];
+    const keys = ['setting', 'help', 'shop'];
     const kw = 150, kh = 80;
     const gap = (750 - labels.length * kw) / (labels.length + 1);
     this.funcHits = [];
@@ -404,12 +405,8 @@ class Renderer {
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
   }
 
-  /** v1.16.77 局内商店：右上角按钮（加速按钮左侧，城墙上方同排）+ 点开面板（战斗不暂停） */
+  /** v1.16.89 局内商店：按钮移入底部功能条，此处仅渲染弹出面板（战斗不暂停） */
   battleShop(ctx, s) {
-    const spX = 750 - 16 - 124;
-    const bx0 = spX - 16 - 124, by0 = WALL_Y - 8 - 66, bw = 124, bh = 66;
-    this.shopBtnRect = { x: bx0, y: by0, w: bw, h: bh };
-    text(ctx, `🛒 商店`, bx0 + bw / 2, by0 + bh / 2 + 4, 26, s.shopOpen ? '#7ef0a3' : '#c9d6e4', 'center');
     if (!s.shopOpen) return;
     // 面板（居中偏上，避开灵动岛/微信胶囊）
     const w = 560, h = 640, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 80;
@@ -2969,7 +2966,7 @@ class Renderer {
   /** 底部功能弹层：设置 / 帮助（共用遮罩+面板+关闭；v1.16.77 塔图鉴与商店弹层已移除） */
   funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
-    const heights = { setting: 430, help: 720 };
+    const heights = { setting: 430, help: 900 };   // v1.16.89 帮助面板加高容纳大字号换行
     const hgt = heights[layer.type] || 560;
     const y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
@@ -2986,7 +2983,7 @@ class Renderer {
       const label = layer.confirming ? '确认清档？再点一次执行' : '清档重开';
       hits.confirm = button(ctx, x + 120, y + 246, 400, 70, label, { bg: layer.confirming ? '#c0392b' : '#7a3b3b', fontSize: 26 });
     } else if (layer.type === 'help') {
-      // v1.16.77 帮助文档更新（能量系统 / 银币 / 局内商店 / 宝箱 / Boss）
+      // v1.16.89 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
       const lines = [
         '1. 滑动相邻方块消除 3 连，获得对应颜色的塔并补充能量',
         '2. 塔每次普攻消耗 0.5 能量；能量耗尽时伤害降为 50%，技能周期延长',
@@ -2994,15 +2991,17 @@ class Renderer {
         '4. 怪物到达城墙后开始攻城，城墙持续掉血',
         '5. 消灭一波全部怪物自动进入下一波；每 5 波有 Boss 镇守',
         '6. Boss 与精英怪掉落宝箱，点击开启获得圣遗物三选一',
-        '7. 战斗中点右上「商店」用局内金币购买本局临时强化',
+        '7. 战斗中点底部功能条「商店」用局内金币购买本局临时强化',
         '8. 局内金币在战斗结束统一结算为银币（招财符可加成）',
         '9. 城墙血量归零即失败，注意防守',
       ];
-      let hy = y + 106;
+      let hy = y + 96;
       lines.forEach((ln) => {
-        fillRoundRect(ctx, x + 36, hy - 30, w - 72, 60, 10, '#1d242e');
-        text(ctx, ln, x + 56, hy, 21, '#d7dee6', 'left');
-        hy += 74;
+        const ls = this.wrapText(ctx, ln, w - 100, 23).slice(0, 3);
+        const bh = ls.length * 30 + 18;
+        fillRoundRect(ctx, x + 30, hy, w - 60, bh, 10, '#1d242e');
+        ls.forEach((t2, li) => text(ctx, t2, x + 50, hy + 24 + li * 30, 23, '#d7dee6', 'left'));
+        hy += bh + 8;
       });
     }
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#3a6ea5', fontSize: 26 });

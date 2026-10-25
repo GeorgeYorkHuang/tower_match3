@@ -2464,6 +2464,9 @@ class CombatSystem {
       this.fxFlash(375, 800, '#ff8c42', 0.5);
       this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
       g.toast && g.toast('🔀 全局洗牌', '#ff8c42');
+      // v1.16.89 洗牌重做：额外触发一遍已有技能——周期技计时器置满立即触发一次 + 全体塔按已激活技能数追加普攻
+      const n = this.castGlobalBurst();
+      if (n > 0) g.toast && g.toast(`⚡ 技能齐发 · 全塔普攻 ×${n}`, '#ff8c42');
     } else {
       // 能量补给：所有已解锁塔各 +refillEnergy（封顶能量上限）
       let refilled = 0;
@@ -2481,6 +2484,27 @@ class CombatSystem {
       if (refilled > 0) g.toast && g.toast(`全场补给 ${Math.round(refilled)} 点`, '#7ef0a3');
     }
     return true;
+  }
+
+  /** v1.16.89 洗牌全局技能附带「技能齐发」：周期技计时器置满（下帧各触发一次并复位）+ 每塔按已激活技能总数追加等量普攻 */
+  castGlobalBurst() {
+    const g = this.game;
+    // 统计已激活技能数（周期技 + 非周期技，含默认激活与三选一获取，level>0 即算）
+    let n = 0;
+    g.run.slotOrder.slice().forEach((key) => {
+      const t = this.tower(key);
+      if (!t || t.level === 0) return;
+      n += (t.pool || []).filter((e) => e.level > 0).length;
+    });
+    // 周期技立即触发一遍：全部周期计时器置满 → 以极小 dt 推进各周期技 tick（越过阈值即触发并复位计时）
+    Object.keys(this.timers).forEach((k) => { this.timers[k] = 9999; });
+    this.tickFire(0.001); this.tickIce(0.001); this.tickElectric(0.001);
+    this.tickPoison(0.001); this.tickCannon(0.001); this.tickBoomerang(0.001);
+    // 每塔额外普攻 N 次（N = 已激活技能总数；无目标时 attackOnce 内部静默跳过）
+    if (n > 0) g.run.slotOrder.slice().forEach((key) => {
+      for (let i = 0; i < n; i++) this.attackOnce(key);
+    });
+    return n;
   }
 }
 
