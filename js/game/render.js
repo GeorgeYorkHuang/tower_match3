@@ -385,10 +385,10 @@ class Renderer {
     if (!skills.length) {
       text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 290, 20, 'rgba(255,255,255,0.45)', 'center');
     } else {
-      // v1.16.59：3 张技能卡竖向排列（宽 300 × 高 400，间隔 24），元素整体 1.5 倍放大：
-      //   图标圆 ir 34→50 / 素材 58→87px，技能名 27→40 号，Lv 徽章 32→48 高 18→27 号，
-      //   分支徽章 66×56→90×84、字号 15/13→22/19
-      const cardW = 300, cardH = 400, gap = 24, cardTop = y + 252;
+      // v1.16.59 3 张技能卡竖向排列；v1.16.61 卡内元素整体缩小（1.5 倍 → 约 1.2 倍基准）：
+      //   图标圆 ir 50→40 / 素材 87→70px，技能名 40→32 号，Lv 徽章 48→38 高 27→22 号，
+      //   分支徽章 90×84→80×68、字号 22/19→18/15，卡片 300×400→260×330
+      const cardW = 260, cardH = 330, gap = 20, cardTop = y + 250;
       const pool = CONFIG.EFFECT_POOLS[info.key] || [];
       const maxLv = 1 + ((CONFIG.EFFECT && CONFIG.EFFECT.maxLevel) || 3); // 分支满 3 级 → 技能 Lv4 = LvMAX
       skills.forEach((sk, i) => {
@@ -418,9 +418,9 @@ class Renderer {
         // 呼吸描边高亮
         const brAlpha = 0.14 + 0.08 * Math.sin(Date.now() / 700 + i * 1.3);
         strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, TOWER_TINT[info.key] || '#3a6ea5', brAlpha * 4);
-        // 图标（发光圆底 = 塔色渐变 + 白色内圈；v1.16.59 ir 34→50、素材 58→87px）
+        // 图标（发光圆底 = 塔色渐变 + 白色内圈；v1.16.61 ir 50→40、素材 87→70px）
         const skDef = pool.find((q) => q.name === sk.name) || {};
-        const icx = cx + cardW / 2, icy = cy + 88, ir = 50;
+        const icx = cx + cardW / 2, icy = cy + 74, ir = 40;
         const halo = ctx.createRadialGradient(icx, icy, 2, icx, icy, ir * 1.7);
         halo.addColorStop(0, lighten(TOWER_TINT[info.key] || '#3a6ea5', 1.5));
         halo.addColorStop(1, 'rgba(0,0,0,0)');
@@ -434,29 +434,29 @@ class Renderer {
         ctx.fillStyle = grad; ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2); ctx.stroke();
-        // 图标（v1.16.27：优先美术图片，缺失回退 emoji；v1.16.59 58→87px）
-        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 43.5, icy - 43.5, 87, 87);
+        // 图标（v1.16.27：优先美术图片，缺失回退 emoji；v1.16.61 87→70px）
+        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 35, icy - 35, 70, 70);
         if (!skIconOk) {
-          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 6, 42, '#000', 'center');
+          ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 5, 34, '#000', 'center');
           ctx.globalAlpha = 1;
-          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 5, 42, '#ffffff', 'center');
+          text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 4, 34, '#ffffff', 'center');
         }
-        // 技能名（v1.16.59 27→40 号）
-        text(ctx, sk.name, cx + cardW / 2, cy + 178, 40, '#ffffff', 'center');
-        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.16.59 徽章 32→48 高、18→27 号）
+        // 技能名（v1.16.61 40→32 号）
+        text(ctx, sk.name, cx + cardW / 2, cy + 152, 32, '#ffffff', 'center');
+        // Lv 徽章：Lv = 1 + 最高分支等级；满级显示 LvMAX（v1.16.61 徽章 48→38 高、27→22 号）
         const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
         const lv = 1 + maxBr;
         const lvTxt = lv >= maxLv ? 'LvMAX' : `Lv${lv}`;
-        const lvSize = 27;
-        const lvW = txtW(lvTxt, lvSize) + 34;
-        const lvY = cy + 208;
-        const lvGrad = ctx.createLinearGradient(cx + cardW / 2 - lvW / 2, lvY, cx + cardW / 2 - lvW / 2, lvY + 48);
+        const lvSize = 22;
+        const lvW = txtW(lvTxt, lvSize) + 28;
+        const lvY = cy + 178;
+        const lvGrad = ctx.createLinearGradient(cx + cardW / 2 - lvW / 2, lvY, cx + cardW / 2 - lvW / 2, lvY + 38);
         lvGrad.addColorStop(0, '#ffe08a'); lvGrad.addColorStop(1, '#e6b93f');
-        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 48, 24, lvGrad);
-        strokeRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 48, 24, 'rgba(255,255,255,0.6)', 1);
-        text(ctx, lvTxt, cx + cardW / 2, lvY + 24, lvSize, '#5c4a00', 'center');
-        // 分支徽章横排（v1.13.16：只显示已选择升级的分支；v1.16.59 徽章 66×56→90×84、字号 15/13→22/19）
-        const bw = 90, bh = 84, bY = cy + 284;
+        fillRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 38, 19, lvGrad);
+        strokeRoundRect(ctx, cx + cardW / 2 - lvW / 2, lvY, lvW, 38, 19, 'rgba(255,255,255,0.6)', 1);
+        text(ctx, lvTxt, cx + cardW / 2, lvY + 19, lvSize, '#5c4a00', 'center');
+        // 分支徽章横排（v1.13.16：只显示已选择升级的分支；v1.16.61 徽章 90×84→80×68、字号 22/19→18/15）
+        const bw = 80, bh = 68, bY = cy + 242;
         const activeBrs = ['A', 'B', 'C'].filter((br) => (sk.branches[br] || 0) > 0);
         if (activeBrs.length) {
           const totalW = activeBrs.length * bw + (activeBrs.length - 1) * 4;
@@ -464,16 +464,16 @@ class Renderer {
           activeBrs.forEach((br, bi) => {
             const l = sk.branches[br] || 0;
             const bx = startX + bi * (bw + 4);
-            fillRoundRect(ctx, bx, bY, bw, bh, 12, 'rgba(247,201,72,0.22)');
-            strokeRoundRect(ctx, bx, bY, bw, bh, 12, '#f7c948', 1.5);
-            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 26, 22, '#f7c948', 'center');
-            text(ctx, `Lv${l}`, bx + bw / 2, bY + 54, 19, '#f7c948', 'center');
+            fillRoundRect(ctx, bx, bY, bw, bh, 10, 'rgba(247,201,72,0.22)');
+            strokeRoundRect(ctx, bx, bY, bw, bh, 10, '#f7c948', 1.5);
+            text(ctx, this.branchName(skDef, br), bx + bw / 2, bY + 22, 18, '#f7c948', 'center');
+            text(ctx, `Lv${l}`, bx + bw / 2, bY + 45, 15, '#f7c948', 'center');
           });
         } else {
-          text(ctx, '未选分支', cx + cardW / 2, bY + 42, 24, 'rgba(255,255,255,0.35)', 'center');
+          text(ctx, '未选分支', cx + cardW / 2, bY + 34, 20, 'rgba(255,255,255,0.35)', 'center');
         }
         // 右下角"详情 ›"提示（可点击）
-        text(ctx, '详情 ›', cx + cardW - 16, cy + cardH - 20, 21, 'rgba(255,255,255,0.45)', 'right');
+        text(ctx, '详情 ›', cx + cardW - 16, cy + cardH - 18, 17, 'rgba(255,255,255,0.45)', 'right');
       });
     }
     // 关闭按钮
