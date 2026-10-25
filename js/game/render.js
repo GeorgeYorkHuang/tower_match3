@@ -3586,7 +3586,9 @@ class Renderer {
         text(ctx, '未解锁', icx, ry2 + 98, 19, '#4a5a6e', 'center');
         text(ctx, `${rar.toUpperCase()} · 战斗获取碎片解锁`, icx, ry2 + 128, 13, '#3d4c5e', 'center');
       }
-      push(owned ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
+      // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
+      const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
+      if (hy2 > hy) push(owned ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();
     // 右侧滚动条（maxScroll>0 时显示）
