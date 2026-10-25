@@ -1,0 +1,81 @@
+{
+  "generatedBy": "tools/gen_skill_anim.mjs",
+  "version": "v1",
+  "sets": [
+    {
+      "name": "anim_explosion",
+      "frames": 10,
+      "fps": 12,
+      "size": 256,
+      "variants": [
+        "orange",
+        "blue",
+        "green"
+      ]
+    },
+    {
+      "name": "anim_fallstrike",
+      "frames": 8,
+      "fps": 12,
+      "size": 192,
+      "variants": [
+        "orange",
+        "blue"
+      ]
+    },
+    {
+      "name": "anim_spark",
+      "frames": 6,
+      "fps": 15,
+      "size": 96,
+      "variants": [
+        "gold"
+      ]
+    },
+    {
+      "name": "debuff_burn",
+      "frames": 8,
+      "fps": 8,
+      "size": 96,
+      "variants": [
+        "base"
+      ]
+    },
+    {
+      "name": "debuff_poison",
+      "frames": 8,
+      "fps": 6,
+      "size": 96,
+      "variants": [
+        "base"
+      ]
+    },
+    {
+      "name": "debuff_bleed",
+      "frames": 8,
+      "fps": 8,
+      "size": 96,
+      "variants": [
+        "base"
+      ]
+    },
+    {
+      "name": "debuff_frost",
+      "frames": 8,
+      "fps": 6,
+      "size": 96,
+      "variants": [
+        "base"
+      ]
+    },
+    {
+      "name": "debuff_shock",
+      "frames": 8,
+      "fps": 8,
+      "size": 96,
+      "variants": [
+        "base"
+      ]
+    }
+  ]
+}

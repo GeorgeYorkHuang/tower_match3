@@ -1,0 +1,22 @@
+{
+  "category": "poison",
+  "spec": "512x512 RGBA, rounded-corner, uniform badge scale",
+  "items": [
+    {"file": "relic_ai_poison_01.png", "name": "毒腺", "effect": "中毒 DoT 伤害 +30%"},
+    {"file": "relic_ai_poison_02.png", "name": "瘟疫之源", "effect": "毒爆传染目标 +2"},
+    {"file": "relic_ai_poison_03.png", "name": "腐沼", "effect": "毒池范围 +30%"},
+    {"file": "relic_ai_poison_04.png", "name": "毒枝", "effect": "毒棒攻击力 +50%"},
+    {"file": "relic_ai_poison_05.png", "name": "剧毒精华", "effect": "中毒层数上限 +2"},
+    {"file": "relic_ai_poison_06.png", "name": "速疫", "effect": "瘟疫传染概率 +30%"},
+    {"file": "relic_ai_poison_07.png", "name": "缠毒", "effect": "毒藤缠绕时长 +1 秒"},
+    {"file": "relic_ai_poison_08.png", "name": "瘴毒", "effect": "瘴气叠毒间隔 -0.5 秒"},
+    {"file": "relic_ai_poison_09.png", "name": "毒牙", "effect": "中毒概率 +15%"},
+    {"file": "relic_ai_poison_10.png", "name": "缓毒", "effect": "中毒减速 +10%"},
+    {"file": "relic_ai_poison_11.png", "name": "毒爆连锁", "effect": "毒爆传染概率 +20%"},
+    {"file": "relic_ai_poison_12.png", "name": "腐化", "effect": "中毒敌人受到伤害 +15%"},
+    {"file": "relic_ai_poison_13.png", "name": "毒巢", "effect": "毒棒数量 +1"},
+    {"file": "relic_ai_poison_14.png", "name": "毒云", "effect": "毒池每秒额外叠 1 层毒"},
+    {"file": "relic_ai_poison_15.png", "name": "蔓延", "effect": "毒藤扩散范围 +50%"},
+    {"file": "relic_ai_poison_16.png", "name": "万毒", "effect": "所有中毒伤害 +20%"}
+  ]
+}

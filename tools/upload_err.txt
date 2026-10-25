@@ -1,0 +1,44 @@
+﻿cli.bat : [1025/184408.758:ERROR:third_party\crashpad\crashpad\util\win\registration_protocol_win.cc:136] TransactNamed
+Pipe: 有更多数据可用。 (0xEA)
+所在位置 行:1 字符: 43
++ ... erdefence"; & "D:\tool\微信web开发者工具\cli.bat" upload --project "F:\works ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([1025/184408.75...有更多数据可用。 (0xEA):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+- initialize
+
+(node:98184) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative inste
+ad.
+(Use `微信开发者工具 --trace-deprecation ...` to show where the warning was created)
+√ IDE server has started, listening on http://127.0.0.1:58122
+- preparing
+- Fetching AppID () permissions
+√ Using AppID: wx959dd98b81ba1a25
+- Upload
+× Upload completed, cost: %sms
+[error] {
+  code: 10,
+  message: "Error: 错误 TypeError: Cannot read properties of undefined (reading 'errcode')\n" +
+    '    at D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1a64ed4bad314392fa8e397336cf2192.js:2:1476\n' +
+    '    at async project (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1a64ed4bad314392fa8e397336cf2192.js:2:999)\n' +
+    '    at async exports.upload [as method] (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\13ff54aebf81f1760f82320713227f2b.js:2:1689)\n' +
+    '    at async exports.execV2WSAPI (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1c52e22ebb880937c313e2cce3a5b7d2.js:2:1588)\n' +
+    '    at async exports.handleWsApiMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\0ac94e0dd9725677f53c22067280ca25.js:2:265)\n' +
+    '    at async c._clientMessageHandler (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\e662f33f90d7c54bd12f5b2a695fbb1d.js:2:3435)\n' +
+    "    at async c._handleClientMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\bd0bd23655b22e066b1a71c99f9c5dc6.js:2:3030) (code 10)Error: 错误 TypeError: Cannot read properties of undefined (reading 'errcode')\n" +
+    '    at D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1a64ed4bad314392fa8e397336cf2192.js:2:1476\n' +
+    '    at async project (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1a64ed4bad314392fa8e397336cf2192.js:2:999)\n' +
+    '    at async exports.upload [as method] (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\13ff54aebf81f1760f82320713227f2b.js:2:1689)\n' +
+    '    at async exports.execV2WSAPI (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1c52e22ebb880937c313e2cce3a5b7d2.js:2:1588)\n' +
+    '    at async exports.handleWsApiMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\0ac94e0dd9725677f53c22067280ca25.js:2:265)\n' +
+    '    at async c._clientMessageHandler (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\e662f33f90d7c54bd12f5b2a695fbb1d.js:2:3435)\n' +
+    '    at async c._handleClientMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\bd0bd23655b22e066b1a71c99f9c5dc6.js:2:3030) (code 10)\n' +
+    '    at Object.GENERIC_ERROR (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\3ba8bc345a8182e8a1671d05df413e7d.js:2:93)\n' +
+    '    at project (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1a64ed4bad314392fa8e397336cf2192.js:2:2336)\n' +
+    '    at async exports.upload [as method] (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\13ff54aebf81f1760f82320713227f2b.js:2:1689)\n' +
+    '    at async exports.execV2WSAPI (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\1c52e22ebb880937c313e2cce3a5b7d2.js:2:1588)\n' +
+    '    at async exports.handleWsApiMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\0ac94e0dd9725677f53c22067280ca25.js:2:265)\n' +
+    '    at async c._clientMessageHandler (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\e662f33f90d7c54bd12f5b2a695fbb1d.js:2:3435)\n' +
+    '    at async c._handleClientMessage (D:\\tool\\微信web开发者工具\\resources\\app.asar\\js\\bd0bd23655b22e066b1a71c99f9c5dc6.js:2:3030)'
+}

@@ -1,0 +1,23 @@
+{
+  "category": "universal",
+  "spec": "512x512 RGBA, rounded-corner, uniform badge scale",
+  "palette": "royal purple / amethyst (原计划金黄与电塔撞色，改帝王紫)",
+  "items": [
+    {"file": "relic_ai_universal_01.png", "name": "三消之力", "effect": "三消经验 +30%"},
+    {"file": "relic_ai_universal_02.png", "name": "金库", "effect": "波末金币 +30%"},
+    {"file": "relic_ai_universal_03.png", "name": "城墙加固", "effect": "城墙血量 +20%"},
+    {"file": "relic_ai_universal_04.png", "name": "弹药箱", "effect": "初始弹药 +30"},
+    {"file": "relic_ai_universal_05.png", "name": "全局充能", "effect": "全局技能充能 +40%"},
+    {"file": "relic_ai_universal_06.png", "name": "攻速戒指", "effect": "全塔攻击间隔 -10%"},
+    {"file": "relic_ai_universal_07.png", "name": "力量符", "effect": "全塔伤害 +15%"},
+    {"file": "relic_ai_universal_08.png", "name": "经验之心", "effect": "击杀经验 +30%"},
+    {"file": "relic_ai_universal_09.png", "name": "减伤护符", "effect": "城墙受到的伤害 -10%"},
+    {"file": "relic_ai_universal_10.png", "name": "生命回复", "effect": "每波结束城墙回血 5%"},
+    {"file": "relic_ai_universal_11.png", "name": "连锁反应", "effect": "三消 4 连概率 +10%"},
+    {"file": "relic_ai_universal_12.png", "name": "时间停滞", "effect": "怪物移速 -10%"},
+    {"file": "relic_ai_universal_13.png", "name": "冻结时刻", "effect": "每波首个敌人被冰冻 3 秒"},
+    {"file": "relic_ai_universal_14.png", "name": "赏金猎人", "effect": "精英 / Boss 宝箱掉落概率 +50%"},
+    {"file": "relic_ai_universal_15.png", "name": "智慧典籍", "effect": "升级所需经验 -10%"},
+    {"file": "relic_ai_universal_16.png", "name": "战术转移", "effect": "每波免费洗牌 +1 次"}
+  ]
+}

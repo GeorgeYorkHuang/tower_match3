@@ -1,0 +1,22 @@
+{
+  "category": "fire",
+  "spec": "512x512 RGBA, rounded-corner, uniform badge scale",
+  "items": [
+    {"file": "relic_ai_fire_01.png", "name": "火种",   "effect": "点燃灼烧伤害 +50%"},
+    {"file": "relic_ai_fire_02.png", "name": "赤印",   "effect": "灼烧层数上限 +1"},
+    {"file": "relic_ai_fire_03.png", "name": "熔心",   "effect": "火柱伤害 +50%"},
+    {"file": "relic_ai_fire_04.png", "name": "爆核",   "effect": "大火球爆炸半径 +30%"},
+    {"file": "relic_ai_fire_05.png", "name": "连锁爆破", "effect": "爆燃爆炸概率 40%→70%"},
+    {"file": "relic_ai_fire_06.png", "name": "焰雨",   "effect": "多重火球数量 +2"},
+    {"file": "relic_ai_fire_07.png", "name": "火墙增烈", "effect": "烈焰墙持续 +3 秒"},
+    {"file": "relic_ai_fire_08.png", "name": "天火",   "effect": "火雨每波伤害 +40%"},
+    {"file": "relic_ai_fire_09.png", "name": "熔炉之息", "effect": "火塔攻击间隔 -15%"},
+    {"file": "relic_ai_fire_10.png", "name": "薪柴",   "effect": "点燃概率 +20%"},
+    {"file": "relic_ai_fire_11.png", "name": "余烬风暴", "effect": "灼烧目标死亡时 25% 概率再爆炸"},
+    {"file": "relic_ai_fire_12.png", "name": "火焰弹射", "effect": "普攻 25% 概率额外发射一枚火球"},
+    {"file": "relic_ai_fire_13.png", "name": "炼狱",   "effect": "所有灼烧类伤害 +25%"},
+    {"file": "relic_ai_fire_14.png", "name": "火舌",   "effect": "烈焰墙长度 +50%"},
+    {"file": "relic_ai_fire_15.png", "name": "燃尽加速", "effect": "火雨波次间隔 -0.2 秒"},
+    {"file": "relic_ai_fire_16.png", "name": "焚天",   "effect": "火柱 / 火墙 / 火雨冷却 -20%"}
+  ]
+}
