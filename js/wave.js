@@ -25,6 +25,7 @@ class WaveDirector {
     g.run.startWave();
     g.waveTime = 0;
     g.enemies = [];
+    this._freezeDone = false;   // v1.16.78 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
     g.state = 'fighting';
     g.selected = null;
@@ -45,7 +46,9 @@ class WaveDirector {
   /** 生成本波敌人的投放计划（不立即出场，由 tick 按间隔陆续放出） */
   buildPlan() {
     const w = this.game.run.wave;
-    const total = CONFIG.ENEMY.hpBase * Math.pow(CONFIG.ENEMY.hpGrowth, w - 1);
+    // v1.16.78 深渊诅咒被动：怪物总血量 ×1.15^诅咒层数
+    const total = CONFIG.ENEMY.hpBase * Math.pow(CONFIG.ENEMY.hpGrowth, w - 1)
+      * Math.pow(1.15, this.game.run.curseStacks || 0);
     let count = (6 + 3 * w) * 2; // v1.8：每波敌人数量翻倍（单只血量随 count 均分，总血量口径不变）
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
     const eliteCount = CONFIG.ENEMY.elitePerWave || 1;          // 每波固定精英
@@ -136,7 +139,14 @@ class WaveDirector {
       attackInterval: CONFIG.ENEMY.attackInterval[atkKey] || CONFIG.ENEMY.attackInterval.normal, // 攻城攻击间隔
       attackT: 0,
     };
-    this.game.enemies.push(initEnemyState(e));
+    const en = initEnemyState(e);
+    // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）
+    if (!this._freezeDone) {
+      const frz = this.game.run.relicNum('cm_freeze');
+      if (frz > 0) en.frozen = frz;
+      this._freezeDone = true;
+    }
+    this.game.enemies.push(en);
   }
 }
 

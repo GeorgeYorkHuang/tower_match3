@@ -197,6 +197,12 @@ class CombatSystem {
     const m = this.game.meta;
     const spdLv = (m && m.relicBonus && m.relicBonus().speed) || 0;
     if (spdLv > 0) iv /= (1 + 0.08 * spdLv);
+    // v1.16.78 攻速戒指（局内圣遗物）：全塔攻击间隔缩短 N%（按星级）
+    const spdR = this.relicVal('cm_speed');
+    if (spdR > 0) iv /= (1 + spdR / 100);
+    // v1.16.77 局内商店·攻速强化：+15%/层（本局临时）
+    const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
+    if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     return Math.max(0.15, iv);
   }
 
@@ -206,11 +212,62 @@ class CombatSystem {
     return Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
   }
 
+  /** v1.16.78 圣遗物当前星级数值（1★=desc / 2★=star2 文本最后数字）；未获得返回 0 */
+  relicVal(id) {
+    const g = this.game;
+    const run = g && g.run;
+    if (!run || !run.relicRun || run.relicRun(id) <= 0) return 0;
+    const star = (g.meta && g.meta.starOf) ? g.meta.starOf(id) : 1;
+    return CONFIG.relicNum(id, star);
+  }
+
+  /** v1.16.78 塔圣遗物「伤害类」乘区：desc 与 star2 均描述伤害 → 该塔所有伤害（普攻+技能同源）×(1+ΣN%) */
+  relicTowerDmg(key) {
+    const g = this.game;
+    const run = g && g.run;
+    if (!run || !run.runRelic) return 0;
+    const cat = CONFIG.RELIC_RUN.tower[key];
+    if (!cat) return 0;
+    let sum = 0;
+    cat.forEach((d) => {
+      if (run.relicRun(d.id) > 0 && d.desc && d.star2 && /伤害/.test(d.desc) && /伤害/.test(d.star2)) {
+        sum += this.relicVal(d.id);
+      }
+    });
+    return sum;
+  }
+
   /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径） */
   shotDmg(key) {
     const dps = this.game.run.effects.towerDps(key);
     const iv = CONFIG.TOWERS[key].atkInterval;
-    return dps * iv;
+    let dmg = dps * iv;
+    // v1.16.77 局内商店·攻击强化：+20%/层（本局临时）
+    const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { atk: 0 };
+    if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
+    // v1.16.78 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
+    const rl = this.relicVal('cm_power') + this.relicTowerDmg(key);
+    if (rl > 0) dmg *= (1 + rl / 100);
+    // v1.16.77 能量耗尽弱化态：普攻与技能伤害 ×0.5（能量 <= 0 时）
+    const t = this.tower(key);
+    if (t && t.energy <= 0) dmg *= CONFIG.GLOBAL_SKILL.weakDmg;
+    return dmg;
+  }
+
+  /** v1.16.77 周期技弱化倍率：塔能量耗尽 → 周期 ×1.5（伤害弱化已由 shotDmg 统一 ×0.5） */
+  _weakPeriod(key) {
+    const t = this.tower(key);
+    return t && t.energy <= 0 ? CONFIG.GLOBAL_SKILL.weakPeriod : 1;
+  }
+
+  /** v1.16.77 周期技能施放扣能量：能量 >= 成本时扣除并全额施放；不足则弱化施放（不扣，伤害 ×0.5） */
+  castEnergy(key, name) {
+    const t = this.tower(key);
+    if (!t) return;
+    const cost = (CONFIG.SKILL_ENERGY && CONFIG.SKILL_ENERGY[name]) || 0;
+    if (cost <= 0) return;
+    if (t.energy < cost) return;
+    t.energy = Math.max(0, t.energy - cost);
   }
 
   /** 毒·毒性强化（v1.16.21）：选择后中毒 DoT 由 10% 提升为 15%（+50% 单跳）；A 每级 18%/21%/24%（档位式）；B 时长 +2/+4/+6s（档位式） */
@@ -777,8 +834,8 @@ class CombatSystem {
     const g = this.game;
     const t = this.tower(key);
     if (!t || t.level === 0) return;
-    if (t.ammo <= 0) return; // v1.12 弹药：三消额外攻击同样消耗弹药（无弹药不触发）
-    t.ammo -= 1;
+    // v1.16.77 能量：三消额外攻击同样耗 0.5 能量；能量耗尽不取消，伤害走弱化态（shotDmg 内 ×0.5）
+    if (t.energy > 0) t.energy = Math.max(0, t.energy - CONFIG.GLOBAL_SKILL.perAttack);
     const tgt = this.pickTarget(key);
     if (!tgt) return;
     const dmg = this.shotDmg(key);
@@ -862,18 +919,18 @@ class CombatSystem {
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
   attackOnce(key) {
     const g = this.game;
-    // v1.12 弹药：塔需弹药才能攻击（无弹药停火）
+    // v1.16.77 能量：普攻每次耗 0.5 能量（每 2 发 1 点）；能量耗尽不停火，进入弱化态（shotDmg ×0.5）
     const ammoT = this.tower(key);
-    if (ammoT && ammoT.ammo <= 0) return;
+    if (ammoT && ammoT.energy > 0) ammoT.energy = Math.max(0, ammoT.energy - CONFIG.GLOBAL_SKILL.perAttack);
     const target = this.pickTarget(key);
     if (!target) {
       // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
       if (key === 'boomerang') this.bWait[key] = false;
       return;
     }
-    // v1.16 接镖 B 回能：回旋镖 30% 概率不耗弹药
+    // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补）
     const regain = key === 'boomerang' && this.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < SKILL_NUM.boomerang['接镖'].catchRegain;
-    if (ammoT && !regain) ammoT.ammo -= 1;
+    if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + CONFIG.GLOBAL_SKILL.perAttack, g.run.armoryEnergyMax());
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
     // v1.16.37 发射点统一走 towerMuzzle（测试战场单塔大槽 / 正式战斗槽位），修复弹道从塔区中间凭空发出
@@ -1304,8 +1361,9 @@ class CombatSystem {
     const pillar = this.lv('fire', '火柱');
     if (pillar > 0) {
       this.timers.firePillar = (this.timers.firePillar || 0) + dt;
-      if (this.timers.firePillar >= 10) {
+      if (this.timers.firePillar >= 10 * this._weakPeriod('fire')) {
         this.timers.firePillar = 0;
+        this.castEnergy('fire', '火柱');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
@@ -1342,8 +1400,9 @@ class CombatSystem {
     const wall = this.lv('fire', '烈焰墙');
     if (wall > 0) {
       this.timers.fireWall = (this.timers.fireWall || 0) + dt;
-      if (this.timers.fireWall >= 15) {
+      if (this.timers.fireWall >= 15 * this._weakPeriod('fire')) {
         this.timers.fireWall = 0;
+        this.castEnergy('fire', '烈焰墙');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
@@ -1393,8 +1452,9 @@ class CombatSystem {
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
-      if (this.timers.fireRain >= 12) {
+      if (this.timers.fireRain >= 12 * this._weakPeriod('fire')) {
         this.timers.fireRain = 0;
+        this.castEnergy('fire', '火雨');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const bLv = this.branchLv('fire', '火雨', 'B');
@@ -1617,8 +1677,9 @@ class CombatSystem {
     const flower = this.lv('ice', '冰花');
     if (flower > 0) {
       this.timers.iceFlower = (this.timers.iceFlower || 0) + dt;
-      if (this.timers.iceFlower >= 8) {
+      if (this.timers.iceFlower >= 8 * this._weakPeriod('ice')) {
         this.timers.iceFlower = 0;
+        this.castEnergy('ice', '冰花');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
           const n = 1 + SKILL_NUM.ice['冰花'].n[this.branchLv('ice', '冰花', 'C')];
@@ -1652,8 +1713,9 @@ class CombatSystem {
     const orbSkill = this.lv('ice', '冬珠');
     if (orbSkill > 0) {
       this.timers.frostOrb = (this.timers.frostOrb || 0) + dt;
-      if (this.timers.frostOrb >= 10) {
+      if (this.timers.frostOrb >= 10 * this._weakPeriod('ice')) {
         this.timers.frostOrb = 0;
+        this.castEnergy('ice', '冬珠');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
           const r = 110 * (1 + SKILL_NUM.ice['冬珠'].radius[this.branchLv('ice', '冬珠', 'B')]);
@@ -1715,8 +1777,9 @@ class CombatSystem {
           this.iceWall = null;
         }
       }
-      if (this.timers.iceWall >= 20) {
+      if (this.timers.iceWall >= 20 * this._weakPeriod('ice')) {
         this.timers.iceWall = 0;
+        this.castEnergy('ice', '冰墙');
         this.iceWall = {
           ttl: 10 + SKILL_NUM.ice['冰墙'].ttl[this.branchLv('ice', '冰墙', 'A')],   // 基础 10s + A 档位 +2/+4/+6s
           absorb: 300,   // v1.16.21：基础抵御 300 点伤害
@@ -1760,15 +1823,15 @@ class CombatSystem {
           });
           this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
         }
-        // A 分支：每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 发炮弹（封顶 ammoMax）
+        // A 分支：每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 点能量（封顶能量上限）
         const ovA = this.branchLv('electric', '过载', 'A');
         if (ovA > 0 && e.overload.n >= 3) {
           this.damage(e, this.shotDmg('electric') * SKILL_NUM.electric['过载'].deton[ovA], 'electric');
           this.fxFlash(e.x, e.y, '#f4d03f');
           this.fxRing(e.x, e.y, '#f4d03f', 40, 0.3, 3);
-          const maxA = CONFIG.GLOBAL_SKILL && CONFIG.GLOBAL_SKILL.ammoMax ? CONFIG.GLOBAL_SKILL.ammoMax : 50;
+          const maxA = this.game.run.armoryEnergyMax ? this.game.run.armoryEnergyMax() : 50;
           const et = this.tower('electric');
-          if (et) et.ammo = Math.min(maxA, et.ammo + 1);
+          if (et) et.energy = Math.min(maxA, et.energy + 1);
           e.overload.n = 0;   // 消耗所有过载
         }
       }
@@ -1842,9 +1905,10 @@ class CombatSystem {
       const arcB = this.branchLv('electric', '极光电击', 'B');
       const arcC = this.branchLv('electric', '极光电击', 'C');
       this.timers.arc = (this.timers.arc || 0) + dt;
-      const period = 8;   // v1.16.42 周期固定 8 秒
+      const period = 8 * this._weakPeriod('electric');   // v1.16.42 周期固定 8 秒（弱化态 ×1.5）
       if (this.timers.arc >= period) {
         this.timers.arc = 0;
+        this.castEnergy('electric', '极光电击');
         // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
         const mz = this.towerMuzzle('electric');
         const tx = mz.x, ty = mz.y;
@@ -1893,10 +1957,11 @@ class CombatSystem {
     if (storm > 0) {
       // v1.16.21 雷暴分支调整：A=雷击目标+2/级（3/5/7/9）；B=连雷 30%/45%/60% 几率连锁周边 90px 敌人；C=雷击间隔 -1s/级（10→9/8/7s）
       const cLv = this.branchLv('electric', '雷暴', 'C');
-      const period = 10 - 1 * cLv;   // C0 10 / C1 9 / C2 8 / C3 7s
+      const period = (10 - 1 * cLv) * this._weakPeriod('electric');   // C0 10 / C1 9 / C2 8 / C3 7s（弱化态 ×1.5）
       this.timers.storm = (this.timers.storm || 0) + dt;
       if (this.timers.storm >= period) {
         this.timers.storm = 0;
+        this.castEnergy('electric', '雷暴');
         const aLv = this.branchLv('electric', '雷暴', 'A');
         const bLv = this.branchLv('electric', '雷暴', 'B');
         const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
@@ -1984,8 +2049,9 @@ class CombatSystem {
     const pool = this.lv('poison', '毒池');
     if (pool > 0) {
       this.timers.pool = (this.timers.pool || 0) + dt;
-      if (this.timers.pool >= 5) {
+      if (this.timers.pool >= 5 * this._weakPeriod('poison')) {
         this.timers.pool = 0;
+        this.castEnergy('poison', '毒池');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;
         const tgt = alive[Math.floor(Math.random() * alive.length)];
@@ -2002,9 +2068,10 @@ class CombatSystem {
     const stick = this.lv('poison', '毒棒');
     if (stick > 0) {
       this.timers.stick = (this.timers.stick || 0) + dt;
-      const cd = Math.max(1.5, 4 - 0.5 * this.branchLv('poison', '毒棒', 'B'));
+      const cd = Math.max(1.5, 4 - 0.5 * this.branchLv('poison', '毒棒', 'B')) * this._weakPeriod('poison');
       if (this.timers.stick >= cd) {
         this.timers.stick = 0;
+        this.castEnergy('poison', '毒棒');
         const n = 1 + this.branchLv('poison', '毒棒', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
@@ -2024,8 +2091,9 @@ class CombatSystem {
     const vine = this.lv('poison', '毒藤');
     if (vine > 0) {
       this.timers.vine = (this.timers.vine || 0) + dt;
-      if (this.timers.vine >= 6) {
+      if (this.timers.vine >= 6 * this._weakPeriod('poison')) {
         this.timers.vine = 0;
+        this.castEnergy('poison', '毒藤');
         const n = 1 + this.branchLv('poison', '毒藤', 'A');
         const dur = 3 + this.branchLv('poison', '毒藤', 'B');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y)).sort((a, b) => b.y - a.y);
@@ -2100,8 +2168,9 @@ class CombatSystem {
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
       this.timers.support = (this.timers.support || 0) + dt;
-      if (this.timers.support >= 12) {
+      if (this.timers.support >= 12 * this._weakPeriod('cannon')) {
         this.timers.support = 0;
+        this.castEnergy('cannon', '炮火支援');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (alive.length) {
           const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
@@ -2126,8 +2195,9 @@ class CombatSystem {
     const mineLv = this.lv('cannon', '地雷阵');
     if (mineLv > 0) {
       this.timers.mine = (this.timers.mine || 0) + dt;
-      if (this.timers.mine >= 6) {
+      if (this.timers.mine >= 6 * this._weakPeriod('cannon')) {
         this.timers.mine = 0;
+        this.castEnergy('cannon', '地雷阵');
         const n = 3 + 2 * this.branchLv('cannon', '地雷阵', 'A');
         // 塔口坐标（v1.16.37 统一 towerMuzzle）
         const ly = this.ly();
@@ -2170,9 +2240,10 @@ class CombatSystem {
     const turret = this.lv('cannon', '炮台');
     if (turret > 0) {
       this.timers.turret = (this.timers.turret || 0) + dt;
-      const cd = Math.max(4, 10 - this.branchLv('cannon', '炮台', 'B'));
+      const cd = Math.max(4, 10 - this.branchLv('cannon', '炮台', 'B')) * this._weakPeriod('cannon');
       if (this.timers.turret >= cd) {
         this.timers.turret = 0;
+        this.castEnergy('cannon', '炮台');
         const n = 1 + this.branchLv('cannon', '炮台', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不部署炮台
@@ -2239,8 +2310,9 @@ class CombatSystem {
     const cyclone = this.lv('boomerang', '风暴镖');
     if (cyclone > 0) {
       this.timers.storm = (this.timers.storm || 0) + dt;
-      if (this.timers.storm >= 12) {
+      if (this.timers.storm >= 12 * this._weakPeriod('boomerang')) {
         this.timers.storm = 0;
+        this.castEnergy('boomerang', '风暴镖');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
@@ -2269,8 +2341,9 @@ class CombatSystem {
     const ringN = this.lv('boomerang', '弹力镖');
     if (ringN > 0) {
       this.timers.ringN = (this.timers.ringN || 0) + dt;
-      if (this.timers.ringN >= 8) {
+      if (this.timers.ringN >= 8 * this._weakPeriod('boomerang')) {
         this.timers.ringN = 0;
+        this.castEnergy('boomerang', '弹力镖');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         const mus = this.towerMuzzle('boomerang');
         const n = 2 + 1 * this.branchLv('boomerang', '弹力镖', 'A');
@@ -2376,8 +2449,8 @@ class CombatSystem {
     this.game.fx.push({ type: 'beam', x1, y1, x2, y2, color, dur, width, t: 0 });
   }
 
-  /* ---------- v1.12 全局技能：消耗累计弹药释放（1 次 = chargePerUse 发） ---------- */
-  /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'refill' 所有塔补充弹药；累计弹药不足返回 false */
+  /* ---------- v1.12 全局技能：消耗累计充能释放（1 次 = chargePerUse 点） ---------- */
+  /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'refill' 所有塔补充能量；累计充能不足返回 false */
   castGlobal(which) {
     const g = this.game;
     if (!g.run.spendAmmo(which)) return false;
@@ -2392,20 +2465,20 @@ class CombatSystem {
       this.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
       g.toast && g.toast('🔀 全局洗牌', '#ff8c42');
     } else {
-      // 弹药补给：所有已解锁塔各 +refillAmmo（封顶 ammoMax）
+      // 能量补给：所有已解锁塔各 +refillEnergy（封顶能量上限）
       let refilled = 0;
       Object.keys(g.run.slotOrder).forEach((_, i) => {
         const tk = g.run.slotOrder[i];
         const tw = g.run.effects.tower(tk);
         if (!tw || tw.level <= 0) return;
-        const before = tw.ammo;
-        tw.ammo = Math.min(before + GS.refillAmmo, GS.ammoMax);
-        refilled += tw.ammo - before;
+        const before = tw.energy;
+        tw.energy = Math.min(before + GS.refillEnergy, g.run.armoryEnergyMax());
+        refilled += tw.energy - before;
       });
       this.fxFlash(375, 800, '#7ef0a3', 0.5);
       this.fxRing(375, 800, '#7ef0a3', 300, 0.5, 8);
-      g.toast && g.toast(`🔋 弹药补给 +${GS.refillAmmo}`, '#7ef0a3');
-      if (refilled > 0) g.toast && g.toast(`全场补给 ${refilled} 发`, '#7ef0a3');
+      g.toast && g.toast(`🔋 能量补给 +${GS.refillEnergy}`, '#7ef0a3');
+      if (refilled > 0) g.toast && g.toast(`全场补给 ${Math.round(refilled)} 点`, '#7ef0a3');
     }
     return true;
   }

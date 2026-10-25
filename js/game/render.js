@@ -90,6 +90,12 @@ const MENU_TAB_THEME = {
 };
 const TOWER_HEX = { red: '#ff6b6b', blue: '#5dade2', green: '#58d68d', yellow: '#f4d03f', purple: '#af7ac5', orange: '#e67e22' };
 const TOWERS_COLOR = (k) => (CONFIG.TOWERS[k] || {}).color;
+// v1.16.76 圣遗物定义速查表（升星面板用）
+const RELIC_DEF_MAP = {};
+Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => l.forEach((d) => { RELIC_DEF_MAP[d.id] = d; }));
+CONFIG.RELIC_RUN.common.forEach((d) => { RELIC_DEF_MAP[d.id] = d; });
+// 深度宝箱档位色
+const TIER_COLOR = { wood: '#a4713d', bronze: '#d89e63', silver: '#c9d6e4', gold: '#f7c948', star: '#a86bff' };
 function loadImg(src) {
   if (src in imgCache) return imgCache[src];
   if (typeof wx !== 'undefined' && wx.createImage) {
@@ -131,6 +137,13 @@ const SKILL_ICON = {
 function skillIconSrc(towerKey, skillName) {
   const f = (SKILL_ICON[towerKey] || {})[skillName];
   return f ? `images/skillicons/${towerKey}/${f}.png` : null;
+}
+
+/** v1.16.80 hex → rgba（图鉴卡片塔色渲染用） */
+function hexA(hex, a) {
+  const h = (hex || '#8ea3b8').replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 /* v1.16.74 技能帧动画（精灵表横向条带，images/anims/<set>_<variant>.png） */
@@ -245,7 +258,7 @@ class Renderer {
   /** 状态条：金币 + 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
   status(ctx, s) {
     const goldIcon = 44;
-    // 金币（左下安全区：避开灵动岛与右上小程序胶囊）
+    // 局内金币（左下安全区：避开灵动岛与右上小程序胶囊；v1.16.77 局内金币跨波保留、局末结算银币）
     if (!drawImg(ctx, IMG_SRC.coin, 14, 76, goldIcon, goldIcon)) {
       fillRoundRect(ctx, 14, 76, goldIcon, goldIcon, 11, '#f7c948');
       text(ctx, '¥', 36, 98, 22, '#7c5c00', 'center');
@@ -287,8 +300,10 @@ class Renderer {
 
   /** 行动区底：入口带 + 敌人 + 城墙 + 塔位区 + 棋盘（按状态分层调用） */
   actionArea(ctx, s) {
-    // 行动区背景图（y128 起 720 高 = 怪物行走区）；加载失败回退深色底
-    if (!drawImg(ctx, IMG_SRC.actionArea, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
+    // 行动区背景图（y128 起 720 高 = 怪物行走区）；v1.16.77 按战场切换主题背景；加载失败回退深色底
+    const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
+      ? `images/ui/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
+    if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
     }
     // 入口带
@@ -323,6 +338,8 @@ class Renderer {
     this.board(ctx, s.grid, s.selected, s.anim);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
+    // v1.16.77 局内商店（右上角按钮 + 点开面板，不暂停战斗）
+    this.battleShop(ctx, s);
   }
 
   wall(ctx, hp, maxHp) {
@@ -352,15 +369,15 @@ class Renderer {
     if (ratio > 0) fillRoundRect(ctx, AREA_X + 7.5, barY + 0.5, (AREA_W - 15) * ratio, barH - 1, 2.5, barCol);
   }
 
-  /** 底部功能键区（三消棋盘下方）：设置 / 塔图鉴 / 商店 / 帮助（v1.16.30 移除加速键，加速移到城墙上方） */
+  /** 底部功能键区（三消棋盘下方）：设置 / 帮助（v1.16.30 移除加速键；v1.16.77 移除塔图鉴弹层与商店占位弹层，图鉴移入主界面 codex 页签） */
   funcBar(ctx, s) {
     const fy = BOARD_Y + L.boardArea.h;           // 1524
     const h = L.funcBar.h;                        // 102
     fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
-    const labels = ['⚙ 设置', '📖 塔图鉴', '💰 商店', 'ℹ 帮助'];
-    const keys = ['setting', 'tome', 'shop', 'help'];
+    const labels = ['⚙ 设置', 'ℹ 帮助'];
+    const keys = ['setting', 'help'];
     const kw = 150, kh = 80;
     const gap = (750 - labels.length * kw) / (labels.length + 1);
     this.funcHits = [];
@@ -385,6 +402,46 @@ class Renderer {
     const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
     text(ctx, `⏩×${s.runSpeed || 1}`, spX + spW / 2, spY + spH / 2 + 4, 30, spdCol, 'center');
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
+  }
+
+  /** v1.16.77 局内商店：右上角按钮（加速按钮左侧，城墙上方同排）+ 点开面板（战斗不暂停） */
+  battleShop(ctx, s) {
+    const spX = 750 - 16 - 124;
+    const bx0 = spX - 16 - 124, by0 = WALL_Y - 8 - 66, bw = 124, bh = 66;
+    this.shopBtnRect = { x: bx0, y: by0, w: bw, h: bh };
+    text(ctx, `🛒 商店`, bx0 + bw / 2, by0 + bh / 2 + 4, 26, s.shopOpen ? '#7ef0a3' : '#c9d6e4', 'center');
+    if (!s.shopOpen) return;
+    // 面板（居中偏上，避开灵动岛/微信胶囊）
+    const w = 560, h = 640, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 80;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
+    strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
+    text(ctx, '🛒 局内商店', x + w / 2, y + 58, 34, '#ffffff', 'center');
+    text(ctx, `💰 局内金币 ${fmtNum(s.gold)}`, x + w / 2, y + 104, 24, '#f7c948', 'center');
+    const items = (CONFIG.STORE.items || []);
+    const gw = 236, gh = 182, gx0 = x + 24, gy0 = y + 138, gGap = 40;
+    this.shopItemRects = [];
+    items.forEach((it, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const gx = gx0 + col * (gw + gGap), gy = gy0 + row * (gh + 46);
+      const bought = (s.store && s.store[it.id]) || 0;
+      const maxed = bought >= it.max;
+      const cost = it.cost[Math.min(bought, it.cost.length - 1)];
+      const afford = s.gold >= cost;
+      this.shopItemRects.push({ x: gx, y: gy, w: gw, h: gh });
+      fillRoundRect(ctx, gx, gy, gw, gh, 14, maxed ? 'rgba(255,255,255,0.04)' : afford ? 'rgba(247,201,72,0.08)' : 'rgba(22,29,40,0.9)');
+      strokeRoundRect(ctx, gx, gy, gw, gh, 14, maxed ? '#3a4553' : afford ? '#f7c948' : '#3a4553', maxed ? 1 : 1.4);
+      text(ctx, it.icon, gx + 30, gy + 36, 24, '#ffffff', 'center');
+      text(ctx, it.name, gx + 58, gy + 38, 22, '#ffffff', 'left');
+      text(ctx, it.desc, gx + 26, gy + 80, 16, '#9fb2c3', 'left');
+      text(ctx, `💰 ${cost} · 已购 ${bought}/${it.max}`, gx + 26, gy + 116, 17, maxed ? '#5a6c80' : afford ? '#f7c948' : '#a05a3c', 'left');
+      text(ctx, maxed ? '已达上限' : (afford ? '点击购买' : '金币不足'), gx + 26, gy + 158, 17, maxed ? '#5a6c80' : afford ? '#7ef0a3' : '#ff6b6b', 'left');
+    });
+    // 关闭
+    this.shopCloseRect = { x: x + w / 2 - 90, y: y + h - 76, w: 180, h: 54 };
+    fillRoundRect(ctx, this.shopCloseRect.x, this.shopCloseRect.y, 180, 54, 12, '#3a6ea5');
+    text(ctx, '关闭', x + w / 2, this.shopCloseRect.y + 36, 24, '#ffffff', 'center');
   }
 
   /** 分支名称：优先取 config 分支文案「名称：效果」冒号前；无名称（非火塔）取效果短语首词；兜底字母代号（v1.14） */
@@ -440,7 +497,7 @@ class Renderer {
       { label: '攻击', icon: '⚔', val: `${info.atk || 0}`, color: '#f7c948' },
       { label: '间隔', icon: '⏱', val: `${(info.interval || 0).toFixed(1)}s`, color: '#9fb2c3' },
       { label: 'DPS', icon: '🏹', val: `${Math.round(info.dps)}`, color: '#7ea8d8' },
-      { label: '弹药', icon: 'bullet', val: `${info.ammo || 0}`, color: '#7ef0a3' },
+      { label: '能量', icon: '⚡', val: `${Math.floor(info.ammo || 0)}`, color: '#7ef0a3' },
     ];
     stats.forEach((s, si) => {
       const row = Math.floor(si / 2);
@@ -2871,8 +2928,27 @@ class Renderer {
   gameOver(ctx, s, restart) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
+    const su = s.summary;   // v1.16.76 局末结算摘要（撤离点系统）
     const w = 560, h = 500, x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
     fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
+    if (su) {
+      // v1.16.76 撤离点结算：撤离成功（金） / 阵亡（红）双主题
+      const win = su.evacuated;
+      strokeRoundRect(ctx, x, y, w, h, 16, win ? '#f7c948' : '#e74c3c', 3);
+      text(ctx, win ? '🚪 撤离成功' : '💀 防线失守', x + w / 2, y + 64, 42, win ? '#ffd34d' : '#ff6b6b', 'center');
+      text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)}`, x + w / 2, y + 118, 23, '#dfe6ee', 'center');
+      text(ctx, `深度结算 ${win ? '100%' : '30%'}：+${fmtNum(su.payout)} 💰 · 碎片 +${su.shards || 0}`, x + w / 2, y + 158, 21, win ? '#f7c948' : '#9fb2c3', 'center');
+      if (su.silver > 0) text(ctx, `🪙 局内金币结算银币 +${fmtNum(su.silver)}`, x + w / 2, y + 196, 21, '#c9d6e4', 'center');
+      if (su.miles && su.miles.length) {
+        text(ctx, `🏆 里程碑首达：${su.miles.join(' / ')} 波`, x + w / 2, y + 212, 21, '#a86bff', 'center');
+      }
+      text(ctx, su.chestGranted
+        ? `📦 获得 ${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}（主界面开启）`
+        : '📦 深度宝箱槽位已满 · 未发放', x + w / 2, y + 238, 20, '#d89e63', 'center');
+      restart.hit = button(ctx, x + 120, y + 280, 320, 76, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 32 }).hit;
+      restart.toMenu = button(ctx, x + 120, y + 372, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 });
+      return;
+    }
     strokeRoundRect(ctx, x, y, w, h, 16, '#e74c3c', 3);
     text(ctx, '防线失守', x + w / 2, y + 70, 44, '#ff6b6b', 'center');
     text(ctx, `坚守到第 ${s.wave} 波`, x + w / 2, y + 140, 26, '#dfe6ee', 'center');
@@ -2890,10 +2966,10 @@ class Renderer {
     });
   }
 
-  /** 底部功能弹层：商店 / 设置 / 塔图鉴 / 帮助（共用遮罩+面板+关闭；点遮罩/关闭退出） */
+  /** 底部功能弹层：设置 / 帮助（共用遮罩+面板+关闭；v1.16.77 塔图鉴与商店弹层已移除） */
   funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
-    const heights = { shop: 560, setting: 430, tome: 1000, help: 640 };
+    const heights = { setting: 430, help: 720 };
     const hgt = heights[layer.type] || 560;
     const y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
@@ -2901,50 +2977,32 @@ class Renderer {
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
     fillRoundRect(ctx, x, y, w, hgt, 18, '#232a34');
     strokeRoundRect(ctx, x, y, w, hgt, 18, '#3a6ea5', 3);
-    const title = { shop: '商店', setting: '设置', tome: '塔图鉴', help: '帮助' }[layer.type] || '';
+    const title = { setting: '设置', help: '帮助' }[layer.type] || '';
     text(ctx, title, 375, y + 52, 36, '#ffffff', 'center');
-    if (layer.type === 'shop') {
-      text(ctx, `💰 金币 ${fmtNum(s.gold)}`, 375, y + 108, 24, '#f7c948', 'center');
-      const gw = 260, gh = 130, gx0 = x + 40, gy0 = y + 150, gGap = 40;
-      for (let i = 0; i < 4; i++) {
-        const cx2 = gx0 + (i % 2) * (gw + gGap);
-        const cy2 = gy0 + Math.floor(i / 2) * (gh + 40);
-        fillRoundRect(ctx, cx2, cy2, gw, gh, 12, '#1d242e');
-        strokeRoundRect(ctx, cx2, cy2, gw, gh, 12, 'rgba(255,255,255,0.1)', 1);
-        text(ctx, '商品筹备中', cx2 + gw / 2, cy2 + gh / 2, 22, 'rgba(255,255,255,0.35)', 'center');
-      }
-      text(ctx, '具体商品后续版本开放', 375, y + hgt - 92, 18, 'rgba(255,255,255,0.4)', 'center');
-    } else if (layer.type === 'setting') {
+    if (layer.type === 'setting') {
       text(ctx, `版本 ${layer.version || 'v1.0.0'}`, 375, y + 118, 22, '#9fb2c3', 'center');
       text(ctx, '清档后将重新开始：', 375, y + 168, 20, 'rgba(255,255,255,0.7)', 'center');
-      text(ctx, '塔等级 · 金币 · 解锁进度全部清零', 375, y + 200, 20, 'rgba(255,255,255,0.55)', 'center');
+      text(ctx, '塔等级 · 银币 · 解锁进度全部清零', 375, y + 200, 20, 'rgba(255,255,255,0.55)', 'center');
       const label = layer.confirming ? '确认清档？再点一次执行' : '清档重开';
       hits.confirm = button(ctx, x + 120, y + 246, 400, 70, label, { bg: layer.confirming ? '#c0392b' : '#7a3b3b', fontSize: 26 });
-    } else if (layer.type === 'tome') {
-      let ry = y + 96;
-      TOME_ROWS.forEach((r) => {
-        fillRoundRect(ctx, x + 30, ry, w - 60, 128, 12, '#1d242e');
-        ctx.fillStyle = r.tint;
-        ctx.beginPath(); ctx.arc(x + 64, ry + 34, 12, 0, Math.PI * 2); ctx.fill();
-        text(ctx, r.name, x + 88, ry + 42, 28, '#ffffff');
-        text(ctx, r.desc, x + 88, ry + 76, 19, '#9fb2c3');
-        text(ctx, r.skills, x + 88, ry + 106, 18, '#7ea8d8');
-        ry += 148;
-      });
     } else if (layer.type === 'help') {
+      // v1.16.77 帮助文档更新（能量系统 / 银币 / 局内商店 / 宝箱 / Boss）
       const lines = [
-        '1. 滑动相邻方块消除 3 连，获得对应颜色的塔',
-        '2. 消除方块为塔升级，消除越多升级越快',
-        '3. 塔自动攻击敌人，弹道随塔类型不同',
+        '1. 滑动相邻方块消除 3 连，获得对应颜色的塔并补充能量',
+        '2. 塔每次普攻消耗 0.5 能量；能量耗尽时伤害降为 50%，技能周期延长',
+        '3. 消除方块为塔升级，三选一强化技能（周期技能施放需消耗能量）',
         '4. 怪物到达城墙后开始攻城，城墙持续掉血',
-        '5. 消灭一波全部怪物才算过关，三选一强化',
-        '6. 城墙血量归零即失败，注意防守',
+        '5. 消灭一波全部怪物自动进入下一波；每 5 波有 Boss 镇守',
+        '6. Boss 与精英怪掉落宝箱，点击开启获得圣遗物三选一',
+        '7. 战斗中点右上「商店」用局内金币购买本局临时强化',
+        '8. 局内金币在战斗结束统一结算为银币（招财符可加成）',
+        '9. 城墙血量归零即失败，注意防守',
       ];
-      let hy = y + 110;
+      let hy = y + 106;
       lines.forEach((ln) => {
-        fillRoundRect(ctx, x + 36, hy - 30, w - 72, 66, 10, '#1d242e');
-        text(ctx, ln, x + 56, hy, 22, '#d7dee6', 'left');
-        hy += 84;
+        fillRoundRect(ctx, x + 36, hy - 30, w - 72, 60, 10, '#1d242e');
+        text(ctx, ln, x + 56, hy, 21, '#d7dee6', 'left');
+        hy += 74;
       });
     }
     hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#3a6ea5', fontSize: 26 });
@@ -3007,14 +3065,14 @@ class Renderer {
       // 等级徽章
       fillRoundRect(ctx, 15 + 100 - 16, 1053 - 6, L.towerIcon.badge, L.towerIcon.badge, 4, '#f7c948');
       text(ctx, `${cur.level}`, 15 + 100 - 8, 1053 + 2, 12, '#5c4a00', 'center');
-      // 弹药竖条（槽内右侧）
+      // 能量竖条（槽内右侧；v1.16.77 弹药→能量）
       const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
       const bx = 15 + 100 - 9, by0 = 1053 + 8, bh = 100 - 16;
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fillRect(bx, by0, 7, bh);
       ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
       ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
-      text(ctx, `${cur.ammo || 0}`, bx + 3, 1053 + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
+      text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 3, 1053 + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
     }
     // 6 塔切换钮
     text(ctx, '更换', 158, TOWER_ROW_Y + 16, 14, 'rgba(255,255,255,0.4)', 'left');
@@ -3136,10 +3194,10 @@ class Renderer {
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 170);
     text(ctx, '消消防线', 40, 92, 52, '#ffffff', 'left');
-    // 金币
-    fillRoundRect(ctx, 320, 56, 180, 58, 29, 'rgba(247,201,72,0.12)');
-    strokeRoundRect(ctx, 320, 56, 180, 58, 29, '#f7c948', 1.5);
-    text(ctx, `💰 ${fmtNum(s.gold)}`, 410, 94, 30, '#f7c948', 'center');
+    // 银币（v1.16.77 局外货币改银币，与局内金币区分）
+    fillRoundRect(ctx, 320, 56, 180, 58, 29, 'rgba(201,214,228,0.12)');
+    strokeRoundRect(ctx, 320, 56, 180, 58, 29, '#c9d6e4', 1.5);
+    text(ctx, `🪙 ${fmtNum(s.gold)}`, 410, 94, 30, '#c9d6e4', 'center');
     // 钻石（充值货币，占位）
     fillRoundRect(ctx, 520, 56, 150, 58, 29, 'rgba(124,168,255,0.12)');
     strokeRoundRect(ctx, 520, 56, 150, 58, 29, '#7ca8ff', 1.5);
@@ -3189,27 +3247,39 @@ class Renderer {
     // 子面板
     if (s.panel) {
       if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
+      else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // v1.16.78 圣遗物详情（1/2/3★ + 升星）
+      else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // v1.16.76 圣遗物升星
+      else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // v1.16.76 调试工具（仅 DEBUG 构建）
+      else if (s.panel.type === 'codexSkill') this.codexSkillPanel(ctx, s, push); // v1.16.78 技能分支面板
+    }
+    // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
+    if (s.debug) {
+      push('debug', null, 668, 12, 64, 44);
+      fillRoundRect(ctx, 668, 12, 64, 44, 10, 'rgba(90,108,128,0.25)');
+      strokeRoundRect(ctx, 668, 12, 64, 44, 10, '#5a6c80', 1);
+      text(ctx, '🛠', 700, 40, 24, '#c9d6e4', 'center');
     }
     hits = items;
     return hits;
   }
 
-  /** 战斗主页：战场卡（v1.16.30 美化 + ◀ ▶ 战场切换；v1.16.31 箭头移到战场卡外侧左右，切换时描述内容同步适配） */
+  /** 战斗主页：战场卡（v1.16.76 战场合约参数化：远古/熔岩/霜风/深渊/测试 5 战场共用一套卡片） */
   menuBattle(ctx, s, push) {
-    const sx = 80, sy = 400, sw = 590, sh = 392;   // v1.16.31 卡片收窄留出外侧箭头空间（几何位置不变）
+    const sx = 80, sy = 400, sw = 590, sh = 392;   // 卡片几何不变
     const stage = s.stage || 'ancient';
+    const F = CONFIG.FIELDS[stage] || CONFIG.FIELDS.ancient;
     const isTest = stage === 'test';
-    const tint = isTest ? '#a88bff' : '#2ecc71';
-    const tintDark = isTest ? '#6d5bd0' : '#1f8c5f';
-    const title = isTest ? '🧪 测试战场' : '🏰 远古战场';
-    const subtitle = isTest ? '免三消直测塔技能效果' : '城墙防守 · 怪物攻城 · 消消防线';
+    const tint = F.tint;
+    const tintDark = F.tintDark;
+    const title = F.short;
+    const subtitle = F.subtitle;
     push('stage', { id: stage }, sx, sy, sw, sh);
     // 战场卡（渐变底 + 斜向光带 + 城齿装饰 + 塔色描边 + 呼吸光晕）
     const breath = 0.06 + 0.04 * Math.sin(Date.now() / 500);
     ctx.save();
     ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.clip();
     const sgrad = ctx.createLinearGradient(0, sy, 0, sy + sh);
-    sgrad.addColorStop(0, isTest ? '#2b2347' : '#1c3a2e'); sgrad.addColorStop(1, isTest ? '#151229' : '#0e2018');
+    sgrad.addColorStop(0, isTest ? '#2b2347' : '#1c2a38'); sgrad.addColorStop(1, isTest ? '#151229' : '#0e1a20');
     ctx.fillStyle = sgrad; ctx.fillRect(sx, sy, sw, sh);
     // 斜向光带（左上→右下 3 条低透明）
     ctx.globalAlpha = 0.05; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 18;
@@ -3228,57 +3298,64 @@ class Renderer {
     ctx.globalAlpha = 1 + breath;
     strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
     ctx.globalAlpha = 1;
-    // v1.16.75 战场徽章图标（顶边中央骑缝挂章；保持卡片大小不变）
-    const badge = drawImg(ctx, isTest ? 'images/menubg/icon_stage_test.png' : 'images/menubg/icon_stage_ancient.png', 375 - 36, sy - 30, 72, 72);
-    if (!badge) { ctx.beginPath(); ctx.arc(375, sy + 6, 30, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill(); text(ctx, isTest ? '🧪' : '🏰', 375, sy + 8, 30, '#ffffff', 'center'); }
-    // 战场标题（为挂章下移让位）
-    text(ctx, isTest ? '测试战场' : '远古战场', 375, sy + 106, 46, '#ffffff', 'center');
-    text(ctx, subtitle, 375, sy + 154, 24, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
-    // 奖励说明（v1.16.31 切换战场时内容同步适配；v1.16.75 修复仅显示 emoji 的问题）
-    fillRoundRect(ctx, sx + 40, sy + 184, sw - 80, 118, 14, isTest ? 'rgba(168,139,255,0.10)' : 'rgba(46,204,113,0.10)');
-    strokeRoundRect(ctx, sx + 40, sy + 184, sw - 80, 118, 14, isTest ? 'rgba(168,139,255,0.35)' : 'rgba(46,204,113,0.35)', 1);
-    const rewards = isTest
-      ? [['⚔', '直测技能'], ['🛡', '城墙无敌'], ['⚡', '弹药恒满']]
-      : [['💛', '金币'], ['📦', '宝箱'], ['💎', '圣物']];
-    rewards.forEach(([emo, label], i) => {
-      const rx2 = sx + 62 + i * 180;
-      text(ctx, emo, rx2, sy + 228, 26, '#f7c948', 'left');
-      text(ctx, label, rx2 + 36, sy + 229, 22, '#e8e2d0', 'left');
-    });
-    text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : '◀ ▶ 切换战场 · 进入战斗按所选战场', 375, sy + sh - 40, 19, isTest ? '#8f7cd0' : '#5a8a72', 'center');
-    // ◀ ▶ 战场切换箭头：放在战场描述卡外侧左右两边（v1.16.31；v1.16.33 立体化：投影+渐变玻璃底+高光弧+呼吸光晕）
-    const arR = 26;
+    // v1.16.78 战场图标：卡片内嵌超大图（顶部居中 260px，白底已抠透明）
+    const badge = drawImg(ctx, isTest ? 'images/menubg/icon_stage_test.png' : `images/menubg/icon_stage_${stage}.png`, 375 - 130, sy + 18, 260, 260);
+    if (!badge) { ctx.beginPath(); ctx.arc(375, sy + 148, 118, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill(); text(ctx, isTest ? '🧪' : '🏰', 375, sy + 160, 100, '#ffffff', 'center'); }
+    // 战场标题 + 副标题（图标下方）
+    text(ctx, F.name, 375, sy + 316, 38, '#ffffff', 'center');
+    text(ctx, subtitle, 375, sy + 350, 20, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
+    // v1.16.78 锁定态：未解锁战场显示 🔒 徽标 + 解锁条件
+    const locked = !isTest && F.unlockWave && (s.bestWave || 0) < F.unlockWave;
+    if (locked) {
+      ctx.globalAlpha = 0.45; ctx.fillStyle = '#000';
+      ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.fill();
+      ctx.globalAlpha = 1;
+      fillRoundRect(ctx, 375 - 92, sy + 30, 184, 44, 22, 'rgba(0,0,0,0.65)');
+      strokeRoundRect(ctx, 375 - 92, sy + 30, 184, 44, 22, '#f0b45c', 1.5);
+      text(ctx, `🔒 最深 ${F.unlockWave} 波解锁`, 375, sy + 58, 22, '#f0b45c', 'center');
+      text(ctx, `当前最佳 ${s.bestWave || 0} 波`, 375, sy + 92, 18, '#c9b28a', 'center');
+    }
+    text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : (locked ? `达到第 ${F.unlockWave} 波后可进入此战场` : '◀ ▶ 切换战场 · 进入战斗按所选战场'), 375, sy + sh - 16, 17, locked ? '#c9a15c' : (isTest ? '#8f7cd0' : '#5a8a72'), 'center');
+    // ◀ ▶ 战场切换箭头（v1.16.78 重设计：150° 钝角三角楔形，卡片高度垂直居中）
+    const arR = 30;
     const arrow = (ax, dir) => {
-      const ay = sy + 120 + arR;   // 圆心（与副标题同行）
+      const ay = sy + sh / 2;   // 圆心：卡片上下高度的正中间
       const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (dir === 'L' ? 0 : 2.1));
       // 命中区（含光晕）
       push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
-      // 底部投影
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(ax + 2, ay + 3, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
       // 呼吸光晕
       ctx.globalAlpha = glow;
       ctx.fillStyle = tint;
       ctx.beginPath(); ctx.arc(ax, ay, arR + 7, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
-      // 渐变玻璃圆底（左上亮右下暗）
+      // 底部投影
+      ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(ax + 2, ay + 4, arR, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      // 渐变圆底
       const abg = ctx.createRadialGradient(ax - arR * 0.35, ay - arR * 0.42, arR * 0.12, ax, ay, arR);
       abg.addColorStop(0, isTest ? '#8f83f5' : '#45d48a');
       abg.addColorStop(0.55, isTest ? '#5a4bc8' : '#23a06a');
       abg.addColorStop(1, isTest ? '#3c2f8f' : '#14694a');
       ctx.fillStyle = abg;
       ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.fill();
-      // 外描边
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.stroke();
-      // 顶部高光弧
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(ax, ay, arR - 3.5, -Math.PI * 0.88, -Math.PI * 0.12); ctx.stroke();
-      // 箭头符号（阴影 + 主体）
-      text(ctx, dir, ax + 1, ay + 3, 30, 'rgba(0,0,0,0.35)', 'center');
-      text(ctx, dir, ax, ay + 2, 30, '#ffffff', 'center');
+      // 150° 钝角三角楔形箭头（顶角 150°，两底角各 15°：宽扁利落的指向楔形）
+      const h = 19;                       // 底边半高
+      const d = Math.round(h / Math.tan(Math.PI * 150 / 360));   // 顶点深度 = h / tan75° ≈ 5
+      ctx.save();
+      ctx.translate(ax, ay);
+      if (dir === '‹') ctx.scale(-1, 1);   // 左箭头镜像
+      const tg = ctx.createLinearGradient(-d, 0, 6, 0);
+      tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#dfe9e2');
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.moveTo(-d, 0); ctx.lineTo(6, -h); ctx.lineTo(6, h); ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
     };
     arrow(sx - 38, '‹');
     arrow(sx + sw + 38, '›');
@@ -3293,29 +3370,31 @@ class Renderer {
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
-    // 4 个宝箱槽
+    // v1.16.76 深度宝箱槽位（4 格）：局末按最深波次发放，时间开启 / 钻石速开
+    const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
+    const slots = s.deepChests || [];
     for (let i = 0; i < 4; i++) {
       const bx = 40 + i * 170, by = 1050, bw = 160, bh = 140;
-      push('chest', i, bx, by, bw, bh);
-      const has = s.chests > i;
-      const opening = s.chestOpening && i === 0;
-      fillRoundRect(ctx, bx, by, bw, bh, 16, has ? '#3a2b1a' : '#141a22');
-      strokeRoundRect(ctx, bx, by, bw, bh, 16, opening ? '#f7c948' : (has ? '#d89e63' : '#232b36'), opening ? 2 : 1.2);
-      // v1.16.30 宝箱槽高光条（立体感）
+      push('deepChest', i, bx, by, bw, bh);
+      const ch = slots[i];
+      fillRoundRect(ctx, bx, by, bw, bh, 16, ch ? '#1d2330' : '#141a22');
+      strokeRoundRect(ctx, bx, by, bw, bh, 16, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
       fillRoundRect(ctx, bx + 10, by + 8, bw - 20, 14, 7, ctx.fillStyle);
-      if (opening) {
-        text(ctx, '⏳', bx + bw / 2, by + 52, 40, '#f7c948', 'center');
-        text(ctx, `${s.chestRemain}s`, bx + bw / 2, by + 92, 24, '#f7c948', 'center');
-        text(ctx, '开启中', bx + bw / 2, by + 122, 18, '#d89e63', 'center');
-      } else if (has) {
-        text(ctx, '📦', bx + bw / 2, by + 52, 40, '#ffffff', 'center');
-        text(ctx, '点击开启', bx + bw / 2, by + 92, 20, '#d89e63', 'center');
-        text(ctx, `${s.chestOpenSec}s 后得圣物卡`, bx + bw / 2, by + 122, 16, '#9fb2c3', 'center');
-      } else {
-        text(ctx, '🔒', bx + bw / 2, by + 52, 36, '#3a4654', 'center');
+      if (!ch) {
+        text(ctx, '📦', bx + bw / 2, by + 52, 36, '#3a4654', 'center');
         text(ctx, '空槽位', bx + bw / 2, by + 92, 20, '#3a4654', 'center');
-        text(ctx, 'Boss 掉落 / 钻石兑换', bx + bw / 2, by + 122, 15, '#2c3644', 'center');
+        text(ctx, '局末按深度获得', bx + bw / 2, by + 122, 15, '#2c3644', 'center');
+      } else {
+        text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, by + 48, 32, '#ffffff', 'center');
+        text(ctx, ch.name, bx + bw / 2, by + 82, 19, TIER_COLOR[ch.tier] || '#d89e63', 'center');
+        if (ch.ready) {
+          text(ctx, '✅ 点击开启', bx + bw / 2, by + 114, 19, '#7ef0a3', 'center');
+        } else {
+          const rm = ch.remainMin;
+          const rt = rm >= 60 ? `${Math.floor(rm / 60)}时${rm % 60}分` : `${rm}分`;
+          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 114, 18, '#9fb2c3', 'center');
+        }
       }
     }
   }
@@ -3341,7 +3420,7 @@ class Renderer {
       push('dailyPick', { relic: p.relic, price: p.price, icon: def.icon, name: def.name }, 420, ry + 16, 110, 56);
       fillRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#2c3542');
       strokeRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#f7c948', 1);
-      text(ctx, `${p.price}💰`, 475, ry + 50, 22, '#f7c948', 'center');
+      text(ctx, `${p.price}🪙`, 475, ry + 50, 22, '#c9d6e4', 'center');
       // 广告免费领（同一精选圣物）
       push('dailyAd', { relic: p.relic, price: 0, icon: def.icon, name: def.name }, 545, ry + 16, 140, 56);
       fillRoundRect(ctx, 545, ry + 16, 140, 56, 10, '#2c3542');
@@ -3367,7 +3446,7 @@ class Renderer {
     push('diamondGold', null, 395, ry, 300, 92);
     fillRoundRect(ctx, 395, ry, 300, 92, 12, '#1b2230');
     strokeRoundRect(ctx, 395, ry, 300, 92, 12, '#7ca8ff', 1);
-    text(ctx, `1💎 兑换 ${CONFIG.DIAMOND.goldPrice}💰`, 545, ry + 46, 22, '#7ca8ff', 'center');
+    text(ctx, `1💎 兑换 ${CONFIG.DIAMOND.goldPrice}🪙`, 545, ry + 46, 22, '#7ca8ff', 'center');
     ry += 110;
     push('recharge', null, 55, ry, 640, 92);
     fillRoundRect(ctx, 55, ry, 640, 92, 12, '#12171f');
@@ -3375,117 +3454,363 @@ class Renderer {
     text(ctx, '🔒 充值（获取钻石）', 375, ry + 46, 24, '#5a6c80', 'center');
   }
 
-  /** 圣物页：宝箱 + 已获取圣物卡片网格（升级）+ 图鉴按钮（v1.4：无装备槽） */
-  menuRelic(ctx, s, push) {
-    // 宝箱
-    push('chest', null, 55, 268, 640, 96);
-    fillRoundRect(ctx, 55, 268, 640, 96, 14, '#3a2b1a');
-    strokeRoundRect(ctx, 55, 268, 640, 96, 14, '#d89e63', 1.5);
-    text(ctx, `📦 宝箱 ×${s.chests}`, 105, 306, 28, '#ffffff', 'left');
-    if (s.chestOpening) text(ctx, `开启中 ${s.chestRemain}s（到时自动发圣物卡）`, 330, 306, 20, '#f7c948', 'left');
-    else text(ctx, s.chests > 0 ? `点击开启（${s.chestOpenSec}s）` : 'Boss 掉落 / 商店钻石兑换', 330, 306, 20, '#d89e63', 'left');
-    // 已获取圣物卡片网格（2 列；未获取的仅在图鉴查看）
-    const owned = s.relics.filter((r) => r.owned);
-    text(ctx, `已获取圣物 ×${owned.length}（拥有即生效）`, 55, 398, 26, '#ffffff', 'left');
-    // 图鉴按钮
-    push('relicDex', null, 470, 398, 225, 44);
-    fillRoundRect(ctx, 470, 398, 225, 44, 12, '#1b2230');
-    strokeRoundRect(ctx, 470, 398, 225, 44, 12, '#7ca8ff', 1);
-    text(ctx, '📖 圣物图鉴 ›', 582, 398 + 28, 20, '#7ca8ff', 'center');
-    const cw2 = 310, ch2 = 168, gx = 15;
-    owned.forEach((r, i) => {
-      const col = i % 2, row = Math.floor(i / 2);
-      const rx = 55 + col * (cw2 + gx), ry2 = 430 + row * (ch2 + 24);
-      fillRoundRect(ctx, rx, ry2, cw2, ch2, 14, '#161d28');
-      strokeRoundRect(ctx, rx, ry2, cw2, ch2, 14, r.count > 0 ? '#2b6d4f' : '#3a4553', r.count > 0 ? 1.5 : 1);
-      text(ctx, `${r.icon} ${r.name}`, rx + 20, ry2 + 34, 24, '#ffffff', 'left');
-      text(ctx, `持有 ${r.count} · Lv${r.level}`, rx + 20, ry2 + 64, 18, r.count > 0 ? '#7cd6a6' : '#8ea3b8', 'left');
-      text(ctx, r.desc, rx + 20, ry2 + 90, 17, '#9fb2c3', 'left');
-      text(ctx, `升级效果：${r.descLv}`, rx + 20, ry2 + 116, 16, '#5a6c80', 'left');
-      // 升级按钮
-      push('relicUp', r.id, rx + cw2 - 130, ry2 + ch2 - 48, 116, 40);
-      fillRoundRect(ctx, rx + cw2 - 130, ry2 + ch2 - 48, 116, 40, 10, '#2c3542');
-      strokeRoundRect(ctx, rx + cw2 - 130, ry2 + ch2 - 48, 116, 40, 10, '#f7c948', 1);
-      text(ctx, r.count > 0 ? `升级 ${r.cost.gold}💰` : '缺圣物', rx + cw2 - 72, ry2 + ch2 - 26, 16, r.count > 0 ? '#f7c948' : '#5a6c80', 'center');
-    });
+  /* v1.16.78 圣遗物图鉴网格（主页与图鉴面板共用） */
+  _relicRunList() {
+    const RR = CONFIG.RELIC_RUN;
+    const list = [];
+    Object.values(RR.tower).forEach((l) => list.push(...l));
+    list.push(...RR.common);
+    const o = { ssr: 0, sr: 1, r: 2 };   // 图鉴按稀有度降序（金→紫→蓝）
+    return list.slice().sort((a, b) => o[CONFIG.relicRarity(a.id)] - o[CONFIG.relicRarity(b.id)]);
   }
+  _relicUnlocked(s, id) { return !!(s.relicStars[id] || s.runCodex[id]); }
+  _relicRarColor(rar) { return rar === 'ssr' ? '#f7c948' : rar === 'sr' ? '#a86bff' : '#5dade2'; }
 
-  /** 圣物图鉴面板：全部圣物图标（未获取锁定，获取后显示性能） */
-  menuRelicDex(ctx, s, push) {
-    this._menuPanelShell(ctx, s, push, '圣物图鉴', 900);
-    text(ctx, '战斗中获得 · 拥有即常驻生效', 375, 268, 22, '#8ea3b8', 'center');
-    let ry = 320;
-    s.relics.forEach((r) => {
-      fillRoundRect(ctx, 70, ry, 610, 76, 12, r.owned ? '#12231c' : '#14181f');
-      strokeRoundRect(ctx, 70, ry, 610, 76, 12, r.owned ? '#2b6d4f' : '#232b36', r.owned ? 1.5 : 1);
-      ctx.beginPath(); ctx.arc(112, ry + 38, 22, 0, Math.PI * 2);
-      ctx.fillStyle = r.owned ? '#2b6d4f' : '#232b36'; ctx.fill();
-      text(ctx, r.owned ? r.icon : '🔒', 112, ry + 39, 22, r.owned ? '#ffffff' : '#4a5a6e', 'center');
-      text(ctx, r.name, 152, ry + 34, 22, r.owned ? '#ffffff' : '#4a5a6e', 'left');
-      if (r.owned) {
-        text(ctx, `持有 ${r.count} · Lv${r.level}`, 152, ry + 62, 16, '#7cd6a6', 'left');
-        text(ctx, r.desc, 400, ry + 40, 16, '#9fb2c3', 'left');
+  /** 圣遗物图鉴网格：未解锁=黑底+稀有度色边+问号占位；已解锁=图标+名+星级；点卡查看 1/2/3★ */
+  _menuRelicGrid(ctx, s, push, pageKey, showChest) {
+    const PER_ROW = 4, PAGE = 16;
+    const list = this._relicRunList();
+    const pages = Math.max(1, Math.ceil(list.length / PAGE));
+    const page = Math.min(s.relicDexPage || 0, pages - 1);
+    const unlocked = list.filter((d) => this._relicUnlocked(s, d.id)).length;
+    // v1.16.78 主页保留宝箱入口（原圣物页宝箱区块）
+    if (showChest) {
+      push('chest', null, 55, 262, 250, 42);
+      fillRoundRect(ctx, 55, 262, 250, 42, 10, '#3a2b1a');
+      strokeRoundRect(ctx, 55, 262, 250, 42, 10, '#d89e63', 1.2);
+      text(ctx, `📦 宝箱 ×${s.chests} 点击开启`, 180, 290, 18, '#ffffff', 'center');
+    }
+    text(ctx, `圣遗物图鉴 ${unlocked}/${list.length}`, 55, 290, 26, '#ffffff', 'left');
+    text(ctx, '未解锁=问号占位 · 点卡查看 1/2/3★效果', 480, 290, 17, '#8ea3b8', 'left');
+    const cw = 149, ch = 150, gx = 14, gy = 14;
+    const x0 = 55;
+    const y0 = showChest ? 336 : 318;
+    list.slice(page * PAGE, page * PAGE + PAGE).forEach((d, i) => {
+      const col = i % PER_ROW, row = Math.floor(i / PER_ROW);
+      const rx = x0 + col * (cw + gx), ry2 = y0 + row * (ch + gy);
+      const rar = CONFIG.relicRarity(d.id);
+      const rc = this._relicRarColor(rar);
+      const owned = this._relicUnlocked(s, d.id);
+      const star = owned ? (s.relicStars[d.id] || 1) : 0;
+      // 卡底：已解锁浅底 / 未解锁黑底 + 稀有度色边
+      fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
+      strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
+      // 图标（左上 44px；未解锁用问号）
+      const icx = rx + cw / 2, icy = ry2 + 40;
+      if (owned) {
+        const src = relicIconSrc(d.id);
+        if (!(src && drawImg(ctx, src, rx + 14, ry2 + 12, 44, 44))) {
+          ctx.beginPath(); ctx.arc(rx + 36, ry2 + 34, 22, 0, Math.PI * 2);
+          ctx.fillStyle = rc; ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1;
+          text(ctx, d.icon, rx + 36, ry2 + 36, 22, '#ffffff', 'center');
+        }
+        text(ctx, `${d.name}`, rx + 66, ry2 + 32, 19, '#ffffff', 'left');
+        // 星级（右上 ★）
+        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 14, ry2 + 30, 17, rc, 'right');
+        text(ctx, `${CONFIG.relicRarity(d.id).toUpperCase()}${star > 1 ? ' ' + star + '★' : ''}`, rx + 14, ry2 + 128, 15, rc, 'left');
+        text(ctx, d.desc ? d.desc.slice(0, 12) + (d.desc.length > 12 ? '…' : '') : '', rx + 14, ry2 + 72, 14, '#9fb2c3', 'left');
       } else {
-        text(ctx, '未获取（精英圣物宝箱 / 宝箱 / 商店）', 152, ry + 62, 16, '#5a6c80', 'left');
+        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+        ctx.fillStyle = '#151a22'; ctx.fill();
+        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
+        text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
       }
-      ry += 88;
+      // 点击区：已解锁 → 详情；未解锁 → 无操作
+      push(owned ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
+    // 分页
+    text(ctx, `${page + 1}/${pages}`, 375, 985, 18, '#8ea3b8', 'center');
+    if (page > 0) { push(pageKey, -1, 280, 970, 56, 34); fillRoundRect(ctx, 280, 970, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 280, 970, 56, 34, 10, '#7ca8ff', 1); text(ctx, '‹ 上一页', 308, 993, 15, '#7ca8ff', 'center'); }
+    if (page < pages - 1) { push(pageKey, 1, 414, 970, 56, 34); fillRoundRect(ctx, 414, 970, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 414, 970, 56, 34, 10, '#7ca8ff', 1); text(ctx, '下一页 ›', 442, 993, 15, '#7ca8ff', 'center'); }
   }
 
-  /** 塔图鉴页（v1.16.75）：6 塔页签 + 塔数据/技能详情；回旋镖/炮塔需金币学习解锁 */
+  /** 圣物页（v1.16.78 重设计）：局内圣遗物图鉴网格 + 未解锁占位卡 + 详情/升星 */
+  menuRelic(ctx, s, push) {
+    this._menuRelicGrid(ctx, s, push, 'relicPage', true);
+  }
+
+  /** 圣物图鉴面板：同主页网格（未解锁占位卡 / 已解锁可点详情） */
+  menuRelicDex(ctx, s, push) {
+    this._menuPanelShell(ctx, s, push, '圣物图鉴', 1020);
+    text(ctx, '战斗中获得 · 碎片达阈值自动解锁 · 点卡查看星级效果', 375, 268, 20, '#8ea3b8', 'center');
+    this._menuRelicGrid(ctx, s, push, 'relicPage', false);
+  }
+
+  /** 圣遗物详情面板（v1.16.78）：图标/名/稀有度 + 1★/2★/3★ 效果文本 + 升星按钮 */
+  menuRelicInfo(ctx, s, push) {
+    const id = s.panel.id;
+    const d = CONFIG.relicRunDef(id);
+    if (!d) return;
+    this._menuPanelShell(ctx, s, push, '圣遗物详情', 780);
+    const rar = CONFIG.relicRarity(id);
+    const rc = this._relicRarColor(rar);
+    const owned = this._relicUnlocked(s, id);
+    const star = owned ? (s.relicStars[id] || 1) : 0;
+    // 头部：图标 + 名称 + 稀有度
+    ctx.beginPath(); ctx.arc(150, 300, 44, 0, Math.PI * 2);
+    ctx.fillStyle = '#151a22'; ctx.fill();
+    ctx.strokeStyle = rc; ctx.lineWidth = 2; ctx.stroke();
+    const src = relicIconSrc(id);
+    if (!(src && drawImg(ctx, src, 112, 262, 76, 76))) text(ctx, d.icon, 150, 305, 40, '#ffffff', 'center');
+    text(ctx, d.name, 214, 300, 32, '#ffffff', 'left');
+    text(ctx, `${rar.toUpperCase()} · ${star}★`, 214, 340, 19, rc, 'left');
+    // 1★/2★/3★ 效果
+    const starTxt = (lbl, txt, col) => {
+      text(ctx, lbl, 90, 400, 20, col, 'left');
+      text(ctx, txt || '（暂无）', 90, 432, 18, '#c9d6e4', 'left');
+    };
+    starTxt('1★', d.desc, '#7cd6a6');
+    starTxt('2★', d.star2, '#a86bff');
+    starTxt('3★', d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', '#f7c948');
+    // 碎片进度 + 升星按钮
+    const shards = s.shards[id] || 0;
+    const cost = CONFIG.STAR_UP.cost[star + 1];
+    const need = cost ? cost.shards : 0;
+    const cur = CONFIG.relicNum(id, star);
+    const next = CONFIG.relicNum(id, star + 1);
+    text(ctx, `碎片 ${shards} / 升级需求 ${need} · 金币 ${cost ? cost.gold : 0}`, 90, 540, 17, '#9fb2c3', 'left');
+    if (cost && star < 3) {
+      push('relicStar', id, 470, 620, 190, 52);
+      fillRoundRect(ctx, 470, 620, 190, 52, 12, '#1b2230');
+      strokeRoundRect(ctx, 470, 620, 190, 52, 12, rc, 1.5);
+      text(ctx, `升到 ${star + 1}★`, 565, 640, 20, rc, 'center');
+      text(ctx, `数值 ${cur} → ${next}`, 565, 664, 14, '#8ea3b8', 'center');
+    }
+  }
+
+  /** 塔图鉴页（v1.16.78 重设计）：贴合式塔标签（active 与详情面板粘连）+ 技能卡片（美术图标、大字号、点卡看分支） */
   menuCodex(ctx, s, push) {
     const th = MENU_TAB_THEME.codex;
     const keys = Object.keys(CONFIG.TOWERS);
     const colorName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k].color] || {}).name || k;
     const shotName = { line: '直线弹道', bolt: '闪电折线', arc: '回旋弧线', mortar: '抛物线炮弹' };
-    const learnCost = { boomerang: 3000, cannon: 5000 };
-    // 塔选择 chips（6 个）
-    const cw = 112, ch = 78, cg = 8, cx0 = 19, cy0 = 210;
+    // ---- 贴合式塔标签（attached tabs）：仅上圆角，激活页签与下方面板同底色无缝粘连 ----
+    const tw2 = 118, th2 = 78, tg2 = 6, tx0 = 12, ty0 = 206;
+    const panelBg = 'rgba(22,29,40,0.95)';
     keys.forEach((k, i) => {
-      const cx = cx0 + i * (cw + cg), learned = !!s.towerCodex[k];
-      const cName = colorName(k);
+      const cx = tx0 + i * (tw2 + tg2);
       const cCol = TOWER_HEX[TOWERS_COLOR(k)] || '#8ea3b8';
-      push('codexSel', k, cx, cy0, cw, ch);
+      push('codexSel', k, cx, ty0, tw2, th2 + (s.codexSel === k ? 4 : 0));   // 激活命中区下延盖住接缝
       const sel = s.codexSel === k;
-      fillRoundRect(ctx, cx, cy0, cw, ch, 12, sel ? (learned ? 'rgba(77,143,214,0.28)' : 'rgba(77,143,214,0.14)') : 'rgba(22,29,40,0.88)');
-      strokeRoundRect(ctx, cx, cy0, cw, ch, 12, sel ? th.main : (learned ? cCol : '#2b3648'), sel ? 2 : 1);
-      text(ctx, learned ? cName : '🔒', cx + cw / 2, cy0 + 32, 20, learned ? '#ffffff' : '#5a6c80', 'center');
-      text(ctx, CONFIG.TOWERS[k].p1 ? 'P1 塔' : '基础塔', cx + cw / 2, cy0 + 60, 14, learned ? '#8ea3b8' : '#3a4553', 'center');
+      // 上圆角矩形（底部方角 → 与面板粘连）
+      ctx.beginPath();
+      ctx.moveTo(cx, ty0 + th2);
+      ctx.lineTo(cx, ty0 + 14);
+      ctx.arcTo(cx, ty0, cx + 14, ty0, 14);
+      ctx.lineTo(cx + tw2 - 14, ty0);
+      ctx.arcTo(cx + tw2, ty0, cx + tw2, ty0 + 14, 14);
+      ctx.lineTo(cx + tw2, ty0 + th2);
+      ctx.closePath();
+      ctx.fillStyle = sel ? panelBg : 'rgba(15,20,28,0.88)';
+      ctx.fill();
+      if (sel) {
+        // 激活：顶边塔色亮条 + 两侧塔色描边（底边开口，视觉上"长"在面板上）
+        ctx.strokeStyle = cCol; ctx.lineWidth = 2; ctx.stroke();
+        fillRoundRect(ctx, cx + 14, ty0, tw2 - 28, 5, 2.5, cCol);
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      // 塔美术图标 + 塔名（无 emoji）
+      if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - 40) / 2, ty0 + 8, 40, 40)) {
+        drawTowerGlyph(ctx, k, cx + (tw2 - 40) / 2, ty0 + 8, 40);
+      }
+      text(ctx, colorName(k), cx + tw2 / 2, ty0 + 66, 17, sel ? '#ffffff' : '#8ea3b8', 'center');
     });
-    // 详情：选中塔
+    // ---- 详情面板（紧贴标签行底部，无间隙）----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
     const T = CONFIG.TOWERS[k];
-    const learned = !!s.towerCodex[k];
     const cCol = TOWER_HEX[T.color] || '#8ea3b8';
-    const dx = 40, dw = 670, dy = 312;
-    fillRoundRect(ctx, dx, dy, dw, 152, 16, learned ? 'rgba(22,29,40,0.9)' : 'rgba(16,21,29,0.94)');
-    strokeRoundRect(ctx, dx, dy, dw, 152, 16, learned ? cCol : '#2b3648', learned ? 1.6 : 1);
-    text(ctx, learned ? colorName(k) : '？？？', dx + 26, dy + 44, 30, learned ? '#ffffff' : '#4a5a6e', 'left');
-    text(ctx, learned ? `伤害 ${T.baseDps}/s · 成长 ×${T.grow}` : '完成学习后解锁塔数据', dx + 26, dy + 82, 19, learned ? '#9fb2c3' : '#3a4553', 'left');
-    if (learned) {
-      text(ctx, `射程 ${T.range} · 攻速 ${T.atkInterval}s/发 · ${shotName[T.shot.kind] || T.shot.kind}`, dx + 26, dy + 116, 18, '#6f8499', 'left');
-    } else {
-      const cost = learnCost[k] || 3000;
-      push('codexLearn', k, dx + dw - 196, dy + 40, 170, 72);
-      fillRoundRect(ctx, dx + dw - 196, dy + 40, 170, 72, 12, 'rgba(247,201,72,0.14)');
-      strokeRoundRect(ctx, dx + dw - 196, dy + 40, 170, 72, 12, '#f7c948', 1.5);
-      text(ctx, `📖 学习`, dx + dw - 111, dy + 66, 22, '#f7c948', 'center');
-      text(ctx, `${cost} 💰`, dx + dw - 111, dy + 96, 20, s.gold >= cost ? '#f7c948' : '#a05a3c', 'center');
-    }
-    // 技能列表（2 列 × 4 行，锁塔灰显）
+    const GS = CONFIG.GLOBAL_SKILL || {};
+    const dx = 12, dw = 726, dy = ty0 + th2;   // 与标签行严丝合缝
+    fillRoundRect(ctx, dx, dy, dw, 148, 0, panelBg);
+    fillRoundRect(ctx, dx, dy + 134, dw, 14, 7, panelBg);   // 底部补圆角
+    fillRoundRect(ctx, dx, dy, 5, 148, 2.5, cCol);          // 左侧塔色竖条
+    text(ctx, colorName(k), dx + 30, dy + 40, 32, '#ffffff', 'left');
+    const stat1 = `伤害 ${T.baseDps}/s · 成长 ×${T.grow} · 射程 ${T.range} · 攻速 ${T.atkInterval}s/发`;
+    text(ctx, stat1, dx + 30, dy + 78, 20, '#c9d6e4', 'left');
+    const stat2 = `${shotName[T.shot.kind] || T.shot.kind} · 能量上限 ${GS.energyMax || 50} · 普攻耗能 ${GS.perAttack || 0.5}/发 · 耗尽伤害 ×${GS.weakDmg || 0.5}`;
+    text(ctx, stat2, dx + 30, dy + 112, 17, '#8ea3b8', 'left');
+    // ---- 技能池卡片（v1.16.81：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
-    text(ctx, learned ? '技能池（8 特效 × 3 分支）' : '技能池（学习后查看）', 55, dy + 196, 24, '#ffffff', 'left');
-    const sw2 = 330, sh2 = 96, sg = 10, sy0 = dy + 226;
+    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 190, 24, '#ffffff', 'left');
+    const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
+    const cw3 = 300, ch3 = 188;               // 卡片宽高（高 +30）
+    const gx0 = Math.round(750 * 0.05);       // 5% 左边距 = 38
+    const colX = [gx0, 750 - gx0 - cw3];      // 两列对称
+    const gy0 = dy + 218;                     // 首行 y 维持不变
+    const rows = Math.ceil(pool.length / 2);
+    const bottomY = TAB_Y - Math.round(LOGIC_H * 0.05);   // 底部留 5% 屏高的白
+    const rgap = rows > 1 ? Math.floor((bottomY - gy0 - rows * ch3) / (rows - 1)) : 0;   // 纵向均匀间隔
     pool.forEach((sk, i) => {
       const col = i % 2, row = Math.floor(i / 2);
-      const gx = 55 + col * (sw2 + sg), gy = sy0 + row * (sh2 + sg);
-      fillRoundRect(ctx, gx, gy, sw2, sh2, 12, learned ? 'rgba(22,29,40,0.88)' : 'rgba(16,21,29,0.9)');
-      strokeRoundRect(ctx, gx, gy, sw2, sh2, 12, learned ? (sk.p0 ? sk.color : '#3a4553') : '#232b36', sk.p0 && learned ? 1.4 : 1);
-      text(ctx, learned ? sk.icon : '🔒', gx + 30, gy + 38, 24, learned ? '#ffffff' : '#4a5a6e', 'center');
-      text(ctx, learned ? sk.name : '未解锁', gx + 62, gy + 39, 21, learned ? '#ffffff' : '#4a5a6e', 'left');
-      text(ctx, learned ? (sk.desc || sk.pick || '') : '？？？', gx + 24, gy + 72, 14, '#8ea3b8', 'left');
-      if (learned && sk.p0) text(ctx, 'P0', gx + sw2 - 30, gy + 34, 15, sk.color, 'center');
+      const gx = colX[col], gy = gy0 + row * (ch3 + rgap);
+      push('codexSkill', { tower: k, idx: i }, gx, gy, cw3, ch3);
+      // 卡底投影（立体第一步）
+      ctx.globalAlpha = 0.4; ctx.fillStyle = '#000';
+      fillRoundRect(ctx, gx + 3, gy + 4, cw3, ch3, 14, ctx.fillStyle);
+      ctx.globalAlpha = 1;
+      // 卡身：塔色纵向渐变（上亮下暗，颜色与塔统一）
+      const cMain = TOWER_HEX[T.color] || cCol;
+      const body = ctx.createLinearGradient(0, gy, 0, gy + ch3);
+      body.addColorStop(0, hexA(cMain, 0.30));
+      body.addColorStop(0.45, hexA(cMain, 0.10));
+      body.addColorStop(1, 'rgba(13,17,23,0.94)');
+      fillRoundRect(ctx, gx, gy, cw3, ch3, 14, body);
+      // 立体边缘：外描边（塔色）+ 顶部内高光 + 底部内阴影
+      strokeRoundRect(ctx, gx, gy, cw3, ch3, 14, cMain, 1.8);
+      strokeRoundRect(ctx, gx + 1.5, gy + 1.5, cw3 - 3, ch3 - 3, 12, 'rgba(255,255,255,0.22)', 1.2);
+      fillRoundRect(ctx, gx + 10, gy + 2.5, cw3 - 20, 2.5, 1.2, hexA(cMain, 0.75));   // 顶棱高光
+      fillRoundRect(ctx, gx + 10, gy + ch3 - 5, cw3 - 20, 2.5, 1.2, 'rgba(0,0,0,0.45)'); // 底棱阴影
+      // ---- 上 1/4 区：图标 + 技能名左右排布 ----
+      if (!drawImg(ctx, skillIconSrc(k, sk.name), gx + 18, gy + 12, 56, 56)) {
+        fillRoundRect(ctx, gx + 18, gy + 12, 56, 56, 12, hexA(cMain, 0.25));
+        text(ctx, sk.icon || '?', gx + 46, gy + 42, 30, '#ffffff', 'center');
+      }
+      text(ctx, sk.name, gx + 88, gy + 34, 27, '#ffffff', 'left');
+      text(ctx, sk.type || '', gx + 88, gy + 60, 14, hexA(cMain, 0.9), 'left');
+      // 分隔线（塔色渐隐），上下分区
+      fillRoundRect(ctx, gx + 18, gy + 78, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
+      // ---- 下区：技能描述（左右各留 20px 白）----
+      const descLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 19).slice(0, 3);
+      descLines.forEach((ln, li) => {
+        text(ctx, ln, gx + 20, gy + 98 + li * 26, 19, '#d7e2ee', 'left');
+      });
+      // 右下角入口（15px 右对齐，不出卡）
+      text(ctx, '点击查看详情 >>>', gx + cw3 - 18, gy + ch3 - 16, 15, hexA(cMain, 0.95), 'right');
     });
+  }
+
+  /** v1.16.78 技能分支面板：从图鉴技能卡点入，展示基础效果 + A/B/C 分支逐级效果 */
+  codexSkillPanel(ctx, s, push) {
+    const p = s.panel || {};
+    const towerKey = p.tower || s.codexSel || 'fire';
+    const sk = (CONFIG.EFFECT_POOLS[towerKey] || [])[p.idx];
+    if (!sk) return;
+    this._menuPanelShell(ctx, s, push, sk.name, 900);
+    const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
+    // 头部：美术图标 + 基础效果（wrapText 防出框）
+    if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), 70, 258, 84, 84)) {
+      fillRoundRect(ctx, 70, 258, 84, 84, 14, 'rgba(255,255,255,0.08)');
+      text(ctx, sk.icon || '?', 112, 310, 42, '#ffffff', 'center');
+    }
+    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 480, 22).slice(0, 3);
+    baseLines.forEach((ln, li) => {
+      text(ctx, ln, 190, 282 + li * 32, 22, '#c9d6e4', 'left');
+    });
+    // 三分支：A/B/C（config 扁平键 a/ap, b/bp, c/cp；a='分支名：概述'，ap=逐级效果数组）
+    let by = 380;
+    [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk]) => {
+      const overview = sk[ak] || '';
+      if (!overview) return;
+      const bi = overview.indexOf('：');
+      const bName = bi > 0 ? overview.slice(0, bi) : overview;
+      const bDesc = bi > 0 ? overview.slice(bi + 1) : '';
+      const lvls = sk[pk] || [];
+      fillRoundRect(ctx, 60, by, 630, 164, 14, 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, 60, by, 630, 164, 14, cCol, 1.2);
+      fillRoundRect(ctx, 76, by + 16, 44, 44, 10, cCol);
+      text(ctx, bk, 98, by + 46, 26, '#0d1117', 'center');
+      text(ctx, `${bName}（${bk} 分支）`, 140, by + 30, 25, '#ffffff', 'left');
+      // 分支概述（wrapText 最多 1 行）
+      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, 520, 18)[0] || '', 140, by + 62, 18, '#c9d6e4', 'left');
+      // 逐级效果 Lv→Lv+1（17px，最多 3 行，wrapText 防出框）
+      lvls.slice(0, 3).forEach((t, li) => {
+        const ln = this.wrapText(ctx, `Lv${li + 1}→${li + 2} ${t}`, 500, 17)[0] || '';
+        text(ctx, ln, 140, by + 94 + li * 24, 17, '#9fb2c3', 'left');
+      });
+      by += 176;
+    });
+  }
+
+  /** v1.16.76 撤离决策层：每 10 波暂停，撤离拿深度池 100% / 继续深入阵亡保底 30% */
+  evacuationLayer(ctx, g, hits) {
+    const w = 620, h = 470, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 40;
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    // 暗金主窗口（呼应圣遗物三选一的显现仪式感）
+    const bg = ctx.createLinearGradient(0, y, 0, y + h);
+    bg.addColorStop(0, '#2a2112'); bg.addColorStop(1, '#1d1a10');
+    fillRoundRect(ctx, x, y, w, h, 20, bg);
+    strokeRoundRect(ctx, x - 3, y - 3, w + 6, h + 6, 23, '#c8860a', 3);
+    strokeRoundRect(ctx, x, y, w, h, 20, '#ffd34d', 1.5);
+    text(ctx, `撤离决策 · 第 ${g.run.wave} 波`, 375, y + 64, 38, '#ffd34d', 'center');
+    text(ctx, '深度收益池（撤离可全取，阵亡只保底 30%）', 375, y + 116, 21, '#c9b98a', 'center');
+    // 收益池
+    fillRoundRect(ctx, x + 50, y + 142, w - 100, 88, 14, 'rgba(247,201,72,0.10)');
+    strokeRoundRect(ctx, x + 50, y + 142, w - 100, 88, 14, 'rgba(247,201,72,0.4)', 1);
+    text(ctx, `💰 ${fmtNum(Math.round(g.depthPool))}`, 375, y + 182, 34, '#f7c948', 'center');
+    text(ctx, `当前深度倍率 ×${g.depthMult.toFixed(2)}${g.run.wave < CONFIG.EVAC.lateWave ? `（继续 ×${CONFIG.EVAC.depthMult}）` : `（继续 ×${CONFIG.EVAC.depthMultLate}，收益递减期）`}`, 375, y + 212, 17, '#9fb2c3', 'center');
+    // 里程碑预览
+    const nextM = CONFIG.MILESTONES.find((m) => m > g.run.wave);
+    if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#a86bff', 'center');
+    // 按钮
+    hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 安全撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 }).hit;
+    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续深入 · 阵亡保底 30%', { bg: '#3a6ea5', fontSize: 25 }).hit;
+  }
+
+  /** v1.16.76 圣遗物升星面板：1★ 解锁 → 2★ 效果升级 → 3★ 质变（碎片+金币[+星辉石]） */
+  menuStarUp(ctx, s, push) {
+    this._menuPanelShell(ctx, s, push, '⭐ 圣遗物升星', 940);
+    text(ctx, `星辉石 ×${s.starStones || 0}（金级升 3★ 需要）`, 375, 262, 20, '#a86bff', 'center');
+    const ids = Object.keys(s.relicStars || {}).filter((id) => s.relicStars[id] > 0);
+    if (!ids.length) {
+      text(ctx, '尚未解锁圣遗物', 375, 420, 24, '#8ea3b8', 'center');
+      text(ctx, '对局内宝箱三选一获取后即可在此升星', 375, 460, 19, '#5a6c80', 'center');
+      return;
+    }
+    // 排序：可升星的在前（碎片/金币足够），其余按星级升序
+    const COST = CONFIG.STAR_UP.cost;
+    const canUp = (id) => {
+      const cur = s.relicStars[id]; if (cur >= 3) return 0;
+      const c = COST[cur + 1];
+      return (s.shards[id] || 0) >= c.shards && s.gold >= c.gold ? 1 : 2;
+    };
+    ids.sort((a, b) => canUp(a) - canUp(b) || s.relicStars[a] - s.relicStars[b]);
+    const shown = ids.slice(0, 9);
+    let ry = 300;
+    shown.forEach((id) => {
+      const def = RELIC_DEF_MAP[id] || { name: id, icon: '❔' };
+      const star = s.relicStars[id];
+      const sh = s.shards[id] || 0;
+      const rar = CONFIG.relicRarity(id);
+      const rarColor = { r: '#8ea3b8', sr: '#a86bff', ssr: '#f7c948' }[rar];
+      const upable = canUp(id) === 1;
+      push('relicStar', id, 70, ry, 610, 76);
+      fillRoundRect(ctx, 70, ry, 610, 76, 12, upable ? 'rgba(168,107,255,0.10)' : 'rgba(22,29,40,0.9)');
+      strokeRoundRect(ctx, 70, ry, 610, 76, 12, upable ? '#a86bff' : '#3a4553', upable ? 1.5 : 1);
+      text(ctx, def.icon, 104, ry + 40, 26, '#ffffff', 'center');
+      text(ctx, def.name, 140, ry + 30, 22, '#ffffff', 'left');
+      text(ctx, '★'.repeat(star) + '☆'.repeat(3 - star), 140, ry + 60, 18, rarColor, 'left');
+      if (star >= 3) {
+        text(ctx, 'MAX · 质变已激活', 560, ry + 40, 19, '#f7c948', 'center');
+      } else {
+        const c = CONFIG.STAR_UP.cost[star + 1];
+        text(ctx, `碎片 ${sh}/${c.shards} · ${c.gold}🪙`, 480, ry + 30, 18, upable ? '#7ef0a3' : '#8ea3b8', 'left');
+        text(ctx, `升 ${star + 1}★ ›`, 620, ry + 58, 18, upable ? '#a86bff' : '#5a6c80', 'center');
+      }
+      ry += 86;
+    });
+    if (ids.length > shown.length) text(ctx, `共 ${ids.length} 枚已解锁 · 优先展示可升星项`, 375, ry + 20, 17, '#5a6c80', 'center');
+    text(ctx, '2★=效果升级 · 3★=特殊质变（金级需星辉石）', 375, 1080, 17, '#5a6c80', 'center');
+  }
+
+  /** v1.16.76 调试工具面板（仅 CONFIG.DEBUG_ACCOUNT=true 时入口可见） */
+  debugPanel(ctx, s, push) {
+    this._menuPanelShell(ctx, s, push, '🛠 测试工具', 560);
+    const acts = [
+      ['dbg_gold', '💰 金币 +1000'], ['dbg_diamond', '💎 钻石 +100'],
+      ['dbg_shard', '🧩 全碎片 +2'], ['dbg_unlock', '🔓 解锁全部圣遗物'],
+      ['dbg_stone', '⭐ 星辉石 +5'], ['dbg_chest', '📦 发放星辉宝箱'],
+    ];
+    acts.forEach(([k, label], i) => {
+      const bx = 70 + (i % 2) * 310, by = 280 + Math.floor(i / 2) * 86;
+      push(k, null, bx, by, 280, 64);
+      fillRoundRect(ctx, bx, by, 280, 64, 12, 'rgba(90,108,128,0.18)');
+      strokeRoundRect(ctx, bx, by, 280, 64, 12, '#5a6c80', 1);
+      text(ctx, label, bx + 140, by + 38, 21, '#c9d6e4', 'center');
+    });
+    text(ctx, `bestWave ${s.bestWave || 0} · 仅调试构建可见`, 375, 570 + 60, 17, '#5a6c80', 'center');
   }
 
   /** 子面板外壳：遮罩 + 面板 + 标题 + 关闭（hgt 可自定义高度） */

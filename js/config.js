@@ -61,14 +61,43 @@ module.exports = {
    * 充能数值按形状：3连 +3 / 直4 +5 / 5 消及以上 块数×2。
    */
   GLOBAL_SKILL: {
-    ammoMax: 50,                // v1.12.1：每座塔弹药上限
-    startAmmo: 25,              // 得塔时初始弹药（半满）
-    chargePerUse: 30,           // v1.12.4：每补充 30 发弹药 → 全局技能可释放 1 次
-    energyMax: 90,              // 全局技能累计弹药上限（3 次 = 90 发）
-    ammoShape: { '3': 9, '4': 18, '5': 30, 'L5': 30 }, // 消除弹药（v1.13.1 ×3）：3消+9/4消+18/5消+30；6+(x块) = 30+9(x-5)
+    energyMax: 50,              // v1.16.77 每座塔能量上限（原弹药口径）
+    startEnergy: 15,            // 得塔时初始能量（普攻每发仅耗 0.5）
+    perAttack: 0.5,             // 普攻每次消耗能量（每 2 发耗 1 点；能量按小数计）
+    weakDmg: 0.5,               // 能量耗尽弱化态：普攻与技能伤害 ×0.5
+    weakPeriod: 1.5,            // 能量耗尽弱化态：周期技能释放间隔 ×1.5
+    chargePerUse: 30,           // v1.12.4：每补充 30 点充能 → 全局技能可释放 1 次
+    energyMaxGS: 90,            // 全局技能充能上限（3 次 = 90 点）
+    energyShape: { '3': 6, '4': 12, '5': 20, 'L5': 20 }, // 消除供能：3消+6/4消+12/5消+20；6+(x块)=20+6(x-5)
     shuffleSkill: { name: '全局洗牌', icon: '🔀', color: '#ff8c42' },  // 打乱棋盘所有方块
-    refillSkill: { name: '弹药补给', icon: '🔋', color: '#7ef0a3' },   // v1.12.4：全场所有塔补充弹药（替换全局冰冻）
-    refillAmmo: 10,             // 弹药补给：施放时所有已解锁塔各 +10 发
+    refillSkill: { name: '能量补给', icon: '🔋', color: '#7ef0a3' },   // 全场所有塔补充能量（替换全局冰冻）
+    refillEnergy: 8,            // 能量补给：施放时所有已解锁塔各 +8 点
+  },
+
+  /* ================= 周期型技能能量消耗（v1.16.77） =================
+   * 定价口径：按「范围技能命中 4 名敌人的等效总伤害」/ 250 取整（最低 1）。
+   * 基准：普攻 100% 伤害 / 0.5 能量 = 200% 伤害/能量；周期技能效率略高（250%/能量）补偿周期等待。
+   * 命中触发型技能（灼烧/冰冻/连锁等）跟随普攻，不单独耗能。
+   */
+  SKILL_ENERGY: {
+    '火柱': 2, '烈焰墙': 2, '火雨': 2,          // 火
+    '冰花': 2, '冬珠': 3, '冰墙': 2,           // 冰（冰墙为防御护盾，象征性耗能）
+    '毒池': 2, '毒棒': 1, '毒藤': 1, '瘴气': 0,  // 毒（瘴气驻场被动不耗能）
+    '极光电击': 3, '雷暴': 2, '活电': 1,        // 电
+    '风暴镖': 2, '弹力镖': 2, '风痕': 1,        // 回旋镖
+    '炮火支援': 2, '地雷阵': 2, '炮台': 1,      // 炮
+  },
+
+  /* ================= 局内商店（v1.16.77） =================
+   * 战斗阶段商店：局内金币购买本局临时强化，价格随购买次数递增；点开不暂停。
+   */
+  STORE: {
+    items: [
+      { id: 'atk',    icon: '⚔️', name: '攻击强化', desc: '本局全塔攻击 +20%',  cost: [120, 240],        max: 2 },
+      { id: 'spd',    icon: '⏩', name: '攻速强化', desc: '本局全塔攻速 +15%',  cost: [100, 200],        max: 2 },
+      { id: 'energy', icon: '⚡', name: '能量补给', desc: '所有塔能量 +15',     cost: [80, 160, 240],    max: 3 },
+      { id: 'wall',   icon: '🛡️', name: '城墙修复', desc: '城墙回复 30% 最大血量', cost: [150, 300],        max: 2 },
+    ],
   },
 
   /* ================= 消除经验与升级曲线 ================= */
@@ -148,7 +177,7 @@ module.exports = {
     electric: [
       { name: '连锁',       icon: '⚡', color: '#f4d03f', type: '普攻强化', desc: '攻击连锁 3 个敌人，每跳衰减 30%，B 稳流可降低衰减', pick: '攻击连锁3个敌人，每跳伤害衰减30%', p0: true,  a: '扩展：连锁目标 +1/+2/+3（3→4→5→6 个）',         ap: ["连锁目标提升3→4个","连锁目标提升4→5个","连锁目标提升5→6个"],         b: '稳流：连锁衰减 -20%/-40%/-60%',        bp: ["连锁伤害衰减降低30%→10%","连锁伤害衰减降低10%→0%","连锁伤害衰减降低至0%"],        c: '回能：每次连锁命中缩短攻击间隔 3%/6%/9%', cp: ["每次连锁命中缩短攻击间隔3%","每次连锁命中缩短攻击间隔3%→6%","每次连锁命中缩短攻击间隔6%→9%"] },  // 协同：与冰冻
       { name: '麻痹',       icon: '😵', color: '#f7dc6f', type: 'dot强化', desc: '命中 20% 概率麻痹，减速 50% 并停止攻击，持续 2 秒（学技能后 40%）', pick: '命中40%概率麻痹敌人', p0: true, a: '强麻：麻痹概率 +15%/+30%/+45%（40→55→70→85%）',  ap: ["麻痹概率提升40%→55%","麻痹概率提升55%→70%","麻痹概率提升70%→85%"],  b: '久麻：麻痹时长 +0.5/+1/+1.5 秒',  bp: ["麻痹持续时间延长2→2.5秒","麻痹持续时间延长2.5→3秒","麻痹持续时间延长3→3.5秒"],  c: '导电：被麻痹时附近 100px 敌人 20%/30%/40% 概率被麻痹 1 秒', cp: ["被麻痹时附近100码敌人20%概率被麻痹","被麻痹概率提升20%→30%","被麻痹概率提升30%→40%"] },
-      { name: '过载',       icon: '🔋', color: '#f5b041', type: '普攻强化', desc: '命中麻痹目标叠层，上限 3 层持续 2 秒，每层增伤由 B 强载提供', pick: '命中麻痹目标叠加充能层数，最多3层，每层提供增伤', p0: true, a: '弹载：每 3 层消耗全部层数造成 20%/30%/40% 伤害并填充 1 发弹药', ap: ["每满3层消耗全部层数，造成20%伤害并填充1发弹药","爆炸伤害提升20%→30%","爆炸伤害提升30%→40%"], b: '强载：每层增伤 +15%/+30%/+45%', bp: ["每层充能增伤提升15%","每层充能增伤提升15%→30%","每层充能增伤提升30%→45%"], c: '爆载：满层麻痹 150px 内敌人并造成 80% 伤害', cp: ["叠满3层时麻痹150码内敌人并造成80%伤害（固定）","叠满3层时麻痹150码内敌人并造成80%伤害（固定）","叠满3层时麻痹150码内敌人并造成80%伤害（固定）"] },
+      { name: '过载',       icon: '🔋', color: '#f5b041', type: '普攻强化', desc: '命中麻痹目标叠层，上限 3 层持续 2 秒，每层增伤由 B 强载提供', pick: '命中麻痹目标叠加充能层数，最多3层，每层提供增伤', p0: true, a: '弹载：每 3 层消耗全部层数造成 20%/30%/40% 伤害并填充 1 点能量', ap: ["每满3层消耗全部层数，造成20%伤害并填充1点能量","爆炸伤害提升20%→30%","爆炸伤害提升30%→40%"], b: '强载：每层增伤 +15%/+30%/+45%', bp: ["每层充能增伤提升15%","每层充能增伤提升15%→30%","每层充能增伤提升30%→45%"], c: '爆载：满层麻痹 150px 内敌人并造成 80% 伤害', cp: ["叠满3层时麻痹150码内敌人并造成80%伤害（固定）","叠满3层时麻痹150码内敌人并造成80%伤害（固定）","叠满3层时麻痹150码内敌人并造成80%伤害（固定）"] },
       { name: '极光电击',   icon: '💡', color: '#fad390', type: '新AOE', desc: '每 8 秒电击最近敌人，并向 100 码内分叉电弧命中 3 个敌人（各造成 40% 伤害）', pick: '每8秒电击最近敌人，并分叉电击100码内3个敌人', p0: true,  a: '扩域：分叉寻敌范围 +20/+40/+60 码（100→120→140→160）', ap: ["分叉寻敌范围扩大100→120码","分叉寻敌范围扩大120→140码","分叉寻敌范围扩大140→160码"],       b: '增伤：电弧伤害 +20%/+40%/+60%（80→100→120→140%）',        bp: ["电弧伤害提升80%→100%","电弧伤害提升100%→120%","电弧伤害提升120%→140%"],        c: '裂电：分叉电弧 +1/+2/+3 个（命中 3→4→5→6 个敌人）', cp: ["分叉命中数量提升3→4个","分叉命中数量提升4→5个","分叉命中数量提升5→6个"] },
       { name: '雷暴',       icon: '🌩️', color: '#f9e79f', type: '新AOE', desc: '每 10 秒随机电击多个敌人，每击 64% 伤害，A 增雷提高目标数',    pick: '每10秒电击多个敌人，每击造成64%伤害',    p0: true,  a: '增雷：雷击目标 +2/+4/+6（3→5→7→9 个）',       ap: ["雷击目标提升3→5个","雷击目标提升5→7个","雷击目标提升7→9个"],       b: '连雷：雷击 30%/45%/60% 几率连锁周边 90px 敌人，50% 伤害，连锁分支级个',    bp: ["雷击有30%概率连锁周边90码敌人，50%伤害","连锁概率提升30%→45%","连锁概率提升45%→60%"],    c: '疾雷：雷击间隔 -1/-2/-3 秒（10→9→8→7 秒）', cp: ["雷击间隔缩短10→9秒","雷击间隔缩短9→8秒","雷击间隔缩短8→7秒"] },
       { name: '活电',       icon: '⚪', color: '#ffd24a', type: '新单体', desc: '击中麻痹敌人扩散 5 个电球，等分圆周向四周扩散，游走 1.4 秒，命中 34px 内结算', pick: '击中麻痹敌人时扩散5个电球，游走造成伤害', p0: false, a: '增球：扩散电球 +2/+4/+6（5→7→9→11 个）',      ap: ["扩散电球数量提升5→7个","扩散电球数量提升7→9个","扩散电球数量提升9→11个"],      b: '强球：电球伤害 +20%/+40%/+60%',         bp: ["电球伤害提升20%","电球伤害提升20%→40%","电球伤害提升40%→60%"],         c: '久游：电球游走时长 +0.4/+0.8/+1.2 秒', cp: ["电球游走时间延长1.4→1.8秒","电球游走时间延长1.8→2.2秒","电球游走时间延长2.2→2.6秒"] },
@@ -159,7 +188,7 @@ module.exports = {
       { name: '折返增伤',   icon: '🪃', color: '#9b59b6', type: '普攻强化', desc: '折返段伤害为命中伤害的 65%，A 每级 +25%',          pick: '飞镖折返段造成命中伤害的65%',          p0: true,  a: '强返：折返伤害 +25%/+50%/+75%', ap: ["折返伤害提升65%→81%","折返伤害提升81%→98%","折返伤害提升98%→114%"], b: '缓返：折返命中减速 20%',   bp: ["折返命中的敌人减速20%（固定）","折返命中的敌人减速20%（固定）","折返命中的敌人减速20%（固定）"],   c: '宽返：折返吸附半径 +20%/+40%/+60%', cp: ["折返吸附半径提升20%","折返吸附半径提升20%→40%","折返吸附半径提升40%→60%"] },
       { name: '放血',       icon: '🩸', color: '#a569bd', type: 'dot强化', desc: '普攻流血几率 +25%，基础 20% 提升至 45%',   pick: '普攻造成流血的概率提升20%→45%',   p0: true,  a: '刺骨：流血几率 +15%/+30%/+45%（45→60→75→90%）',     ap: ["流血概率提升45%→60%","流血概率提升60%→75%","流血概率提升75%→90%"],     b: '久血：流血时间 +1/+2/+3 秒',   bp: ["流血持续时间延长1秒","流血持续时间延长1秒（累计2秒）","流血持续时间延长1秒（累计3秒）"],   c: '溃烂：每移动 10px 伤害 4%→6%/8%/10%', cp: ["敌人每移动10码受到的伤害由4%提升至6%","每移动10码伤害提升6%→8%","每移动10码伤害提升8%→10%"] },
       { name: '多镖',       icon: '🔱', color: '#b07cc6', type: '普攻强化', desc: '每次多投 1 枚，单镖伤害 -12%', pick: '每次多投掷1枚飞镖，单镖伤害降低12%', p0: true, a: '增镖：镖数 +1/+2/+3',         ap: ["飞镖数量提升1→2枚","飞镖数量提升2→3枚","飞镖数量提升3→4枚"],         b: '稳镖：单镖衰减减半（12%→6%）',       bp: ["单镖伤害衰减降低一半（衰减6%，固定）","单镖伤害衰减降低一半（衰减6%，固定）","单镖伤害衰减降低一半（衰减6%，固定）"],       c: '宽扇：多镖扇形角度 +30%', cp: ["多镖扇形角度扩大30%（固定）","多镖扇形角度扩大30%（固定）","多镖扇形角度扩大30%（固定）"] },
-      { name: '接镖',       icon: '♻️', color: '#af7ac5', type: '普攻强化', desc: '接镖后立即投掷；未学此技能时，接镖后 0.5 秒才投出下一镖（回旋镖无攻速属性）', pick: '接镖后立即投掷下一枚飞镖', p0: true,  a: '疾飞：镖飞行速度 +20%/+40%/+60%', ap: ["飞镖飞行速度提升20%","飞镖飞行速度提升20%→40%","飞镖飞行速度提升40%→60%"], b: '回能：接镖 30% 概率不耗弹药', bp: ["接镖时有30%概率不消耗弹药（固定）","接镖时有30%概率不消耗弹药（固定）","接镖时有30%概率不消耗弹药（固定）"], c: '续投：接镖立即投掷且下镖伤害 +10%/+20%/+30%', cp: ["接镖立即投掷且下一镖伤害提升10%","下一镖伤害提升10%→20%","下一镖伤害提升20%→30%"] },
+      { name: '接镖',       icon: '♻️', color: '#af7ac5', type: '普攻强化', desc: '接镖后立即投掷；未学此技能时，接镖后 0.5 秒才投出下一镖（回旋镖无攻速属性）', pick: '接镖后立即投掷下一枚飞镖', p0: true,  a: '疾飞：镖飞行速度 +20%/+40%/+60%', ap: ["飞镖飞行速度提升20%","飞镖飞行速度提升20%→40%","飞镖飞行速度提升40%→60%"], b: '回能：接镖 30% 概率不耗能量', bp: ["接镖时有30%概率不消耗能量（固定）","接镖时有30%概率不消耗能量（固定）","接镖时有30%概率不消耗能量（固定）"], c: '续投：接镖立即投掷且下镖伤害 +10%/+20%/+30%', cp: ["接镖立即投掷且下一镖伤害提升10%","下一镖伤害提升10%→20%","下一镖伤害提升20%→30%"] },
       { name: '猎手标记',   icon: '🎯', color: '#d2b4de', type: '普攻强化', desc: '命中同目标叠加标记，标记持续 5 秒；被标记敌人头顶显示红色半透明瞄准标记', pick: '命中同一目标叠加标记', p0: false, a: '深镖：受标记的敌人受到伤害提升 8%/16%/24%',  ap: ["被标记敌人受到的伤害提升8%","被标记敌人受到的伤害提升8%→16%","被标记敌人受到的伤害提升16%→24%"],  b: '多标：层数上限 +2/+4/+6',   bp: ["标记层数上限提升2层","标记层数上限提升2→4层","标记层数上限提升4→6层"],   c: '猎杀：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记', cp: ["标记目标死亡时向100码内1个敌人扩散标记","扩散目标提升1→2个","扩散目标提升2→3个"] },
       { name: '风暴镖',     icon: '🌪️', color: '#8e44ad', type: '新AOE', desc: '每 12 秒在敌人密集区召唤 120px 三同心圈旋转十字飞镖：内圈 4 枚、中圈 6 枚、外圈 8 枚，内圈外圈顺时针、中圈逆时针，每镖独立命中 10% 伤害，命中不消失', pick: '每12秒召唤飞镖风暴，120码内三圈共18枚十字飞镖旋转，每镖10%伤害', p0: false, a: '疾旋：飞镖旋转速度 +25%/+50%/+75%', ap: ["飞镖旋转速度提升25%","飞镖旋转速度提升25%→50%","飞镖旋转速度提升50%→75%"], b: '利镖：每镖伤害 +20%/+40%/+60%', bp: ["每枚飞镖伤害提升10%→12%","每枚飞镖伤害提升12%→14%","每枚飞镖伤害提升14%→16%"], c: '众镖：每圈镖数 +1/+2/+3（4/6/8→5/7/9→6/8/10→7/9/11 枚）', cp: ["每圈飞镖数量提升1枚（4/6/8→5/7/9）","每圈飞镖数量提升1枚（5/7/9→6/8/10）","每圈飞镖数量提升1枚（6/8/10→7/9/11）"] },
       { name: '弹力镖',     icon: '💠', color: '#c39bd3', type: '新单体', desc: '每 8 秒射出 2 枚十字飞镖，碰敌人或战斗区边缘反弹，每镖 60% 伤害，反弹 10 次结束', pick: '每8秒射出2枚十字飞镖，反弹10次，每镖60%伤害', p0: false, a: '增镖：镖数 +1/+2/+3（2→3→4→5 枚）', ap: ["飞镖数量提升2→3枚","飞镖数量提升3→4枚","飞镖数量提升4→5枚"], b: '利刃：每镖伤害 +25%/+50%/+75%（60→85→110→135%）', bp: ["每镖伤害提升60%→85%","每镖伤害提升85%→110%","每镖伤害提升110%→135%"], c: '弹力：反弹次数 +5/+10/+15（10→15→20→25 次）', cp: ["反弹次数提升10→15次","反弹次数提升15→20次","反弹次数提升20→25次"] },
@@ -173,12 +202,152 @@ module.exports = {
       { name: '炮火支援',   icon: '🛩️', color: '#b03a2e', type: '新AOE', desc: '每 12 秒逐发发射炮弹：每发间隔 0.1 秒从塔口升空至 300px 高空后消失，1 秒后在随机敌人头顶 300px 处出现并 0.3 秒垂直落下，60% 伤害半径 130，落地前 0.5 秒地面显示炮击圈预警', pick: '每12秒发动空袭炮击，逐发发射炮弹对随机敌人造成60%伤害，半径130码', p0: false, a: '增援：炮弹 +1/+2/+3（3→4→5→6 发）', ap: ["炮弹数量提升3→4发","炮弹数量提升4→5发","炮弹数量提升5→6发"], b: '威力：伤害 +40%/+80%/+120%（60→100→140→180%）', bp: ["炮弹伤害提升60%→100%","炮弹伤害提升100%→140%","炮弹伤害提升140%→180%"], c: '焦土：落点留燃烧地面 2 秒，每秒 24%/48%/72% 伤害', cp: ["落点留下燃烧地面2秒，每秒24%伤害","每秒伤害提升24%→48%","每秒伤害提升48%→72%"] },
       { name: '地雷阵',     icon: '💣', color: '#8e6e23', type: '新AOE', desc: '每 6 秒从塔口抛投 3 颗雷，飞行速度 500px/s 不可引爆，落地布设后可引爆，120% 伤害半径 100，持续 20 秒；有敌人时部署在最近敌人附近 30~180px 圈内，无敌人时攻击范围内随机', pick: '每6秒抛投3颗地雷，落地可引爆，造成120%伤害半径100码，持续20秒', p0: false, a: '布雷：地雷 +2/+4/+6（3→5→7→9 颗）', ap: ["每次部署地雷数量提升3→5颗","每次部署地雷数量提升5→7颗","每次部署地雷数量提升7→9颗"], b: '雷威：伤害 +50%/+100%/+150%', bp: ["地雷伤害提升120%→180%","地雷伤害提升180%→240%","地雷伤害提升240%→300%"], c: '碎雷：爆炸后星状向四周 130px 内散射 5/6/7 片弹片，造成 30% 攻击伤害', cp: ["爆炸后星状散射5片弹片，130码范围30%伤害","弹片数量提升5→6片","弹片数量提升6→7片"] },
       { name: '炮台',       icon: '🏰', color: '#a04000', type: '辅助', desc: '每 10 秒部署一门自动炮台，持续 8 秒，独立炮击最靠墙敌人，直伤 68%，爆炸 48%；场上无敌人时不部署', pick: '每10秒部署自动炮台持续8秒，独立炮击最靠墙敌人，直伤68%爆炸48%', p0: false, a: '增台：炮台 +1/+2/+3', ap: ["每次召唤炮台数量提升1→2门","每次召唤炮台数量提升2→3门","每次召唤炮台数量提升3→4门"], b: '久驻：持续 +2/+4/+6 秒且部署间隔 -1/-2/-3 秒', bp: ["炮台持续延长2秒且部署间隔缩短1秒","炮台持续延长2秒（累计4秒）且部署间隔缩短1秒（累计2秒）","炮台持续延长2秒（累计6秒）且部署间隔缩短1秒（累计3秒）"], c: '重炮台：炮台爆炸范围 +30%/+60%/+90%', cp: ["炮台爆炸范围提升30%","炮台爆炸范围提升30%→60%","炮台爆炸范围提升60%→90%"] },
-      { name: '军火库',     icon: '📦', color: '#b5651d', type: '辅助', desc: '弹药库上限 +50',        pick: '弹药库上限提升50发',        p0: false, a: '填充：每次弹药填充量 +25%/+50%/+75%', ap: ["每次弹药填充量提升25%","每次弹药填充量提升25%→50%","每次弹药填充量提升50%→75%"], b: '协同充能：全局技能充能速度 +25%/+50%/+75%',   bp: ["全局技能充能速度提升25%","全局技能充能速度提升25%→50%","全局技能充能速度提升50%→75%"],   c: '双倍火力：普攻 10%/20%/30% 概率造成双倍伤害', cp: ["普攻有10%概率造成双倍伤害","双倍概率提升10%→20%","双倍概率提升20%→30%"] },
+      { name: '军火库',     icon: '📦', color: '#b5651d', type: '辅助', desc: '能量库上限 +50',        pick: '能量上限提升50点',        p0: false, a: '填充：每次能量填充量 +25%/+50%/+75%', ap: ["每次能量填充量提升25%","每次能量填充量提升25%→50%","每次能量填充量提升50%→75%"], b: '协同充能：全局技能充能速度 +25%/+50%/+75%',   bp: ["全局技能充能速度提升25%","全局技能充能速度提升25%→50%","全局技能充能速度提升50%→75%"],   c: '双倍火力：普攻 10%/20%/30% 概率造成双倍伤害', cp: ["普攻有10%概率造成双倍伤害","双倍概率提升10%→20%","双倍概率提升20%→30%"] },
     ],
   },
 
-  /* 协同组：旗舰组合（达成后触发 synergyBonus 乘区） */
-  SYNERGIES: [
+  /* ================= v1.16.76 激励系统：撤离点 / 深度宝箱 / 击杀掉落 / 里程碑 / 战场合约 ================= */
+  DEBUG_ACCOUNT: false,    // 调试账号开关：true 时主菜单显示 🛠 测试工具（金币/钻石/碎片/解锁/星辉箱）——正式发布必须为 false
+  EVAC: {
+    interval: 10,            // 每隔 10 波出现一次撤离决策
+    depthMult: 1.30,         // 每通过一个撤离点，深度收益倍率 ×1.30
+    depthMultLate: 1.10,     // 40 波后倍率降档（引导多打几局）
+    lateWave: 40,
+    poolShare: 0.5,          // 每波金币的一半进入「深度收益池」，撤离拿池 100%，阵亡拿 30%
+    deadRatio: 0.30,
+  },
+  MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
+  KILL_DROP: {
+    eliteShardChance: 0.25,           // 精英掉碎片概率
+    eliteShardMax: 2,                 // 精英掉落数量 1~2
+    bossShardBase: 4,                 // Boss 基础碎片
+    bossShardBonusChance: 0.5,        // Boss 50% 概率额外 +2
+    rarityWeight: { r: 0.60, sr: 0.32, ssr: 0.08 },  // 碎片稀有度权重
+    killGold: [4, 8],                 // 普通击杀小额金币区间（×1.06^波次通胀 ×战场金币倍率）
+  },
+  DEPTH_CHEST: {
+    // 单局最深波次 → 宝箱档位（50 波顶配）
+    tiers: [
+      { key: 'wood',   name: '木质宝箱', max: 9,   openSec: 15 * 60,      speedDiamond: 2,  gold: [100, 200], shards: [2, 4],  cardChance: 0.20, cardRarity: 'r',    diamond: 0, stone: 0 },
+      { key: 'bronze', name: '青铜宝箱', max: 19,  openSec: 1 * 3600,     speedDiamond: 6,  gold: [250, 450], shards: [5, 9],  cardChance: 0.35, cardRarity: 'r',    diamond: 0, stone: 0 },
+      { key: 'silver', name: '白银宝箱', max: 29,  openSec: 3 * 3600,     speedDiamond: 15, gold: [500, 800], shards: [10, 16], cardChance: 1.0, cardRarity: 'sr',   diamond: 0, stone: 0 },
+      { key: 'gold',   name: '黄金宝箱', max: 39,  openSec: 8 * 3600,     speedDiamond: 30, gold: [900, 1500], shards: [18, 30], cardChance: 1.0, cardRarity: 'sr',  diamond: 3, stoneChance: 0.10, goldCardChance: 0.25 },
+      { key: 'star',   name: '星辉宝箱', max: 9999, openSec: 12 * 3600,   speedDiamond: 50, gold: [1800, 3000], shards: [35, 60], cardChance: 1.0, cardRarity: 'ssr', diamond: 5, stone: 1 },
+    ],
+    slots: 4,                 // 同时开启上限
+  },
+  STAR_UP: {
+    cost: { 2: { shards: 10, gold: 500 }, 3: { shards: 30, gold: 2000, stone: 1 } },
+    goldStarExtraStone: true, // 金级圣遗物升 3★ 额外需要星辉石
+  },
+  /* v1.16.78 圣遗物星级效果与收益对齐 */
+  STAR3_ENABLED: false,         // 3★ 质变行为灰度开关：false 时效果不生效（图鉴仍可查看文本），true 时接入 effects 挂点
+  RELIC_PICK_WEIGHT: { r: 0.50, sr: 0.38, ssr: 0.12 },   // 三选一稀有度权重（设计文档 2.2：蓝50/紫38/金12）
+  DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8 },             // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金）
+  /* 战场合约（v1.16.76）：A 熔岩矿场 / B 霜风峡谷 / C 深渊裂隙；ancient 远古保留 */
+  FIELDS: {
+    ancient: { name: '远古战场', short: '🏰 远古战场', tint: '#2ecc71', tintDark: '#1f8c5f',
+      subtitle: '城墙防守 · 怪物攻城 · 消消防线', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
+    lava:    { name: '熔岩矿场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
+      subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 0 },
+    frost:   { name: '霜风峡谷', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',
+      subtitle: '高速成群 · 每15波风场增速 · 控制类碎片', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'control', unlockWave: 0, windEvery: 15 },
+    abyss:   { name: '深渊裂隙', short: '🕳️ 深渊裂隙', tint: '#a86bff', tintDark: '#5c33a8',
+      subtitle: '每10波诅咒 · 深度结算×2 · 全资源 · 计入排行', goldMult: 1.5, ammoCapMult: 1.0, dropAttr: 'all', unlockWave: 25, curseEvery: 10, deepMult: 2 },
+    test:    { name: '测试战场', short: '🧪 测试战场', tint: '#a88bff', tintDark: '#6d5bd0',
+      subtitle: '免三消直测塔技能效果', goldMult: 0, ammoCapMult: 1.0, dropAttr: 'none', unlockWave: 0 },
+  },
+  FIELD_ORDER: ['ancient', 'lava', 'frost', 'abyss', 'test'],
+  /* 圣遗物战斗属性轴：战场合约产出定向（未列出的通用项归 control） */
+  RELIC_ATTR: {
+    attack: ['cm_power', 'cm_speed', 'cm_combo'],
+    // control = ice/poison/electric 全类 + 其余通用（cm_wall/cm_guard/cm_stasis/cm_freeze/cm_regen/cm_vault/cm_triple/cm_exp/cm_tome/cm_ammobox/cm_charge/cm_bounty）
+  },
+
+  /* 圣遗物稀有度（v1.16.76）：r=蓝 sr=紫 ssr=金（设计文档《圣遗物星级与战场合约设计方案》第四章） */
+  RELIC_RARITY: {
+    fire_seed: 'ssr', fire_inferno: 'ssr', fire_burnall: 'ssr',
+    fire_core: 'sr', fire_chain: 'sr', fire_rain: 'sr', fire_skyfire: 'sr', fire_ember: 'sr', fire_wall: 'sr',
+    ice_glacier: 'ssr', ice_avalanche: 'ssr', ice_frostburst: 'ssr',
+    ice_forever: 'sr', ice_blizzard: 'sr', ice_domain: 'sr', ice_armor: 'sr', ice_wallshift: 'sr', ice_fog: 'sr',
+    poison_all: 'ssr', poison_corrode: 'ssr', poison_source: 'ssr',
+    poison_gland: 'sr', poison_essence: 'sr', poison_fen: 'sr', poison_nest: 'sr', poison_cloud: 'sr', poison_burst: 'sr',
+    elec_super: 'ssr', elec_boost: 'ssr', elec_overload: 'ssr',
+    elec_arc: 'sr', elec_chain: 'sr', elec_storm: 'sr', elec_magnet: 'sr', elec_domain: 'sr', elec_conduit: 'sr',
+    boo_hunt: 'ssr', boo_cyclone: 'ssr', boo_tip: 'ssr',
+    boo_return: 'sr', boo_blood: 'sr', boo_multi: 'sr', boo_eye: 'sr', boo_mark: 'sr', boo_wind: 'sr',
+    can_war: 'ssr', can_armory: 'ssr', can_incend: 'ssr',
+    can_heavy: 'sr', can_pierce: 'sr', can_airstrike: 'sr', can_minefield: 'sr', can_powder: 'sr', can_knock: 'sr',
+    cm_power: 'ssr', cm_shuffle: 'ssr', cm_bounty: 'ssr',
+    cm_vault: 'sr', cm_wall: 'sr', cm_ammobox: 'sr', cm_guard: 'sr', cm_stasis: 'sr', cm_freeze: 'sr',
+  },
+  /** 圣遗物稀有度查询（未列出的默认蓝 r） */
+  relicRarity(id) { return this.RELIC_RARITY[id] || 'r'; },
+  /** 圣遗物战斗属性（attack 攻击 / control 控制·收益）：火炮镖=攻击，冰电毒+其余通用=控制 */
+  relicAttr(id) {
+    if (this.RELIC_ATTR.attack.includes(id)) return 'attack';
+    if (id.startsWith('fire') || id.startsWith('cannon') || id.startsWith('boo')) return 'attack';
+    return 'control';
+  },
+  /** 按属性 + 稀有度权重随机一个圣遗物 id（用于碎片掉落定向） */
+  randomShardId(attr) {
+    const cats = Object.keys(this.RELIC_RUN.tower);
+    let pool = [];
+    if (attr === 'attack') pool = this.RELIC_RUN.tower.fire.concat(this.RELIC_RUN.tower.cannon, this.RELIC_RUN.tower.boomerang);
+    else if (attr === 'control') pool = this.RELIC_RUN.tower.ice.concat(this.RELIC_RUN.tower.poison, this.RELIC_RUN.tower.electric);
+    else {
+      pool = [];
+      cats.forEach((k) => { pool = pool.concat(this.RELIC_RUN.tower[k]); });
+    }
+    pool = pool.concat(this.RELIC_RUN.common);
+    if (!pool.length) return null;
+    // 稀有度加权：抽取目标稀有度后从池中筛
+    const roll = Math.random(); const w = this.KILL_DROP.rarityWeight;
+    const target = roll < w.ssr ? 'ssr' : roll < w.ssr + w.sr ? 'sr' : 'r';
+    const tier = pool.filter((d) => this.relicRarity(d.id) === target);
+    const pick = (tier.length ? tier : pool)[Math.floor(Math.random() * (tier.length ? tier.length : pool.length))];
+    return pick.id;
+  },
+
+  /** 按稀有度随机一个圣遗物 id（深度宝箱圣遗物卡） */
+  randomShardCardId(rar) {
+    const pool = [];
+    const push = (list) => list.forEach((d) => { if (this.relicRarity(d.id) === rar) pool.push(d.id); });
+    Object.keys(this.RELIC_RUN.tower).forEach((k) => push(this.RELIC_RUN.tower[k]));
+    push(this.RELIC_RUN.common);
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  },
+
+  /* v1.16.78 局内圣遗物（RELIC_RUN）定义查询：供星级数值乘区与图鉴读取 */
+  /** 按 id 查 RELIC_RUN 定义（塔组→通用），未找到返回 null */
+  relicRunDef(id) {
+    const cats = this.RELIC_RUN.tower;
+    for (const k in cats) {
+      const d = cats[k].find((x) => x.id === id);
+      if (d) return d;
+    }
+    return this.RELIC_RUN.common.find((x) => x.id === id) || null;
+  },
+  /** 圣遗物文本数值：1★=desc 最后数字、2★=star2 最后数字（效果值统一写在描述末尾）；无数字返回 0 */
+  relicNum(id, star) {
+    const d = this.relicRunDef(id);
+    if (!d) return 0;
+    const txt = (star >= 2 && d.star2) ? d.star2 : d.desc;
+    let v = 0;
+    const re = /([0-9]+(?:\.[0-9]+)?)/g; let mm;
+    while ((mm = re.exec(txt || ''))) v = parseFloat(mm[1]);
+    return v;
+  },
+  /** 圣遗物所属塔（RELIC_RUN.tower 组名；通用返回 null） */
+  relicTowerKey(id) {
+    const cats = this.RELIC_RUN.tower;
+    for (const k in cats) {
+      if (cats[k].find((x) => x.id === id)) return k;
+    }
+    return null;
+  },
+
+  /* 协同组：旗舰组合（达成后触发 synergyBonus 乘区） */  SYNERGIES: [
     { a: { tower: 'ice',     effect: '冰冻' }, b: { tower: 'electric', effect: '连锁' } },
     { a: { tower: 'cannon',  effect: '重炮' }, b: { tower: 'fire',  effect: '大火球' } }, // 炮火联动：爆炸类双出 → 爆炸伤害 +50%（v1.16 溅射→重炮）
   ],
@@ -188,7 +357,7 @@ module.exports = {
     seconds: 40,                // 波时长
     matchesPerWave: 5,          // 操作模型：每波有效消除次数
     matchDist: { '3': 0.70, '4': 0.20, L5: 0.05, '5': 0.05 },  // 3连/直4/L5/直5 消占比
-    maxWave: 50,                // 模拟/关卡上限
+    maxWave: 9999,              // v1.16.76 无尽化：移除 50 波硬上限（撤离点承担终点，收益 40 波后递减）
   },
   ENEMY: {
     hpBase: 2000, hpGrowth: 1.45,          // 敌人血量 = 2000 × 1.45^(w-1)（v1.16.59 强度提升加快 1.5 倍：1.30→1.45）
@@ -249,7 +418,7 @@ module.exports = {
   RELIC: {
     // 圣物表：掉落权重 / 升级金币基础与成长 / 每级效果描述
     list: [
-      { id: 'gold',   name: '招财符',   icon: '💰', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `波末金币 +${20 * lv}%` },
+      { id: 'gold',   name: '招财符',   icon: '💰', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `战斗结算银币 +${20 * lv}%` },
       { id: 'exp',    name: '经验珠',   icon: '✨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `击杀经验 +${20 * lv}%` },
       { id: 'speed',  name: '疾风戒',   icon: '💨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `全塔攻速 +${8 * lv}%` },
       { id: 'wall',   name: '磐石印',   icon: '🛡️', drop: 8,  costBase: 250, costGrowth: 1.6, desc: (lv) => `城墙血量 +${10 * lv}%` },
@@ -271,131 +440,131 @@ module.exports = {
   RELIC_RUN: {
     tower: {
       fire: [
-        { id: 'fire_seed',   name: '火种',       icon: '🌱', desc: '灼烧每秒造成的伤害提升50%' },
-        { id: 'fire_seal',   name: '赤印',       icon: '🔴', desc: '灼烧叠加上限提升1层' },
-        { id: 'fire_core',   name: '熔心',       icon: '🫀', desc: '火柱造成的伤害提升50%' },
-        { id: 'fire_nuke',   name: '爆核',       icon: '🎆', desc: '大火球爆炸半径扩大30%' },
-        { id: 'fire_chain',  name: '连锁爆破',   icon: '💢', desc: '点燃目标死亡时的爆炸概率提升至70%' },
-        { id: 'fire_rain',   name: '焰雨',       icon: '🌧️', desc: '每次攻击射出的火球数量提升2枚' },
-        { id: 'fire_wall',   name: '火墙增烈',   icon: '🧱', desc: '火焰墙持续时间延长3秒' },
-        { id: 'fire_skyfire', name: '天火',      icon: '☄️', desc: '每波火雨造成的伤害提升40%' },
-        { id: 'fire_forge',  name: '熔炉之息',   icon: '⚒️', desc: '火塔攻击间隔缩短15%' },
-        { id: 'fire_fuel',   name: '薪柴',       icon: '🪵', desc: '普攻附加灼烧的概率提升20%' },
-        { id: 'fire_ember',  name: '余烬风暴',   icon: '💨', desc: '灼烧目标死亡时有25%概率再次爆炸' },
-        { id: 'fire_bounce', name: '火焰弹射',   icon: '🏓', desc: '普攻有25%概率额外发射一枚火球' },
-        { id: 'fire_inferno', name: '炼狱',      icon: '⚱️', desc: '所有灼烧类伤害提升25%' },
-        { id: 'fire_tongue', name: '火舌',       icon: '🔥', desc: '火焰墙长度延长50%' },
-        { id: 'fire_hasten', name: '燃尽加速',   icon: '⏩', desc: '火雨每波间隔缩短0.2秒' },
-        { id: 'fire_burnall', name: '焚天',      icon: '🌇', desc: '火柱、火焰墙、火雨的冷却时间缩短20%' },
+        { id: 'fire_seed',   name: '火种',       icon: '🌱', desc: '灼烧每秒造成的伤害提升50%', star2: '灼烧每秒造成的伤害提升80%', star3: '灼烧目标死亡时留下火焰地面 2 秒，每秒 40% 攻击伤害' },
+        { id: 'fire_seal',   name: '赤印',       icon: '🔴', desc: '灼烧叠加上限提升1层', star2: '灼烧叠加上限提升2层', star3: '灼烧叠满层时触发爆发：80% 攻击伤害，半径 60码' },
+        { id: 'fire_core',   name: '熔心',       icon: '🫀', desc: '火柱造成的伤害提升50%', star2: '火柱造成的伤害提升80%', star3: '火柱命中后使目标受到的火伤 +15%，持续 5 秒（可叠 2 层）' },
+        { id: 'fire_nuke',   name: '爆核',       icon: '🎆', desc: '大火球爆炸半径扩大30%', star2: '大火球爆炸半径扩大45%', star3: '大火球爆炸边缘敌人被击退 40码 并点燃' },
+        { id: 'fire_chain',  name: '连锁爆破',   icon: '💢', desc: '点燃目标死亡时的爆炸概率提升至70%', star2: '点燃目标死亡时的爆炸概率提升至100%', star3: '连锁爆破的爆炸可传染：命中敌人 30% 概率带 1 层灼烧' },
+        { id: 'fire_rain',   name: '焰雨',       icon: '🌧️', desc: '每次攻击射出的火球数量提升2枚', star2: '每次攻击射出的火球数量提升3枚', star3: '火球命中同一目标 3 次后，下次攻击必为三连火球' },
+        { id: 'fire_wall',   name: '火墙增烈',   icon: '🧱', desc: '火焰墙持续时间延长3秒', star2: '火焰墙持续时间延长4.5秒', star3: '火墙内敌人每停留 1 秒，受到的伤害递增 10%（上限 +50%）' },
+        { id: 'fire_skyfire', name: '天火',      icon: '☄️', desc: '每波火雨造成的伤害提升40%', star2: '每波火雨造成的伤害提升60%', star3: '火雨最后一波升级为天火一击：单点 120% 伤害' },
+        { id: 'fire_forge',  name: '熔炉之息',   icon: '⚒️', desc: '火塔攻击间隔缩短15%', star2: '火塔攻击间隔缩短24%', star3: '攻速加成期间，每 5 次普攻附带一次免费火柱' },
+        { id: 'fire_fuel',   name: '薪柴',       icon: '🪵', desc: '普攻附加灼烧的概率提升20%', star2: '普攻附加灼烧的概率提升30%', star3: '灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害' },
+        { id: 'fire_ember',  name: '余烬风暴',   icon: '💨', desc: '灼烧目标死亡时有25%概率再次爆炸', star2: '灼烧目标死亡时有40%概率再次爆炸', star3: '余烬爆炸留下 1 枚余烬弹，1 秒后自动射向最近敌人' },
+        { id: 'fire_bounce', name: '火焰弹射',   icon: '🏓', desc: '普攻有25%概率额外发射一枚火球', star2: '普攻有40%概率额外发射一枚火球', star3: '弹射火球命中时 50% 概率返还 1 点能量' },
+        { id: 'fire_inferno', name: '炼狱',      icon: '⚱️', desc: '所有灼烧类伤害提升25%', star2: '所有灼烧类伤害提升40%', star3: '场上每存在 1 个灼烧敌人，全塔火伤 +2%（上限 +30%）' },
+        { id: 'fire_tongue', name: '火舌',       icon: '🔥', desc: '火焰墙长度延长50%', star2: '火焰墙长度延长80%', star3: '火墙命中塔攻击范围外的敌人时，伤害 ×1.5' },
+        { id: 'fire_hasten', name: '燃尽加速',   icon: '⏩', desc: '火雨每波间隔缩短0.2秒', star2: '火雨每波间隔缩短0.4秒', star3: '火雨波间隔缩短量翻倍（累计 -0.4 秒/级）' },
+        { id: 'fire_burnall', name: '焚天',      icon: '🌇', desc: '火柱、火焰墙、火雨的冷却时间缩短20%', star2: '火柱、火焰墙、火雨的冷却时间缩短30%', star3: '火柱/火墙/火雨施放后 3 秒内，全塔攻速 +25%' },
       ],
       ice: [
-        { id: 'ice_spike',    name: '霜刺',     icon: '🪡', desc: '冰缓的减速幅度提升10%' },
-        { id: 'ice_forever',  name: '永冻',     icon: '🧊', desc: '冰冻持续时间延长1秒' },
-        { id: 'ice_pierce',   name: '穿透凝冰', icon: '📌', desc: '冰锥穿透的敌人数量提升1名' },
-        { id: 'ice_blizzard', name: '暴雪',     icon: '🌨️', desc: '每次攻击射出的冰锥数量提升2枚' },
-        { id: 'ice_crystal',  name: '冰晶',     icon: '💎', desc: '冰花造成的伤害提升40%' },
-        { id: 'ice_domain',   name: '冬域',     icon: '🌌', desc: '冬珠的作用范围扩大30%' },
-        { id: 'ice_shard',    name: '碎冰强化', icon: '🧊', desc: '小碎冰造成的伤害提升50%' },
-        { id: 'ice_armor',    name: '冰甲',     icon: '🧥', desc: '冰盾抵御的伤害提升200点' },
-        { id: 'ice_marrow',   name: '寒髓',     icon: '💧', desc: '冰塔攻击间隔缩短15%' },
-        { id: 'ice_extreme',  name: '极寒',     icon: '🥶', desc: '普攻造成冰缓的概率提升15%' },
-        { id: 'ice_frostburst', name: '霜爆',   icon: '🌠', desc: '击杀冰冻敌人的爆炸范围扩大50%' },
-        { id: 'ice_fog',      name: '冰雾',     icon: '☁️', desc: '普攻有20%概率额外减速目标周围敌人' },
-        { id: 'ice_glacier',  name: '冰川',     icon: '🏔️', desc: '所有减速效果的幅度提升15%' },
-        { id: 'ice_wallshift', name: '冰墙裂变', icon: '🔄', desc: '冰盾生效期间城墙受到的伤害降低10%' },
-        { id: 'ice_avalanche', name: '雪崩',    icon: '⛰️', desc: '冰花改为轰炸2个敌人' },
-        { id: 'ice_condense', name: '凝霜',     icon: '⏳', desc: '冰锥造成的减速持续时间延长1秒' },
+        { id: 'ice_spike',    name: '霜刺',     icon: '🪡', desc: '冰缓的减速幅度提升10%', star2: '冰缓的减速幅度提升15%', star3: '冰缓的敌人被击杀时，减速光环扩散至周围 80码' },
+        { id: 'ice_forever',  name: '永冻',     icon: '🧊', desc: '冰冻持续时间延长1秒', star2: '冰冻持续时间延长1.5秒', star3: '被冰冻超过 1.5 秒的敌人防御 -20%（冻得越久越脆）' },
+        { id: 'ice_pierce',   name: '穿透凝冰', icon: '📌', desc: '冰锥穿透的敌人数量提升1名', star2: '冰锥穿透的敌人数量提升2名', star3: '冰锥穿透每名敌人后伤害 +8%（穿透越深越痛）' },
+        { id: 'ice_blizzard', name: '暴雪',     icon: '🌨️', desc: '每次攻击射出的冰锥数量提升2枚', star2: '每次攻击射出的冰锥数量提升3枚', star3: '三枚冰锥呈扇形散开时，边缘冰锥附带 0.5 秒冰缓' },
+        { id: 'ice_crystal',  name: '冰晶',     icon: '💎', desc: '冰花造成的伤害提升40%', star2: '冰花造成的伤害提升60%', star3: '冰花爆炸后残留冰晶地面 2 秒，敌人经过减速 20%' },
+        { id: 'ice_domain',   name: '冬域',     icon: '🌌', desc: '冬珠的作用范围扩大30%', star2: '冬珠的作用范围扩大45%', star3: '冬珠范围内被冻结的敌人，冻结时间 ×1.5' },
+        { id: 'ice_shard',    name: '碎冰强化', icon: '🧊', desc: '小碎冰造成的伤害提升50%', star2: '小碎冰造成的伤害提升80%', star3: '碎冰命中已有冰缓的敌人时伤害 ×1.5' },
+        { id: 'ice_armor',    name: '冰甲',     icon: '🧥', desc: '冰盾抵御的伤害提升200点', star2: '冰盾抵御的伤害提升400点', star3: '冰盾破碎时向周围释放冰环，冻结敌人 1 秒' },
+        { id: 'ice_marrow',   name: '寒髓',     icon: '💧', desc: '冰塔攻击间隔缩短15%', star2: '冰塔攻击间隔缩短24%', star3: '冰塔每冻结一个敌人，自身充能 +2 点能量' },
+        { id: 'ice_extreme',  name: '极寒',     icon: '🥶', desc: '普攻造成冰缓的概率提升15%', star2: '普攻造成冰缓的概率提升20%', star3: '冰缓概率触顶时多余判定转为 0.3 秒冻结' },
+        { id: 'ice_frostburst', name: '霜爆',   icon: '🌠', desc: '击杀冰冻敌人的爆炸范围扩大50%', star2: '击杀冰冻敌人的爆炸范围扩大80%', star3: '霜爆击杀敌人后爆炸连锁：再冻结周围 1 名敌人 1.5 秒' },
+        { id: 'ice_fog',      name: '冰雾',     icon: '☁️', desc: '普攻有20%概率额外减速目标周围敌人', star2: '普攻有30%概率额外减速目标周围敌人', star3: '冰雾残留 3 秒，域内敌人攻速 -20%' },
+        { id: 'ice_glacier',  name: '冰川',     icon: '🏔️', desc: '所有减速效果的幅度提升15%', star2: '所有减速效果的幅度提升20%', star3: '敌人身上的每个减速类 debuff 效果 +5%（多 debuff 协同）' },
+        { id: 'ice_wallshift', name: '冰墙裂变', icon: '🔄', desc: '冰盾生效期间城墙受到的伤害降低10%', star2: '冰盾生效期间城墙受到的伤害降低15%', star3: '冰盾期间反弹 15% 受到伤害给攻击者' },
+        { id: 'ice_avalanche', name: '雪崩',    icon: '⛰️', desc: '冰花改为轰炸2个敌人', star2: '冰花改为轰炸3个敌人，必中血量最高的敌人', star3: '冰花轰炸目标数 +1，且必中血量最高的敌人' },
+        { id: 'ice_condense', name: '凝霜',     icon: '⏳', desc: '冰锥造成的减速持续时间延长1秒', star2: '冰锥造成的减速持续时间延长1.5秒', star3: '冰缓持续时间延长 1 秒，且冰缓敌人受暴击率 +10%' },
       ],
       poison: [
-        { id: 'poison_gland',  name: '毒腺',     icon: '🧬', desc: '中毒每秒造成的伤害提升30%' },
-        { id: 'poison_source', name: '瘟疫之源', icon: '🦠', desc: '中毒目标死亡时传染的敌人数量提升2个' },
-        { id: 'poison_fen',    name: '腐沼',     icon: '🏞️', desc: '毒池范围扩大30%' },
-        { id: 'poison_branch', name: '毒枝',     icon: '🪵', desc: '毒棒的攻击力提升50%' },
-        { id: 'poison_essence', name: '剧毒精华', icon: '🧪', desc: '中毒叠加上限提升2层' },
-        { id: 'poison_quick',  name: '速疫',     icon: '💉', desc: '瘟疫传染概率提升30%' },
-        { id: 'poison_vine',   name: '缠毒',     icon: '🪢', desc: '毒藤缠绕持续时间延长1秒' },
-        { id: 'poison_miasma', name: '瘴毒',     icon: '🌫️', desc: '瘴气叠毒间隔缩短0.5秒' },
-        { id: 'poison_fang',   name: '毒牙',     icon: '🦷', desc: '普攻造成中毒的概率提升15%' },
-        { id: 'poison_slow',   name: '缓毒',     icon: '🐌', desc: '中毒造成的减速幅度提升10%' },
-        { id: 'poison_burst',  name: '毒爆连锁', icon: '🌀', desc: '中毒目标死亡时传染概率提升20%' },
-        { id: 'poison_corrode', name: '腐化',    icon: '🦴', desc: '中毒的敌人受到的伤害提升15%' },
-        { id: 'poison_nest',   name: '毒巢',     icon: '🕸️', desc: '每次召唤的毒棒数量提升1根' },
-        { id: 'poison_cloud',  name: '毒云',     icon: '🫧', desc: '毒池每秒额外叠加1层中毒' },
-        { id: 'poison_spread', name: '蔓延',     icon: '🌾', desc: '毒藤的扩散范围扩大50%' },
-        { id: 'poison_all',    name: '万毒',     icon: '🐍', desc: '所有中毒造成的伤害提升20%' },
+        { id: 'poison_gland',  name: '毒腺',     icon: '🧬', desc: '中毒每秒造成的伤害提升30%', star2: '中毒每秒造成的伤害提升45%', star3: '中毒伤害的 20% 转化为城墙修复' },
+        { id: 'poison_source', name: '瘟疫之源', icon: '🦠', desc: '中毒目标死亡时传染的敌人数量提升2个', star2: '中毒目标死亡时传染的敌人数量提升3个', star3: '传染时保留目标 50% 现有层数（无论是否触发继承）' },
+        { id: 'poison_fen',    name: '腐沼',     icon: '🏞️', desc: '毒池范围扩大30%', star2: '毒池范围扩大45%', star3: '毒池边缘生成毒雾环，进出敌人各叠 1 层毒' },
+        { id: 'poison_branch', name: '毒枝',     icon: '🪵', desc: '毒棒的攻击力提升50%', star2: '毒棒的攻击力提升80%', star3: '毒棒攻击附带 0.5 秒减速' },
+        { id: 'poison_essence', name: '剧毒精华', icon: '🧪', desc: '中毒叠加上限提升2层', star2: '中毒叠加上限提升3层', star3: '毒满层的敌人死亡时毒液溅射，90码 内叠 2 层' },
+        { id: 'poison_quick',  name: '速疫',     icon: '💉', desc: '瘟疫传染概率提升30%', star2: '瘟疫传染概率提升45%', star3: '瘟疫传染无人数上限（按范围判定）' },
+        { id: 'poison_vine',   name: '缠毒',     icon: '🪢', desc: '毒藤缠绕持续时间延长1秒', star2: '毒藤缠绕持续时间延长1.5秒', star3: '被缠敌人受到的毒伤 +25%' },
+        { id: 'poison_miasma', name: '瘴毒',     icon: '🌫️', desc: '瘴气叠毒间隔缩短0.5秒', star2: '瘴气叠毒间隔缩短0.8秒', star3: '瘴气每叠 4 层毒引发一次小毒爆（30% 攻击伤害）' },
+        { id: 'poison_fang',   name: '毒牙',     icon: '🦷', desc: '普攻造成中毒的概率提升15%', star2: '普攻造成中毒的概率提升20%', star3: '中毒概率触顶时多余判定转为 +1 层毒' },
+        { id: 'poison_slow',   name: '缓毒',     icon: '🐌', desc: '中毒造成的减速幅度提升10%', star2: '中毒造成的减速幅度提升15%', star3: '中毒减速与冰缓/麻痹叠加时，总减速上限 +15%' },
+        { id: 'poison_burst',  name: '毒爆连锁', icon: '🌀', desc: '中毒目标死亡时传染概率提升20%', star2: '中毒目标死亡时传染概率提升30%', star3: '传染链每跳一环，毒伤 +10%（链式增伤）' },
+        { id: 'poison_corrode', name: '腐化',    icon: '🦴', desc: '中毒的敌人受到的伤害提升15%', star2: '中毒的敌人受到的伤害提升20%', star3: '腐化对精英与 Boss 同样生效且翻倍（+30%）' },
+        { id: 'poison_nest',   name: '毒巢',     icon: '🕸️', desc: '每次召唤的毒棒数量提升1根', star2: '每次召唤的毒棒数量提升2根', star3: '毒棒消失时留下 2 秒小毒池（10%/秒）' },
+        { id: 'poison_cloud',  name: '毒云',     icon: '🫧', desc: '毒池每秒额外叠加1层中毒', star2: '毒池每秒额外叠加2层中毒', star3: '毒池上的敌人每秒丢失 1 点能量（对 Boss 无效）' },
+        { id: 'poison_spread', name: '蔓延',     icon: '🌾', desc: '毒藤的扩散范围扩大50%', star2: '毒藤的扩散范围扩大80%', star3: '蔓延路径也留毒痕，每秒 10% 伤害' },
+        { id: 'poison_all',    name: '万毒',     icon: '🐍', desc: '所有中毒造成的伤害提升20%', star2: '所有中毒造成的伤害提升30%', star3: '敌人身上的中毒层数转化为「毒易伤」：每层受伤 +1%' },
       ],
       electric: [
-        { id: 'elec_arc',     name: '电弧',     icon: '〰️', desc: '攻击连锁的敌人数量提升2个' },
-        { id: 'elec_strong',  name: '强麻',     icon: '😵', desc: '命中造成麻痹的概率提升15%' },
-        { id: 'elec_overload', name: '过载',    icon: '🪫', desc: '充能层数上限提升2层' },
-        { id: 'elec_chain',   name: '电链',     icon: '⛓️', desc: '极光电击分叉命中的敌人数量提升2个' },
-        { id: 'elec_storm',   name: '雷霆',     icon: '⛈️', desc: '雷暴电击的敌人数量提升2个' },
-        { id: 'elec_orb',     name: '电球',     icon: '🎾', desc: '扩散的电球数量提升2个' },
-        { id: 'elec_fast',    name: '快充',     icon: '🚀', desc: '每层充能提供的攻速提升5%' },
-        { id: 'elec_magnet',  name: '磁力',     icon: '🧲', desc: '电磁场触发概率提升15%' },
-        { id: 'elec_light',   name: '电光',     icon: '🌟', desc: '电塔攻击间隔缩短15%' },
-        { id: 'elec_conduit', name: '传导',     icon: '➿', desc: '连锁伤害衰减降低20%' },
-        { id: 'elec_spread',  name: '麻痹扩散', icon: '🫠', desc: '被麻痹敌人传导麻痹的概率提升15%' },
-        { id: 'elec_static',  name: '静电',     icon: '🪶', desc: '被麻痹敌人的减速幅度提升15%' },
-        { id: 'elec_domain',  name: '雷域',     icon: '🌐', desc: '雷暴间隔缩短1.5秒' },
-        { id: 'elec_super',   name: '超导',     icon: '🔗', desc: '所有连锁类效果的目标数量提升1个' },
-        { id: 'elec_boost',   name: '闪电链增强', icon: '🪝', desc: '连锁造成的伤害提升20%' },
-        { id: 'elec_surge',   name: '电涌',     icon: '💦', desc: '普攻有20%概率额外产生一次小电弧' },
+        { id: 'elec_arc',     name: '电弧',     icon: '〰️', desc: '攻击连锁的敌人数量提升2个', star2: '攻击连锁的敌人数量提升3个', star3: '连锁命中 3 人以上时，最后一跳伤害不衰减' },
+        { id: 'elec_strong',  name: '强麻',     icon: '😵', desc: '命中造成麻痹的概率提升15%', star2: '命中造成麻痹的概率提升20%', star3: '麻痹概率触顶时多余判定转为麻痹时长 +0.5 秒' },
+        { id: 'elec_overload', name: '过载',    icon: '🪫', desc: '充能层数上限提升2层', star2: '充能层数上限提升3层', star3: '满层过载时下一发普攻必为双倍伤害' },
+        { id: 'elec_chain',   name: '电链',     icon: '⛓️', desc: '极光电击分叉命中的敌人数量提升2个', star2: '极光电击分叉命中的敌人数量提升3个', star3: '极光电击的分叉电弧可再分叉一次（各 20% 伤害）' },
+        { id: 'elec_storm',   name: '雷霆',     icon: '⛈️', desc: '雷暴电击的敌人数量提升2个', star2: '雷暴电击的敌人数量提升3个', star3: '雷暴每击中一个满麻痹敌人，该击伤害 ×1.4' },
+        { id: 'elec_orb',     name: '电球',     icon: '🎾', desc: '扩散的电球数量提升2个', star2: '扩散的电球数量提升3个', star3: '电球游走路径留电痕 1 秒，触碰敌人受 10% 伤害' },
+        { id: 'elec_fast',    name: '快充',     icon: '🚀', desc: '每层充能提供的攻速提升5%', star2: '每层充能提供的攻速提升10%', star3: '充能满层时全塔攻速加成共享 50%' },
+        { id: 'elec_magnet',  name: '磁力',     icon: '🧲', desc: '电磁场触发概率提升15%', star2: '电磁场触发概率提升20%', star3: '电磁场内敌人被麻痹概率 +10%' },
+        { id: 'elec_light',   name: '电光',     icon: '🌟', desc: '电塔攻击间隔缩短15%', star2: '电塔攻击间隔缩短24%', star3: '攻速加成期间连锁数量 +1' },
+        { id: 'elec_conduit', name: '传导',     icon: '➿', desc: '连锁伤害衰减降低20%', star2: '连锁伤害衰减降低30%', star3: '连锁衰减降为 0 时，每跳额外 +5% 伤害' },
+        { id: 'elec_spread',  name: '麻痹扩散', icon: '🫠', desc: '被麻痹敌人传导麻痹的概率提升15%', star2: '被麻痹敌人传导麻痹的概率提升20%', star3: '麻痹传导链最多 3 跳（原 1 跳），每跳概率衰减 5%' },
+        { id: 'elec_static',  name: '静电',     icon: '🪶', desc: '被麻痹敌人的减速幅度提升15%', star2: '被麻痹敌人的减速幅度提升20%', star3: '被麻痹敌人死亡时释放静电，麻痹周围敌人 0.8 秒' },
+        { id: 'elec_domain',  name: '雷域',     icon: '🌐', desc: '雷暴间隔缩短1.5秒', star2: '雷暴间隔缩短2.4秒', star3: '雷暴优先命中血量最高的敌人' },
+        { id: 'elec_super',   name: '超导',     icon: '🔗', desc: '所有连锁类效果的目标数量提升1个', star2: '所有连锁类效果的目标数量提升2个', star3: '全部连锁类效果的伤害衰减归零，目标数 +1' },
+        { id: 'elec_boost',   name: '闪电链增强', icon: '🪝', desc: '连锁造成的伤害提升20%', star2: '连锁造成的伤害提升30%', star3: '连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）' },
+        { id: 'elec_surge',   name: '电涌',     icon: '💦', desc: '普攻有20%概率额外产生一次小电弧', star2: '普攻有30%概率额外产生一次小电弧', star3: '小电弧命中时 20% 概率填充 1 点能量' },
       ],
       boomerang: [
-        { id: 'boo_return',   name: '强返',     icon: '🌀', desc: '折返段造成的伤害提升40%' },
-        { id: 'boo_blood',    name: '血刃',     icon: '🩸', desc: '流血每秒造成的伤害提升40%' },
-        { id: 'boo_multi',    name: '镖群',     icon: '📍', desc: '每次投掷的飞镖数量提升2枚' },
-        { id: 'boo_catch',    name: '疾接',     icon: '🏃', desc: '接镖后下一镖造成的伤害提升15%' },
-        { id: 'boo_hunt',     name: '猎心',     icon: '🎯', desc: '被标记敌人受到的伤害提升12%' },
-        { id: 'boo_eye',      name: '风暴眼',   icon: '👁️', desc: '风暴镖每枚飞镖造成的伤害提升25%' },
-        { id: 'boo_bounce',   name: '弹力',     icon: '🏀', desc: '弹力镖反弹次数提升5次' },
-        { id: 'boo_trail',    name: '长痕',     icon: '🪁', desc: '风痕持续时间延长1秒' },
-        { id: 'boo_spin',     name: '回旋',     icon: '🛞', desc: '飞镖飞行速度提升20%' },
-        { id: 'boo_bleed',    name: '放血刃',   icon: '🪒', desc: '普攻造成流血的概率提升15%' },
-        { id: 'boo_mark',     name: '追猎',     icon: '🐾', desc: '标记叠加上限提升2层' },
-        { id: 'boo_cyclone',  name: '旋风',     icon: '🥏', desc: '风暴镖每圈飞镖数量提升1枚' },
-        { id: 'boo_blade',    name: '飞刃',     icon: '✂️', desc: '每次射出的弹力镖数量提升1枚' },
-        { id: 'boo_wind',     name: '风刃',     icon: '🍃', desc: '风痕每秒造成的伤害提升30%' },
-        { id: 'boo_tip',      name: '镖尖',     icon: '🔺', desc: '所有飞镖造成的伤害提升15%' },
-        { id: 'boo_speed',    name: '疾风回旋', icon: '💨', desc: '回旋镖攻击间隔缩短10%' },
+        { id: 'boo_return',   name: '强返',     icon: '🌀', desc: '折返段造成的伤害提升40%', star2: '折返段造成的伤害提升60%', star3: '折返镖命中同一目标第二次时伤害 ×1.5' },
+        { id: 'boo_blood',    name: '血刃',     icon: '🩸', desc: '流血每秒造成的伤害提升40%', star2: '流血每秒造成的伤害提升60%', star3: '流血敌人受到的暴击伤害 +20%' },
+        { id: 'boo_multi',    name: '镖群',     icon: '📍', desc: '每次投掷的飞镖数量提升2枚', star2: '每次投掷的飞镖数量提升3枚', star3: '多镖呈环状回收时命中路径上的所有敌人' },
+        { id: 'boo_catch',    name: '疾接',     icon: '🏃', desc: '接镖后下一镖造成的伤害提升15%', star2: '接镖后下一镖造成的伤害提升20%', star3: '接镖瞬间 0.3 秒无敌帧（对精英投射物有效）' },
+        { id: 'boo_hunt',     name: '猎心',     icon: '🎯', desc: '被标记敌人受到的伤害提升12%', star2: '被标记敌人受到的伤害提升15%', star3: '标记满层的敌人死亡时，标记转移到最近的敌人身上' },
+        { id: 'boo_eye',      name: '风暴眼',   icon: '👁️', desc: '风暴镖每枚飞镖造成的伤害提升25%', star2: '风暴镖每枚飞镖造成的伤害提升40%', star3: '风暴镖中心的敌人每秒受到 15% 额外伤害' },
+        { id: 'boo_bounce',   name: '弹力',     icon: '🏀', desc: '弹力镖反弹次数提升5次', star2: '弹力镖反弹次数提升6次', star3: '弹力镖每次反弹伤害 +5%（最多 +50%）' },
+        { id: 'boo_trail',    name: '长痕',     icon: '🪁', desc: '风痕持续时间延长1秒', star2: '风痕持续时间延长1.5秒', star3: '风痕上的敌人受到的流血伤害 +15%' },
+        { id: 'boo_spin',     name: '回旋',     icon: '🛞', desc: '飞镖飞行速度提升20%', star2: '飞镖飞行速度提升30%', star3: '飞镖速度提升使命中率提高：Miss 补偿为 +10% 伤害' },
+        { id: 'boo_bleed',    name: '放血刃',   icon: '🪒', desc: '普攻造成流血的概率提升15%', star2: '普攻造成流血的概率提升20%', star3: '流血概率触顶时多余判定转为流血时长 +1 秒' },
+        { id: 'boo_mark',     name: '追猎',     icon: '🐾', desc: '标记叠加上限提升2层', star2: '标记叠加上限提升3层', star3: '标记的敌人被其他塔击杀时，返还 1 点能量' },
+        { id: 'boo_cyclone',  name: '旋风',     icon: '🥏', desc: '风暴镖每圈飞镖数量提升1枚', star2: '风暴镖每圈飞镖数量提升2枚', star3: '风暴镖持续时间翻倍，结束原地爆炸（100% 伤害）' },
+        { id: 'boo_blade',    name: '飞刃',     icon: '✂️', desc: '每次射出的弹力镖数量提升1枚', star2: '每次射出的弹力镖数量提升2枚', star3: '弹力镖消失时 30% 概率分裂为 2 枚小镖' },
+        { id: 'boo_wind',     name: '风刃',     icon: '🍃', desc: '风痕每秒造成的伤害提升30%', star2: '风痕每秒造成的伤害提升45%', star3: '风痕叠加时伤害取最高值 +30%/层（上限 3 层）' },
+        { id: 'boo_tip',      name: '镖尖',     icon: '🔺', desc: '所有飞镖造成的伤害提升15%', star2: '所有飞镖造成的伤害提升20%', star3: '所有飞镖无视 20% 护甲（对高防怪与 Boss 质变）' },
+        { id: 'boo_speed',    name: '疾风回旋', icon: '💨', desc: '回旋镖攻击间隔缩短10%', star2: '回旋镖攻击间隔缩短15%', star3: '攻速加成期间接镖 15% 概率不耗能量' },
       ],
       cannon: [
-        { id: 'can_heavy',   name: '重爆',     icon: '🧨', desc: '重炮爆炸范围扩大30%' },
-        { id: 'can_quake',   name: '震地',     icon: '🗿', desc: '爆炸击退概率提升20%' },
-        { id: 'can_pierce',  name: '穿透',     icon: '➡️', desc: '炮弹爆炸后弹片贯穿的敌人数量提升2个' },
-        { id: 'can_double',  name: '双发',     icon: '🥁', desc: '双发齐射概率提升20%' },
-        { id: 'can_airstrike', name: '空袭',   icon: '✈️', desc: '每轮炮火支援发射的炮弹数量提升2发' },
-        { id: 'can_minefield', name: '雷场',   icon: '🚧', desc: '每次抛投的地雷数量提升2颗' },
-        { id: 'can_turret',  name: '炮群',     icon: '🗼', desc: '每次部署的炮台数量提升1门' },
-        { id: 'can_armory',  name: '弹药库',   icon: '🧰', desc: '弹药库上限提升100发' },
-        { id: 'can_powder',  name: '火药',     icon: '💣', desc: '炮塔造成的伤害提升20%' },
-        { id: 'can_rapid',   name: '速射',     icon: '⏱️', desc: '炮塔攻击间隔缩短12%' },
-        { id: 'can_knock',   name: '震烈',     icon: '🌪️', desc: '击退距离提升40%' },
-        { id: 'can_fireline', name: '火线',    icon: '➖', desc: '弹片贯穿造成的伤害提升30%' },
-        { id: 'can_incend',  name: '燃烧弹',   icon: '🕯️', desc: '炮弹落地时有30%概率点燃敌人' },
-        { id: 'can_reinforce', name: '增援',   icon: '🚁', desc: '炮台持续时间延长2秒' },
-        { id: 'can_mine',    name: '地雷强化', icon: '🎆', desc: '地雷造成的伤害提升50%' },
-        { id: 'can_war',     name: '军火之王', icon: '👑', desc: '所有爆炸造成的伤害提升20%' },
+        { id: 'can_heavy',   name: '重爆',     icon: '🧨', desc: '重炮爆炸范围扩大30%', star2: '重炮爆炸范围扩大45%', star3: '重炮爆炸中心 40码 内伤害 ×1.5（近距离惩罚强化）' },
+        { id: 'can_quake',   name: '震地',     icon: '🗿', desc: '爆炸击退概率提升20%', star2: '爆炸击退概率提升30%', star3: '击退的敌人撞墙时受到 20% 伤害' },
+        { id: 'can_pierce',  name: '穿透',     icon: '➡️', desc: '炮弹爆炸后弹片贯穿的敌人数量提升2个', star2: '炮弹爆炸后弹片贯穿的敌人数量提升3个', star3: '贯穿弹片命中同一方向 3 名以上敌人时伤害 ×1.3' },
+        { id: 'can_double',  name: '双发',     icon: '🥁', desc: '双发齐射概率提升20%', star2: '双发齐射概率提升30%', star3: '双发的第二发必定命中血量最低的敌人' },
+        { id: 'can_airstrike', name: '空袭',   icon: '✈️', desc: '每轮炮火支援发射的炮弹数量提升2发', star2: '每轮炮火支援发射的炮弹数量提升3发', star3: '炮火支援落点 20% 概率二次轰炸（40% 伤害）' },
+        { id: 'can_minefield', name: '雷场',   icon: '🚧', desc: '每次抛投的地雷数量提升2颗', star2: '每次抛投的地雷数量提升3颗', star3: '地雷被触发时向四周溅射 3 片弹片（各 20%）' },
+        { id: 'can_turret',  name: '炮群',     icon: '🗼', desc: '每次部署的炮台数量提升1门', star2: '每次部署的炮台数量提升2门', star3: '多门炮台同时存在时，每门伤害 +10%/门' },
+        { id: 'can_armory',  name: '弹药库',   icon: '🧰', desc: '能量库上限提升100点', star2: '能量库上限提升200点', star3: '能量溢出时转化为 5% 暴击率（上限 +25%）' },
+        { id: 'can_powder',  name: '火药',     icon: '💣', desc: '炮塔造成的伤害提升20%', star2: '炮塔造成的伤害提升30%', star3: '炮塔伤害对被击退状态的敌人 +25%' },
+        { id: 'can_rapid',   name: '速射',     icon: '⏱️', desc: '炮塔攻击间隔缩短12%', star2: '炮塔攻击间隔缩短15%', star3: '速射期间每 10 次攻击免费 1 发（不耗能量）' },
+        { id: 'can_knock',   name: '震烈',     icon: '🌪️', desc: '击退距离提升40%', star2: '击退距离提升60%', star3: '击退打断敌人攻击动作（对远程怪质变）' },
+        { id: 'can_fireline', name: '火线',    icon: '➖', desc: '弹片贯穿造成的伤害提升30%', star2: '弹片贯穿造成的伤害提升45%', star3: '贯穿路径留下火线 1.5 秒，每秒 15% 伤害' },
+        { id: 'can_incend',  name: '燃烧弹',   icon: '🕯️', desc: '炮弹落地时有30%概率点燃敌人', star2: '炮弹落地时有45%概率点燃敌人', star3: '点燃的敌人受到的爆炸伤害 +30%' },
+        { id: 'can_reinforce', name: '增援',   icon: '🚁', desc: '炮台持续时间延长2秒', star2: '炮台持续时间延长3秒', star3: '炮台消失时返还 2 点能量' },
+        { id: 'can_mine',    name: '地雷强化', icon: '🎆', desc: '地雷造成的伤害提升50%', star2: '地雷造成的伤害提升80%', star3: '地雷对精英与 Boss 伤害 +30%' },
+        { id: 'can_war',     name: '军火之王', icon: '👑', desc: '所有爆炸造成的伤害提升20%', star2: '所有爆炸造成的伤害提升30%', star3: '每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）' },
       ],
     },
     common: [
-      { id: 'cm_triple',    name: '三消之力', icon: '🧩', desc: '每次三消获得的经验提升30%' },
-      { id: 'cm_vault',     name: '金库',     icon: '🏦', desc: '每波结束获得的金币提升30%' },
-      { id: 'cm_wall',      name: '城墙加固', icon: '🏯', desc: '城墙血量提升20%' },
-      { id: 'cm_ammobox',   name: '弹药箱',   icon: '🎒', desc: '每次三消充能的弹药数量提升5发' },
-      { id: 'cm_charge',    name: '全局充能', icon: '⚙️', desc: '每次三消为全局技能充能的数量提升40%' },
-      { id: 'cm_speed',     name: '攻速戒指', icon: '💍', desc: '所有塔的攻击间隔缩短10%' },
-      { id: 'cm_power',     name: '力量符',   icon: '💪', desc: '所有塔造成的伤害提升15%' },
-      { id: 'cm_exp',       name: '经验之心', icon: '❤️', desc: '击杀怪物获得的经验提升30%' },
-      { id: 'cm_guard',     name: '减伤护符', icon: '🛡️', desc: '城墙受到的伤害降低10%' },
-      { id: 'cm_regen',     name: '生命回复', icon: '💊', desc: '每波结束城墙回复5%生命' },
-      { id: 'cm_combo',     name: '连锁反应', icon: '🎰', desc: '三消触发4连的概率提升10%' },
-      { id: 'cm_stasis',    name: '时间停滞', icon: '🕰️', desc: '怪物移动速度降低10%' },
-      { id: 'cm_freeze',    name: '冻结时刻', icon: '⏸️', desc: '每波首个敌人被冰冻3秒' },
-      { id: 'cm_bounty',    name: '赏金猎人', icon: '🪙', desc: '精英与Boss宝箱掉落概率提升50%' },
-      { id: 'cm_tome',      name: '智慧典籍', icon: '📖', desc: '升级所需经验降低10%' },
-      { id: 'cm_shuffle',   name: '战术转移', icon: '♻️', desc: '每波获得1次免费洗牌' },
+      { id: 'cm_triple',    name: '三消之力', icon: '🧩', desc: '每次三消获得的经验提升30%', star2: '每次三消获得的经验提升45%', star3: '经验加成期间，连锁 ×2 以上时经验再 +50%' },
+      { id: 'cm_vault',     name: '金库',     icon: '🏦', desc: '每波结束获得的金币提升30%', star2: '每波结束获得的金币提升45%', star3: '撤离时银币收益额外 +20%' },
+      { id: 'cm_wall',      name: '城墙加固', icon: '🏯', desc: '城墙血量提升20%', star2: '城墙血量提升30%', star3: '城墙血量低于 30% 时受疗效果 ×1.5' },
+      { id: 'cm_ammobox',   name: '弹药箱',   icon: '🎒', desc: '每次三消充能的能量数量提升5点', star2: '每次三消充能的能量数量提升10点', star3: '三消充能溢出时 50% 概率存入备用能量库（上限 20 点）' },
+      { id: 'cm_charge',    name: '全局充能', icon: '⚙️', desc: '每次三消为全局技能充能的数量提升40%', star2: '每次三消为全局技能充能的数量提升60%', star3: '全局技能充能满时，溢出部分转为 10% 技能伤害加成' },
+      { id: 'cm_speed',     name: '攻速戒指', icon: '💍', desc: '所有塔的攻击间隔缩短10%', star2: '所有塔的攻击间隔缩短15%', star3: '攻速加成对全局技能冷却同样生效 -10%' },
+      { id: 'cm_power',     name: '力量符',   icon: '💪', desc: '所有塔造成的伤害提升15%', star2: '所有塔造成的伤害提升20%', star3: '战斗中每达成一次 4 连消，全塔伤害永久 +0.5%（本局，上限 +15%）' },
+      { id: 'cm_exp',       name: '经验之心', icon: '❤️', desc: '击杀怪物获得的经验提升30%', star2: '击杀怪物获得的经验提升45%', star3: '升级时 20% 概率返还本级经验的 50%' },
+      { id: 'cm_guard',     name: '减伤护符', icon: '🛡️', desc: '城墙受到的伤害降低10%', star2: '城墙受到的伤害降低15%', star3: '受到单次超过城墙最大血量 10% 的伤害时，超出部分减免 50%' },
+      { id: 'cm_regen',     name: '生命回复', icon: '💊', desc: '每波结束城墙回复5%生命', star2: '每波结束城墙回复10%生命', star3: '回复溢出时转化为护盾（上限 10% 最大血量）' },
+      { id: 'cm_combo',     name: '连锁反应', icon: '🎰', desc: '三消触发4连的概率提升10%', star2: '三消触发4连的概率提升15%', star3: '连锁 ≥3 时掉落 1 枚随机色特殊方块' },
+      { id: 'cm_stasis',    name: '时间停滞', icon: '🕰️', desc: '怪物移动速度降低10%', star2: '怪物移动速度降低15%', star3: '减速效果对 Boss 生效 50%（原为无效/减半，按现网）' },
+      { id: 'cm_freeze',    name: '冻结时刻', icon: '⏸️', desc: '每波首个敌人被冰冻3秒', star2: '每波首个敌人被冰冻6秒', star3: '冻结的敌人受到的伤害 +15%' },
+      { id: 'cm_bounty',    name: '赏金猎人', icon: '🪙', desc: '精英与Boss宝箱掉落概率提升50%', star2: '精英与Boss宝箱掉落概率提升80%', star3: '连续 3 波不掉宝箱时，第 4 波必掉' },
+      { id: 'cm_tome',      name: '智慧典籍', icon: '📖', desc: '升级所需经验降低10%', star2: '升级所需经验降低15%', star3: '经验降低触底后，多余判定转为升级时全塔 3 秒攻速 +20%' },
+      { id: 'cm_shuffle',   name: '战术转移', icon: '♻️', desc: '每波获得1次免费洗牌', star2: '每波获得2次免费洗牌', star3: '免费洗牌 +1 次，且洗牌后 2 秒内消除伤害 ×1.3' },
     ],
   },
 

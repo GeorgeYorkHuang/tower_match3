@@ -108,13 +108,13 @@ class SaveManager {
     return this.game.meta;
   }
 
-  /** 把 Meta 应用进当前对局（金币镜像 + 塔位解锁顺序）；saveData 为 null 时用已建的 game.meta */
+  /** 把 Meta 应用进当前对局（塔位解锁顺序）；saveData 为 null 时用已建的 game.meta */
   apply(saveData) {
     const meta = this.game.meta || Meta.fromJSON(saveData);
     if (!meta) return;
     this.game.meta = meta;
     const run = this.game.run;
-    run.gold = meta.gold; // 金币镜像
+    // v1.16.77 局内金币不再镜像局外银币：局内金币由本局波末+击杀自持，战斗结束统一结算成银币
     // v1.6：塔位解锁不再跨局保留——每局从 0 塔开始，由最先消除的 4 种颜色决定出战塔
     // （先消先得写入 run.slotOrder，不持久化）
   }

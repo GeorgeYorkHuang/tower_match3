@@ -57,19 +57,32 @@ class Run {
     this.pendingPeak = 0;
     this.picks = 0;
     this.firstSynergyWave = null;
-    this.shuffleAmmo = 0; this.refillAmmo = 0;  // v1.12.4 全局技能累计弹药（每 chargePerUse 发 → 可释放 1 次）
+    this.shuffleAmmo = 0; this.refillAmmo = 0;  // v1.12.4 全局技能累计充能（每 chargePerUse 点 → 可释放 1 次）
+    this.freeShuffle = 0;   // v1.16.78 战术转移：每波免费洗牌次数（优先于充能消耗）
     this._globalMap = null;            // 剩余 2 色的全局技能归属（4 塔确定后初始化）
+    this.store = { atk: 0, spd: 0 };   // v1.16.77 局内商店临时强化层数（本局生效，局末清零）
+    this.fieldCfg = null;              // v1.16.78 战场被动配置（由主流程注入：风场/诅咒触发器）
+    this.windStacks = 0;               // v1.16.78 霜风峡谷：风场增速层数（每 windEvery 波 +1，移速 ×1.10^n）
+    this.curseStacks = 0;              // v1.16.78 深渊裂隙：诅咒层数（每 curseEvery 波 +1，怪物血量 ×1.15^n）
     this._colors = Object.keys(CONFIG.COLOR_WEIGHT);
     this._weights = this._weightsFor();
     this._directSeq = ['red', 'green'];
     this._directDone = 0;
     this.slotOrder = [];      // 先消先得：塔获得顺序（前 TOWER_SLOTS 个占槽）
     this.runRelic = {};       // v1.16.60 局内圣遗物（rougelike）本局生效计数 { id: count }
+    this.metaRef = null;      // v1.16.78 星级查询引用（main 注入 meta；模拟层缺省按 1★）
   }
 
   /** 局内圣遗物拥有数（未获得返回 0） */
   relicRun(id) {
     return this.runRelic[id] || 0;
+  }
+
+  /** v1.16.78 圣遗物当前星级数值（1★=desc 最后数字，2★=star2 最后数字）；未获得返回 0；模拟层无 metaRef 按 1★ */
+  relicNum(id) {
+    if (this.relicRun(id) <= 0) return 0;
+    const star = (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
+    return CONFIG.relicNum(id, star);
   }
 
   _weightsFor() {
@@ -92,16 +105,17 @@ class Run {
 
   /* ---------- 波内：消除结算 ---------- */
 
-  /** 整体经验：升级需求 = base × growth^expLevel（L0 起：30 / 42 / 58.8 ...）；v1.16.60 智慧典籍 -10% */
+  /** 整体经验：升级需求 = base × growth^expLevel（L0 起：30 / 42 / 58.8 ...）；v1.16.60 智慧典籍 -10%（v1.16.78 按星级） */
   expNeed() {
     let need = CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.expLevel);
-    if (this.relicRun('cm_tome') > 0) need *= 0.9;
+    const n = this.relicNum('cm_tome');
+    if (n > 0) need *= (1 - n / 100);
     return need;
   }
 
-  /** v1.16.60 三消之力：每次三消获得的经验 +30%（适用各消除路径） */
+  /** v1.16.60 三消之力：每次三消获得的经验 +N%（v1.16.78 按星级数值） */
   _relicExp(v) {
-    return Math.round(v * (1 + 0.3 * this.relicRun('cm_triple')));
+    return Math.round(v * (1 + this.relicNum('cm_triple') / 100));
   }
 
   /**
@@ -125,16 +139,19 @@ class Run {
 
   /**
    * 结算一次消除（形状：'3' 三连 / '4' 直4 / 'L5' L形5 / '5' 直5 / '6+'）。
-   * v1.12 三消奖励重做：
-   *   - 塔色（已获得塔）：弹药按形状供给（3消+3/4消+6/5消+10/6+(x块)10+3(x-5)）+ 整体经验；弹药满 → 溢出均分充能两个全局技能
-   *   - 未获得且塔位未满：得塔（初始弹药 startAmmo；6 色均可成塔）
-   *   - 塔位满后剩余 2 色（未选中）：动态分配两个全局技能充能色 → 按弹药口径充能（ammoShape 公式）+ 半量经验
-   * 全局技能充能（v1.12.4）：累计补充弹药（剩余色消除 + 塔色溢出），每 30 发 → 可释放 1 次，上限 3 次（90 发）。
+   * v1.16.77 三消奖励（能量口径）：
+   *   - 塔色（已获得塔）：能量按形状供给（3消+6/4消+12/5消+20/6+(x块)20+6(x-5)）+ 整体经验；能量满 → 溢出均分充能两个全局技能
+   *   - 未获得且塔位未满：得塔（初始能量 startEnergy；6 色均可成塔）
+   *   - 塔位满后剩余 2 色（未选中）：动态分配两个全局技能充能色 → 按能量口径充能（energyShape 公式）+ 半量经验
+   * 全局技能充能（v1.12.4）：累计补充充能（剩余色消除 + 塔色溢出），每 30 点 → 可释放 1 次，上限 3 次（90 点）。
    * @returns {tower, gotTower, penalized, exp, shape, ammoGain, shuffleGain, refillGain}
    */
   applyMatch(color, shape, size) {
     const exp = expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
+    // v1.16.78 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
+    const comboN = this.relicNum('cm_combo');
+    if (comboN > 0 && size <= 3 && this.rng() < comboN / 100) { shape = '4'; size = 4; }
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
     let ammoGain = 0, shuffleGain = 0, refillGain = 0;
@@ -146,28 +163,28 @@ class Run {
       if (owned < CONFIG.TOWER_SLOTS) {
         t.unlock(); gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
-        // v1.16.37 激活塔弹药 = 15 + 本次消除形状弹药（4消/5消初次激活即有收益；上限弹药库上限）
-        // v1.16.60 弹药箱：每次三消充能弹药 +5
-        const gain = 15 + this._ammoGain(shape, size) + 5 * this.relicRun('cm_ammobox');
-        t.ammo = Math.min(gain, this.armoryAmmoMax());
-        ammoGain = t.ammo;
+        // v1.16.37 激活塔能量 = 15 + 本次消除形状供能（4消/5消初次激活即有收益；上限能量上限）
+        // v1.16.60 弹药箱：每次三消充能能量 +N（v1.16.78 按 desc 星级数值）
+        const gain = 15 + this._energyGain(shape, size) + this.relicNum('cm_ammobox');
+        t.energy = Math.min(gain, this.armoryEnergyMax());
+        ammoGain = t.energy;
       } else {
-        // 塔位满：该色未被选中 → 对应全局技能按弹药充能（剩余 2 色动态分配）+ 半量经验
-        // v1.16.60 全局充能 +40%、弹药箱 +5
+        // 塔位满：该色未被选中 → 对应全局技能按能量口径充能（剩余 2 色动态分配）+ 半量经验
+        // v1.16.60 全局充能 +N%、弹药箱 +N（v1.16.78 按星级数值）
         const skill = this._globalSkillOf(color);
-        const ammo = Math.round(this._ammoGain(shape, size) * (1 + 0.4 * this.relicRun('cm_charge')) + 5 * this.relicRun('cm_ammobox'));
+        const ammo = Math.round(this._energyGain(shape, size) * (1 + this.relicNum('cm_charge') / 100) + this.relicNum('cm_ammobox'));
         if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
         else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
         this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
       }
     } else {
-      // 塔色：弹药按形状供给 + 整体经验；弹药满 → 溢出均分充能两个全局技能（弹药口径）
-      // v1.16.60 弹药箱：三消充能弹药 +5
-      const gain = this._ammoGain(shape, size) + 5 * this.relicRun('cm_ammobox');
-      const before = t.ammo;
-      t.ammo = Math.min(before + gain, this.armoryAmmoMax());
-      ammoGain = t.ammo - before;
-      const over = Math.max(0, before + gain - this.armoryAmmoMax());
+      // 塔色：能量按形状供给 + 整体经验；能量满 → 溢出均分充能两个全局技能（能量口径）
+      // v1.16.60 弹药箱：三消充能能量 +N（v1.16.78 按星级数值）
+      const gain = this._energyGain(shape, size) + this.relicNum('cm_ammobox');
+      const before = t.energy;
+      t.energy = Math.min(before + gain, this.armoryEnergyMax());
+      ammoGain = t.energy - before;
+      const over = Math.max(0, before + gain - this.armoryEnergyMax());
       if (over > 0) {
         const half = Math.floor(over / 2);
         shuffleGain = this._chargeAmmo('shuffle', half);
@@ -211,22 +228,22 @@ class Run {
     return arm ? { lv: arm.level, a: arm.branches ? arm.branches.A || 0 : 0, b: arm.branches ? arm.branches.B || 0 : 0 } : null;
   }
 
-  /** 塔弹药上限（军火库 +50） */
-  armoryAmmoMax() {
+  /** 塔能量上限（军火库 +50；v1.16.76 战场扭曲：熔岩矿场 ×0.7） */
+  armoryEnergyMax() {
     const a = this.armory();
-    return CONFIG.GLOBAL_SKILL.ammoMax + (a && a.lv > 0 ? 50 : 0);
+    return Math.round((CONFIG.GLOBAL_SKILL.energyMax + (a && a.lv > 0 ? 50 : 0)) * (this.fieldAmmoMult || 1));
   }
 
-  /** 塔色消除弹药供给（v1.13.1 ×3）：3消 +9 / 4消 +18 / 5消（L5/直5）+30 / 5消以上(x块) 30+9(x-5)；军火库 A +25%/级 */
-  _ammoGain(shape, size) {
-    const fixed = CONFIG.GLOBAL_SKILL.ammoShape[shape];
-    let base = fixed !== undefined ? fixed : 30 + 9 * (size - 5);   // '6+'（x 块，x≥6）
+  /** 塔色消除供能（v1.16.77 能量口径）：3消 +6 / 4消 +12 / 5消（L5/直5）+20 / 5消以上(x块) 20+6(x-5)；军火库 A +25%/级 */
+  _energyGain(shape, size) {
+    const fixed = CONFIG.GLOBAL_SKILL.energyShape[shape];
+    let base = fixed !== undefined ? fixed : 20 + 6 * (size - 5);   // '6+'（x 块，x≥6）
     const a = this.armory();
     if (a && a.lv > 0) base = Math.round(base * (1 + 0.25 * a.a));
     return base;
   }
 
-  /** 全局技能累计弹药充能（封顶 energyMax=90；返回实际入账发数；军火库 B 充能速度 +25%/级） */
+  /** 全局技能累计充能（封顶 energyMaxGS=90；返回实际入账点；军火库 B 充能速度 +25%/级） */
   _chargeAmmo(which, ammo) {
     if (!ammo || ammo <= 0) return 0;
     const GS = CONFIG.GLOBAL_SKILL;
@@ -234,16 +251,38 @@ class Run {
     const a = this.armory();
     if (a && a.lv > 0) ammo = Math.round(ammo * (1 + 0.25 * a.b));
     const before = this[key] || 0;
-    this[key] = Math.min(before + ammo, GS.energyMax);
+    this[key] = Math.min(before + ammo, GS.energyMaxGS);
     return this[key] - before;
   }
 
-  /** 消耗全局技能累计弹药（释放 1 次 = chargePerUse 发；不足返回 false） */
+  /** 消耗全局技能累计充能（释放 1 次 = chargePerUse 点；不足返回 false）；v1.16.78 免费洗牌优先 */
   spendAmmo(which) {
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
+    if (which === 'shuffle' && this.freeShuffle > 0) {
+      this.freeShuffle -= 1;
+      return true;
+    }
     if ((this[key] || 0) < GS.chargePerUse) return false;
     this[key] -= GS.chargePerUse;
+    return true;
+  }
+
+  /** v1.16.77 局内商店强化查询：攻击层数 / 攻速层数（战斗时直接乘以 1+0.2×atk、1/(1+0.15×spd) 档） */
+  storeBuff() {
+    return { atk: this.store.atk || 0, spd: this.store.spd || 0 };
+  }
+
+  /** v1.16.77 局内商店购买：扣局内金币并施加临时强化（失败返回 false） */
+  buyStoreItem(id) {
+    const item = (CONFIG.STORE.items || []).find((s) => s.id === id);
+    if (!item) return false;
+    const bought = this.store[id] || 0;
+    if (bought >= item.max) return false;
+    const cost = item.cost[bought];
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    this.store[id] = bought + 1;
     return true;
   }
 
@@ -287,6 +326,14 @@ class Run {
   /** 进入下一波（模拟/UI 统一入口） */
   startWave() {
     this.wave += 1;
+    // v1.16.78 战场被动触发：霜风每 windEvery 波风场增速 +1 层；深渊每 curseEvery 波诅咒 +1 层
+    const f = this.fieldCfg;
+    if (f) {
+      if (f.windEvery && this.wave % f.windEvery === 0) this.windStacks = (this.windStacks || 0) + 1;
+      if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
+    }
+    // v1.16.78 战术转移：每波免费洗牌 +N 次（按星级）
+    this.freeShuffle += this.relicNum('cm_shuffle');
     this._waveGold = CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
     return this.wave;
   }
@@ -298,17 +345,26 @@ class Run {
    * @returns {broken, leak, enemyHp, totalDps, waveGold, firstSynergyWave}
    */
   endWave(skipLeak) {
-    this.gold += this._waveGold;
-    // 战斗：敌人血量 vs 全塔 DPS（含协同）
-    const enemyHp = CONFIG.ENEMY.hpBase * Math.pow(CONFIG.ENEMY.hpGrowth, this.wave - 1);
+    // v1.16.78 金库：每波结束金币 +N%（按星级）
+    this.gold += Math.round(this._waveGold * (1 + this.relicNum('cm_vault') / 100));
+    // v1.16.78 生命回复：每波结束城墙回复 N% 生命
+    const regen = this.relicNum('cm_regen');
+    if (regen > 0) {
+      const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
+      this.lineHp = Math.min(maxHp, this.lineHp + maxHp * regen / 100);
+    }
+    // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
+    const curseMul = Math.pow(1.15, this.curseStacks || 0);
+    const windMul = Math.pow(1.10, this.windStacks || 0);
+    const enemyHp = CONFIG.ENEMY.hpBase * Math.pow(CONFIG.ENEMY.hpGrowth, this.wave - 1) * curseMul;
     const totalDps = this.effects.totalDps();
-    const dealt = totalDps * CONFIG.WAVE.seconds;
+    const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);
     if (!skipLeak) this.lineHp -= leak;
     // 协同检测（与模拟一致）
     this.effects.updateSynergies();
     if (this.firstSynergyWave === null && this.effects.synergyDone[0]) this.firstSynergyWave = this.wave;
-    this.broken = this.lineHp <= 0 || this.wave >= 50;
+    this.broken = this.lineHp <= 0 || this.wave >= CONFIG.WAVE.maxWave;
     return { broken: this.broken, leak, enemyHp, totalDps, waveGold: this._waveGold, firstSynergyWave: this.firstSynergyWave };
   }
 

@@ -36,11 +36,110 @@ class Meta {
     this.towerUnlocks = [];
     this.runCodex = {};            // v1.16.60 局内圣遗物图鉴解锁 { id: 1 }（获得过才显示）
     this.towerCodex = { fire: 1, ice: 1, poison: 1, electric: 1 }; // v1.16.75 塔图鉴已学习塔（基础四塔默认解锁）
+    /* ---------- v1.16.76 激励系统 ---------- */
+    this.relicStars = {};          // 圣遗物星级 { id: 1|2|3 }（获得即 1★）
+    this.shards = {};              // 圣遗物碎片 { id: count }
+    this.starStones = 0;           // 星辉石（3★ 金级门槛）
+    this.deepChests = [];          // 深度宝箱槽位 [{ tier, gotAt, openAt }]（≤4）
+    this.milestones = {};          // 里程碑首达 { wave: 1 }
+    this.bestWave = 0;             // 历史最深波次
+    this.dailyFirst = null;        // 每日首战加成 { date, counts: { field: n } }
+    this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
   }
 
   /* ---------- 塔图鉴（v1.16.75） ---------- */
   towerLearned(key) { return !!this.towerCodex[key]; }
   learnTower(key) { this.towerCodex[key] = 1; }
+
+  /* ---------- 圣遗物星级 / 碎片（v1.16.76） ---------- */
+  starOf(id) { return this.relicStars[id] || (this.runCodex[id] ? 1 : 0); }   // 0=未解锁
+  /** v1.16.78 碎片达稀有度阈值（蓝2/紫4/金8）→ 直接解锁图鉴（无需局内三选一碰到） */
+  addShard(id, n) {
+    this.shards[id] = (this.shards[id] || 0) + n;
+    const need = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(id)];
+    if (need && !this.runCodex[id] && this.shards[id] >= need) this.runCodex[id] = 1;
+  }
+  /** 升星：成功返回 null，失败返回错误文案 */
+  upStar(id) {
+    const cur = this.starOf(id);
+    if (!cur) return '未解锁该圣遗物';
+    if (cur >= 3) return '已达 3★';
+    const next = cur + 1;
+    const c = CONFIG.STAR_UP.cost[next];
+    if (this.gold < c.gold) return '金币不足';
+    if ((this.shards[id] || 0) < c.shards) return `碎片不足（${this.shards[id] || 0}/${c.shards}）`;
+    if (next === 3 && CONFIG.STAR_UP.goldStarExtraStone && CONFIG.relicRarity(id) === 'ssr' && this.starStones < (c.stone || 0)) return '星辉石不足';
+    this.gold -= c.gold;
+    this.shards[id] -= c.shards;
+    if (next === 3 && c.stone) this.starStones -= c.stone;
+    this.relicStars[id] = next;
+    return null;
+  }
+  /** 里程碑首达：返回本次新达成的波次数组 */
+  checkMilestone(wave) {
+    const got = CONFIG.MILESTONES.filter((m) => wave >= m && !this.milestones[m]);
+    got.forEach((m) => { this.milestones[m] = 1; });
+    if (wave > this.bestWave) this.bestWave = wave;
+    return got;
+  }
+  /* ---------- 深度宝箱（v1.16.76） ---------- */
+  tierByWave(wave) {
+    const t = CONFIG.DEPTH_CHEST.tiers;
+    for (const tier of t) if (wave <= tier.max) return tier;
+    return t[t.length - 1];
+  }
+  grantDeepChest(tierDef) {
+    if (this.deepChests.length >= CONFIG.DEPTH_CHEST.slots) return false;   // 槽满（设计：碎片金币走即时掉落线兜底）
+    this.deepChests.push({ tier: tierDef.key, gotAt: Date.now(), openAt: Date.now() + tierDef.openSec * 1000 });
+    return true;
+  }
+  chestReady(ch) { return Date.now() >= ch.openAt; }
+  /** 开启深度宝箱：返回收益摘要或 null（未就绪） */
+  openDeepChest(idx) {
+    const ch = this.deepChests[idx];
+    if (!ch || !this.chestReady(ch)) return null;
+    const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
+    this.deepChests.splice(idx, 1);
+    const rnd = (a) => a[0] + Math.floor(Math.random() * (a[1] - a[0] + 1));
+    const gain = {
+      gold: rnd(tier.gold),
+      shards: rnd(tier.shards),
+      diamond: tier.diamond || (tier.diamondChance && Math.random() < tier.diamondChance ? 1 : 0),
+      stone: tier.stone || (tier.stoneChance && Math.random() < tier.stoneChance ? 1 : 0),
+      card: null,
+    };
+    // 圣遗物卡：按 cardChance 出卡，黄金档 25% 升金卡
+    if (Math.random() < tier.cardChance) {
+      let rar = tier.cardRarity;
+      if (tier.goldCardChance && Math.random() < tier.goldCardChance) rar = 'ssr';
+      gain.card = CONFIG.randomShardCardId(rar);
+      if (gain.card) this.addShard(gain.card, 5);   // 卡=直接注入 5 碎片（简化：卡即碎片包）
+    }
+    this.gold += gain.gold;
+    if (gain.diamond) this.diamond += gain.diamond;
+    if (gain.stone) this.starStones += gain.stone;
+    return gain;
+  }
+  /** 钻石速开：成功返回 true */
+  speedOpen(idx) {
+    const ch = this.deepChests[idx];
+    if (!ch) return false;
+    const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
+    const remainMin = Math.max(0, Math.ceil((ch.openAt - Date.now()) / 60000));
+    const cost = Math.max(1, Math.ceil(remainMin / 60 * 4));   // ≈4💎/小时
+    if (this.diamond < cost) return false;
+    this.diamond -= cost; this.totalDiamondSpent += cost;
+    ch.openAt = Date.now();
+    return true;
+  }
+  /* ---------- 每日首战加成（v1.16.76） ---------- */
+  dailyFirstBonus(field, now) {
+    const d = todayStr(now);
+    if (!this.dailyFirst || this.dailyFirst.date !== d) this.dailyFirst = { date: d, counts: {} };
+    const n = this.dailyFirst.counts[field] || 0;
+    this.dailyFirst.counts[field] = n + 1;
+    return n < 2 ? 1.5 : 0.5;   // 前 2 局 ×1.5，之后 ×0.5
+  }
 
   /* ---------- 局内圣遗物图鉴 ---------- */
   codexOwned(id) { return (this.runCodex[id] || 0) > 0; }
@@ -154,6 +253,15 @@ class Meta {
       towerUnlocks: this.towerUnlocks,
       runCodex: this.runCodex,
       towerCodex: this.towerCodex,
+      /* v1.16.76 激励系统 */
+      relicStars: this.relicStars,
+      shards: this.shards,
+      starStones: this.starStones,
+      deepChests: this.deepChests,
+      milestones: this.milestones,
+      bestWave: this.bestWave,
+      dailyFirst: this.dailyFirst,
+      totalDiamondSpent: this.totalDiamondSpent,
     };
   }
   static fromJSON(d) {
@@ -169,6 +277,15 @@ class Meta {
     m.runCodex = d.runCodex || {};    // v1.16.60 局内圣遗物图鉴解锁（旧档无此字段 → 空）
     // v1.16.75 塔图鉴已学习塔（旧档无此字段 → 基础四塔默认解锁）
     m.towerCodex = Object.assign({ fire: 1, ice: 1, poison: 1, electric: 1 }, d.towerCodex || {});
+    /* v1.16.76 激励系统（旧档兼容：无字段给默认值） */
+    m.relicStars = d.relicStars || {};
+    m.shards = d.shards || {};
+    m.starStones = d.starStones || 0;
+    m.deepChests = Array.isArray(d.deepChests) ? d.deepChests.slice(0, CONFIG.DEPTH_CHEST.slots) : [];
+    m.milestones = d.milestones || {};
+    m.bestWave = d.bestWave || 0;
+    m.dailyFirst = d.dailyFirst || null;
+    m.totalDiamondSpent = d.totalDiamondSpent || 0;
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
     // v4 及以下迁移：装备过的圣物视为已拥有（+1）；技能卡/技能槽丢弃（技能回归默认 3 个）

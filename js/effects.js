@@ -45,7 +45,7 @@ class TowerBuild {
       return ef;
     });
     this.picked = new Set();   // v1.11：经三选一获取/升级的技能名（详情弹层仅展示这些；默认技能不在此列）
-    this.ammo = 0;             // v1.12 弹药：三消供弹，攻击消耗；上限 ammoMax，得塔时给 startAmmo
+    this.energy = 0;           // v1.16.77 能量：三消供能，普攻每次耗 0.5；上限 energyMax，得塔时给 startEnergy
     this.level = 0;          // 塔等级：0=未获得
     this.exp = 0;
     this.pending = 0;        // 待选次数（波末结算）
@@ -73,11 +73,11 @@ class TowerBuild {
     }
   }
 
-  /** 解锁塔（先消先得，run 层调用）；得塔时补初始弹药。建塔（0→Lv1）不赠选择机会 */
+  /** 解锁塔（先消先得，run 层调用）；得塔时补初始能量。建塔（0→Lv1）不赠选择机会 */
   unlock() {
     if (this.level === 0) {
       this.level = 1;
-      this.ammo = CONFIG.GLOBAL_SKILL.startAmmo;
+      this.energy = CONFIG.GLOBAL_SKILL.startEnergy;
     }
   }
 
@@ -258,7 +258,7 @@ class TowerBuild {
     this.picked = new Set();
     this.pending = 0;
     this.exp = 0;
-    this.ammo = 0;
+    this.energy = 0;
     this.firstPickDone = false;
     this.level = this.level > 0 ? 1 : 0;   // 保留拥有状态，等级回建塔基数（选择清零）
   }

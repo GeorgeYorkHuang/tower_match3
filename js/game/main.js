@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.75';       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.16.81';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -73,7 +73,8 @@ class GameMain {
     // 主界面状态
     this.menuTab = 'battle';     // battle / shop / relic / codex（v1.16.75 新增塔图鉴页签）
     this.codexSel = 'fire';      // v1.16.75 塔图鉴当前选中塔
-    this.menuPanel = null;       // 子面板：{ type:'relicDex' }
+    this.menuPanel = null;       // 子面板：{ type:'relicDex' | 'relicInfo' | 'starUp' }
+    this.relicDexPage = 0;       // v1.16.78 圣物图鉴分页（每页 16 卡）
     this.menuHits = [];          // 主界面命中区（渲染时重建）
     this._rewardedAd = null;     // 激励视频广告实例（惰性创建）
     this._postPick = null;       // 升级三选一完成后回到的状态（'waveclear' / null=战斗）
@@ -91,6 +92,7 @@ class GameMain {
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle) {
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
+    this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
     this.save.apply(this.saveData);
     this.waveTime = 0;
     this.enemies = [];
@@ -104,6 +106,16 @@ class GameMain {
     this._chestBusy = false; // v1.16.74 宝箱开箱→飞行动画期间锁定战斗输入
     this.relicDetail = null;      // v1.16.73：本局圣遗物详情弹层 {page}（点击顶部状态栏圣遗物行打开，战斗暂停）
     this.relicDetailHits = {};    // 详情弹层命中区（close/prev/next）
+    /* v1.16.76 激励系统：战场合约 + 撤离点 + 击杀掉落 */
+    this.field = CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient;
+    this.run.fieldAmmoMult = this.field.ammoCapMult;   // 弹药上限倍率（战场扭曲规则）
+    this.run.fieldCfg = this.field;                    // v1.16.78 战场被动触发器（风场/诅咒）
+    this.depthPool = 0;          // 深度收益池（撤离拿 100%，阵亡保底 30%）
+    this.depthMult = 1;          // 深度倍率（每通过一个撤离点 ×1.30，40 波后 ×1.10）
+    this.runShardGained = 0;     // 本局击杀获得碎片数（结算展示）
+    this.runSummary = null;      // 局末结算摘要（gameover 层展示）
+    // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
+    this.firstBonus = (this.menuStage !== 'test') ? this.meta.dailyFirstBonus(this.menuStage, Date.now()) : 1;
     if (enterBattle) {
       this.enterBattle();
     } else {
@@ -121,9 +133,10 @@ class GameMain {
     });
     // v1.12：不再默认激活任何技能——塔无获取技能时技能列表为空，
     // 所有技能通过「打怪经验 → 整体升级 → 三选一」获取（技能卡激活 / 分支卡续升）
-    // 圣物·磐石印：城墙血量上限
+    // 圣物·磐石印：城墙血量上限；v1.16.78 城墙加固（局内圣遗物）：城墙血量 +N%
     const b = this.meta.relicBonus();
-    this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * b.wall));
+    const wallRelic = this.run.relicNum('cm_wall');
+    this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * b.wall) * (1 + wallRelic / 100));
     this.run.lineMaxHp = this.run.lineHp;   // v1.13.25 冰墙回血上限基准
     this.state = 'fighting';
     this.wave.start();
@@ -192,7 +205,7 @@ class GameMain {
       slots.push({
         key, name: CONFIG.COLORS[t.color].name,
         icon: TOWER_ICON[key] || '?', unlocked: true,
-        level: t.level, ammo: t.ammo, ammoMax: CONFIG.GLOBAL_SKILL.ammoMax,   // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）
+        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(),   // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）；v1.16.77 能量口径
         skills,
       });
     });
@@ -385,11 +398,11 @@ class GameMain {
       }
       return;
     }
-    // v1.14 测试战场：弹药恒满 + 倍速推进战斗（不结算波次/不弹三选一）
+    // v1.14 测试战场：能量恒满 + 倍速推进战斗（不结算波次/不弹三选一）
     if (this.state === 'testfield') {
       this.run.slotOrder.forEach((k) => {
         const t = this.run.effects.tower(k);
-        if (t) t.ammo = CONFIG.GLOBAL_SKILL.ammoMax;
+        if (t) t.energy = this.run.armoryEnergyMax();
       });
       this.waveTime += dt;
       this.stepEnemies(dt * this.testSpeed);
@@ -448,8 +461,9 @@ class GameMain {
       e.attackT = (e.attackT || 0) + dt;
       if (e.attackT >= eAtkInt) {
         e.attackT -= eAtkInt;
-        // 毒·瘴气 C：瘴内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）
-        const atkDmg = e.attack * (e._miasmaAtkMult || 1);
+        // 毒·瘴气 C：瘴内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）；v1.16.78 减伤护符：城墙受伤 -N%（按星级）
+        const guard = this.run.relicNum('cm_guard');
+        const atkDmg = e.attack * (e._miasmaAtkMult || 1) * (guard > 0 ? (1 - guard / 100) : 1);
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {
           // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻击间隔 +0.5s·持续2s）
@@ -482,7 +496,12 @@ class GameMain {
     if (e.frozen > 0) return;
     if (e.y >= this.ly.wallY - 10) return;
     const mult = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
-    e.y += e.speed * mult * dt;
+    // v1.16.78 时间停滞（局内圣遗物）：怪物移速降低 N%（按星级）
+    const stasis = this.run.relicNum('cm_stasis');
+    const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
+    // v1.16.78 霜风峡谷风场被动：移速 ×1.10^风场层数
+    const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
+    e.y += e.speed * mult * stasisMul * windMul * dt;
   }
 
   playSfx(kind, minGap) {
@@ -496,18 +515,71 @@ class GameMain {
     // 波末全塔少量经验（打怪为主渠道，波末是补充；v1.8 统一入整体池）
     const owned = this.run.slotOrder.length;
     if (owned > 0) this.run.gainExp(CONFIG.EXP.waveBonus * owned);
-    // 波末金币 → 局外金币（圣物·招财符加成）
-    const b = this.meta.relicBonus();
-    this.meta.gold += Math.round(res.waveGold * (1 + 0.20 * b.gold));
-    this.run.gold = this.meta.gold;
+    // v1.16.77 波末金币只入「局内金币」（run.endWave 已累加 _waveGold），不再发放局外银币；
+    //   招财符加成移至战斗结束统一结算（finishRun）
     this.save.save();
     if (res.broken) {
-      this.state = 'gameover';
-      this.sfx.stopBgm();
+      this.finishRun(false);   // v1.16.76 破防 → 局末结算（深度收益保底 30%）
       return;
+    }
+    // v1.16.76 深度收益池：每波金币的一半入池 × 深度倍率；撤离拿池 100%，阵亡保底 30%
+    const EV = CONFIG.EVAC;
+    this.depthPool += res.waveGold * EV.poolShare * this.depthMult * (this.firstBonus || 1) * (this.field.goldMult || 1);
+    // v1.16.78 战场被动触发提示（下一波生效）
+    const Fp = this.field || {};
+    if (Fp.windEvery && this.run.wave % Fp.windEvery === 0) {
+      this.toast(`🌪 霜风峡谷：风场增速！怪物移速 +10%（第 ${this.run.wave} 波起）`, '#7cd6ff');
+    }
+    if (Fp.curseEvery && this.run.wave % Fp.curseEvery === 0) {
+      this.toast(`☠ 深渊诅咒！怪物血量 +15%（第 ${this.run.wave} 波起）`, '#c9a0ff');
+    }
+    // 撤离点：每 10 波一次决策（测试战场不弹）
+    if (this.run.wave % EV.interval === 0) {
+      this.depthMult *= (this.run.wave < EV.lateWave ? EV.depthMult : EV.depthMultLate);
+      if (this.menuStage !== 'test') {
+        this.state = 'evacuation';
+        this.evacHits = {};
+        return;
+      }
     }
     // v1.16.73 波间不弹确认窗：直接结算进入下一波（有升级待选先弹三选一），并弹 2s 透明提示
     this.waveClearNext();
+  }
+
+  /** v1.16.76 局末结算：撤离/破防统一入口。深度收益按比例发放 + 里程碑首达 + 深度宝箱 */
+  finishRun(evacuated) {
+    const EV = CONFIG.EVAC;
+    // v1.16.78 深渊裂隙合约：深度结算 ×2（deepMult）
+    const deepMult = (this.field && this.field.deepMult) || 1;
+    const payout = Math.round(this.depthPool * (evacuated ? 1 : EV.deadRatio) * deepMult);
+    this.meta.gold += payout;
+    // v1.16.77 战斗结束统一结算银币：局内金币（波末累加 + 击杀）按招财符加成一次性转为局外银币，之后清零
+    const b = this.meta.relicBonus();
+    const silver = Math.round(this.run.gold * (1 + 0.20 * b.gold));
+    if (silver > 0) {
+      this.meta.gold += silver;
+      this.silverGained = silver;
+    }
+    this.run.gold = 0;
+    const miles = this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
+    const tier = this.meta.tierByWave(this.run.wave);
+    let chestExtra = null;
+    const ok1 = this.meta.grantDeepChest(tier);
+    if (evacuated && this.run.wave >= CONFIG.EVAC.lateWave) {
+      // 撤离成功顶配加发：星辉→黄金 / 黄金→白银（低一档宝箱）
+      const idx = CONFIG.DEPTH_CHEST.tiers.indexOf(tier);
+      const lower = CONFIG.DEPTH_CHEST.tiers[Math.max(0, idx - 1)];
+      if (this.meta.grantDeepChest(lower)) chestExtra = lower.name;
+    }
+    this.save.save();
+    this.runSummary = {
+      evacuated, wave: this.run.wave, payout, miles,
+      chestName: tier.name, chestGranted: ok1, chestExtra,
+      shards: this.runShardGained, depthMult: this.depthMult,
+      silver: this.silverGained || 0,   // v1.16.77 局内金币结算的银币
+    };
+    this.state = 'gameover';
+    this.sfx.stopBgm();
   }
 
   /** v1.16.73 波清结算：先三选一（升级待选），无待选直接自动进入下一波；不弹确认窗 */
@@ -579,12 +651,42 @@ class GameMain {
     this.waveTime = 0;
     this.battleRelics = [];
     this.relicDetail = null; // v1.16.73 圣遗物详情弹层清理（restart）
+    this.shopOpen = false;   // v1.16.77 局内商店开关（restart 清理）
     this.enterBattle();
   }
 
-  /** 返回主界面（战斗结束/设置入口）：金币已同步 meta，停止战斗 */
+  /** v1.16.77 局内商店购买：扣局内金币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
+  buyStoreItem(idx) {
+    const item = (CONFIG.STORE.items || [])[idx];
+    if (!item) return;
+    const bought = this.run.store[item.id] || 0;
+    if (bought >= item.max) { this.toast('已达上限', '#9fb2c3'); return; }
+    const cost = item.cost[bought];
+    if (this.run.gold < cost) { this.toast('金币不足', '#ff6b6b'); return; }
+    this.run.gold -= cost;
+    this.run.store[item.id] = bought + 1;
+    if (item.id === 'energy') {
+      // 所有已解锁塔能量 +15（封顶能量上限）
+      this.run.slotOrder.forEach((k) => {
+        const t = this.run.effects.tower(k);
+        if (t && t.level > 0) t.energy = Math.min(this.run.armoryEnergyMax(), t.energy + 15);
+      });
+      this.toast(`⚡ 能量补给 +15`, '#7ef0a3');
+    } else if (item.id === 'wall') {
+      const maxHp = this.run.lineMaxHp || CONFIG.LINE.hp;
+      const heal = Math.round(maxHp * 0.3);
+      this.run.lineHp = Math.min(maxHp, this.run.lineHp + heal);
+      this.toast(`🛡️ 城墙修复 +${heal}`, '#7fd4ff');
+    } else if (item.id === 'atk') {
+      this.toast(`⚔️ 全塔攻击 +20%`, '#ff8c42');
+    } else if (item.id === 'spd') {
+      this.toast(`⏩ 全塔攻速 +15%`, '#7ca8ff');
+    }
+    this.save.save();
+  }
+
+  /** 返回主界面（战斗结束/设置入口）：银币已由 finishRun 结算，局内金币不镜像（v1.16.77） */
   goMenu() {
-    this.run.gold = this.meta.gold;
     this.state = 'menu';
     this.menuTab = 'battle';
     this.menuPanel = null;
@@ -621,15 +723,15 @@ class GameMain {
     // v1.14 测试战场：无击杀奖励（不涨经验/不掉宝箱，专注技能验证）
     if (this.state === 'testfield') return;
     const b = this.meta.relicBonus();
-    // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）
+    // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）；v1.16.78 经验之心：击杀经验 +N%（按星级）
     const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
-    const gained = Math.round(base * (1 + 0.20 * b.exp));
+    const gained = Math.round(base * (1 + 0.20 * b.exp) * (1 + this.run.relicNum('cm_exp') / 100));
     this.run.gainExp(gained);
     // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
-    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成）→ 点击后开启圣物三选一（v1.16.59 不再击杀即弹层）
+    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）→ 点击后开启圣物三选一（v1.16.59 不再击杀即弹层）
     if (e.type === 'elite') {
-      const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest);
+      const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest) * (1 + this.run.relicNum('cm_bounty') / 100);
       if (Math.random() < chance) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
         this.toast('精英掉落宝箱 📦 点击开启', '#f7c948');
@@ -642,24 +744,67 @@ class GameMain {
       this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
       this.save.save();
     }
+    /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀金币 */
+    const field = this.field || CONFIG.FIELDS.ancient;
+    if (field.dropAttr && field.dropAttr !== 'none') {
+      const KD = CONFIG.KILL_DROP;
+      let n = 0;
+      if (e.type === 'elite' && Math.random() < KD.eliteShardChance) n = Math.random() < 1 / 3 ? 2 : 1;
+      if (e.isBoss) n = KD.bossShardBase + (Math.random() < KD.bossShardBonusChance ? 2 : 0);
+      if (n > 0) {
+        const id = CONFIG.randomShardId(field.dropAttr);
+        if (id) {
+          this.meta.addShard(id, n);
+          this.runShardGained += n;
+          this.toast(`🧩 圣遗物碎片 +${n}`, '#a86bff');
+        }
+      }
+      // 小额击杀金币（即时入局内金币，随波次温和通胀 ×1.06；v1.16.77 统一战斗结束结算银币）
+      const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0])) * Math.pow(1.06, this.run.wave - 1) * (field.goldMult || 1));
+      this.run.gold += kg;
+    }
   }
 
-  /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池），洗牌取 3 */
+  /** v1.16.78 局内圣遗物总数（图鉴分页用） */
+  _relicRunTotal() {
+    let n = 0;
+    Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => { n += l.length; });
+    return n + CONFIG.RELIC_RUN.common.length;
+  }
+
+  /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
+   *   v1.16.78 过滤已解锁 + 稀有度权重三选一（蓝50/紫38/金12，按设计文档 2.2） */
   spawnRelicPick() {
     const RR = CONFIG.RELIC_RUN;
     // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
     const ownedKeys = this.run.slotOrder || [];
+    const meta = this.meta;
+    const isUnlocked = (id) => meta.starOf(id) >= 1;   // v1.16.78 已解锁（图鉴/碎片达阈值）不再出现在三选一
     let pool = [];
-    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => pool.push({ def: d, tint: k })); });
-    RR.common.forEach((d) => pool.push({ def: d, tint: 'common' }));
-    if (!pool.length) return;
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: k }); }); });
+    RR.common.forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: 'common' }); });
+    if (!pool.length) {
+      this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
+      // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
+      this.meta.addShard(CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r'), 1);
+      this.save.save();
+      this._chestBusy = false;
+      return;
     }
-    const cands = pool.slice(0, 3).map(({ def, tint }) => ({
-      id: def.id, name: def.name, icon: def.icon, desc: def.desc, run: true, tint,
-    }));
+    // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
+    const W = CONFIG.RELIC_PICK_WEIGHT;
+    const pickRar = () => { const r = Math.random(); return r < W.r ? 'r' : r < W.r + W.sr ? 'sr' : 'ssr'; };
+    const cands = [];
+    const used = new Set();
+    for (let i = 0; i < 3; i++) {
+      const rar = pickRar();
+      let tier = pool.filter((p) => CONFIG.relicRarity(p.def.id) === rar && !used.has(p.def.id));
+      if (!tier.length) tier = pool.filter((p) => !used.has(p.def.id));
+      if (!tier.length) break;
+      const pick = tier[Math.floor(Math.random() * tier.length)];
+      used.add(pick.def.id);
+      cands.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.desc, run: true, tint: pick.tint });
+    }
     this.pendingRelicPicks.push({ candidates: cands });
     this._chestBusy = false; // v1.16.74 动画完成解锁战斗输入
   }
@@ -780,7 +925,12 @@ class GameMain {
     if (this.relicDetail) {
       this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
     }
-    if (this.state === 'gameover') this.renderer.gameOver(ctx, st, this.restartBtn);
+    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary }, st), this.restartBtn);
+    // v1.16.76 撤离决策层（战斗暂停）
+    if (this.state === 'evacuation') {
+      this.evacHits = {};
+      this.renderer.evacuationLayer(ctx, this, this.evacHits);
+    }
     // v1.16.73 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁
     this.renderer.battleHints(ctx, this.waveHint, this.bossHint);
     // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
@@ -837,7 +987,7 @@ class GameMain {
         dps: t.level > 0 ? eff.towerDps(key) : 0,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
-        ammo: t.ammo, ammoMax: this.run.armoryAmmoMax(),            // v1.12 弹药（塔位条显示）；v1.16.14 军火库 +50
+        ammo: t.energy, ammoMax: this.run.armoryEnergyMax(),            // v1.16.77 能量（塔位条显示；军火库 +50）
         skills,
       });
     }
@@ -914,6 +1064,19 @@ class GameMain {
       daily,
       dailyPrice: CONFIG.DAILY.price,
       panel: this.menuPanel,
+      relicDexPage: this.relicDexPage,   // v1.16.78 圣物图鉴分页（主页与图鉴面板共用）
+      /* v1.16.76 激励系统状态 */
+      field: CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient,
+      deepChests: this.meta.deepChests.map((ch) => {
+        const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
+        return { tier: ch.tier, name: tier.name, ready: this.meta.chestReady(ch), remainMin: Math.max(0, Math.ceil((ch.openAt - Date.now()) / 60000)) };
+      }),
+      relicStars: this.meta.relicStars,
+      runCodex: this.meta.runCodex,   // v1.16.78 局内圣遗物图鉴解锁（图鉴页占位判定）
+      shards: this.meta.shards,
+      starStones: this.meta.starStones,
+      bestWave: this.meta.bestWave,
+      debug: !!CONFIG.DEBUG_ACCOUNT,
     };
   }
 
@@ -950,12 +1113,44 @@ class GameMain {
   /** 主界面触摸分发：命中 menuHits（渲染时重建）中第一个按键；面板打开时仅响应面板项 */
   onMenuTap(p) {
     if (this.menuPanel) {
+      const ptype = this.menuPanel.type;
+      // v1.16.78 圣物图鉴翻页（relicDex 面板内）
+      if (ptype === 'relicDex') {
+        const total = this._relicRunTotal();
+        for (const it of this.menuHits) {
+          if (it.key === 'relicPage' && it.hit(p.x, p.y)) {
+            this.relicDexPage = Math.max(0, Math.min(total - 1, this.relicDexPage + it.data));
+            return;
+          }
+          // 点圣物卡 → 详情面板（1/2/3★ 效果 + 升星）
+          if (it.key === 'relicInfo' && it.hit(p.x, p.y)) {
+            this.menuPanel = { type: 'relicInfo', id: it.data };
+            return;
+          }
+        }
+      }
       for (const it of this.menuHits) {
-        // 面板打开时只响应 关闭
-        if (it.key !== 'panelClose') continue;
-        if (!it.hit(p.x, p.y)) continue;
-        this.menuPanel = null;
-        return;
+        // 面板打开时只响应 关闭 / 面板内专属项
+        if (it.key === 'panelClose') {
+          if (!it.hit(p.x, p.y)) continue;
+          this.menuPanel = null;
+          return;
+        }
+        // v1.16.76 调试面板（仅 DEBUG 构建）
+        if (ptype === 'debug' && it.key.indexOf('dbg_') === 0 && it.hit(p.x, p.y)) {
+          this.handleDebugTap(it.key);
+          return;
+        }
+        // v1.16.76 圣遗物升星（图鉴/升星/详情面板内点击行）
+        if ((ptype === 'relicDex' || ptype === 'starUp' || ptype === 'relicInfo') && it.key === 'relicStar' && it.hit(p.x, p.y)) {
+          const err = this.meta.upStar(it.data);
+          if (err) this.toast(err, '#ff6b6b');
+          else {
+            this.save.save();
+            this.toast(`${it.data} 升星成功！→ ${this.meta.starOf(it.data)}★`, '#f7c948');
+          }
+          return;
+        }
       }
       return; // 面板打开时忽略底层按钮
     }
@@ -966,9 +1161,23 @@ class GameMain {
           this.menuTab = it.data;
           this.menuPanel = null;
           return;
+        case 'relicInfo':
+          // v1.16.78 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
+          this.menuPanel = { type: 'relicInfo', id: it.data };
+          return;
+        case 'relicPage': {
+          // v1.16.78 圣物图鉴：翻页
+          const total = this._relicRunTotal();
+          this.relicDexPage = Math.max(0, Math.min(total - 1, this.relicDexPage + it.data));
+          return;
+        }
         case 'codexSel':
           // v1.16.75 塔图鉴：切换选中塔
           this.codexSel = it.data;
+          return;
+        case 'codexSkill':
+          // v1.16.78 塔图鉴：点技能卡 → 打开 A/B/C 分支效果面板
+          this.menuPanel = { type: 'codexSkill', tower: it.data.tower, idx: it.data.idx };
           return;
         case 'codexLearn': {
           // v1.16.75 塔图鉴：金币学习解锁塔（回旋镖 3000 / 炮塔 5000）
@@ -984,28 +1193,46 @@ class GameMain {
           return;
         }
         case 'stage': {
-          // v1.16.30 战场卡本体：提示当前所选战场
-          const cur = this.menuStage === 'test' ? '测试战场 · 免三消直测技能' : '远古战场 · 城墙防守 · 怪物攻城 · 消消防线';
-          this.toast(`当前：${cur}`, '#7cd6a6');
+          // v1.16.76 战场卡本体：提示当前所选战场合约
+          const F = CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient;
+          this.toast(`当前：${F.name} · ${F.subtitle}`, '#7cd6a6');
           return;
         }
         case 'stagePrev':
         case 'stageNext': {
-          // v1.16.30 ◀ ▶ 切换战场类型（测试战场 / 远古战场）
-          this.menuStage = this.menuStage === 'test' ? 'ancient' : 'test';
-          const nm = this.menuStage === 'test' ? '测试战场' : '远古战场';
-          this.toast(`已切换：${nm}（点击进入战斗按所选战场）`, '#7cd6a6');
+          // v1.16.78 ◀ ▶ 按合约切换战场：未解锁战场不再静默跳过（可见、进场时校验）
+          const order = CONFIG.FIELD_ORDER;
+          const dir = it.key === 'stageNext' ? 1 : -1;
+          let idx = order.indexOf(this.menuStage);
+          idx = (idx + dir + order.length) % order.length;
+          this.menuStage = order[idx];
+          const F2 = CONFIG.FIELDS[this.menuStage];
+          if (F2.unlockWave && this.meta.bestWave < F2.unlockWave) {
+            this.toast(`已切换：${F2.name}（🔒 需最深 ${F2.unlockWave} 波解锁，当前最佳 ${this.meta.bestWave}）`, '#f0b45c');
+          } else {
+            this.toast(`已切换：${F2.name}（${F2.subtitle}）`, '#7cd6a6');
+          }
           return;
         }
-        case 'enter':
-          // v1.16.30 按所选战场进入：测试战场 → 免三消直测；远古战场 → 正式战斗
+        case 'enter': {
+          // v1.16.30 按所选战场进入：测试战场 → 免三消直测；正式战斗需校验解锁（v1.16.78）
           this.menuPanel = null;
           if (this.menuStage === 'test') { this.enterTestField(); return; }
+          const Fe = CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient;
+          if (Fe.unlockWave && this.meta.bestWave < Fe.unlockWave) {
+            this.toast(`${Fe.name} 尚未解锁：需最深 ${Fe.unlockWave} 波（当前最佳 ${this.meta.bestWave}）`, '#f0b45c');
+            return;
+          }
           this.newRun(true);
           return;
+        }
         case 'relicDex':
           // 圣物图鉴：查看全部圣物图标（未获取锁定，获取后显示性能）
           this.menuPanel = { type: 'relicDex' };
+          return;
+        case 'starUp':
+          // v1.16.76 圣遗物升星面板（碎片/金币/星辉石 → 2★ 效果升级 / 3★ 质变）
+          this.menuPanel = { type: 'starUp' };
           return;
         case 'dailyPick': {
           // 每日精选圣物卡（金币购买）
@@ -1081,10 +1308,66 @@ class GameMain {
           }
           return;
         }
+        case 'deepChest': {
+          // v1.16.76 深度宝箱：就绪点击开启；未就绪提示剩余时间（钻石足够则提示可速开）
+          const m = this.meta;
+          const ch = m.deepChests[it.data];
+          if (!ch) { this.toast('空槽位 · 局末按最深波次获得', '#5a6c80'); return; }
+          if (m.chestReady(ch)) {
+            const gain = m.openDeepChest(it.data);
+            this.save.save();
+            if (gain) this.toast(`开启成功！💰${gain.gold} · 碎片+${gain.shards}${gain.diamond ? ` · 💎+${gain.diamond}` : ''}${gain.stone ? ' · 星辉石+1' : ''}${gain.card ? ' · 圣遗物卡×1' : ''}`, '#f7c948');
+            return;
+          }
+          const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
+          const remainMin = Math.max(0, Math.ceil((ch.openAt - Date.now()) / 60000));
+          const cost = Math.max(1, Math.ceil(remainMin / 60 * 4));
+          if (m.diamond >= cost && m.speedOpen(it.data)) {
+            const gain = m.openDeepChest(it.data);
+            this.save.save();
+            if (gain) this.toast(`已用 ${cost}💎 立即开启！💰${gain.gold} · 碎片+${gain.shards}`, '#f7c948');
+            return;
+          }
+          this.toast(`${tier.name} 开启中 · 还需 ${remainMin} 分钟（${cost}💎 立即开启）`, '#9fb2c3');
+          return;
+        }
+        case 'debug':
+          // v1.16.76 调试工具入口（仅 DEBUG 构建）
+          this.menuPanel = { type: 'debug' };
+          return;
         default:
           return;
       }
     }
+  }
+
+  /** v1.16.76 调试工具动作（仅 DEBUG 构建可见入口） */
+  handleDebugTap(key) {
+    const m = this.meta;
+    switch (key) {
+      case 'dbg_gold': m.gold += 1000; this.toast('💰 +1000', '#f7c948'); break;
+      case 'dbg_diamond': m.diamond += 100; this.toast('💎 +100', '#7ca8ff'); break;
+      case 'dbg_shard': {
+        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => m.addShard(d.id, 2)));
+        CONFIG.RELIC_RUN.common.forEach((d) => m.addShard(d.id, 2));
+        this.toast('全部圣遗物碎片 +2', '#a86bff');
+        break;
+      }
+      case 'dbg_unlock': {
+        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; }));
+        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; });
+        this.toast('已解锁全部圣遗物（1★）', '#7ef0a3');
+        break;
+      }
+      case 'dbg_stone': m.starStones += 5; this.toast('星辉石 +5', '#a86bff'); break;
+      case 'dbg_chest': {
+        if (m.grantDeepChest(CONFIG.DEPTH_CHEST.tiers[4])) this.toast('已发放星辉宝箱（12h）', '#a86bff');
+        else this.toast('深度宝箱槽位已满', '#ff6b6b');
+        break;
+      }
+      default: return;
+    }
+    this.save.save();
   }
 
   /** 圣物宝箱三选一：选择一项 → 获取圣物，回战斗；队列清空后检查升级待选
@@ -1093,6 +1376,14 @@ class GameMain {
     const c = this.relicPick && this.relicPick.candidates[i];
     if (!c) return;
     if (c.run) {
+      // v1.16.78 防御兜底：已解锁重复（三选一已过滤，正常不触发）→ 折算碎片不叠层
+      if (this.meta.starOf(c.id) >= 1) {
+        const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
+        this.meta.addShard(c.id, n);
+        this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}`, '#a86bff');
+        this.save.save();
+        return;
+      }
       // 局内圣遗物（rougelike）：本局生效 + 图鉴解锁（跨局记录）
       this.runRelics.push(c.id);
       this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
@@ -1222,6 +1513,25 @@ class GameMain {
     if (this.state === 'fighting') {
       // v1.16.74 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
       if (this._chestBusy) return true;
+      // v1.16.77 局内商店：点开不暂停；商店按钮 / 商品格 / 关闭钮
+      if (this.shopOpen === undefined) this.shopOpen = false;
+      const sbtn = this.renderer.shopBtnRect;
+      if (sbtn && p.x >= sbtn.x && p.x <= sbtn.x + sbtn.w && p.y >= sbtn.y && p.y <= sbtn.y + sbtn.h) {
+        this.shopOpen = !this.shopOpen;
+        return true;
+      }
+      if (this.shopOpen) {
+        const scl = this.renderer.shopCloseRect;
+        if (scl && p.x >= scl.x && p.x <= scl.x + scl.w && p.y >= scl.y && p.y <= scl.y + scl.h) { this.shopOpen = false; return true; }
+        const rects = this.renderer.shopItemRects || [];
+        for (let i = 0; i < rects.length; i++) {
+          const r = rects[i];
+          if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+            this.buyStoreItem(i);
+            return true;
+          }
+        }
+      }
       // v1.16.73 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
       const rb = this.renderer.relicBarHit;
       if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
@@ -1304,6 +1614,17 @@ class GameMain {
     if (this.state === 'gameover') {
       if (this.restartBtn.hit && this.restartBtn.hit(p.x, p.y)) { this.restart(); return true; }
       if (this.restartBtn.toMenu && this.restartBtn.toMenu.hit(p.x, p.y)) { this.goMenu(); return true; }
+      return true;
+    }
+    // v1.16.76 撤离决策层（战斗暂停）
+    if (this.state === 'evacuation') {
+      const H = this.evacHits || {};
+      if (H.evacGo && H.evacGo.hit(p.x, p.y)) { this.finishRun(true); return true; }
+      if (H.evacStay && H.evacStay.hit(p.x, p.y)) {
+        this.state = 'fighting';
+        this.waveClearNext();
+        return true;
+      }
       return true;
     }
     return false;
