@@ -3571,20 +3571,34 @@ class Renderer {
         }
         // 星级角标（右上角小字）
         const star = s.relicStars[d.id] || 1;
-        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 14, rc, 'right');
-        // 名字（单独一行居中）
-        text(ctx, d.name, icx, ry2 + 98, 19, '#ffffff', 'center');
-        // 描述（wrapText 最多 3 行，不出卡）
-        const dls = this.wrapText(ctx, d.desc || '', cw - 24, 13).slice(0, 3);
-        dls.forEach((ln, li) => text(ctx, ln, icx, ry2 + 128 + li * 21, 13, '#9fb2c3', 'center'));
+        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 15, rc, 'right');
+        // 名字（单独一行居中，v1.16.87 +1 号）
+        text(ctx, d.name, icx, ry2 + 98, 20, '#ffffff', 'center');
+        // 描述（wrapText 最多 3 行，不出卡；v1.16.87 +1 号）
+        const dls = this.wrapText(ctx, d.desc || '', cw - 24, 14).slice(0, 3);
+        dls.forEach((ln, li) => text(ctx, ln, icx, ry2 + 128 + li * 24, 14, '#9fb2c3', 'center'));
+        // 卡片底部：碎片收集进度（v1.16.87：碎片数 / 升级所需）
+        const c3 = CONFIG.STAR_UP.cost[star + 1];
+        const need3 = c3 ? c3.shards : 0;
+        const sh3 = s.shards[d.id] || 0;
+        if (star >= 3) {
+          text(ctx, '已满级 3★', icx, ry2 + ch - 12, 12, '#f7c948', 'center');
+        } else {
+          const done3 = sh3 >= need3;
+          text(ctx, `碎片 ${sh3}/${need3}`, icx, ry2 + ch - 12, 12, done3 ? '#f7c948' : '#8ea3b8', 'center');
+        }
       } else {
         // 未解锁：? 图标圈（同尺寸同位）+ 未解锁提示
         ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
         ctx.fillStyle = '#151a22'; ctx.fill();
         ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
         text(ctx, '?', icx, icy + 5, 34, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 98, 19, '#4a5a6e', 'center');
-        text(ctx, `${rar.toUpperCase()} · 战斗获取碎片解锁`, icx, ry2 + 128, 13, '#3d4c5e', 'center');
+        text(ctx, '未解锁', icx, ry2 + 98, 20, '#4a5a6e', 'center');
+        text(ctx, `${rar.toUpperCase()} · 战斗获取碎片解锁`, icx, ry2 + 128, 14, '#3d4c5e', 'center');
+        // 底部：解锁碎片进度（阈值 = DUPLICATE_SHARDS）
+        const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
+        const sh4 = s.shards[d.id] || 0;
+        if (thr > 0) text(ctx, `碎片 ${sh4}/${thr}`, icx, ry2 + ch - 12, 12, '#3d4c5e', 'center');
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
@@ -3608,45 +3622,65 @@ class Renderer {
     this._menuRelicGrid(ctx, s, push, 'relicPage', false);
   }
 
-  /** 圣遗物详情面板（v1.16.78）：图标/名/稀有度 + 1★/2★/3★ 效果文本 + 升星按钮 */
+  /** 圣遗物详情面板（v1.16.87 重设计）：无标题 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
   menuRelicInfo(ctx, s, push) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    this._menuPanelShell(ctx, s, push, '圣遗物详情', 780);
+    this._menuPanelShell(ctx, s, push, '', 780);   // v1.16.87 不再显示「圣遗物详情」标题
     const rar = CONFIG.relicRarity(id);
     const rc = this._relicRarColor(rar);
     const owned = this._relicUnlocked(s, id);
     const star = owned ? (s.relicStars[id] || 1) : 0;
-    // 头部：图标 + 名称 + 稀有度
-    ctx.beginPath(); ctx.arc(150, 300, 44, 0, Math.PI * 2);
+    // ---- 头部：图标圆框居中 + 名称 + 稀有度·星级 ----
+    ctx.beginPath(); ctx.arc(375, 268, 56, 0, Math.PI * 2);
     ctx.fillStyle = '#151a22'; ctx.fill();
-    ctx.strokeStyle = rc; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.stroke();
     const src = relicIconSrc(id);
-    if (!(src && drawImg(ctx, src, 112, 262, 76, 76))) text(ctx, d.icon, 150, 305, 40, '#ffffff', 'center');
-    text(ctx, d.name, 214, 300, 32, '#ffffff', 'left');
-    text(ctx, `${rar.toUpperCase()} · ${star}★`, 214, 340, 19, rc, 'left');
-    // 1★/2★/3★ 效果
-    const starTxt = (lbl, txt, col) => {
-      text(ctx, lbl, 90, 400, 20, col, 'left');
-      text(ctx, txt || '（暂无）', 90, 432, 18, '#c9d6e4', 'left');
-    };
-    starTxt('1★', d.desc, '#7cd6a6');
-    starTxt('2★', d.star2, '#a86bff');
-    starTxt('3★', d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', '#f7c948');
-    // 碎片进度 + 升星按钮
+    if (!(src && drawImg(ctx, src, 375 - 46, 268 - 46, 92, 92))) text(ctx, d.icon, 375, 274, 44, '#ffffff', 'center');
+    text(ctx, d.name, 375, 368, 34, '#ffffff', 'center');
+    text(ctx, `${rar.toUpperCase()} · ${owned ? star + '★' : '未解锁'}`, 375, 408, 20, rc, 'center');
+    // ---- 1★/2★/3★ 三栏效果（当前等级金框高亮；wrapText 防出框）----
+    const colW = 204, colGap = 24, colY = 444, colH = 258;
+    const colX0 = (750 - (colW * 3 + colGap * 2)) / 2;
+    const cols = [
+      { lbl: '1★', txt: d.desc || '（暂无）', col: '#7cd6a6' },
+      { lbl: '2★', txt: d.star2 || '（暂无）', col: '#a86bff' },
+      { lbl: '3★', txt: d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', col: '#f7c948' },
+    ];
+    cols.forEach((c, ci) => {
+      const cx0 = colX0 + ci * (colW + colGap);
+      const active = owned && star === ci + 1;
+      fillRoundRect(ctx, cx0, colY, colW, colH, 14, active ? 'rgba(247,201,72,0.10)' : 'rgba(255,255,255,0.04)');
+      strokeRoundRect(ctx, cx0, colY, colW, colH, 14, active ? '#f7c948' : 'rgba(255,255,255,0.14)', active ? 2.5 : 1);
+      text(ctx, c.lbl, cx0 + colW / 2, colY + 32, 24, active ? '#f7c948' : c.col, 'center');
+      fillRoundRect(ctx, cx0 + 30, colY + 54, colW - 60, 1.5, 0.75, active ? 'rgba(247,201,72,0.5)' : 'rgba(255,255,255,0.12)');
+      const lines = this.wrapText(ctx, c.txt, colW - 24, 16).slice(0, 8);
+      lines.forEach((ln, li) => text(ctx, ln, cx0 + 12, colY + 82 + li * 23, 16, active ? '#ffe9a8' : '#9fb2c3', 'left'));
+    });
+    // ---- 碎片收集进度（升星按钮上方：文字 + 进度条）----
     const shards = s.shards[id] || 0;
     const cost = CONFIG.STAR_UP.cost[star + 1];
     const need = cost ? cost.shards : 0;
     const cur = CONFIG.relicNum(id, star);
     const next = CONFIG.relicNum(id, star + 1);
-    text(ctx, `碎片 ${shards} / 升级需求 ${need} · 金币 ${cost ? cost.gold : 0}`, 90, 540, 17, '#9fb2c3', 'left');
-    if (cost && star < 3) {
-      push('relicStar', id, 470, 620, 190, 52);
-      fillRoundRect(ctx, 470, 620, 190, 52, 12, '#1b2230');
-      strokeRoundRect(ctx, 470, 620, 190, 52, 12, rc, 1.5);
-      text(ctx, `升到 ${star + 1}★`, 565, 640, 20, rc, 'center');
-      text(ctx, `数值 ${cur} → ${next}`, 565, 664, 14, '#8ea3b8', 'center');
+    const pw2 = 380, px0 = (750 - pw2) / 2, py2 = 748;
+    text(ctx, `碎片 ${shards} / ${need} · 金币 ${cost ? cost.gold : 0}`, 375, 726, 18, '#c9b98a', 'center');
+    fillRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.08)');
+    const pr = need > 0 ? Math.min(1, shards / need) : 0;
+    if (pr > 0) fillRoundRect(ctx, px0, py2, Math.max(16, pw2 * pr), 16, 8, pr >= 1 ? '#f7c948' : '#7ca8ff');
+    strokeRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.18)', 1);
+    // ---- 底部居中升星按钮（底部留白 32px）----
+    if (!owned) {
+      text(ctx, '战斗中获取碎片解锁圣遗物', 375, 880, 22, '#5a6c80', 'center');
+    } else if (cost && star < 3) {
+      push('relicStar', id, 205, 852, 340, 76);
+      fillRoundRect(ctx, 205, 852, 340, 76, 14, '#1b2230');
+      strokeRoundRect(ctx, 205, 852, 340, 76, 14, rc, 2);
+      text(ctx, `升到 ${star + 1}★`, 375, 882, 24, rc, 'center');
+      text(ctx, `数值 ${cur} → ${next}`, 375, 910, 16, '#8ea3b8', 'center');
+    } else {
+      text(ctx, '已达满级 3★', 375, 890, 24, '#f7c948', 'center');
     }
   }
 
