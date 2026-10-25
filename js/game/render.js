@@ -3558,47 +3558,51 @@ class Renderer {
       const rar = CONFIG.relicRarity(d.id);
       const rc = this._relicRarColor(rar);
       const owned = this._relicUnlocked(s, d.id);
-      const icx = rx + cw / 2, icy = ry2 + 12 + 34;   // 圆心：顶部留白 12 + 半径 34（与未解锁?圈同径）
+      const icx = rx + cw / 2, icy = ry2 + 70;   // v1.16.88 图标区占上 2/3（高 140），圆心居中
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
       if (owned) {
-        // 前 1/3：圣遗物图片居中（64px，含留白）
+        // 上 2/3：圣遗物图片居中（96px，四周留白）
         const src = relicIconSrc(d.id);
-        if (!(src && drawImg(ctx, src, icx - 32, icy - 32, 64, 64))) {
-          ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+        if (!(src && drawImg(ctx, src, icx - 48, icy - 48, 96, 96))) {
+          ctx.beginPath(); ctx.arc(icx, icy, 44, 0, Math.PI * 2);
           ctx.fillStyle = rc; ctx.globalAlpha = 0.22; ctx.fill(); ctx.globalAlpha = 1;
-          text(ctx, d.icon, icx, icy + 2, 34, '#ffffff', 'center');
+          text(ctx, d.icon, icx, icy + 2, 40, '#ffffff', 'center');
         }
         // 星级角标（右上角小字）
         const star = s.relicStars[d.id] || 1;
         text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 15, rc, 'right');
-        // 名字（单独一行居中，v1.16.87 +1 号）
-        text(ctx, d.name, icx, ry2 + 98, 20, '#ffffff', 'center');
-        // 描述（wrapText 最多 3 行，不出卡；v1.16.87 +1 号）
-        const dls = this.wrapText(ctx, d.desc || '', cw - 24, 14).slice(0, 3);
-        dls.forEach((ln, li) => text(ctx, ln, icx, ry2 + 128 + li * 24, 14, '#9fb2c3', 'center'));
-        // 卡片底部：碎片收集进度（v1.16.87：碎片数 / 升级所需）
+        // 下 1/3：上 2/3 为名字居中，下为收集进度条（左右各留 12px 白）
+        text(ctx, d.name, icx, ry2 + 162, 20, '#ffffff', 'center');
         const c3 = CONFIG.STAR_UP.cost[star + 1];
         const need3 = c3 ? c3.shards : 0;
         const sh3 = s.shards[d.id] || 0;
-        if (star >= 3) {
-          text(ctx, '已满级 3★', icx, ry2 + ch - 12, 12, '#f7c948', 'center');
-        } else {
-          const done3 = sh3 >= need3;
-          text(ctx, `碎片 ${sh3}/${need3}`, icx, ry2 + ch - 12, 12, done3 ? '#f7c948' : '#8ea3b8', 'center');
-        }
+        const bw = cw - 24, bx = rx + 12, by = ry2 + 192, bh = 10;
+        fillRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.10)');
+        let ratio3 = 0, lbl3 = '', col3 = '#7ca8ff';
+        if (star >= 3) { ratio3 = 1; lbl3 = '已满级'; col3 = '#f7c948'; }
+        else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; col3 = sh3 >= need3 ? '#f7c948' : '#7ca8ff'; }
+        if (ratio3 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * ratio3), bh, 5, col3);
+        strokeRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.16)', 1);
+        text(ctx, lbl3, icx, by + 6, 10, '#ffffff', 'center');
       } else {
-        // 未解锁：? 图标圈（同尺寸同位）+ 未解锁提示
-        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+        // 未解锁：? 图标圈（居中于上 2/3 区）
+        ctx.beginPath(); ctx.arc(icx, icy, 44, 0, Math.PI * 2);
         ctx.fillStyle = '#151a22'; ctx.fill();
         ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 98, 20, '#4a5a6e', 'center');
-        text(ctx, `${rar.toUpperCase()} · 战斗获取碎片解锁`, icx, ry2 + 128, 14, '#3d4c5e', 'center');
-        // 底部：解锁碎片进度（阈值 = DUPLICATE_SHARDS）
+        text(ctx, '?', icx, icy + 5, 40, rc, 'center');
+        text(ctx, '未解锁', icx, ry2 + 162, 20, '#4a5a6e', 'center');
+        // 底部：解锁碎片收集进度条（阈值 = DUPLICATE_SHARDS）
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
-        if (thr > 0) text(ctx, `碎片 ${sh4}/${thr}`, icx, ry2 + ch - 12, 12, '#3d4c5e', 'center');
+        const bw = cw - 24, bx = rx + 12, by = ry2 + 192, bh = 10;
+        fillRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.06)');
+        if (thr > 0) {
+          const r4 = Math.min(1, sh4 / thr);
+          if (r4 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * r4), bh, 5, '#3d4c5e');
+          text(ctx, `${sh4}/${thr}`, icx, by + 6, 10, '#3d4c5e', 'center');
+        }
+        strokeRoundRect(ctx, bx, by, bw, bh, 5, 'rgba(255,255,255,0.10)', 1);
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
