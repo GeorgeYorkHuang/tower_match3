@@ -1,6 +1,0 @@
-fire bbox_cy=134 dy=6.0
-ice bbox_cy=130 dy=2.5
-poison bbox_cy=130 dy=1.5
-electric bbox_cy=133 dy=5.0
-boomerang bbox_cy=127 dy=-1.0
-cannon bbox_cy=129 dy=1.0

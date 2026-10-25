@@ -1,8 +1,0 @@
-﻿[消消防线] 启动：canvas 1125x2001 scale 1.231
-  [PASS] 功能键命中区同步：渲染后 game.funcHits 有 4 键
-  [PASS] 点击设置键 → 打开设置弹层
-  [PASS] 点击商店键 → 打开商店弹层
-  [FAIL] 三选一：候选卡片渲染并填充 pickHits: Cannot read properties of undefined (reading 'width')
-  [FAIL] 三选一：点击候选按钮 → 应用选择并推进: pickHits[0] 命中区存在
-
-结果：3 通过 / 2 失败
