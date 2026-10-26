@@ -606,6 +606,7 @@ class GameMain {
       kills: ks,                        // v1.16.106 本局总击杀
       relics: this.battleRelics.slice(), // v1.16.106 本局获取圣遗物快照（结算页图标展示）
     };
+    this.gameoverAt = Date.now();   // v1.16.117 结算动画时间基准（圣遗物逐个弹出 → 收益最后弹出）
     this.state = 'gameover';
     this.sfx.stopBgm();
   }
@@ -975,7 +976,7 @@ class GameMain {
     if (this.relicDetail) {
       this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
     }
-    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary }, st), this.restartBtn);
+    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary, goT: this.gameoverAt ? Date.now() - this.gameoverAt : 0 }, st), this.restartBtn);
     // v1.16.76 撤离决策层（战斗暂停）
     if (this.state === 'evacuation') {
       this.evacHits = {};

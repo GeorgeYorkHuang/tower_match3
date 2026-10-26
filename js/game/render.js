@@ -2950,9 +2950,16 @@ class Renderer {
     const w = 560, h = 500, x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
     fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
     if (su) {
-      /* v1.16.106 结算界面重做：奖励清单结构化 + 本局圣遗物图标行 + 双主题美化 */
+      /* v1.16.117 结算重做：圣遗物=核心奖励。演出顺序：面板入场 → 圣遗物图标逐个弹出 →
+         碎片总额在奖励区正中弹跳出场 → 银币/里程碑/宝箱等次要收益最后淡入 → 按钮浮现 */
       const win = su.evacuated;
-      const W2 = 620, H2 = 700, X2 = (750 - W2) / 2, Y2 = (LOGIC_H - H2) / 2;
+      const W2 = 620, H2 = 760, X2 = (750 - W2) / 2, Y2 = (LOGIC_H - H2) / 2;
+      const T = Math.max(0, s.goT || 0);
+      const eob = (t) => { const p = Math.max(0, Math.min(1, t)); return 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2); };
+      const ph = (t0, dur) => Math.max(0, Math.min(1, (T - t0) / (dur || 260)));
+      const pin = ph(0, 200);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, pin * 1.6);
       fillRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#2a2620' : '#2b2020');
       strokeRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#f7c948' : '#e74c3c', 3);
       // 顶部主题渐变带
@@ -2962,55 +2969,78 @@ class Renderer {
       ctx.fillStyle = tg; ctx.fillRect(X2, Y2, W2, 150);
       text(ctx, win ? '🚪 撤离成功' : '💀 防线失守', 375, Y2 + 68, 44, win ? '#ffd34d' : '#ff6b6b', 'center');
       text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)} · 总击杀 ${su.kills || 0}`, 375, Y2 + 118, 22, '#dfe6ee', 'center');
-      // 分隔线
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 146); ctx.lineTo(X2 + W2 - 44, Y2 + 146); ctx.stroke();
-      text(ctx, '— 奖励结算 —', 375, Y2 + 174, 22, '#9fb2c3', 'center');
-      // 奖励行（左名称 / 右数值）
+      // —— 核心区：本局圣遗物（图标逐个弹出，64px，两行封顶 10 枚）——
+      text(ctx, '— 圣遗物收获 —', 375, Y2 + 186, 26, '#a86bff', 'center');
+      const rel = su.relics || [];
+      const D = 64, per = 5, gap = 18;
+      const x0 = 375 - (per * D + (per - 1) * gap) / 2;
+      if (!rel.length) {
+        text(ctx, '本局未获得圣遗物', 375, Y2 + 285, 20, '#6b7a8c', 'center');
+      } else {
+        rel.slice(0, 10).forEach((r, i) => {
+          const cx = x0 + (i % per) * (D + gap), cy = Y2 + 218 + Math.floor(i / per) * (D + 16);
+          const pe = ph(250 + i * 160, 260);
+          if (pe <= 0) return;
+          const sc = Math.min(1.08, eob(pe));
+          ctx.globalAlpha = Math.min(1, pe * 1.8);
+          ctx.beginPath(); ctx.arc(cx + D / 2, cy + D / 2, (D / 2) * sc, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(168,107,255,0.18)'; ctx.fill();
+          ctx.strokeStyle = 'rgba(168,107,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
+          text(ctx, r.icon, cx + D / 2, cy + D / 2 + 2, 32 * Math.min(1, sc), '#ffffff', 'center');
+          ctx.globalAlpha = 1;
+        });
+        if (rel.length > 10) text(ctx, `+${rel.length - 10}`, X2 + W2 - 44, Y2 + 348, 22, '#a86bff', 'right');
+      }
+      // —— 碎片总额：奖励区正中间，弹跳出场 ——
+      const shT = 250 + Math.min(rel.length, 10) * 160 + 120;
+      const sp = ph(shT, 320);
+      if (sp > 0) {
+        const sc2 = Math.min(1.06, eob(sp));
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, sp * 1.5);
+        ctx.translate(375, Y2 + 430);
+        ctx.scale(sc2, sc2);
+        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
+        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
+        text(ctx, `🧩 圣遗物碎片 +${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      // —— 次要收益（缩小、最后淡入）——
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 500); ctx.lineTo(X2 + W2 - 44, Y2 + 500); ctx.stroke();
       const rows = [];
       rows.push({ n: `🪙 深度结算（${win ? '撤离 100%' : '阵亡 30%'}）`, v: `+${fmtNum(su.payout)} 银币`, c: '#f7c948' });
       if (su.silver > 0) rows.push({
-        n: `💰 局内金币 → 银币${su.goldBonus ? `（招财符 +${Math.round(su.goldBonus * 100)}%）` : ''}`,
+        n: `💰 局内金币折算${su.goldBonus ? `（招财符 +${Math.round(su.goldBonus * 100)}%）` : ''}`,
         v: `+${fmtNum(su.silver)} 银币`, c: '#f7c948',
       });
-      if (su.shards > 0) rows.push({ n: '🧩 圣遗物碎片（精英 / Boss 掉落）', v: `+${su.shards} 片`, c: '#a86bff' });
       if (su.miles && su.miles.length) rows.push({ n: '🏆 里程碑首达', v: su.miles.join(' / '), c: '#a86bff' });
       rows.push({
         n: '📦 深度宝箱',
         v: su.chestSkipped ? '前三波阵亡 · 未发放'
-          : su.chestGranted ? `${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}（主界面开启）`
+          : su.chestGranted ? `${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}`
           : '槽位已满 · 未发放',
         c: '#d89e63',
       });
       rows.forEach((r, i) => {
-        const ry = Y2 + 210 + i * 52;
-        text(ctx, r.n, X2 + 48, ry, 20, '#c9d6e4', 'left');
+        const a = ph(shT + 320 + i * 90, 240);
+        if (a <= 0) return;
+        ctx.globalAlpha = a;
+        const ry = Y2 + 534 + i * 38;
+        text(ctx, r.n, X2 + 48, ry, 18, '#9fb2c3', 'left');
         text(ctx, r.v, X2 + W2 - 48, ry, 20, r.c, 'right');
+        ctx.globalAlpha = 1;
       });
-      // 分隔线 + 本局圣遗物
-      const relicY = Y2 + 210 + rows.length * 52 + 12;
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(X2 + 44, relicY); ctx.lineTo(X2 + W2 - 44, relicY); ctx.stroke();
-      text(ctx, '— 本局圣遗物 —', 375, relicY + 28, 21, '#a86bff', 'center');
-      const rel = su.relics || [];
-      if (!rel.length) {
-        text(ctx, '本局未获得圣遗物', 375, relicY + 62, 19, '#6b7a8c', 'center');
-      } else {
-        const show = rel.slice(0, 10);
-        const per = 5, d = 46, gap = 16;
-        const x0 = 375 - (per * d + (per - 1) * gap) / 2;
-        show.forEach((r, i) => {
-          const cx = x0 + (i % per) * (d + gap), cy = relicY + 42 + Math.floor(i / per) * (d + 14);
-          ctx.beginPath(); ctx.arc(cx + d / 2, cy + d / 2, d / 2, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(247,201,72,0.16)'; ctx.fill();
-          ctx.strokeStyle = 'rgba(247,201,72,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
-          text(ctx, r.icon, cx + d / 2, cy + d / 2 + 2, 24, '#ffffff', 'center');
-        });
-        if (rel.length > show.length) text(ctx, `+${rel.length - show.length}`, 375 + (per * d + (per - 1) * gap) / 2 + 20, relicY + 62, 20, '#a86bff', 'center');
-      }
-      // 按钮（横排）
-      restart.hit = button(ctx, X2 + 36, Y2 + 604, 262, 72, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 30 }).hit;
-      restart.toMenu = button(ctx, X2 + 322, Y2 + 604, 262, 72, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
+      // 按钮（收益全部弹出后浮现；命中区始终注册）
+      const bA = ph(shT + 700, 260);
+      ctx.globalAlpha = bA > 0 ? bA : 0;
+      restart.hit = button(ctx, X2 + 36, Y2 + 680, 262, 64, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 30 }).hit;
+      restart.toMenu = button(ctx, X2 + 322, Y2 + 680, 262, 64, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
+      ctx.globalAlpha = 1;
+      ctx.restore();
       return;
     }
     strokeRoundRect(ctx, x, y, w, h, 16, '#e74c3c', 3);
