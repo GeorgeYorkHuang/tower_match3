@@ -584,12 +584,17 @@ class GameMain {
       if (this.meta.grantDeepChest(lower)) chestExtra = lower.name;
     }
     this.save.save();
+    // v1.16.106 结算数据补全：总击杀 + 本局圣遗物快照 + 招财符加成系数（结算界面展示）
+    const ks = this.combat && this.combat.kills ? Object.values(this.combat.kills).reduce((a, b) => a + b, 0) : 0;
     this.runSummary = {
       evacuated, wave: this.run.wave, payout, miles,
       chestName: tier ? tier.name : null, chestGranted: ok1, chestExtra,
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       shards: this.runShardGained, depthMult: this.depthMult,
       silver: this.silverGained || 0,   // v1.16.77 局内金币结算的银币
+      goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
+      kills: ks,                        // v1.16.106 本局总击杀
+      relics: this.battleRelics.slice(), // v1.16.106 本局获取圣遗物快照（结算页图标展示）
     };
     this.state = 'gameover';
     this.sfx.stopBgm();

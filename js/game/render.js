@@ -2931,29 +2931,73 @@ class Renderer {
 
   /** 结算面板（破防） */
   gameOver(ctx, s, restart) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     const su = s.summary;   // v1.16.76 局末结算摘要（撤离点系统）
     const w = 560, h = 500, x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
     fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
     if (su) {
-      // v1.16.76 撤离点结算：撤离成功（金） / 阵亡（红）双主题
+      /* v1.16.106 结算界面重做：奖励清单结构化 + 本局圣遗物图标行 + 双主题美化 */
       const win = su.evacuated;
-      strokeRoundRect(ctx, x, y, w, h, 16, win ? '#f7c948' : '#e74c3c', 3);
-      text(ctx, win ? '🚪 撤离成功' : '💀 防线失守', x + w / 2, y + 64, 42, win ? '#ffd34d' : '#ff6b6b', 'center');
-      text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)}`, x + w / 2, y + 118, 23, '#dfe6ee', 'center');
-      text(ctx, `深度结算 ${win ? '100%' : '30%'}：+${fmtNum(su.payout)} 💰 · 碎片 +${su.shards || 0}`, x + w / 2, y + 158, 21, win ? '#f7c948' : '#9fb2c3', 'center');
-      if (su.silver > 0) text(ctx, `🪙 局内金币结算银币 +${fmtNum(su.silver)}`, x + w / 2, y + 196, 21, '#c9d6e4', 'center');
-      if (su.miles && su.miles.length) {
-        text(ctx, `🏆 里程碑首达：${su.miles.join(' / ')} 波`, x + w / 2, y + 212, 21, '#a86bff', 'center');
+      const W2 = 620, H2 = 700, X2 = (750 - W2) / 2, Y2 = (LOGIC_H - H2) / 2;
+      fillRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#2a2620' : '#2b2020');
+      strokeRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#f7c948' : '#e74c3c', 3);
+      // 顶部主题渐变带
+      const tg = ctx.createLinearGradient(0, Y2, 0, Y2 + 150);
+      tg.addColorStop(0, win ? 'rgba(247,201,72,0.20)' : 'rgba(231,76,60,0.20)');
+      tg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = tg; ctx.fillRect(X2, Y2, W2, 150);
+      text(ctx, win ? '🚪 撤离成功' : '💀 防线失守', 375, Y2 + 68, 44, win ? '#ffd34d' : '#ff6b6b', 'center');
+      text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)} · 总击杀 ${su.kills || 0}`, 375, Y2 + 118, 22, '#dfe6ee', 'center');
+      // 分隔线
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 146); ctx.lineTo(X2 + W2 - 44, Y2 + 146); ctx.stroke();
+      text(ctx, '— 奖励结算 —', 375, Y2 + 174, 22, '#9fb2c3', 'center');
+      // 奖励行（左名称 / 右数值）
+      const rows = [];
+      rows.push({ n: `🪙 深度结算（${win ? '撤离 100%' : '阵亡 30%'}）`, v: `+${fmtNum(su.payout)} 银币`, c: '#f7c948' });
+      if (su.silver > 0) rows.push({
+        n: `💰 局内金币 → 银币${su.goldBonus ? `（招财符 +${Math.round(su.goldBonus * 100)}%）` : ''}`,
+        v: `+${fmtNum(su.silver)} 银币`, c: '#f7c948',
+      });
+      if (su.shards > 0) rows.push({ n: '🧩 圣遗物碎片（精英 / Boss 掉落）', v: `+${su.shards} 片`, c: '#a86bff' });
+      if (su.miles && su.miles.length) rows.push({ n: '🏆 里程碑首达', v: su.miles.join(' / '), c: '#a86bff' });
+      rows.push({
+        n: '📦 深度宝箱',
+        v: su.chestSkipped ? '前三波阵亡 · 未发放'
+          : su.chestGranted ? `${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}（主界面开启）`
+          : '槽位已满 · 未发放',
+        c: '#d89e63',
+      });
+      rows.forEach((r, i) => {
+        const ry = Y2 + 210 + i * 52;
+        text(ctx, r.n, X2 + 48, ry, 20, '#c9d6e4', 'left');
+        text(ctx, r.v, X2 + W2 - 48, ry, 20, r.c, 'right');
+      });
+      // 分隔线 + 本局圣遗物
+      const relicY = Y2 + 210 + rows.length * 52 + 12;
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X2 + 44, relicY); ctx.lineTo(X2 + W2 - 44, relicY); ctx.stroke();
+      text(ctx, '— 本局圣遗物 —', 375, relicY + 28, 21, '#a86bff', 'center');
+      const rel = su.relics || [];
+      if (!rel.length) {
+        text(ctx, '本局未获得圣遗物', 375, relicY + 62, 19, '#6b7a8c', 'center');
+      } else {
+        const show = rel.slice(0, 10);
+        const per = 5, d = 46, gap = 16;
+        const x0 = 375 - (per * d + (per - 1) * gap) / 2;
+        show.forEach((r, i) => {
+          const cx = x0 + (i % per) * (d + gap), cy = relicY + 42 + Math.floor(i / per) * (d + 14);
+          ctx.beginPath(); ctx.arc(cx + d / 2, cy + d / 2, d / 2, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(247,201,72,0.16)'; ctx.fill();
+          ctx.strokeStyle = 'rgba(247,201,72,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+          text(ctx, r.icon, cx + d / 2, cy + d / 2 + 2, 24, '#ffffff', 'center');
+        });
+        if (rel.length > show.length) text(ctx, `+${rel.length - show.length}`, 375 + (per * d + (per - 1) * gap) / 2 + 20, relicY + 62, 20, '#a86bff', 'center');
       }
-      text(ctx, su.chestSkipped
-        ? '📦 前三波阵亡 · 无深度宝箱'
-        : su.chestGranted
-        ? `📦 获得 ${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}（主界面开启）`
-        : '📦 深度宝箱槽位已满 · 未发放', x + w / 2, y + 238, 20, '#d89e63', 'center');
-      restart.hit = button(ctx, x + 120, y + 280, 320, 76, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 32 }).hit;
-      restart.toMenu = button(ctx, x + 120, y + 372, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 });
+      // 按钮（横排）
+      restart.hit = button(ctx, X2 + 36, Y2 + 604, 262, 72, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 30 }).hit;
+      restart.toMenu = button(ctx, X2 + 322, Y2 + 604, 262, 72, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
       return;
     }
     strokeRoundRect(ctx, x, y, w, h, 16, '#e74c3c', 3);
