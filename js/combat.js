@@ -460,6 +460,10 @@ class CombatSystem {
         this.delayed.splice(i, 1);
         if (d.fn) { d.fn(this); continue; }   // v1.16.9 自定义延迟回调（冰花第 3 帧末结算）
         this.explode(d.x, d.y, d.r, d.dmg, d.key, d.knock, d.slowAfter);
+        // v1.16.103 空袭3★：炮火支援落点 20% 概率二次轰炸（40% 伤害）
+        if (d.key === 'cannon' && this.game.run.relic3('can_airstrike') && Math.random() < 0.2) {
+          this.explode(d.x + (Math.random() - 0.5) * 40, d.y + (Math.random() - 0.5) * 40, d.r * 0.7, d.dmg * 0.4, 'cannon');
+        }
         // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
         if (d.ember > 0) {
           this.groundDots = this.groundDots || [];
@@ -574,12 +578,37 @@ class CombatSystem {
       }
       m.ttl -= dt;
       m.armed -= dt;
-      if (m.ttl <= 0) { this.mines.splice(i, 1); continue; }
+      // v1.16.103 地雷强化3★：地雷持续 20 秒未被触发时自动引爆，造成 150% 伤害
+      if (m.ttl <= 0) {
+        if (this.game.run.relic3('can_mine')) this.explode(m.x, m.y, m.r, m.dmg * 1.5, 'cannon');
+        this.mines.splice(i, 1);
+        continue;
+      }
       if (m.armed > 0) continue;
       const hit = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - m.x, o.y - m.y) <= 60);
       if (!hit) continue;
       this.mines.splice(i, 1);
-      this.explode(m.x, m.y, m.r, m.dmg, 'cannon', 0, false);
+      // v1.16.103 雷场3★：地雷被引爆时，90 码内的其他地雷共鸣引爆（造成 50% 伤害，可继续连锁）
+      if (this.game.run.relic3('can_minefield')) {
+        this.explode(m.x, m.y, m.r, m.dmg, 'cannon', 0, false);   // 主雷全额爆炸
+        const q = [m];
+        const visited = new Set([m]);
+        while (q.length) {
+          const cur = q.pop();
+          for (let j = this.mines.length - 1; j >= 0; j--) {
+            const o2 = this.mines[j];
+            if (o2.fly || visited.has(o2)) continue;
+            if (Math.hypot(o2.x - cur.x, o2.y - cur.y) <= 90) {
+              visited.add(o2);
+              this.mines.splice(j, 1);
+              this.explode(o2.x, o2.y, o2.r, o2.dmg * 0.5, 'cannon', 0, false);
+              q.push(o2);
+            }
+          }
+        }
+      } else {
+        this.explode(m.x, m.y, m.r, m.dmg, 'cannon', 0, false);
+      }
       if (m.chain > 0) {
         // v1.16.42 C 连爆 → 碎雷重做：爆炸后星状向四周 130px 内散射 5/6/7 片弹片，每片 30% 攻击伤害
         const nShard = SKILL_NUM.cannon['地雷阵'].shards[m.chain];
@@ -604,17 +633,28 @@ class CombatSystem {
   /** 炮·炮台推进：独立炮击最靠墙敌人（直伤+爆炸），持续结束消失 */
   updateTurrets(dt) {
     if (!this.turrets || !this.turrets.length) return;
+    const g = this.game;
     for (let i = this.turrets.length - 1; i >= 0; i--) {
       const tu = this.turrets[i];
       tu.ttl -= dt;
-      if (tu.ttl <= 0) { this.turrets.splice(i, 1); continue; }
+      if (tu.ttl <= 0) {
+        // v1.16.103 增援3★：炮台消失时返还 2 点能量
+        if (g.run.relic3('can_reinforce')) {
+          const ct = this.tower('cannon');
+          if (ct) ct.energy = Math.min(ct.energy + 2, g.run.armoryEnergyMax());
+        }
+        this.turrets.splice(i, 1);
+        continue;
+      }
       tu.atkT += dt;
       if (tu.atkT >= tu.atkI) {
         tu.atkT -= tu.atkI;
         const tgt = this.enemies().filter((o) => o.hp > 0).sort((a, b) => b.y - a.y)[0];
         if (tgt) {
-          this.damage(tgt, tu.dmg, 'cannon');
-          this.explode(tgt.x, tgt.y, tu.r, tu.dmg * 0.48, 'cannon', 0, false);
+          // v1.16.103 炮群3★：多门炮台同时存在时，每门伤害 +10%/门
+          const turretDmg = g.run.relic3('can_turret') ? tu.dmg * (1 + 0.1 * (this.turrets.length - 1)) : tu.dmg;
+          this.damage(tgt, turretDmg, 'cannon');
+          this.explode(tgt.x, tgt.y, tu.r, turretDmg * 0.48, 'cannon', 0, false);
           this.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
           // v1.16.6 炮台开火炮口闪光 + 后坐火星
           this.fxFlash(tu.x, tu.y - 8, '#ffd24a', 0.15);
@@ -936,6 +976,8 @@ class CombatSystem {
     if (this.game.run.relic3('elec_boost') && e._elecBoost && e._elecBoost.ttl > 0) v *= (1 + 0.05 * e._elecBoost.n);
     // v1.16.102 镖尖3★：所有飞镖无视 20% 护甲（对高防怪与 Boss 质变）
     if (srcKey === 'boomerang' && this.game.run.relic3('boo_tip')) v *= 1.2;
+    // v1.16.103 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
+    if (srcKey === 'cannon' && this.game.run._warAtk > 0) v *= (1 + this.game.run._warAtk / 100);
     // v1.16.100 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
     if (this.game.run.relic3('poison_all') && e.dots) {
       const pd = e.dots.find((d) => d.type === 'poison');
@@ -1127,6 +1169,10 @@ class CombatSystem {
         if (bt) bt.energy = Math.min(bt.energy + 1, this.game.run.armoryEnergyMax());
         this.fxParticle(e.x, e.y - 10, '#d2b4de', 3, 20, 0.4, 80, 4);
       }
+      // v1.16.103 燃烧弹3★：被点燃的敌人死亡时爆炸（96% 伤害，半径 100 码）
+      if (key === 'cannon' && this.game.run.relic3('can_incend') && this.hasDot(e, 'burn')) {
+        this.explode(e.x, e.y, 100, this.shotDmg('cannon', true) * 0.96, 'cannon');
+      }
     });
     // 爆炸表现 + 音效（按最近伤害来源着色）
     const KILL_COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };
@@ -1233,7 +1279,13 @@ class CombatSystem {
     // v1.16.77 能量：普攻每次耗 0.5 能量（每 2 发 1 点）；能量耗尽不停火，进入弱化态（shotDmg ×0.5）
     // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
     const ammoT = this.tower(key);
-    if (ammoT) g.run.spendAttackEnergy(ammoT);
+    // v1.16.103 速射3★：速射期间每 10 次攻击免费 1 发（不耗能量）
+    let freeShot = false;
+    if (key === 'cannon' && g.run.relic3('can_rapid') && ammoT) {
+      ammoT._rapidN = (ammoT._rapidN || 0) + 1;
+      if (ammoT._rapidN >= 10) { ammoT._rapidN = 0; freeShot = true; }
+    }
+    if (ammoT && !freeShot) g.run.spendAttackEnergy(ammoT);
     const target = this.pickTarget(key);
     if (!target) {
       // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
@@ -1336,9 +1388,14 @@ class CombatSystem {
     }
     if (duel) {
       // 双管齐射第二发（更短弹道；B 副炮第二发伤害 +25%/级）
+      // v1.16.103 双发3★：双发的第二发必定命中血量最低的敌人
       const duelDmg = dmg * (1 + 0.25 * this.branchLv('cannon', '双管齐射', 'B'));
+      let duelTarget = target;
+      if (g.run.relic3('can_double')) {
+        duelTarget = this.enemies().filter((o) => o.hp > 0).sort((a, b) => a.hp - b.hp)[0] || target;
+      }
       g.fx.push({ ...baseShot, t: 0, dur: dur * 0.75 });
-      this.shots.push({ key, target, dmg: duelDmg, t: 0, dur: dur * 0.75, sx, sy });
+      this.shots.push({ key, target: duelTarget, dmg: duelDmg, t: 0, dur: dur * 0.75, sx, sy });
     }
   }
 
@@ -2766,15 +2823,35 @@ class CombatSystem {
 
   /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) {
+    const g = this.game;
     // v1.16.14 军火库 C 双倍火力：普攻 10%/20%/30% 概率造成双倍伤害（仅主目标）
     const armC = this.branchLv('cannon', '军火库', 'C');
     if (armC > 0 && Math.random() < 0.10 * armC) {
       dmg *= 2;
       this.fxFlash(e.x, e.y, '#ffb347', 0.25);
     }
+    // v1.16.103 火药3★：每次命中积攒 1 层「火药热度」，累计 25 层后下一发炮弹为过热弹（200% 伤害，爆炸半径 +30%），随后清零
+    let overheat = false;
+    const powT = this.tower('cannon');
+    if (g.run.relic3('can_powder') && powT) {
+      powT._heat = (powT._heat || 0) + 1;
+      if (powT._heat >= 25) { powT._heat = 0; overheat = true; this.fxFlash(e.x, e.y, '#ffb347', 0.4); }
+    }
+    if (overheat) dmg *= 2;
+    // v1.16.103 弹药库3★：能量溢出时转化为 5% 暴击率（上限 +25%＝5 层；命中时判定）
+    if (g.run.relic3('can_armory') && powT && powT.energy >= g.run.armoryEnergyMax()) {
+      powT._ovCrit = Math.min(5, (powT._ovCrit || 0) + 1);
+      if (Math.random() < 0.05 * powT._ovCrit) {
+        dmg *= 2;
+        this.fxFlash(e.x, e.y, '#ffd24a', 0.3);
+      }
+    }
+    // v1.16.103 重爆3★：重炮爆炸中心 40 码内伤害 ×1.5（近距离惩罚强化——主目标即中心）
+    if (g.run.relic3('can_heavy') && this.lv('cannon', '重炮') > 0) dmg *= 1.5;
     // 普攻溅射（v1.16.12）：基础 100px 范围、40% 溅射伤害（v1.16.22 由 10% 上调）；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
-    const r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    let r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    if (overheat) r *= 1.3;   // 过热弹爆炸半径 +30%
     const splDmg = dmg * 0.40 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
     // 协同（爆炸类 +50%）在 explode() 内按 SYNERGIES[1] 统一结算（v1.16.20 修正越界索引）
     // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1/1.5/2 秒（随等级）
@@ -2795,16 +2872,27 @@ class CombatSystem {
     // 贯穿弹（v1.16）：爆炸后弹片向前贯穿 2+裂片 个敌人（70%×碎劲），C 贯透减速 15%
     const pierce = this.lv('cannon', '贯穿弹');
     if (pierce > 0) {
-      const n = 2 + this.branchLv('cannon', '贯穿弹', 'A');
-      const pDmg = dmg * 0.7 * (1 + 0.20 * this.branchLv('cannon', '贯穿弹', 'B'));
+      // v1.16.103 穿透3★：弹片贯穿改为贯穿路径上所有敌人（无人数上限），每多贯穿 1 名伤害 -10%（下限 40%）
+      const pierceAll = g.run.relic3('can_pierce');
+      const n = pierceAll ? Infinity : 2 + this.branchLv('cannon', '贯穿弹', 'A');
+      const pDmg0 = dmg * 0.7 * (1 + 0.20 * this.branchLv('cannon', '贯穿弹', 'B'));
       const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 60 && Math.abs(o.x - e.x) < 85)
         .sort((a, b) => b.y - a.y);
+      // v1.16.103 火线3★：贯穿路径留下火线 1.5 秒，每秒 15% 伤害
+      const fireline = g.run.relic3('can_fireline');
       for (let i = 0; i < Math.min(n, cands.length); i++) {
-        this.damage(cands[i], pDmg, 'cannon');
+        const hitT = cands[i];
+        const pDmg = pierceAll ? pDmg0 * Math.max(0.4, 1 - 0.10 * i) : pDmg0;
+        this.damage(hitT, pDmg, 'cannon');
+        if (fireline) {
+          this.groundDots = this.groundDots || [];
+          this.groundDots.push({ x: (e.x + hitT.x) / 2, y: (e.y + hitT.y) / 2, r: 40, ttl: 1.5, dps: this.shotDmg('cannon', true) * 0.15, key: 'fire' });
+          this.fxRing((e.x + hitT.x) / 2, (e.y + hitT.y) / 2, '#ff7043', 40, 0.4, 3);
+        }
         // v1.16.42 C 贯透档位式：被贯穿敌人减速 15%/30%/45%
         const pierceC = this.branchLv('cannon', '贯穿弹', 'C');
-        if (pierceC > 0) this.applySlow(cands[i], SKILL_NUM.cannon['贯穿弹'].slow[pierceC], 1);
-        this.fxParticle(cands[i].x, cands[i].y, '#d89e63', 3, 22, 0.3, 90, 4);
+        if (pierceC > 0) this.applySlow(hitT, SKILL_NUM.cannon['贯穿弹'].slow[pierceC], 1);
+        this.fxParticle(hitT.x, hitT.y, '#d89e63', 3, 22, 0.3, 90, 4);
       }
     }
   }
@@ -3090,9 +3178,19 @@ class CombatSystem {
       const d = Math.hypot(o.x - x, o.y - y);
       if (d > r) return;
       this.damage(o, dmg * mult, key);
-      if (knock > 0) o.y = Math.max(entryY + 10, o.y - knock * (1 - d / r));
+      if (knock > 0) {
+        o.y = Math.max(entryY + 10, o.y - knock * (1 - d / r));
+        // v1.16.103 震地3★：击退的敌人撞墙时受到 20% 伤害（击退落点结算）
+        if (g.run.relic3('can_quake')) this.damage(o, dmg * 0.2, key);
+        // v1.16.103 震烈3★：击退打断敌人攻击动作（对远程怪质变——击退瞬间强减速 0.3 秒）
+        if (g.run.relic3('can_knock')) this.applySlow(o, 1, 0.3);
+      }
       if (slowAfter > 0) this.applySlow(o, 0.3, slowAfter);   // slowAfter = 减速秒数（震击 C：1/1.5/2）
+      // v1.16.103 燃烧弹3★：炮弹爆炸 100% 引燃敌人
+      if (key === 'cannon' && g.run.relic3('can_incend')) this.applyBurn(o, dmg);
     });
+    // v1.16.103 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
+    if (g.run.relic3('can_war')) g.run._warAtk = Math.min(30, (g.run._warAtk || 0) + 1);
     // 爆炸视觉：按塔类型着色的爆炸 + 冲击环
     const COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };
     const col = COLOR[key] || '#ff9f43';
