@@ -205,6 +205,8 @@ class CombatSystem {
     if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
+    // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
+    if (this.game.run._burnallTtl > 0) iv /= 1.25;
     return Math.max(0.15, iv);
   }
 
@@ -293,9 +295,29 @@ class CombatSystem {
     const g = this.game;
     if (!g.run.slotOrder.length) return; // 无塔不战斗
 
-    // v1.16.96 3★ 时间窗口递减：智慧典籍3★ 攻速窗口 / 战术转移3★ 洗牌伤害窗口（秒）
+    // v1.16.96 3★ 时间窗口递减：智慧典籍3★ 攻速窗口 / 战术转移3★ 洗牌伤害窗口 / 焚天3★ 攻速窗口（秒）
     if (g.run._tomeBuffTtl > 0) g.run._tomeBuffTtl = Math.max(0, g.run._tomeBuffTtl - dt);
     if (g.run._shuffleBuffTtl > 0) g.run._shuffleBuffTtl = Math.max(0, g.run._shuffleBuffTtl - dt);
+    if (g.run._burnallTtl > 0) g.run._burnallTtl = Math.max(0, g.run._burnallTtl - dt);
+    // v1.16.96 余烬风暴3★：余烬弹倒计时，1 秒后射向最近敌人
+    if (g.run._emberShots && g.run._emberShots.length) {
+      const rem = [];
+      for (const es of g.run._emberShots) {
+        es.t -= dt;
+        if (es.t <= 0) {
+          const near = this.enemies().filter((o) => o.hp > 0).sort((a, b) => Math.hypot(a.x - es.x, a.y - es.y) - Math.hypot(b.x - es.x, b.y - es.y))[0];
+          if (near) {
+            this.damage(near, es.dmg, 'fire');
+            this.fxFlash(near.x, near.y, '#ff9f43', 0.3);
+            this.fxRing(near.x, near.y, '#ff7043', 30, 0.3, 3);
+            g.fx.push({ type: 'shot', kind: 'line', color: '#ff9f43', x: es.x, y: es.y, tx: near.x, ty: near.y, t: 0, dur: 0.3, key: 'fire', aim: true, scale: 0.9 });
+          }
+        } else {
+          rem.push(es);
+        }
+      }
+      g.run._emberShots = rem;
+    }
 
     // 兼容缺字段的敌人（测试/旧数据）：惰性补齐 A1 状态
     g.enemies.forEach((e) => { if (!e.dots) initEnemyState(e); });
@@ -599,6 +621,9 @@ class CombatSystem {
   /* ---------- 敌人状态推进 ---------- */
   tickStatus(e, dt) {
     const boost = this.dotBoost();
+    // v1.16.96 火塔 3★ 标记衰减：熔心3★ 火伤标记 / 火墙增烈3★ 停留增伤计时
+    if (e._core) { e._core.ttl -= dt; if (e._core.ttl <= 0) e._core = null; }
+    if (e._wallStay > 0) e._wallStay -= dt;
     // DoT
     if (e.dots.length) {
       for (let i = e.dots.length - 1; i >= 0; i--) {
@@ -747,6 +772,19 @@ class CombatSystem {
     // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
     const ovB = this.branchLv('electric', '过载', 'B');
     if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
+    // v1.16.96 火塔 3★ 火伤乘区（srcKey==='fire'）：
+    //   熔心3★：火柱命中标记目标，目标受到火伤 +15%/层（5s，叠2层）
+    //   炼狱3★：场上每存在 1 个灼烧敌人，全塔火伤 +3%（上限 +45%）
+    //   火墙增烈3★：火墙内敌人每停留 1 秒，受到的伤害递增 10%（上限 +50%，全来源）
+    if (srcKey === 'fire') {
+      const run3 = this.game.run;
+      if (e._core && e._core.ttl > 0) v *= (1 + 0.15 * e._core.n);
+      if (run3.relic3('fire_inferno')) {
+        const burnN = this.enemies().filter((o) => o.hp > 0 && o.dots && o.dots.some((d) => d.type === 'burn')).length;
+        if (burnN > 0) v *= (1 + Math.min(45, burnN * 3) / 100);
+      }
+    }
+    if (e._wallStay > 0 && this.game.run.relic3('fire_wall')) v *= (1 + 0.10 * Math.min(5, Math.floor(e._wallStay)));
     // 圣物·利刃符：全塔伤害 +8%/级
     const g = this.game;
     const m = g.meta;
@@ -766,12 +804,38 @@ class CombatSystem {
     // 毒·致死：低血死亡（此处仅为触发记录，实际致死在命中时判断）
     // 按所有激活塔触发死亡技能
     g.run.slotOrder.slice().forEach((key) => {
-      if (key === 'fire' && this.has('fire', '爆燃') && this.hasDot(e, 'burn')) {
-        // v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%
-        if (Math.random() < 0.40) {
+      if (key === 'fire' && this.hasDot(e, 'burn')) {
+        /* v1.16.96 火塔 3★ 死亡触发（不依赖爆燃技能） */
+        // 火种3★：灼烧目标死亡时留下火焰地面 3 秒，每秒 50% 攻击伤害
+        if (g.run.relic3('fire_seed')) {
+          this.groundDots = this.groundDots || [];
+          this.groundDots.push({ x: e.x, y: e.y, r: 60, ttl: 3, dps: this.shotDmg('fire', true) * 0.5, key: 'fire' });
+          this.fxRing(e.x, e.y, '#ff7043', 60, 0.5, 4);
+        }
+        // 余烬风暴（1★/2★ 补齐保留项行为）：灼烧目标死亡时 25%/40% 概率再次爆炸（30% 伤害·半径50）
+        //   3★：爆炸后留下 1 枚余烬弹，1 秒后自动射向最近敌人（伤害 30%）
+        const emberN = g.run.relicNum('fire_ember');
+        if (emberN > 0 && Math.random() < emberN / 100) {
+          this.explode(e.x, e.y, 50, this.shotDmg('fire', true) * 0.30, 'fire');
+          if (g.run.relic3('fire_ember')) {
+            g.run._emberShots = g.run._emberShots || [];
+            g.run._emberShots.push({ t: 1, x: e.x, y: e.y, dmg: this.shotDmg('fire', true) * 0.30 });
+          }
+        }
+        // 爆燃（v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%）
+        if (this.has('fire', '爆燃') && Math.random() < 0.40) {
           const aLv = this.branchLv('fire', '爆燃', 'A');
           const bLv = this.branchLv('fire', '爆燃', 'B');
-          this.explode(e.x, e.y, 80 * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]), this.shotDmg('fire', true) * 0.96 * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
+          const boomR = 80 * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]);
+          this.explode(e.x, e.y, boomR, this.shotDmg('fire', true) * 0.96 * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
+          // v1.16.96 连锁爆破3★：爆燃爆炸可传染——爆炸范围内敌人 30% 概率带 1 层灼烧
+          if (g.run.relic3('fire_chain')) {
+            this.enemies().forEach((o) => {
+              if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= boomR && Math.random() < 0.30) {
+                this.applyBurn(o, this.shotDmg('fire', true), 'fire');
+              }
+            });
+          }
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -1119,7 +1183,11 @@ class CombatSystem {
       const ignite = this.lv('fire', '点燃');
       let burnProb = 0.20;
       if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
-      if (Math.random() < burnProb) this.applyBurn(o, dmg, 'fire');
+      // v1.16.96 薪柴3★：灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害（失败部分累积，上限 +50%）
+      if (this.game.run.relic3('fire_fuel') && burnProb >= 0.8) {
+        if (Math.random() < 0.8) this.applyBurn(o, dmg, 'fire');
+        else this.game.run._fuelBoost = Math.min(50, (this.game.run._fuelBoost || 0) + 10);
+      } else if (Math.random() < burnProb) this.applyBurn(o, dmg, 'fire');
     } else if (key === 'ice') {
       // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
       const frost = this.lv('ice', '寒霜');
@@ -1226,7 +1294,55 @@ class CombatSystem {
   /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
   hitFire(e, dmg) {
     const g = this.game;
+    const run = g.run;
     // v1.16.21：火焰鹰眼已重做为「烈焰墙」（周期技），此处不再有普攻乘区
+
+    /* v1.16.96 火塔 3★ 普攻挂点 */
+    // 焰雨3★：火球命中同一目标 3 次 → 下次攻击必为三连火球（追加 3 发等额伤害）
+    if (run._fireTripleNext) {
+      run._fireTripleNext = false;
+      for (let k = 0; k < 3; k++) {
+        this.damage(e, dmg, 'fire');
+        this.fxFlash(e.x, e.y, '#ff9f43', 0.22);
+        this.fxParticle(e.x, e.y - 8, '#ffd24a', 4, 40, 0.35, 130, 4);
+      }
+    } else {
+      e._fireHits = (e._fireHits || 0) + 1;
+      if (e._fireHits >= 3) { e._fireHits = 0; run._fireTripleNext = true; }
+    }
+    // 熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量，复用周期技结算）
+    run._forgeCount = (run._forgeCount || 0) + 1;
+    if (run.relic3('fire_forge') && run._forgeCount >= 5) {
+      run._forgeCount = 0;
+      const alive = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('fire', o.x, o.y));
+      if (alive.length) {
+        const ftgt = alive[Math.floor(Math.random() * alive.length)];
+        this.pillarWaves = this.pillarWaves || [];
+        this.pillarWaves.push({ t: 0.6, x: ftgt.x, y: ftgt.y, r: 120, dmg: this.shotDmg('fire', true) * 1.2, ember: 0 });
+        g.fx.push({ type: 'pillar', x: ftgt.x, y: ftgt.y, r: 120, t: 0, dur: 2.4, seed: Math.random() * 100 });
+        this.fxParticle(ftgt.x, ftgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
+      }
+    }
+    // 火焰弹射（1★/2★ 补齐保留项行为）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量
+    const fbN = run.relicNum('fire_bounce');
+    if (fbN > 0 && Math.random() < fbN / 100) {
+      const mz = this.towerMuzzle('fire');
+      const R = this.range('fire');
+      const off = (Math.random() * 2 - 1) * 0.24;
+      const tx = mz.x + Math.sin(off) * R, ty = mz.y - Math.cos(off) * R;
+      const fbStrike = (m2) => {
+        this.damage(m2, dmg, 'fire');
+        this.tryAttackDebuff('fire', m2, dmg);
+        this.fxParticle(m2.x, m2.y, '#ff9f43', 4, 30, 0.3, 120, 4);
+        // 3★：命中 50% 概率返还 1 点能量
+        if (run.relic3('fire_bounce') && Math.random() < 0.5) {
+          const ft = this.tower('fire');
+          if (ft) ft.energy = Math.min(ft.energy + 1, run.armoryEnergyMax());
+        }
+      };
+      this.shots.push({ key: 'fire', scatter: true, dmg, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz.x, sy: mz.y, tx, ty, hitR: 42, onHit: fbStrike });
+      g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx, ty });
+    }
 
     // 普攻灼烧（v1.16.21→v1.16.53 统一判定）：基础 20%；学「点燃」+25%（A 炽焰每级 +15%）；强化攻击同吃此加成
     this.tryAttackDebuff('fire', e, dmg);
@@ -1285,9 +1401,16 @@ class CombatSystem {
           const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
           this.enemies().forEach((o2) => {
             if (o2 === o || o2.hp <= 0) return;
-            if (Math.hypot(o2.x - o.x, o2.y - o.y) <= bgr) {
+            const d2 = Math.hypot(o2.x - o.x, o2.y - o.y);
+            if (d2 <= bgr) {
               this.damage(o2, bgs, 'fire');
               if (bgIgnite > 0 && Math.random() < bgIgnite) this.applyBurn(o2, dmg, 'fire');
+              // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
+              if (g.run.relic3('fire_nuke') && d2 > bgr * 0.5) {
+                o2.y = Math.max(50, o2.y - 40);
+                this.applyBurn(o2, dmg, 'fire');
+                this.fxParticle(o2.x, o2.y, '#ff9f43', 3, 24, 0.3, 100, 4);
+              }
             }
           });
           this.fxRing(o.x, o.y, '#ff7043', bgr, 0.4, 4);
@@ -1321,9 +1444,16 @@ class CombatSystem {
       const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
       this.enemies().forEach((o) => {
         if (o === e || o.hp <= 0) return;
-        if (Math.hypot(o.x - e.x, o.y - e.y) <= r) {
+        const d2 = Math.hypot(o.x - e.x, o.y - e.y);
+        if (d2 <= r) {
           this.damage(o, splDmg, 'fire');
           if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
+          // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
+          if (g.run.relic3('fire_nuke') && d2 > r * 0.5) {
+            o.y = Math.max(50, o.y - 40);
+            this.applyBurn(o, dmg, 'fire');
+            this.fxParticle(o.x, o.y, '#ff9f43', 3, 24, 0.3, 100, 4);
+          }
         }
       });
       // 大火球视觉：大爆炸环 + 火焰粒子
@@ -1342,7 +1472,9 @@ class CombatSystem {
     let dot = e.dots.find((d) => d.type === 'burn');
     const tickI = 0.5;
     const cBoost = cLv > 0 ? SKILL_NUM.fire['点燃'].emberDmg[cLv] : 0;
-    const dps = dmg * 0.20 * (1 + cBoost);
+    // v1.16.96 薪柴3★：灼烧概率溢出（≥80%）转灼烧伤害加成
+    const fuelBoost = this.game.run._fuelBoost || 0;
+    const dps = dmg * 0.20 * (1 + cBoost) * (1 + fuelBoost / 100);
     let ttl = 3 + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0);
     if (cLv > 0) ttl -= SKILL_NUM.fire['点燃'].emberTtlCut[cLv];
     if (ttl < 0.5) ttl = 0.5;
@@ -1357,6 +1489,13 @@ class CombatSystem {
     }
     // 灼烧 B 燃尽：满层 → 小爆炸（60% 攻击伤害，范围 30/60/90px）
     const burnLv = this.branchLv('fire', '灼烧', 'B');
+    // v1.16.96 赤印3★：灼烧叠满层时触发爆发（80% 攻击伤害，半径 60码）——与 B 燃尽可并存
+    if (this.game.run.relic3('fire_seal') && dot.stack >= maxStack) {
+      dot.stack = 1;
+      this.explode(e.x, e.y, 60, dmg * 0.8, 'fire');
+      this.fxRing(e.x, e.y, '#ffab40', 60, 0.45, 5);
+      this.fxFlash(e.x, e.y, '#ffd24a');
+    }
     if (burnLv > 0 && dot.stack >= maxStack) {
       dot.stack = 1;
       const rB = SKILL_NUM.fire['灼烧'].burnRadius[burnLv];
@@ -1378,14 +1517,17 @@ class CombatSystem {
       if (this.timers.firePillar >= 10 * this._weakPeriod('fire')) {
         this.timers.firePillar = 0;
         this.castEnergy('fire', '火柱');
+        // v1.16.96 焚天3★：火柱施放后 3 秒内全塔攻速 +25%
+        if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
-          const pDmg = this.shotDmg('fire') * 1.2 * (1 + 0.30 * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
+          const pDmg = this.shotDmg('fire', true) * 1.2 * (1 + 0.30 * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
           const pR = 120 * (1 + 0.20 * this.branchLv('fire', '火柱', 'B'));                            // 燎原 20%/级
           const emberLv = this.branchLv('fire', '火柱', 'C');
           this.pillarWaves = this.pillarWaves || [];
-          this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv });
+          // v1.16.96 熔心3★：火柱结算时给中心目标上「火伤+15% 标记」（5s，叠2层）
+          this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt });
           // 火柱视觉：地上火圈标记 → 冲天圆柱火柱（帧动画，dur 2.4s 放慢一倍）
           g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: 2.4, seed: Math.random() * 100 });
           this.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
@@ -1398,9 +1540,14 @@ class CombatSystem {
           wv.t -= dt;
           if (wv.t <= 0) {
             this.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
+            // v1.16.96 熔心3★：命中目标受火伤 +15%（5s，可叠 2 层）
+            if (g.run.relic3('fire_core') && wv.e && wv.e.hp > 0) {
+              const coreN = Math.min(2, ((wv.e._core && wv.e._core.n) || 0) + 1);
+              wv.e._core = { n: coreN, ttl: 5 };
+            }
             if (wv.ember > 0) {
               this.groundDots = this.groundDots || [];
-              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire') * 0.15 * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
+              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire', true) * 0.15 * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
             }
           } else {
             remaining.push(wv);
@@ -1417,6 +1564,8 @@ class CombatSystem {
       if (this.timers.fireWall >= 15 * this._weakPeriod('fire')) {
         this.timers.fireWall = 0;
         this.castEnergy('fire', '烈焰墙');
+        // v1.16.96 焚天3★：火墙施放后 3 秒内全塔攻速 +25%
+        if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
@@ -1425,9 +1574,14 @@ class CombatSystem {
           const cLv = this.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
           const w = 180 * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
           const h = 45 * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
-          const wDmg = this.shotDmg('fire') * 0.50 * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]);
+          const wDmg = this.shotDmg('fire', true) * 0.50 * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]);
+          // v1.16.96 火舌3★：火墙命中塔攻击范围外的敌人时，伤害 ×1.5
+          const tongue = g.run.relic3('fire_tongue') ? 1.5 : 1;
           this.enemies().forEach((o) => {
-            if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) this.damage(o, wDmg, 'fire');
+            if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) {
+              const out = !this.inTowerRange('fire', o.x, o.y);
+              this.damage(o, wDmg * (out ? tongue : 1), 'fire');
+            }
           });
           this.fireWalls = this.fireWalls || [];
           this.fireWalls.push({ x: tgt.x, y: tgt.y, w, h, ttl: 6, cLv, tick: 0 });
@@ -1446,7 +1600,10 @@ class CombatSystem {
               this.enemies().forEach((o) => {
                 if (o.hp <= 0) return;
                 if (Math.abs(o.x - wl.x) <= wl.w / 2 && o.y >= wl.y - wl.h / 2 && o.y <= wl.y + wl.h / 2) {
-                  this.applyBurn(o, this.shotDmg('fire'), 'fire');
+                  // v1.16.96 火舌3★：墙内射程外敌人灼烧伤害 ×1.5；火墙增烈3★：停留计时累积（伤害递增挂 damage 乘区）
+                  const out = !this.inTowerRange('fire', o.x, o.y);
+                  if (g.run.relic3('fire_wall')) o._wallStay = (o._wallStay || 0) + 0.5;
+                  this.applyBurn(o, this.shotDmg('fire', true) * (out && g.run.relic3('fire_tongue') ? 1.5 : 1), 'fire');
                   if (wl.cLv > 0) {
                     const sm = 1 - SKILL_NUM.fire['烈焰墙'].slow[wl.cLv];
                     if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: 0.6 };
@@ -1469,13 +1626,15 @@ class CombatSystem {
       if (this.timers.fireRain >= 12 * this._weakPeriod('fire')) {
         this.timers.fireRain = 0;
         this.castEnergy('fire', '火雨');
+        // v1.16.96 焚天3★：火雨施放后 3 秒内全塔攻速 +25%
+        if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const bLv = this.branchLv('fire', '火雨', 'B');
           const cLv = this.branchLv('fire', '火雨', 'C');
           const segR = 140 * (1 + SKILL_NUM.fire['火雨'].radius[cLv]);       // 火雨圈半径（C 扩张 +20/40/60%）
           const perR = 80;                                        // 火雨点视觉落点半径
-          const segDmg = this.shotDmg('fire') * 0.24 * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]);   // 每波 24% 伤害（B +40/80/120%）
+          const segDmg = this.shotDmg('fire', true) * 0.24 * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]);   // 每波 24% 伤害（B +40/80/120%）
           const waves = 3 + this.branchLv('fire', '火雨', 'A');   // 基础 3 波，A 波次 +1
           const gap = 0.5;                                        // 每 0.5s 一波
           const FALL = 0.5;                                        // 单颗下落时长（与 render raindrop 同步）
@@ -1500,7 +1659,8 @@ class CombatSystem {
               }
             }
             // 每波一次结算：全部颗落地后（t = w0 + 0.1 + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
-            this.rainWaves.push({ t: w0 + 0.1 + FALL, px, py, r: segR, dmg: segDmg });
+            // v1.16.96 天火3★：火雨最后一波升级为天火一击（单点 120% 伤害）
+            this.rainWaves.push({ t: w0 + 0.1 + FALL, px, py, r: segR, dmg: segDmg, skyfire: g.run.relic3('fire_skyfire') && w === waves - 1 });
           }
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
@@ -1511,12 +1671,28 @@ class CombatSystem {
         for (const wv of this.rainWaves) {
           wv.t -= dt;
           if (wv.t <= 0) {
-            this.enemies().forEach((o) => {
-              if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r) {
-                this.damage(o, wv.dmg, 'fire');
-                this.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
+            // v1.16.96 天火3★：末波升级为天火一击——圈内最靠城墙敌人单点 120% 伤害（取代范围结算）
+            if (wv.skyfire) {
+              const top = this.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r)
+                .sort((a, b) => b.y - a.y)[0];
+              if (top) {
+                this.damage(top, this.shotDmg('fire', true) * 1.2, 'fire');
+                this.fxFlash(top.x, top.y, '#ffffff', 0.4);
+                this.fxRing(top.x, top.y, '#ff7043', 90, 0.5, 6);
+                this.fxParticle(top.x, top.y, '#ffd24a', 10, 80, 0.5, 180, 6);
               }
-            });
+            } else {
+              this.enemies().forEach((o) => {
+                if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r) {
+                  this.damage(o, wv.dmg, 'fire');
+                  this.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
+                  // v1.16.96 燃尽加速3★：火雨每波落地时，灼烧状态敌人额外小爆炸（50% 伤害，半径 80 码）
+                  if (g.run.relic3('fire_hasten') && this.hasDot(o, 'burn')) {
+                    this.explode(o.x, o.y, 80, this.shotDmg('fire', true) * 0.5, 'fire');
+                  }
+                }
+              });
+            }
             // 落地余焰（轻量，替代 explode 重特效）
             this.fxParticle(wv.px, wv.py, '#ff7043', 5, wv.r * 0.5, 0.3, 120, 4);
             this.fxRing(wv.px, wv.py, '#ff9f43', wv.r, 0.35, 3);

@@ -82,6 +82,12 @@ class Run {
     this.wallShield = 0;           // 生命回复3★：回复溢出转护盾（上限10%最大血量）
     this._waveStartHp = 0;         // 金库3★：波初城墙血量（无伤判定基准）
     this._triple3 = false;         // 三消之力3★：本次交换连锁≥2（经验再+50%）
+    /* v1.16.96 火塔 3★ 局内状态 */
+    this._fuelBoost = 0;           // 薪柴3★：灼烧概率溢出转灼烧伤害（%，上限50）
+    this._forgeCount = 0;          // 熔炉之息3★：普攻计数（每5次免费火柱）
+    this._burnallTtl = 0;          // 焚天3★：火柱/火墙/火雨施放后全塔攻速+25%窗口（秒）
+    this._fireTripleNext = false;  // 焰雨3★：火球命中同一目标3次后，下次攻击必为三连火球
+    this._emberShots = null;       // 余烬风暴3★：余烬弹队列（1秒后自动射向最近敌）
   }
 
   /** 局内圣遗物拥有数（未获得返回 0） */
