@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.91';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.16.92';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -562,9 +562,11 @@ class GameMain {
     }
     this.run.gold = 0;
     const miles = this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
-    const tier = this.meta.tierByWave(this.run.wave);
+    // v1.16.92 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
+    const noChest = !evacuated && this.run.wave <= 3;
+    const tier = noChest ? null : this.meta.tierByWave(this.run.wave);
     let chestExtra = null;
-    const ok1 = this.meta.grantDeepChest(tier);
+    const ok1 = tier ? this.meta.grantDeepChest(tier) : false;
     if (evacuated && this.run.wave >= CONFIG.EVAC.lateWave) {
       // 撤离成功顶配加发：星辉→黄金 / 黄金→白银（低一档宝箱）
       const idx = CONFIG.DEPTH_CHEST.tiers.indexOf(tier);
@@ -574,7 +576,8 @@ class GameMain {
     this.save.save();
     this.runSummary = {
       evacuated, wave: this.run.wave, payout, miles,
-      chestName: tier.name, chestGranted: ok1, chestExtra,
+      chestName: tier ? tier.name : null, chestGranted: ok1, chestExtra,
+      chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       shards: this.runShardGained, depthMult: this.depthMult,
       silver: this.silverGained || 0,   // v1.16.77 局内金币结算的银币
     };

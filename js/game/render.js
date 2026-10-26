@@ -2691,6 +2691,10 @@ class Renderer {
       const isBranch = ef.type === 'branch';
       const isTarget = i === 0 && !isBranch && ef.name === group.target;
       const upgrading = isBranch;
+      // v1.16.92 三态细分：新技能 / 新分支（branchLv 0→1）/ 分支升级（branchLv ≥1）
+      const isSkill = !isBranch;
+      const isNewBranch = isBranch && (ef.branchLv || 0) === 0;
+      const isUpgrade = isBranch && !isNewBranch;
       const targetLv = isBranch ? (ef.branchLv + 1) : 1;   // 选择后达到的等级
       // v1.16.7 卡片入场：错峰上浮 + 淡入 + 轻微放大（0.05s + i*0.09s 依次浮现）
       const cd = 0.05 + i * 0.09;
@@ -2825,18 +2829,21 @@ class Renderer {
       // v1.16.27：技能图标 = 美术图片（88px；垂直居中，水平右移 4px 中和 Lv 角标/素材残余左偏），缺失回退 emoji
       const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 40, iconCy - 44, 88, 88);
       if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx + 4, iconCy + 6, 52, '#ffffff', 'center');
-      // 等级角标（选择后达到的等级）
-      fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, upgrading ? '#f7c948' : '#2c3542');
+      // 等级角标（v1.16.92 三态：新技能=NEW 暗底 / 新分支=黄底 Lv0 / 升级=黄底选择后等级）
+      fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, isBranch ? '#f7c948' : '#2c3542');
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
-      text(ctx, `Lv${targetLv}`, iconCx + ir + 4, iconCy - ir + 24, 19, upgrading ? '#1a1a1a' : '#ffffff', 'center');
+      text(ctx, isSkill ? 'NEW' : `Lv${isNewBranch ? 0 : targetLv}`, iconCx + ir + 4, iconCy - ir + 24, isSkill ? 16 : 19, isBranch ? '#1a1a1a' : '#ffffff', 'center');
       // v1.16.55 技能名（金色 40px 大字，nameY=topY+182，与图标底 130 留 12px、与下方标签留 20px）
       const nameY = topY + 182;
       // v1.16.57 分支标签胶囊：新技能/分支标签整体下移 10px（tY = nameY+30）；
       //   分支文字较长（分支名 · LvX → Y）时字号 21→最小 16 自适应，保证胶囊不超出卡片外框
       const tSize = 21;
-      const tagTxt = upgrading
-        ? `${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)} · Lv${ef.branchLv} → ${ef.branchLv + 1}`
-        : '新技能';
+      // v1.16.92 标签文案三态：新技能 / 进化 · 分支名 / 等级从X级升到Y级
+      const tagTxt = isSkill
+        ? '新技能'
+        : (isNewBranch
+          ? `进化 · ${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)}`
+          : `等级从${ef.branchLv}级升到${ef.branchLv + 1}级`);
       let tSizeA = tSize;
       let tW = txtW(tagTxt, tSizeA) + 34;
       while (tW > cardW - 20 && tSizeA > 16) { tSizeA -= 1; tW = txtW(tagTxt, tSizeA) + 34; }
@@ -2883,11 +2890,11 @@ class Renderer {
       lines.forEach((ln, li) => {
         text(ctx, ln, cx + cardW / 2, panelY + 22 + li * 30, 21, '#c7d1dc', 'center');
       });
-      // 选择按钮（卡底部；v1.16.30 分支卡 = 金色渐变「确认升级」；技能卡 = 塔色「确认激活」）
+      // 按钮文案（v1.16.92 三态）：新技能=确认技能 / 新分支=确认分支 / 升级=确认升级（分支卡均金色）
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
       const btnCol = upgrading ? '#f7c948' : fromTint;
       const btnDark = upgrading ? '#d99e16' : '#243e57';
-      const btnTxt = upgrading ? '确认升级' : '确认激活';
+      const btnTxt = isSkill ? '确认技能' : (isNewBranch ? '确认分支' : '确认升级');
       fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
       const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
       btnGrad.addColorStop(0, lighten(btnCol, 1.25));
@@ -2939,7 +2946,9 @@ class Renderer {
       if (su.miles && su.miles.length) {
         text(ctx, `🏆 里程碑首达：${su.miles.join(' / ')} 波`, x + w / 2, y + 212, 21, '#a86bff', 'center');
       }
-      text(ctx, su.chestGranted
+      text(ctx, su.chestSkipped
+        ? '📦 前三波阵亡 · 无深度宝箱'
+        : su.chestGranted
         ? `📦 获得 ${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}（主界面开启）`
         : '📦 深度宝箱槽位已满 · 未发放', x + w / 2, y + 238, 20, '#d89e63', 'center');
       restart.hit = button(ctx, x + 120, y + 280, 320, 76, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 32 }).hit;
