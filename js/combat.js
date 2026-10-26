@@ -203,6 +203,8 @@ class CombatSystem {
     // v1.16.77 局内商店·攻速强化：+15%/层（本局临时）
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
     if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
+    // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
+    if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
     return Math.max(0.15, iv);
   }
 
@@ -237,8 +239,8 @@ class CombatSystem {
     return sum;
   }
 
-  /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径） */
-  shotDmg(key) {
+  /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径）；isSkill=true 表示技能/DoT 上下文（v1.16.96 全局充能3★ 技能伤加成只吃技能） */
+  shotDmg(key, isSkill) {
     const dps = this.game.run.effects.towerDps(key);
     const iv = CONFIG.TOWERS[key].atkInterval;
     let dmg = dps * iv;
@@ -246,8 +248,14 @@ class CombatSystem {
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { atk: 0 };
     if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
     // v1.16.78 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
-    const rl = this.relicVal('cm_power') + this.relicTowerDmg(key);
+    // v1.16.96 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
+    const run = this.game.run;
+    const rl = this.relicVal('cm_power') + this.relicTowerDmg(key)
+      + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0);
     if (rl > 0) dmg *= (1 + rl / 100);
+    if (isSkill && run.chargeSkillBoost > 0) dmg *= (1 + run.chargeSkillBoost / 100);
+    // v1.16.96 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3
+    if (run._shuffleBuffTtl > 0) dmg *= 1.3;
     // v1.16.77 能量耗尽弱化态：普攻与技能伤害 ×0.5（能量 <= 0 时）
     const t = this.tower(key);
     if (t && t.energy <= 0) dmg *= CONFIG.GLOBAL_SKILL.weakDmg;
@@ -284,6 +292,10 @@ class CombatSystem {
   update(dt) {
     const g = this.game;
     if (!g.run.slotOrder.length) return; // 无塔不战斗
+
+    // v1.16.96 3★ 时间窗口递减：智慧典籍3★ 攻速窗口 / 战术转移3★ 洗牌伤害窗口（秒）
+    if (g.run._tomeBuffTtl > 0) g.run._tomeBuffTtl = Math.max(0, g.run._tomeBuffTtl - dt);
+    if (g.run._shuffleBuffTtl > 0) g.run._shuffleBuffTtl = Math.max(0, g.run._shuffleBuffTtl - dt);
 
     // 兼容缺字段的敌人（测试/旧数据）：惰性补齐 A1 状态
     g.enemies.forEach((e) => { if (!e.dots) initEnemyState(e); });
@@ -404,7 +416,7 @@ class CombatSystem {
         // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
         if (d.ember > 0) {
           this.groundDots = this.groundDots || [];
-          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon') * 0.24 * d.ember, key: 'fire' });
+          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon', true) * 0.24 * d.ember, key: 'fire' });
         }
       }
     }
@@ -426,7 +438,7 @@ class CombatSystem {
           gd._t = (gd._t || 0) + dt;
           while (gd._t >= 1) {
             gd._t -= 1;
-            this.applyPoison(o, this.shotDmg('poison'), 'poison', gd.stackPerSec);
+            this.applyPoison(o, this.shotDmg('poison', true), 'poison', gd.stackPerSec);
           }
         }
       });
@@ -461,7 +473,7 @@ class CombatSystem {
         const picks = cands.slice(0, st.targets);
         picks.forEach((o) => {
           this.damage(o, st.dmg, 'poison');
-          this.applyPoison(o, this.shotDmg('poison'), 'poison', 1);
+          this.applyPoison(o, this.shotDmg('poison', true), 'poison', 1);
           // 毒棒攻击弹道（v1.16.1）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
           g.fx.push({ type: 'thorn', x: st.x, y: st.y, tx: o.x, ty: o.y, t: 0, dur: 0.25, color: '#2e7d32' });
           this.fxParticle(o.x, o.y, '#2e7d32', 4, 30, 0.3, 90, 4);
@@ -497,7 +509,7 @@ class CombatSystem {
       if (m.chain > 0) {
         // v1.16.42 C 连爆 → 碎雷重做：爆炸后星状向四周 130px 内散射 5/6/7 片弹片，每片 30% 攻击伤害
         const nShard = SKILL_NUM.cannon['地雷阵'].shards[m.chain];
-        const shardDmg = this.shotDmg('cannon') * SKILL_NUM.cannon['地雷阵'].shardDmg;
+        const shardDmg = this.shotDmg('cannon', true) * SKILL_NUM.cannon['地雷阵'].shardDmg;
         const R2 = SKILL_NUM.cannon['地雷阵'].shardR;
         const SPEED = SKILL_NUM.cannon['地雷阵'].shardSpeed;
         for (let k = 0; k < nShard; k++) {
@@ -613,7 +625,7 @@ class CombatSystem {
           // 火·爆燃 C 灼裂：灼烧每跳 15%/30%/50% 概率爆炸一次（30% 范围伤害）
           const burstLv = this.branchLv('fire', '爆燃', 'C');
           if (d.type === 'burn' && burstLv > 0 && Math.random() < SKILL_NUM.fire['灼烧'].burst[burstLv]) {
-            this.explode(e.x, e.y, 50, this.shotDmg('fire') * 0.30, 'fire');
+            this.explode(e.x, e.y, 50, this.shotDmg('fire', true) * 0.30, 'fire');
           }
           // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.7) {
@@ -666,7 +678,7 @@ class CombatSystem {
           const near = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= rP);
           if (near.length) {
             const pick = near[Math.floor(Math.random() * near.length)];
-            this.applyPoison(pick, this.shotDmg('poison'), 'poison', 1);
+            this.applyPoison(pick, this.shotDmg('poison', true), 'poison', 1);
             this.fxBeam(e.x, e.y, pick.x, pick.y, '#45b39d', 0.35, 2.5);
           }
         }
@@ -678,7 +690,7 @@ class CombatSystem {
       e._vineAcc = (e._vineAcc || 0) + dt;
       if (e._vineAcc >= 1) {
         e._vineAcc -= 1;
-        this.applyPoison(e, this.shotDmg('poison'), 'poison', 1);
+        this.applyPoison(e, this.shotDmg('poison', true), 'poison', 1);
         this.fxParticle(e.x, e.y - 10, '#7dcea0', 3, 24, 0.4, 80, 4);
       }
     }
@@ -700,7 +712,7 @@ class CombatSystem {
           e._miaT -= 2;
           // v1.16.42 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
           const bLv = this.branchLv('poison', '瘴气', 'B');
-          this.applyPoison(e, this.shotDmg('poison') * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', 1);
+          this.applyPoison(e, this.shotDmg('poison', true) * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', 1);
         }
         if (Math.random() < 0.4) this.fxParticle(e.x, e.y - 6, '#7ee2a8', 1, 16, 0.6, 50, 4);
       }
@@ -759,7 +771,7 @@ class CombatSystem {
         if (Math.random() < 0.40) {
           const aLv = this.branchLv('fire', '爆燃', 'A');
           const bLv = this.branchLv('fire', '爆燃', 'B');
-          this.explode(e.x, e.y, 80 * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]), this.shotDmg('fire') * 0.96 * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
+          this.explode(e.x, e.y, 80 * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]), this.shotDmg('fire', true) * 0.96 * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -774,7 +786,7 @@ class CombatSystem {
         picks.forEach((o) => {
           if (Math.random() < SKILL_NUM.poison['毒爆'].spreadP) {
             const layers = (bLv > 0 && Math.random() < SKILL_NUM.poison['毒爆'].inherit[bLv]) ? this.poisonStack(e) : 1;
-            this.applyPoison(o, this.shotDmg('poison'), 'poison', layers);
+            this.applyPoison(o, this.shotDmg('poison', true), 'poison', layers);
             this.fxBeam(e.x, e.y, o.x, o.y, '#7ee2a8', 0.3, 3);
           }
         });
@@ -805,7 +817,7 @@ class CombatSystem {
       // 冰·冰冻 C 碎冰（v1.16.21）：击杀冰冻敌人 → 120px 范围爆炸（30%/40%/50%×攻击力，档位式）并减速 30%
       if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
         const frzC = this.branchLv('ice', '冰冻', 'C');
-        this.explode(e.x, e.y, 120, this.shotDmg('ice') * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
+        this.explode(e.x, e.y, 120, this.shotDmg('ice', true) * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
@@ -835,7 +847,8 @@ class CombatSystem {
     const t = this.tower(key);
     if (!t || t.level === 0) return;
     // v1.16.77 能量：三消额外攻击同样耗 0.5 能量；能量耗尽不取消，伤害走弱化态（shotDmg 内 ×0.5）
-    if (t.energy > 0) t.energy = Math.max(0, t.energy - CONFIG.GLOBAL_SKILL.perAttack);
+    // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
+    g.run.spendAttackEnergy(t);
     const tgt = this.pickTarget(key);
     if (!tgt) return;
     const dmg = this.shotDmg(key);
@@ -920,8 +933,9 @@ class CombatSystem {
   attackOnce(key) {
     const g = this.game;
     // v1.16.77 能量：普攻每次耗 0.5 能量（每 2 发 1 点）；能量耗尽不停火，进入弱化态（shotDmg ×0.5）
+    // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
     const ammoT = this.tower(key);
-    if (ammoT && ammoT.energy > 0) ammoT.energy = Math.max(0, ammoT.energy - CONFIG.GLOBAL_SKILL.perAttack);
+    if (ammoT) g.run.spendAttackEnergy(ammoT);
     const target = this.pickTarget(key);
     if (!target) {
       // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
@@ -1086,7 +1100,7 @@ class CombatSystem {
       const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= 32;
       if (spaced && this.windTrails.length < 240) {
         const ttl = 1.5 + 0.5 * wA;
-        const dps = this.shotDmg('boomerang') * 0.30 * (1 + 0.3 * wB);
+        const dps = this.shotDmg('boomerang', true) * 0.30 * (1 + 0.3 * wB);
         this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: SKILL_NUM.boomerang['风痕'].slow[wC] });   // v1.16.42 C 卷痕档位式 10%/20%/30%
         s._wLast = { x: bx, y: by };
       }
@@ -2467,6 +2481,8 @@ class CombatSystem {
       // v1.16.89 洗牌重做：额外触发一遍已有技能——周期技计时器置满立即触发一次 + 全体塔按已激活技能数追加普攻
       const n = this.castGlobalBurst();
       if (n > 0) g.toast && g.toast(`⚡ 技能齐发 · 全塔普攻 ×${n}`, '#ff8c42');
+      // v1.16.96 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3（shotDmg 统一乘区）
+      if (g.run.relic3('cm_shuffle')) g.run._shuffleBuffTtl = 2;
     } else {
       // 能量补给：所有已解锁塔各 +refillEnergy（封顶能量上限）
       let refilled = 0;

@@ -140,10 +140,14 @@ class WaveDirector {
       attackT: 0,
     };
     const en = initEnemyState(e);
-    // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）
+    // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；v1.16.96 3★：其后 60 码内 2 名敌人各冻 2 秒
     if (!this._freezeDone) {
       const frz = this.game.run.relicNum('cm_freeze');
       if (frz > 0) en.frozen = frz;
+      if (this.game.run.relic3('cm_freeze')) {
+        const cands = this.game.enemies.filter((o) => o.hp > 0 && !(o.frozen > 0) && Math.abs(o.y - en.y) <= 60 && o.y > en.y);
+        cands.slice(0, 2).forEach((o) => { o.frozen = Math.max(o.frozen || 0, 2); });
+      }
       this._freezeDone = true;
     }
     this.game.enemies.push(en);

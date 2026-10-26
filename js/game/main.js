@@ -471,14 +471,16 @@ class GameMain {
           iw.absorb -= absorbed;
           const leak = atkDmg - absorbed;
           // v1.14 测试战场：城墙无敌（不扣血，专注技能验证）
-          if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= leak;
+          // v1.16.96 城墙受击统一入口：减伤护符3★ 大额截断 + 生命回复3★ 护盾优先抵扣
+          if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= this.run.applyWallDamage(leak);
           if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
           this.combat.applySlow(e, 0.4, 2);
           e.atkSlowAdd = 0.5; e.atkSlowT = 2;
           // 冰墙受击视觉：冰晶飞溅
           this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
         } else {
-          if (this.state !== 'testfield') this.run.lineHp -= atkDmg;
+          // v1.16.96 城墙受击统一入口：减伤护符3★ 大额截断 + 生命回复3★ 护盾优先抵扣
+          if (this.state !== 'testfield') this.run.lineHp -= this.run.applyWallDamage(atkDmg);
         }
         wallHits++;
         // v1.14 测试战场：城墙无敌，不触发破防
@@ -491,17 +493,19 @@ class GameMain {
     if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallLine, t: 0, dur: 0.3 });
   }
 
-  /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城） */
+  /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
+   *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
   moveEnemy(e, dt) {
     if (e.frozen > 0) return;
     if (e.y >= this.ly.wallY - 10) return;
-    const mult = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
+    let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
+    if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
     // v1.16.78 时间停滞（局内圣遗物）：怪物移速降低 N%（按星级）
     const stasis = this.run.relicNum('cm_stasis');
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
     // v1.16.78 霜风峡谷风场被动：移速 ×1.10^风场层数
     const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
-    e.y += e.speed * mult * stasisMul * windMul * dt;
+    e.y += e.speed * slowEff * stasisMul * windMul * dt;
   }
 
   playSfx(kind, minGap) {
@@ -732,17 +736,19 @@ class GameMain {
     this.run.gainExp(gained);
     // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
-    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）→ 点击后开启圣物三选一（v1.16.59 不再击杀即弹层）
+    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）；v1.16.96 赏金猎人3★ 连续3波无宝箱必掉
     if (e.type === 'elite') {
       const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest) * (1 + this.run.relicNum('cm_bounty') / 100);
-      if (Math.random() < chance) {
+      if (Math.random() < chance || this.run.bountyGuarantee()) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
+        this.run._waveChestDropped = true;
         this.toast('精英掉落宝箱 📦 点击开启', '#f7c948');
       }
     }
     // Boss：掉落战场宝箱（点击三选一）+ 主界面宝箱计数（每 5 波）
     if (e.isBoss) {
       this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
+      this.run._waveChestDropped = true;
       this.meta.chests += 1;
       this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
       this.save.save();

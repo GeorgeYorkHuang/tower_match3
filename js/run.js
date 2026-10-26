@@ -71,6 +71,17 @@ class Run {
     this.slotOrder = [];      // 先消先得：塔获得顺序（前 TOWER_SLOTS 个占槽）
     this.runRelic = {};       // v1.16.60 局内圣遗物（rougelike）本局生效计数 { id: count }
     this.metaRef = null;      // v1.16.78 星级查询引用（main 注入 meta；模拟层缺省按 1★）
+    /* v1.16.96 3★ 质变行为局内状态 */
+    this.energyBank = 0;           // 弹药箱3★：三消能量溢出备用库（上限20，普攻能量不足时自动借用）
+    this.cmPower3 = 0;             // 力量符3★：4连消全塔伤害叠层（本局累计 %，上限15）
+    this.chargeSkillBoost = 0;     // 全局充能3★：充能溢出转技能伤害加成（%，上限50）
+    this._bountyStreak = 0;        // 赏金猎人3★：连续无宝箱波计数
+    this._waveChestDropped = false;// 本波是否已掉过战场宝箱
+    this._tomeBuffTtl = 0;         // 智慧典籍3★：升级后全塔攻速+20%窗口（秒）
+    this._shuffleBuffTtl = 0;      // 战术转移3★：洗牌后消除伤害×1.3窗口（秒）
+    this.wallShield = 0;           // 生命回复3★：回复溢出转护盾（上限10%最大血量）
+    this._waveStartHp = 0;         // 金库3★：波初城墙血量（无伤判定基准）
+    this._triple3 = false;         // 三消之力3★：本次交换连锁≥2（经验再+50%）
   }
 
   /** 局内圣遗物拥有数（未获得返回 0） */
@@ -83,6 +94,56 @@ class Run {
     if (this.relicRun(id) <= 0) return 0;
     const star = (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
     return CONFIG.relicNum(id, star);
+  }
+
+  /** v1.16.96 3★ 质变行为生效判定：STAR3_ENABLED 开启 + 拥有 + 星级≥3；模拟层无 metaRef 按 false（不生效） */
+  relic3(id) {
+    if (!CONFIG.STAR3_ENABLED) return false;
+    if (this.relicRun(id) <= 0) return false;
+    if (!this.metaRef || !this.metaRef.starOf) return false;
+    return this.metaRef.starOf(id) >= 3;
+  }
+
+  /** v1.16.96 城墙受击统一入口：减伤护符3★ 大额伤害截断（超10%最大血量部分减免50%）→ 生命回复3★ 护盾优先抵扣 */
+  applyWallDamage(d) {
+    if (!(d > 0)) return 0;
+    let dmg = d;
+    const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
+    if (this.relic3('cm_guard') && dmg > maxHp * 0.1) dmg = maxHp * 0.1 + (dmg - maxHp * 0.1) * 0.5;
+    if (this.wallShield > 0) {
+      const s = Math.min(this.wallShield, dmg);
+      this.wallShield -= s;
+      dmg -= s;
+    }
+    return dmg;
+  }
+
+  /** v1.16.96 城墙加固3★：城墙每损失10%最大血量，全塔攻击+1%（背水，最高+10%） */
+  wallAtkBonus() {
+    if (!this.relic3('cm_wall')) return 0;
+    const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
+    if (maxHp <= 0) return 0;
+    const pct = Math.floor((1 - this.lineHp / maxHp) * 10);
+    return Math.max(0, Math.min(10, pct));
+  }
+
+  /** v1.16.96 弹药箱3★：普攻能量不足时从备用能量库借用（一次借足 0.5 发） */
+  spendAttackEnergy(t) {
+    const need = CONFIG.GLOBAL_SKILL.perAttack;
+    if (t.energy < need && this.energyBank > 0) {
+      const take = Math.min(this.energyBank, need - t.energy);
+      this.energyBank -= take;
+      t.energy += take;
+    }
+    if (t.energy >= need) t.energy -= need;
+    else t.energy = 0;
+  }
+
+  /** v1.16.96 赏金猎人3★：连续3波不掉宝箱时，第4波必掉（调用方在掉落判定处消费） */
+  bountyGuarantee() {
+    if (!this.relic3('cm_bounty') || this._bountyStreak < 3) return false;
+    this._bountyStreak = 0;
+    return true;
   }
 
   _weightsFor() {
@@ -113,9 +174,11 @@ class Run {
     return need;
   }
 
-  /** v1.16.60 三消之力：每次三消获得的经验 +N%（v1.16.78 按星级数值） */
+  /** v1.16.60 三消之力：每次三消获得的经验 +N%（v1.16.78 按星级数值）；v1.16.96 3★：连锁×2 以上时经验再 +50% */
   _relicExp(v) {
-    return Math.round(v * (1 + this.relicNum('cm_triple') / 100));
+    let e = Math.round(v * (1 + this.relicNum('cm_triple') / 100));
+    if (this._triple3) e = Math.round(e * 1.5);
+    return e;
   }
 
   /**
@@ -128,9 +191,14 @@ class Run {
     this.exp += v;
     let ups = 0;
     while (this.expLevel < CONFIG.EXP.towerMaxLevel && this.exp >= this.expNeed()) {
-      this.exp -= this.expNeed();
+      const need = this.expNeed();
+      this.exp -= need;
       this.expLevel += 1;
       ups += 1;
+      // v1.16.96 经验之心3★：升级时 20% 概率返还本级经验的 50%（滚雪球加速）
+      if (this.relic3('cm_exp') && this.rng() < 0.2) this.exp += Math.round(need * 0.5);
+      // v1.16.96 智慧典籍3★：升级时触发全塔 3 秒攻速 +20%（窗口由 combat 递减）
+      if (this.relic3('cm_tome')) this._tomeBuffTtl = 3;
       const t = this._nextPendingTower();
       if (t) t.pending = Math.min(t.pending + 1, CONFIG.EFFECT.pendingCap);
     }
@@ -152,6 +220,10 @@ class Run {
     // v1.16.78 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
     const comboN = this.relicNum('cm_combo');
     if (comboN > 0 && size <= 3 && this.rng() < comboN / 100) { shape = '4'; size = 4; }
+    // v1.16.96 力量符3★：4连及以上消除 → 全塔伤害永久 +0.5%（本局，上限15%）
+    if (this.relic3('cm_power') && (size >= 4 || shape === '4' || shape === 'L5' || shape === '5')) {
+      this.cmPower3 = Math.min(15, this.cmPower3 + 0.5);
+    }
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
     let ammoGain = 0, shuffleGain = 0, refillGain = 0;
@@ -186,6 +258,11 @@ class Run {
       ammoGain = t.energy - before;
       const over = Math.max(0, before + gain - this.armoryEnergyMax());
       if (over > 0) {
+        // v1.16.96 弹药箱3★：能量溢出 50% 概率存入备用能量库（上限 20 点，普攻能量不足自动借用）
+        if (this.relic3('cm_ammobox') && this.rng() < 0.5) {
+          const room = 20 - this.energyBank;
+          if (room > 0) this.energyBank += Math.min(over, room);
+        }
         const half = Math.floor(over / 2);
         shuffleGain = this._chargeAmmo('shuffle', half);
         refillGain = this._chargeAmmo('refill', over - half);
@@ -252,7 +329,11 @@ class Run {
     if (a && a.lv > 0) ammo = Math.round(ammo * (1 + 0.25 * a.b));
     const before = this[key] || 0;
     this[key] = Math.min(before + ammo, GS.energyMaxGS);
-    return this[key] - before;
+    const got = this[key] - before;
+    // v1.16.96 全局充能3★：充能溢出（已达上限）转为技能伤害加成（每溢出 +10%，上限50%）
+    const over = Math.max(0, before + ammo - GS.energyMaxGS);
+    if (over > 0 && this.relic3('cm_charge')) this.chargeSkillBoost = Math.min(50, this.chargeSkillBoost + 10);
+    return got;
   }
 
   /** 消耗全局技能累计充能（释放 1 次 = chargePerUse 点；不足返回 false）；v1.16.78 免费洗牌优先 */
@@ -290,6 +371,8 @@ class Run {
   trySwap(r1, c1, r2, c2) {
     const ret = this.board.trySwap(r1, c1, r2, c2);
     if (!ret.ok) return { ok: false };
+    // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
+    this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
     const settled = [], settledByStep = [];
     ret.resolved.stepList.forEach((st) => {
       const stepSettled = [];
@@ -300,6 +383,7 @@ class Run {
       settled.push(...stepSettled);
       settledByStep.push(stepSettled);
     });
+    this._triple3 = false;
     return { ok: true, matches: ret.resolved.matches, steps: ret.resolved.steps, settled, settledByStep, stepList: ret.resolved.stepList };
   }
 
@@ -332,8 +416,15 @@ class Run {
       if (f.windEvery && this.wave % f.windEvery === 0) this.windStacks = (this.windStacks || 0) + 1;
       if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
     }
-    // v1.16.78 战术转移：每波免费洗牌 +N 次（按星级）
-    this.freeShuffle += this.relicNum('cm_shuffle');
+    // v1.16.78 战术转移：每波免费洗牌 +N 次（按星级）；v1.16.96 3★ 额外 +1 次
+    this.freeShuffle += this.relicNum('cm_shuffle') + (this.relic3('cm_shuffle') ? 1 : 0);
+    // v1.16.96 金库3★：记录波初城墙血（波末无伤判定）；赏金猎人3★：连续无宝箱波计数
+    this._waveStartHp = this.lineHp;
+    if (this.relic3('cm_bounty')) {
+      if (this._waveChestDropped) this._bountyStreak = 0;
+      else this._bountyStreak += 1;
+    }
+    this._waveChestDropped = false;
     this._waveGold = CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
     return this.wave;
   }
@@ -345,13 +436,22 @@ class Run {
    * @returns {broken, leak, enemyHp, totalDps, waveGold, firstSynergyWave}
    */
   endWave(skipLeak) {
-    // v1.16.78 金库：每波结束金币 +N%（按星级）
+    // v1.16.78 金库：每波结束金币 +N%（按星级）；v1.16.96 3★：本波城墙无伤时金币额外 +30%
     this.gold += Math.round(this._waveGold * (1 + this.relicNum('cm_vault') / 100));
-    // v1.16.78 生命回复：每波结束城墙回复 N% 生命
+    if (this.relic3('cm_vault') && this.lineHp >= this._waveStartHp - 0.001) {
+      this.gold += Math.round(this._waveGold * 0.3);
+    }
+    // v1.16.78 生命回复：每波结束城墙回复 N% 生命；v1.16.96 3★：回复溢出转为护盾（上限10%最大血量）
     const regen = this.relicNum('cm_regen');
     if (regen > 0) {
       const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
-      this.lineHp = Math.min(maxHp, this.lineHp + maxHp * regen / 100);
+      const healed = maxHp * regen / 100;
+      const before = this.lineHp;
+      this.lineHp = Math.min(maxHp, this.lineHp + healed);
+      const overflow = healed - (this.lineHp - before);
+      if (overflow > 0 && this.relic3('cm_regen')) {
+        this.wallShield = Math.min(maxHp * 0.1, this.wallShield + overflow);
+      }
     }
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
@@ -360,7 +460,7 @@ class Run {
     const totalDps = this.effects.totalDps();
     const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);
-    if (!skipLeak) this.lineHp -= leak;
+    if (!skipLeak) this.lineHp -= this.applyWallDamage(leak);
     // 协同检测（与模拟一致）
     this.effects.updateSynergies();
     if (this.firstSynergyWave === null && this.effects.synergyDone[0]) this.firstSynergyWave = this.wave;
