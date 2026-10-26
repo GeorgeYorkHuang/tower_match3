@@ -3745,27 +3745,23 @@ class Renderer {
     fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
     fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
     text(ctx, colorName(k), dx + 30, dy + 44, 38, '#ffffff', 'left');
-    // 4 列属性：伤害/攻速/射程/普攻耗能 —— 属性名右侧胶囊进度条（固定满值），数值在条右侧
+    // 4 行属性：伤害/攻速/射程/普攻耗能 —— 每行 = 属性名 + 胶囊进度条（固定满值）+ 数值
     const statCols = [
       { name: '伤害', val: T.baseDps, cap: 100, txt: `${T.baseDps}/s` },
       { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${(1 / T.atkInterval).toFixed(1)}发/s` },
       { name: '射程', val: T.range, cap: 1000, txt: `${T.range}` },
       { name: '耗能', val: GS.perAttack || 0.5, cap: 1, txt: `${GS.perAttack || 0.5}/发` },
     ];
-    const colW = dw / 4;
-    const statY = dy + 150;                    // 属性行中线
-    statCols.forEach((c, ci) => {
-      const cx0 = dx + ci * colW + 16;
-      const nameW = txtW(c.name, 22);
-      const valW = txtW(c.txt, 17);
-      text(ctx, c.name, cx0, statY, 22, '#ffffff', 'left');
-      const barW = Math.max(30, colW - 16 * 2 - nameW - 10 - valW - 10);
-      const bx = cx0 + nameW + 10, by = statY - 9;
-      fillRoundRect(ctx, bx, by, barW, 18, 9, 'rgba(255,255,255,0.18)');
+    const barW = 430, barX = dx + 110, valX = barX + barW + 14;
+    statCols.forEach((c, ri) => {
+      const rowY = dy + 92 + ri * 34;          // 4 行均布（面板高 222）
+      text(ctx, c.name, dx + 30, rowY, 21, '#ffffff', 'left');
+      const by = rowY - 8;
+      fillRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.18)');
       const r = Math.max(0, Math.min(1, c.val / c.cap));
-      if (r > 0) fillRoundRect(ctx, bx, by, Math.max(18, barW * r), 18, 9, lighten(cCol, 1.2));
-      strokeRoundRect(ctx, bx, by, barW, 18, 9, 'rgba(255,255,255,0.35)', 1);
-      text(ctx, c.txt, bx + barW + 10, statY, 17, '#e8f0f8', 'left');
+      if (r > 0) fillRoundRect(ctx, barX, by, Math.max(16, barW * r), 16, 8, lighten(cCol, 1.2));
+      strokeRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.35)', 1);
+      text(ctx, c.txt, valX, rowY, 18, '#e8f0f8', 'left');
     });
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
