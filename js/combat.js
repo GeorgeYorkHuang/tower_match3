@@ -1676,6 +1676,7 @@ class CombatSystem {
           this.fxParticle(e.x, e.y - 8, '#ffd24a', 4, 40, 0.35, 130, 4);
         }
         this.fxRing(e.x, e.y, '#ff9f43', 60, 0.5, 4);
+        if (g.fx) g.fx.push({ type: 'floatText', text: '焰雨·三连！', x: e.x, y: e.y - 46, t: 0, dur: 0.9, size: 22, color: '#ffd24a' });   // v1.16.113 触发确认飘字
       } else {
         e._fireHits = (e._fireHits || 0) + 1;
         if (e._fireHits >= 3) { e._fireHits = 0; run._fireTripleNext = true; }

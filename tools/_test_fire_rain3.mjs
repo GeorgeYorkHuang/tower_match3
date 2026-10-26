@@ -15,7 +15,7 @@ function makeCtx(owned) {
     _fireTripleNext: false,
     relic3: () => owned,
   };
-  const g = { run };
+  const g = { run, fx: [] };
   const hits = [];
   return {
     game: g,
@@ -45,7 +45,8 @@ function makeCtx(owned) {
   if (ctx._hits.length !== 3) { console.error('FAIL3: 应触发3连=3次伤害，实际', ctx._hits.length); process.exit(1); }
   if (ctx.game.run._fireTripleNext) { console.error('FAIL4: 触发后标记应清空'); process.exit(1); }
   ctx._hits.forEach((h) => { if (h.d !== 10) { console.error('FAIL5: 三连伤害应等额', h); process.exit(1); } });
-  console.log('PASS2: 3★ 三连计数+触发+等额伤害 OK');
+  if (!ctx.game.fx.some((f) => f.type === 'floatText')) { console.error('FAIL5b: 三连应产生触发确认飘字'); process.exit(1); }
+  console.log('PASS2: 3★ 三连计数+触发+等额伤害+飘字确认 OK');
 }
 
 // 3) 不同敌人各自独立计数（命中分散不累计）

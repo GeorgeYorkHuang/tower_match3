@@ -245,7 +245,8 @@ const FX_HANDLERS = {
   ring: 'fxRingFx',
   beam: 'fxBeamFx',
   beamp: 'fxBeamp',
-  match: 'fxMatch'
+  match: 'fxMatch',
+  floatText: 'fxFloatText'   // v1.16.113 3★ 触发确认飘字
 };
 
 class Renderer {
@@ -286,6 +287,10 @@ class Renderer {
         const rSrc = relicIconSrc(rc.id);
         if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
           text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 14, '#ffffff', 'center');
+        }
+        if (rc.star3) {   // v1.16.113 3★ 质变角标
+          fillRoundRect(ctx, icx + 8, ry - 3, 18, 13, 6, '#ffb347');
+          text(ctx, '★3', icx + 17, ry + 10, 10, '#5c3800', 'center');
         }
       });
       text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 16, 'rgba(255,255,255,0.55)', 'left');
@@ -1506,6 +1511,14 @@ class Renderer {
       const h = FX_HANDLERS[f.type];
       if (h) this[h](ctx, f);
     });
+  }
+
+  /** v1.16.113 文字飘字（3★ 触发确认）：上漂 + 渐隐 */
+  fxFloatText(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 1));
+    ctx.globalAlpha = Math.max(0, 1 - p);
+    text(ctx, f.text, f.x, f.y - 34 * p, f.size || 22, f.color || '#ffd24a', 'center');
+    ctx.globalAlpha = 1;
   }
 
   fxShot(ctx, f) {
@@ -3087,6 +3100,30 @@ class Renderer {
     fillRoundRect(ctx, 636, 58, 100, 48, 10, 'rgba(0,0,0,0.35)');
     strokeRoundRect(ctx, 636, 58, 100, 48, 10, spdCol, 1.5);
     text(ctx, `⏩×${s.speed}`, 686, 89, 24, '#ffffff', 'center');
+    // v1.16.113 测试战场：本局圣遗物行（注入即显示；★3 角标 = 3★ 质变生效；点击查看详情）
+    const rels = s.battleRelics || [];
+    if (rels.length) {
+      const rx = 130, ry = 116, rIcon = 24, rGap = 30, rMax = 10;
+      const shown = rels.slice(0, rMax);
+      shown.forEach((rc, i) => {
+        const icx = rx + i * rGap + rIcon / 2;
+        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 13, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+        const rSrc = relicIconSrc(rc.id);
+        if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
+          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 14, '#ffffff', 'center');
+        }
+        if (rc.star3) {
+          fillRoundRect(ctx, icx + 8, ry - 3, 18, 13, 6, '#ffb347');
+          text(ctx, '★3', icx + 17, ry + 10, 10, '#5c3800', 'center');
+        }
+      });
+      text(ctx, `圣物 ×${rels.length} 点图标看详情`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.6)', 'left');
+      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: rIcon + 16 };
+    } else {
+      this.relicBarHit = null;
+    }
     // 行动区底
     if (!drawImg(ctx, IMG_SRC.actionArea, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
@@ -4233,7 +4270,7 @@ class Renderer {
     fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
     strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
     text(ctx, '本局圣遗物', 375, y + 54, 34, '#ffffff', 'center');
-    text(ctx, `已获得 ×${relics.length} · 圣遗物获得即本局生效`, 375, y + 92, 18, '#8ea3b8', 'center');
+    text(ctx, `已获得 ×${relics.length} · 获得即本局生效${relics.some((r) => r.star3) ? ' · ★3 质变生效中' : ''}`, 375, y + 92, 18, '#8ea3b8', 'center');
     // 关闭（右上）
     ctx.beginPath(); ctx.arc(x + w - 50, y + 44, 20, 0, Math.PI * 2);
     ctx.fillStyle = '#3a4553'; ctx.fill();
@@ -4253,6 +4290,10 @@ class Renderer {
       const rSrc = relicIconSrc(r.id);
       if (!(rSrc && drawImg(ctx, rSrc, x + 61, ry + 17, 30, 30))) text(ctx, r.icon, x + 76, ry + 34, 22, '#ffffff', 'center');
       text(ctx, r.name, x + 110, ry + 26, 20, '#ffffff', 'left');
+      if (r.star3) {   // v1.16.113 ★3 质变徽章
+        fillRoundRect(ctx, x + w - 90, ry + 8, 42, 24, 12, '#ffb347');
+        text(ctx, '★3', x + w - 69, ry + 26, 14, '#5c3800', 'center');
+      }
       const dd = String(r.desc || '');
       const brief = dd.length > 22 ? dd.slice(0, 22) + '…' : dd;
       text(ctx, brief, x + 110, ry + 52, 15, '#9fb2c3', 'left');

@@ -225,6 +225,7 @@ class GameMain {
       speed: this.testSpeed,
       panel: this.testPanel,
       synergies: run.effects.synergyStatus(),
+      battleRelics: this.battleRelics || [],   // v1.16.113 测试战场圣遗物行
     };
   }
 
@@ -941,6 +942,9 @@ class GameMain {
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
       this.renderer.toast(ctx, this.toasts);
+      if (this.relicDetail) {   // v1.16.113 测试战场圣遗物详情弹层
+        this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
+      }
       if (this.state === 'relicpick') {
         // v1.16.109 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
         if (!this.relicPick.t) this.relicPick.t = Date.now();
@@ -1134,6 +1138,14 @@ class GameMain {
 
   /** 测试战场触摸分发（v1.14）：面板打开时仅响应面板项，否则控制条/塔槽/返回/倍速 */
   onTestFieldTap(p) {
+    // v1.16.113 测试战场：点击圣遗物行 → 查看本局圣遗物详情（叠加弹层，战斗不暂停）
+    if (!this.testPanel) {
+      const rb = this.renderer.relicBarHit;
+      if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
+        this.relicDetail = { page: 0, from: 'testfield' };
+        return true;
+      }
+    }
     const items = this.testHits || [];
     for (const it of items) {
       if (!it.hit(p.x, p.y)) continue;
@@ -1449,12 +1461,14 @@ class GameMain {
       this.runRelics.push(c.id);
       this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
       this.meta.codexUnlock(c.id);
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc }); // v1.16.73 详情弹层需要 desc
+      // v1.16.113 记录 3★ 生效标记：测试战场 3★ 注入 或 真实已升 3★
+      const isStar3 = (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) || this.meta.starOf(c.id) >= 3;
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: isStar3 }); // v1.16.73 详情弹层需要 desc
       this.save.save();
-      this.toast('获得圣遗物 ' + c.icon + c.name, '#f7c948');
+      this.toast(isStar3 && this._relicReturnState === 'testfield' ? `★3 质变注入：${c.icon}${c.name}` : '获得圣遗物 ' + c.icon + c.name, '#ffb347');
     } else {
       this.meta.addRelic(c.id);
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc }); // v1.9：本局圣物展示；v1.16.73 带 desc
+      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: this.meta.starOf(c.id) >= 3 }); // v1.9：本局圣物展示；v1.16.73 带 desc
       this.save.save();
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
     }
@@ -1502,7 +1516,10 @@ class GameMain {
     // v1.16.73 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
     if (this.relicDetail) {
       const h = this.relicDetailHits;
-      if (h.close && h.close.hit(p.x, p.y)) { this.relicDetail = null; this.state = 'fighting'; return true; }
+      if (h.close && h.close.hit(p.x, p.y)) {
+        const from = this.relicDetail.from || 'fighting';   // v1.16.113 关闭后回到来源状态（testfield/fighting）
+        this.relicDetail = null; this.state = from; return true;
+      }
       if (h.next && h.next.hit(p.x, p.y)) {
         const pages = Math.ceil(this.battleRelics.length / 8);
         this.relicDetail.page = Math.min((this.relicDetail.page || 0) + 1, Math.max(pages - 1, 0));
