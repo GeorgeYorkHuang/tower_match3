@@ -3528,6 +3528,21 @@ class Renderer {
   _relicUnlocked(s, id) { return !!(s.relicStars[id] || s.runCodex[id]); }
   _relicRarColor(rar) { return rar === 'ssr' ? '#f7c948' : rar === 'sr' ? '#a86bff' : '#5dade2'; }
 
+  /** v1.16.110 胶囊进度条：深色内凹槽 + 渐变填充（顶部内高光）+ 文字居中在胶囊内（图鉴卡片通用） */
+  _capsuleBar(ctx, x, y, w, h, ratio, label, colTop, colBot) {
+    const r = h / 2;
+    fillRoundRect(ctx, x, y, w, h, r, '#0b0f16');
+    strokeRoundRect(ctx, x, y, w, h, r, 'rgba(255,255,255,0.16)', 1);
+    if (ratio > 0) {
+      const fw = Math.max(h, w * Math.min(1, ratio));
+      const fg = ctx.createLinearGradient(0, y, 0, y + h);
+      fg.addColorStop(0, colTop); fg.addColorStop(1, colBot);
+      fillRoundRect(ctx, x, y, fw, h, r, fg);
+      fillRoundRect(ctx, x + 4, y + 3, Math.max(r, fw - 8), 5, 2.5, 'rgba(255,255,255,0.45)');   // 立体感：顶部内高光
+    }
+    text(ctx, label, x + w / 2, y + h / 2 + 1, 17, '#ffffff', 'center');
+  }
+
   /** 圣遗物图鉴网格：未解锁=黑底+稀有度色边+问号占位；已解锁=图标+名+星级；点卡查看 1/2/3★ */
   _menuRelicGrid(ctx, s, push, pageKey, showChest) {
     const PER_ROW = 4, PAGE = 16;
@@ -3634,37 +3649,28 @@ class Renderer {
         // 星级角标（右上角小字）
         const star = s.relicStars[d.id] || 1;
         text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 18, rc, 'right');
-        // 下 1/3：上 2/3 为名字居中，下为收集进度条（左右各留 12px 白）
-        text(ctx, d.name, icx, ry2 + 162, 24, '#ffffff', 'center');
+        // 下 1/3：名字居中 + 胶囊进度条（v1.16.110：h32=文字+原14条高，文字居中胶囊内）
+        text(ctx, d.name, icx, ry2 + 150, 24, '#ffffff', 'center');
         const c3 = CONFIG.STAR_UP.cost[star + 1];
         const need3 = c3 ? c3.shards : 0;
         const sh3 = s.shards[d.id] || 0;
-        const bw = cw - 24, bx = rx + 12, by = ry2 + 188, bh = 14;
-        fillRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.10)');
-        let ratio3 = 0, lbl3 = '', col3 = '#7ca8ff';
-        if (star >= 3) { ratio3 = 1; lbl3 = '已满级'; col3 = '#f7c948'; }
-        else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; col3 = sh3 >= need3 ? '#f7c948' : '#7ca8ff'; }
-        if (ratio3 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * ratio3), bh, 7, col3);
-        strokeRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.16)', 1);
-        text(ctx, lbl3, icx, by + 8, 13, '#ffffff', 'center');
+        let ratio3, lbl3, ct3, cb3;
+        if (star >= 3) { ratio3 = 1; lbl3 = '已满级'; ct3 = '#f6d67c'; cb3 = '#c48a1a'; }
+        else if (need3 > 0 && sh3 >= need3) { ratio3 = 1; lbl3 = '可升星'; ct3 = '#f6d67c'; cb3 = '#c48a1a'; }
+        else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; ct3 = '#8fb6ff'; cb3 = '#5b86d6'; }
+        this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, ratio3, lbl3, ct3, cb3);
       } else {
         // 未解锁：? 图标圈（居中于上 2/3 区）
         ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
         ctx.fillStyle = '#151a22'; ctx.fill();
         ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
         text(ctx, '?', icx, icy + 5, 46, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 162, 24, '#4a5a6e', 'center');
-        // 底部：解锁碎片收集进度条（阈值 = DUPLICATE_SHARDS）
+        text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
+        // 底部：胶囊进度条（v1.16.110，阈值 = DUPLICATE_SHARDS，灰阶填充）
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
-        const bw = cw - 24, bx = rx + 12, by = ry2 + 188, bh = 14;
-        fillRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.06)');
-        if (thr > 0) {
-          const r4 = Math.min(1, sh4 / thr);
-          if (r4 > 0) fillRoundRect(ctx, bx, by, Math.max(bh, bw * r4), bh, 7, '#3d4c5e');
-          text(ctx, `${sh4}/${thr}`, icx, by + 8, 13, '#3d4c5e', 'center');
-        }
-        strokeRoundRect(ctx, bx, by, bw, bh, 7, 'rgba(255,255,255,0.10)', 1);
+        const r4 = thr > 0 ? Math.min(1, sh4 / thr) : 0;
+        this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, r4, `${sh4}/${thr}`, '#5a6b80', '#3d4c5e');
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
@@ -3695,7 +3701,7 @@ class Renderer {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    const oy = this._menuPanelShell(ctx, s, push, '', 840, true);   // v1.17.1 面板加高容纳纵向卡片
+    const oy = this._menuPanelShell(ctx, s, push, '', 840, true, 560);   // v1.17.8 窄面板 560 与卡片同宽
     const rar = CONFIG.relicRarity(id);
     const rc = this._relicRarColor(rar);
     const owned = this._relicUnlocked(s, id);
@@ -3709,29 +3715,10 @@ class Renderer {
     ctx.restore();
     strokeRoundRect(ctx, cardX, oy + 20, 132, 44, 22, 'rgba(255,255,255,0.6)', 1.5);
     text(ctx, `◆ ${rar.toUpperCase()}`, cardX + 26, oy + 42, 22, '#2a1a02', 'left');
-    // ---- 图标区：200px 宝石圆（稀有度色 + 高光 + 外圈光环）----
+    // ---- 图标区：无圆底，直接放大图案至 200px 区域 ----
     const gx = 375, gy = oy + 168, dia = 200;
-    ctx.beginPath(); ctx.arc(gx, gy, dia / 2 + 20, 0, Math.PI * 2);
-    const halo = ctx.createRadialGradient(gx, gy, 40, gx, gy, dia / 2 + 20);
-    halo.addColorStop(0, rc + '59'); halo.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = halo; ctx.fill();
-    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2);
-    ctx.fillStyle = rc; ctx.fill();
-    // 高光（左上）+ 内阴影（右下）
-    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2);
-    ctx.save();
-    ctx.clip();
-    const hl = ctx.createRadialGradient(gx - dia / 4, gy - dia / 4, 6, gx - dia / 4, gy - dia / 4, dia * 0.62);
-    hl.addColorStop(0, 'rgba(255,255,255,0.65)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = hl; ctx.fillRect(gx - dia, gy - dia, dia * 2, dia * 2);
-    const sh = ctx.createRadialGradient(gx + dia / 4, gy + dia / 4, 6, gx + dia / 4, gy + dia / 4, dia * 0.6);
-    sh.addColorStop(0, 'rgba(0,0,0,0.42)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = sh; ctx.fillRect(gx - dia, gy - dia, dia * 2, dia * 2);
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2); ctx.stroke();
     const src = relicIconSrc(id);
-    if (!(src && drawImg(ctx, src, gx - 76, gy - 76, 152, 152))) text(ctx, d.icon, gx, gy + 12, 100, '#ffffff', 'center');
+    if (!(src && drawImg(ctx, src, gx - dia / 2, gy - dia / 2, dia, dia))) text(ctx, d.icon, gx, gy, 150, '#ffffff', 'center');
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
     const cost = CONFIG.STAR_UP.cost[star + 1];
@@ -3805,7 +3792,8 @@ class Renderer {
     const colorName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k].color] || {}).name || k;
     // ---- 贴合式塔标签（attached tabs）：仅上圆角，激活页签与下方面板同底色无缝粘连 ----
     // v1.16.94 只显示图标（56px = 原"图标+塔名"合计高度），激活页签=塔色不透明
-    const tw2 = 118, th2 = 72, tg2 = 6, tx0 = 12, ty0 = 206;
+    // v1.16.110 六页签等宽：726/6=121，无缝拼接 + 未激活页签间竖线分隔
+    const tw2 = 121, th2 = 72, tg2 = 0, tx0 = 12, ty0 = 206;
     keys.forEach((k, i) => {
       const cx = tx0 + i * (tw2 + tg2);
       const cCol = TOWER_HEX[TOWERS_COLOR(k)] || '#8ea3b8';
@@ -3834,6 +3822,10 @@ class Renderer {
       if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz, isz)) {
         drawTowerGlyph(ctx, k, cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz);
       }
+      // v1.16.110 竖线分隔（相邻两页签均未激活时）
+      if (i < keys.length - 1 && !sel && s.codexSel !== keys[i + 1]) {
+        fillRoundRect(ctx, cx + tw2, ty0 + 12, 1, th2 - 24, 0, 'rgba(0,0,0,0.35)');
+      }
     });
     // ---- 详情面板（紧贴标签行底部，无间隙）：v1.16.94 塔色 60% 透明 + 高度 +50% + 4 列属性 ----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
@@ -3846,16 +3838,15 @@ class Renderer {
     fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
     fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
     text(ctx, colorName(k), dx + 30, dy + 44, 38, '#ffffff', 'left');
-    // 4 行属性：伤害/攻速/射程/普攻耗能 —— 每行 = 属性名 + 胶囊进度条（固定满值）+ 数值
+    // 3 行属性：伤害/攻速/射程 —— 每行 = 属性名 + 胶囊进度条（固定满值）+ 数值（v1.16.110 耗能移出改胶囊）
     const statCols = [
       { name: '伤害', val: T.baseDps, cap: 100, txt: `${T.baseDps}/s` },
       { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${(1 / T.atkInterval).toFixed(1)}发/s` },
       { name: '射程', val: T.range, cap: 1000, txt: `${T.range}` },
-      { name: '耗能', val: GS.perAttack || 0.5, cap: 1, txt: `${GS.perAttack || 0.5}/发` },
     ];
     const barW = 430, barX = dx + 110, valX = barX + barW + 14;
     statCols.forEach((c, ri) => {
-      const rowY = dy + 92 + ri * 34;          // 4 行均布（面板高 222）
+      const rowY = dy + 100 + ri * 40;         // 3 行均布（面板高 222）
       text(ctx, c.name, dx + 30, rowY, 21, '#ffffff', 'left');
       const by = rowY - 8;
       fillRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.18)');
@@ -3864,6 +3855,12 @@ class Renderer {
       strokeRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.35)', 1);
       text(ctx, c.txt, valX, rowY, 18, '#e8f0f8', 'left');
     });
+    // v1.16.110 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡
+    const enV = GS.perAttack || 0.5;
+    const ecW = 190, ecH = 40, ecX = dx + dw - 30 - ecW, ecY = dy + 20;
+    fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
+    strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);
+    text(ctx, `⚡ 耗能 ${enV}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 19, '#f4d03f', 'center');
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
     text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 264, 30, '#ffffff', 'left');
@@ -3901,10 +3898,14 @@ class Renderer {
         text(ctx, sk.icon || '?', gx + 48, gy + 44, 32, '#ffffff', 'center');
       }
       text(ctx, sk.name, gx + 92, gy + 30, 33, '#ffffff', 'left');
-      // v1.16.94 类型行尾标识能耗：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
+      // v1.16.110 类型行 + 能耗胶囊（卡片右上）：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
       const en = CONFIG.SKILL_ENERGY[sk.name];
       const enTxt = en === undefined ? 0 : en;
-      text(ctx, `${sk.type ? sk.type + '·' : ''}能耗 ${enTxt}`, gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
+      text(ctx, sk.type || '', gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
+      const ecW2 = 72, ecH2 = 32, ecX2 = gx + cw3 - 16 - ecW2, ecY2 = gy + 56;
+      fillRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, '#0b0f16');
+      strokeRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, 'rgba(244,208,63,0.55)', 1.2);
+      text(ctx, `⚡${enTxt}`, ecX2 + ecW2 / 2, ecY2 + ecH2 / 2 + 1, 17, '#f4d03f', 'center');
       // 分隔线（塔色渐隐），上下分区
       fillRoundRect(ctx, gx + 18, gy + 82, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
       // ---- 下区：技能描述（左右各留 20px 白）----
@@ -3912,8 +3913,7 @@ class Renderer {
       descLines.forEach((ln, li) => {
         text(ctx, ln, gx + 20, gy + 102 + li * 32, 25, '#d7e2ee', 'left');
       });
-      // 右下角入口（21px 右对齐，不出卡）
-      text(ctx, '点击查看详情 >>>', gx + cw3 - 18, gy + ch3 - 14, 21, hexA(cMain, 0.95), 'right');
+      // v1.16.110 移除右下角"点击查看详情 >>>"（卡片整体可点，入口语义由能耗胶囊+说明区承担）
     });
   }
 
@@ -4052,10 +4052,10 @@ class Renderer {
   }
 
   /** 子面板外壳：遮罩 + 面板 + 标题 + 关闭（hgt 可自定义高度） */
-  _menuPanelShell(ctx, s, push, title, hgt, centered) {
+  _menuPanelShell(ctx, s, push, title, hgt, centered, pw) {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    const w = 700, h = hgt || 640, x = 25, y = centered ? Math.round((LOGIC_H - h) / 2) : 180;
+    const w = pw || 700, h = hgt || 640, x = (750 - w) / 2, y = centered ? Math.round((LOGIC_H - h) / 2) : 180;
     fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
     strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
     text(ctx, title, 375, y + 54, 34, '#ffffff', 'center');
