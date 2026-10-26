@@ -88,6 +88,8 @@ class Run {
     this._burnallTtl = 0;          // 焚天3★：火柱/火墙/火雨施放后全塔攻速+25%窗口（秒）
     this._fireTripleNext = false;  // 焰雨3★：火球命中同一目标3次后，下次攻击必为三连火球
     this._emberShots = null;       // 余烬风暴3★：余烬弹队列（1秒后自动射向最近敌）
+    /* v1.16.98 冰塔 3★ 局内状态 */
+    this._wallDmgAcc = 0;          // 冰墙裂变3★：冰盾生效期间城墙受击伤害累计（每100点→冰塔1能量）
   }
 
   /** 局内圣遗物拥有数（未获得返回 0） */
@@ -114,6 +116,8 @@ class Run {
   applyWallDamage(d) {
     if (!(d > 0)) return 0;
     let dmg = d;
+    // v1.16.98 冰墙裂变3★：城墙受击伤害累计（冰盾生效期间由 combat 转冰塔能量）
+    this._wallDmgAcc = (this._wallDmgAcc || 0) + dmg;
     const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
     if (this.relic3('cm_guard') && dmg > maxHp * 0.1) dmg = maxHp * 0.1 + (dmg - maxHp * 0.1) * 0.5;
     if (this.wallShield > 0) {

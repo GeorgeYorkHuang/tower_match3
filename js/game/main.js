@@ -457,7 +457,9 @@ class GameMain {
       if (e._miasma && Math.random() < 0.20) continue;
       // 冰墙攻击间隔迟缓计时（v1.16.21：被冰墙迟缓的敌人攻击间隔 +0.5s）
       if (e.atkSlowT > 0) { e.atkSlowT -= dt; if (e.atkSlowT <= 0) e.atkSlowAdd = 0; }
-      const eAtkInt = (e.attackInterval || 1) + (e.atkSlowAdd || 0);
+      // v1.16.98 冰雾3★：冰雾地面内敌人攻速 -20%（攻击间隔 ×1.25）
+      const fogSlow = (e._fogTtl > 0) ? 0.25 : 0;
+      const eAtkInt = ((e.attackInterval || 1) + (e.atkSlowAdd || 0)) * (1 + fogSlow);
       e.attackT = (e.attackT || 0) + dt;
       if (e.attackT >= eAtkInt) {
         e.attackT -= eAtkInt;

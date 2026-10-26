@@ -136,6 +136,7 @@ class CombatSystem {
     this._nextDmg = {};        // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
     this.groundDots = [];      // 火·火柱余烬 / 毒·毒池·毒沼：地面持续区域
     this.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
+    this.iceGrounds = [];      // v1.16.98 冰晶3★/冰雾3★：减速/降攻速地面
     this.poisonSticks = [];    // 毒·毒棒：独立攻击的召唤物（v1.15）
     this.mines = [];           // 炮·地雷阵（v1.16）
     this.turrets = [];         // 炮·炮台（v1.16）
@@ -624,6 +625,8 @@ class CombatSystem {
     // v1.16.96 火塔 3★ 标记衰减：熔心3★ 火伤标记 / 火墙增烈3★ 停留增伤计时
     if (e._core) { e._core.ttl -= dt; if (e._core.ttl <= 0) e._core = null; }
     if (e._wallStay > 0) e._wallStay -= dt;
+    // v1.16.98 冬域3★：冰缓→冰冻转化冷却
+    if (e._domainCd > 0) e._domainCd -= dt;
     // DoT
     if (e.dots.length) {
       for (let i = e.dots.length - 1; i >= 0; i--) {
@@ -785,6 +788,8 @@ class CombatSystem {
       }
     }
     if (e._wallStay > 0 && this.game.run.relic3('fire_wall')) v *= (1 + 0.10 * Math.min(5, Math.floor(e._wallStay)));
+    // v1.16.98 凝霜3★：冰缓敌人受暴击率 +10%（无全局暴击判定，以受击 ×1.1 实现暴击期望）
+    if (this.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
     // 圣物·利刃符：全塔伤害 +8%/级
     const g = this.game;
     const m = g.meta;
@@ -882,6 +887,13 @@ class CombatSystem {
       if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
         const frzC = this.branchLv('ice', '冰冻', 'C');
         this.explode(e.x, e.y, 120, this.shotDmg('ice', true) * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
+      }
+      // v1.16.98 霜爆3★：击杀冰冻敌人时引发冰爆（100% 伤害，半径 120 码），并将范围内所有敌人冻结 1 秒
+      if (key === 'ice' && this.game.run.relic3('ice_frostburst') && e.frozen > 0) {
+        this.explode(e.x, e.y, 120, this.shotDmg('ice', true), 'ice');
+        this.enemies().forEach((o) => {
+          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 120) this.freezeE(o, 1);
+        });
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
@@ -1718,6 +1730,23 @@ class CombatSystem {
     // 普攻冰缓+冰冻（v1.16.21→v1.16.53 统一判定）：冰缓基础 20%（寒霜 +25% + A 极寒每级 +15%）；
     //   冰冻学技能后 20%（A 档位）；强化攻击同吃此加成
     this.tryAttackDebuff('ice', e, dmg);
+    // v1.16.98 暴雪3★：主目标命中判定（已冰缓 → 30% 冰爆）
+    this.iceHitFx(e, dmg);
+    // v1.16.98 冰雾（1★/2★ 补齐保留项行为）：普攻 20%/30% 概率额外减速目标周围敌人（半径100）
+    //   3★：触发时残留冰雾地面 3 秒，域内敌人攻速 -20%
+    const fogN = this.game.run.relicNum('ice_fog');
+    if (fogN > 0 && Math.random() < fogN / 100) {
+      this.enemies().forEach((o) => {
+        if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100) {
+          this.applySlow(o, 0.3, 1);
+          this.fxParticle(o.x, o.y, '#d6f0ff', 4, 34, 0.35, 100, 4);
+        }
+      });
+      if (this.game.run.relic3('ice_fog')) {
+        this.iceGrounds.push({ x: e.x, y: e.y, r: 100, ttl: 3, fog: true });
+        this.fxRing(e.x, e.y, '#d6f0ff', 100, 0.6, 4);
+      }
+    }
     // 多重冰锥（v1.13.23 仿多重火球）：主目标直瞄 + 额外冰锥等角度扇形散射（无目标，射界消失或命中即止）
     //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 增殖（v1.16.21）：10/14/18 枚超小型冰锥（1/3大小·每枚10%·各自索敌·20%冰缓）
     const multi = this.lv('ice', '多重冰锥');
@@ -1739,6 +1768,7 @@ class CombatSystem {
         const strike = (o, d) => {
           this.damage(o, d, 'ice');
           this.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
+          this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
           this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
           this.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
         };
@@ -1758,6 +1788,7 @@ class CombatSystem {
         const strike = (o, d) => {                           // 命中结算（主目标直瞄与散射弹道共用）
           this.damage(o, d, 'ice');
           this.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
+          this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
           this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
           this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
           this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
@@ -1796,8 +1827,11 @@ class CombatSystem {
       const dur = CONFIG.TOWERS.ice.shot.dur;
       const hitR = 45;
       const strike = (o, d) => {
+        // v1.16.98 碎冰强化3★：碎冰命中已有冰缓的敌人时伤害 ×1.5
+        if (this.game.run.relic3('ice_shard') && o.slow && o.slow.ttl > 0) d *= 1.5;
         this.damage(o, d, 'ice');
         this.tryAttackDebuff('ice', o, d);   // v1.16.53 碎冰小碎冰属普攻强化：统一冰缓/冰冻判定（C 冻结为其专属保留）
+        this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
         // v1.13.27 碎冰命中：冰晶迸发 + 闪光 + 小环
         this.fxFlash(o.x, o.y, '#d6f0ff', 0.22);
         this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
@@ -1838,10 +1872,14 @@ class CombatSystem {
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e
           && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > 20)
         .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
-      for (let i = 0; i < Math.min(pierceN, cands.length); i++) {
+      const hitCnt = Math.min(pierceN, cands.length);
+      for (let i = 0; i < hitCnt; i++) {
         const pT = cands[i];
         const pDmg = dmg * (1 + SKILL_NUM.ice['冰穿刺'].pierceDmg[bLv]);   // B 透射 +30/60/90%
         this.damage(pT, pDmg, 'ice');
+        this.iceHitFx(pT, pDmg);                 // v1.16.98 暴雪3★
+        // v1.16.98 穿透凝冰3★：冰锥贯穿 2 名以上敌人时，对最后一名敌人造成冰冻 1 秒
+        if (this.game.run.relic3('ice_pierce') && hitCnt >= 2 && i === hitCnt - 1) this.freezeE(pT, 1);
         this.fxParticle(pT.x, pT.y, '#b8e6ff', 5, 40, 0.3, 110, 4);
         this.fxRing(pT.x, pT.y, '#a9d6f5', 20, 0.2, 2);
       }
@@ -1890,6 +1928,25 @@ class CombatSystem {
                 cb.fxRing(tgt.x, tgt.y, '#7fd4ff', fxR, 0.5, 5);
                 cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
                 cb.fxFlash(tgt.x, tgt.y, '#7fd4ff');
+                // v1.16.98 冰晶3★：冰花爆炸后残留冰晶地面 2 秒，敌人经过减速 20%
+                if (cb.game.run.relic3('ice_crystal')) {
+                  cb.iceGrounds.push({ x: tgt.x, y: tgt.y, r: fxR, ttl: 2, slow: 0.2 });
+                }
+                // v1.16.98 雪崩3★：冰花落地后每 2 秒在原地再次爆炸，共追加 2 次，每次伤害为上一段的 80%
+                if (cb.game.run.relic3('ice_avalanche')) {
+                  const mkAval = (delay, mult) => cb.delayed.push({
+                    x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg * mult, delay, t: 0, key: 'ice',
+                    fn: (cb2) => {
+                      const h2 = cb2.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
+                      h2.forEach((o) => cb2.damage(o, fxDmg * mult, 'ice'));
+                      cb2.fxRing(tgt.x, tgt.y, '#a9d6f5', fxR, 0.45, 4);
+                      cb2.fxParticle(tgt.x, tgt.y, '#b8e6ff', 12, 80, 0.5, 140, 5);
+                      cb2.fxFlash(tgt.x, tgt.y, '#a9d6f5', 0.25);
+                    }
+                  });
+                  mkAval(2, 0.8);
+                  mkAval(4, 0.64);
+                }
               }
             });
             // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
@@ -1937,6 +1994,11 @@ class CombatSystem {
               if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
               this.damage(o, ob.dmg, 'ice');
               if (ob.slowMult > 0) this.applySlow(o, ob.slowMult, 1);
+              // v1.16.98 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
+              if (this.game.run.relic3('ice_domain') && o.slow && o.slow.ttl > 0 && !(o._domainCd > 0)) {
+                o._domainCd = 3;
+                this.freezeE(o, 0.5);
+              }
             });
             this.fxRing(ob.x, ob.y, '#b8e6ff', ob.r * 0.5, 0.35, 3);
           }
@@ -1964,6 +2026,13 @@ class CombatSystem {
           this.fxFlash(375, this.ly().wallY, '#ffffff', 0.3);
           this.fxRing(375, this.ly().wallY, '#7fd4ff', 700, 0.5, 5);
           this.fxParticle(375, this.ly().wallY, '#b8e6ff', 16, 90, 0.6, 160, 6);
+          // v1.16.98 冰甲3★：冰盾破碎时向周围释放冰环，冻结敌人 1 秒
+          if (this.game.run.relic3('ice_armor')) {
+            this.enemies().forEach((o) => {
+              if (o.hp > 0 && o.y >= this.ly().areaY) this.freezeE(o, 1);
+            });
+            this.fxFlash(375, this.ly().wallY, '#d6f0ff', 0.5);
+          }
           this.iceWall = null;
         }
       }
@@ -1981,6 +2050,32 @@ class CombatSystem {
         this.fxParticle(375, this.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
         // v1.16.47：冰盾生成寒光一闪
         this.fxFlash(375, this.ly().wallY, '#d6f0ff');
+      }
+    }
+    // ===== tickIce 尾部：冰塔 3★ 地面与城墙联动（v1.16.98） =====
+    // 冰晶3★ 减速地面 / 冰雾3★ 降攻速地面：域内敌人持续受影响
+    if (this.iceGrounds && this.iceGrounds.length) {
+      const rem = [];
+      for (const ig of this.iceGrounds) {
+        ig.ttl -= dt;
+        if (ig.ttl <= 0) continue;
+        this.enemies().forEach((o) => {
+          if (o.hp <= 0 || Math.hypot(o.x - ig.x, o.y - ig.y) > ig.r) return;
+          if (ig.slow) this.applySlow(o, ig.slow, 0.3);
+          if (ig.fog) o._fogTtl = 0.3;
+        });
+        rem.push(ig);
+      }
+      this.iceGrounds = rem;
+    }
+    // 冰墙裂变3★：冰盾生效期间，城墙每受到 100 点伤害，冰塔获得 1 点能量
+    if (this.iceWall && this.iceWall.ttl > 0 && g.run.relic3('ice_wallshift')) {
+      const acc = g.run._wallDmgAcc || 0;
+      if (acc >= 100) {
+        const n = Math.floor(acc / 100);
+        g.run._wallDmgAcc -= n * 100;
+        const it = this.tower('ice');
+        if (it) it.energy = Math.min(it.energy + n, g.run.armoryEnergyMax());
       }
     }
   }
@@ -2562,9 +2657,32 @@ class CombatSystem {
 
   /* ============ 公共：状态 / 几何 / 通用 ============ */
   applySlow(e, mult, ttl) {
+    // v1.16.98 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
+    if (this.game.run.relic3('ice_glacier')) {
+      const n = ((e.slow && e.slow.ttl > 0) ? 1 : 0) + (e.frozen > 0 ? 1 : 0) + ((e._vineT || 0) > 0 ? 1 : 0);
+      if (n > 0) mult = Math.min(0.9, mult * (1 + 0.08 * n));
+    }
     if (!e.slow || e.slow.ttl <= 0) e.slow = { mult: 1, ttl };
     else e.slow.ttl = Math.max(e.slow.ttl, ttl);
     e.slow.mult = 1 - mult;
+    // v1.16.98 凝霜3★：冰缓持续时间延长 1 秒
+    if (this.game.run.relic3('ice_condense')) e.slow.ttl += 1;
+  }
+
+  /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
+  freezeE(e, dur) {
+    const d = (e.isBoss ? dur * 0.6 : dur);
+    e.frozen = Math.max(e.frozen || 0, d);
+    this.fxFlash(e.x, e.y, '#d6f0ff', 0.3);
+    this.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
+  }
+
+  /** v1.16.98 暴雪3★：冰锥命中已冰缓的敌人时 30% 概率引发冰爆（60% 伤害·半径80） */
+  iceHitFx(o, d) {
+    if (!this.game.run.relic3('ice_blizzard')) return;
+    if (!(o.slow && o.slow.ttl > 0)) return;
+    if (Math.random() >= 0.30) return;
+    this.explode(o.x, o.y, 80, d * 0.6, 'ice');
   }
 
   towerMuzzle(key) {
