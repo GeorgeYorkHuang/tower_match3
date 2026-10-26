@@ -41,7 +41,7 @@ for (const k of keys) {
   // 旧第二行信息必须已删除
   const gone = ['直线弹道', '闪电折线', '回旋弧线', '抛物线炮弹'].filter((n) => joined.includes(n));   // 旧弹道字段（技能描述里偶发的"能量上限"不算）
   // 技能卡能耗：火塔 3 个周期技能能耗均应出现（2/2/2），且「能耗 0」也存在（普攻强化类）
-  const hasEnergy = joined.includes('能耗 ');
+  const hasEnergy = joined.includes('⚡');   // v1.16.110 能耗改胶囊（⚡ 耗能 / ⚡数字）
   console.log(`[${k}] ${missing.length ? 'MISSING:' + missing.join(',') : 'cols ok'}${gone.length ? ' | 旧信息未删:' + gone.join(',') : ''} | 能耗标识:${hasEnergy ? 'ok' : 'MISSING'}`);
   if (missing.length || gone.length || !hasEnergy) process.exit(1);
 }
@@ -49,6 +49,6 @@ for (const k of keys) {
 texts.length = 0;
 game.renderer.menuCodex(ctx2d, { codexSel: 'fire' }, push());
 const j2 = texts.join('|');
-console.log('fire 能耗样本:', (j2.match(/能耗 \d+/g) || []).join(', '));
-if (!/能耗 2/.test(j2) || !/能耗 0/.test(j2)) { console.error('FAIL: 能耗数值异常'); process.exit(1); }
+console.log('fire 能耗样本:', (j2.match(/⚡\d+/g) || []).join(', '));
+if (!/⚡2/.test(j2) || !/⚡0/.test(j2)) { console.error('FAIL: 能耗数值异常'); process.exit(1); }
 console.log('PASS');
