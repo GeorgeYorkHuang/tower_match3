@@ -1433,7 +1433,8 @@ class GameMain {
     if (!c) return;
     if (c.run) {
       // v1.16.78 防御兜底：已解锁重复（三选一已过滤，正常不触发）→ 折算碎片不叠层
-      if (this.meta.starOf(c.id) >= 1) {
+      // v1.16.108 测试战场豁免：3★ 模式候选均为已拥有圣遗物，若走折算分支会 return 卡死弹层 → 测试战场直接注入本局生效
+      if (this.meta.starOf(c.id) >= 1 && this._relicReturnState !== 'testfield') {
         const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
         this.meta.addShard(c.id, n);
         this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}`, '#a86bff');
