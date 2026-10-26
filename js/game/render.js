@@ -3702,10 +3702,9 @@ class Renderer {
     const th = MENU_TAB_THEME.codex;
     const keys = Object.keys(CONFIG.TOWERS);
     const colorName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k].color] || {}).name || k;
-    const shotName = { line: '直线弹道', bolt: '闪电折线', arc: '回旋弧线', mortar: '抛物线炮弹' };
     // ---- 贴合式塔标签（attached tabs）：仅上圆角，激活页签与下方面板同底色无缝粘连 ----
-    const tw2 = 118, th2 = 78, tg2 = 6, tx0 = 12, ty0 = 206;
-    const panelBg = 'rgba(22,29,40,0.95)';
+    // v1.16.94 只显示图标（56px = 原"图标+塔名"合计高度），激活页签=塔色不透明
+    const tw2 = 118, th2 = 72, tg2 = 6, tx0 = 12, ty0 = 206;
     keys.forEach((k, i) => {
       const cx = tx0 + i * (tw2 + tg2);
       const cCol = TOWER_HEX[TOWERS_COLOR(k)] || '#8ea3b8';
@@ -3720,45 +3719,62 @@ class Renderer {
       ctx.arcTo(cx + tw2, ty0, cx + tw2, ty0 + 14, 14);
       ctx.lineTo(cx + tw2, ty0 + th2);
       ctx.closePath();
-      ctx.fillStyle = sel ? panelBg : 'rgba(15,20,28,0.88)';
+      ctx.fillStyle = sel ? cCol : 'rgba(15,20,28,0.88)';   // 激活=塔色不透明
       ctx.fill();
       if (sel) {
-        // 激活：顶边塔色亮条 + 两侧塔色描边（底边开口，视觉上"长"在面板上）
+        // 激活：顶边白色高亮条 + 描边（底边开口，视觉上"长"在面板上）
         ctx.strokeStyle = cCol; ctx.lineWidth = 2; ctx.stroke();
-        fillRoundRect(ctx, cx + 14, ty0, tw2 - 28, 5, 2.5, cCol);
+        fillRoundRect(ctx, cx + 14, ty0, tw2 - 28, 5, 2.5, 'rgba(255,255,255,0.55)');
       } else {
         ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
       }
-      // 塔美术图标 + 塔名（无 emoji）
-      if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - 40) / 2, ty0 + 8, 40, 40)) {
-        drawTowerGlyph(ctx, k, cx + (tw2 - 40) / 2, ty0 + 8, 40);
+      // 仅塔美术图标（居中）
+      const isz = 56;
+      if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz, isz)) {
+        drawTowerGlyph(ctx, k, cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz);
       }
-      text(ctx, colorName(k), cx + tw2 / 2, ty0 + 66, 23, sel ? '#ffffff' : '#8ea3b8', 'center');
     });
-    // ---- 详情面板（紧贴标签行底部，无间隙）----
+    // ---- 详情面板（紧贴标签行底部，无间隙）：v1.16.94 塔色 60% 透明 + 高度 +50% + 4 列属性 ----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
     const T = CONFIG.TOWERS[k];
     const cCol = TOWER_HEX[T.color] || '#8ea3b8';
     const GS = CONFIG.GLOBAL_SKILL || {};
     const dx = 12, dw = 726, dy = ty0 + th2;   // 与标签行严丝合缝
-    fillRoundRect(ctx, dx, dy, dw, 148, 0, panelBg);
-    fillRoundRect(ctx, dx, dy + 134, dw, 14, 7, panelBg);   // 底部补圆角
-    fillRoundRect(ctx, dx, dy, 5, 148, 2.5, cCol);          // 左侧塔色竖条
-    text(ctx, colorName(k), dx + 30, dy + 38, 38, '#ffffff', 'left');
-    const stat1 = `伤害 ${T.baseDps}/s · 成长 ×${T.grow} · 射程 ${T.range} · 攻速 ${T.atkInterval}s/发`;
-    text(ctx, stat1, dx + 30, dy + 78, 26, '#c9d6e4', 'left');
-    const stat2 = `${shotName[T.shot.kind] || T.shot.kind} · 能量上限 ${GS.energyMax || 50} · 普攻耗能 ${GS.perAttack || 0.5}/发 · 耗尽伤害 ×${GS.weakDmg || 0.5}`;
-    this.wrapText(ctx, stat2, dw - 60, 23).slice(0, 2).forEach((ln, li) => {
-      text(ctx, ln, dx + 30, dy + 112 + li * 28, 23, '#8ea3b8', 'left');
+    const PH = 222;                            // 148 × 1.5
+    const panelCol = hexA(cCol, 0.40);         // 塔色 40% 不透明（60% 透明）
+    fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
+    fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
+    text(ctx, colorName(k), dx + 30, dy + 44, 38, '#ffffff', 'left');
+    // 4 列属性：伤害/攻速/射程/普攻耗能 —— 属性名右侧胶囊进度条（固定满值），数值在条右侧
+    const statCols = [
+      { name: '伤害', val: T.baseDps, cap: 100, txt: `${T.baseDps}/s` },
+      { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${(1 / T.atkInterval).toFixed(1)}发/s` },
+      { name: '射程', val: T.range, cap: 1000, txt: `${T.range}` },
+      { name: '耗能', val: GS.perAttack || 0.5, cap: 1, txt: `${GS.perAttack || 0.5}/发` },
+    ];
+    const colW = dw / 4;
+    const statY = dy + 150;                    // 属性行中线
+    statCols.forEach((c, ci) => {
+      const cx0 = dx + ci * colW + 16;
+      const nameW = txtW(c.name, 22);
+      const valW = txtW(c.txt, 17);
+      text(ctx, c.name, cx0, statY, 22, '#ffffff', 'left');
+      const barW = Math.max(30, colW - 16 * 2 - nameW - 10 - valW - 10);
+      const bx = cx0 + nameW + 10, by = statY - 9;
+      fillRoundRect(ctx, bx, by, barW, 18, 9, 'rgba(255,255,255,0.18)');
+      const r = Math.max(0, Math.min(1, c.val / c.cap));
+      if (r > 0) fillRoundRect(ctx, bx, by, Math.max(18, barW * r), 18, 9, lighten(cCol, 1.2));
+      strokeRoundRect(ctx, bx, by, barW, 18, 9, 'rgba(255,255,255,0.35)', 1);
+      text(ctx, c.txt, bx + barW + 10, statY, 17, '#e8f0f8', 'left');
     });
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
-    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 190, 30, '#ffffff', 'left');
+    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 264, 30, '#ffffff', 'left');
     const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
     const cw3 = 300, ch3 = 210;               // 卡片宽高（+22 容纳大字号）
     const gx0 = Math.round(750 * 0.05);       // 5% 左边距 = 38
     const colX = [gx0, 750 - gx0 - cw3];      // 两列对称
-    const gy0 = dy + 218;                     // 首行 y 维持不变
+    const gy0 = dy + 292;                     // 首行 y（面板加高后下移）
     const rows = Math.ceil(pool.length / 2);
     const bottomY = TAB_Y - Math.round(LOGIC_H * 0.05);   // 底部留 5% 屏高的白
     const rgap = rows > 1 ? Math.floor((bottomY - gy0 - rows * ch3) / (rows - 1)) : 0;   // 纵向均匀间隔
@@ -3788,7 +3804,10 @@ class Renderer {
         text(ctx, sk.icon || '?', gx + 48, gy + 44, 32, '#ffffff', 'center');
       }
       text(ctx, sk.name, gx + 92, gy + 30, 33, '#ffffff', 'left');
-      text(ctx, sk.type || '', gx + 92, gy + 62, 20, hexA(cMain, 0.9), 'left');
+      // v1.16.94 类型行尾标识能耗：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
+      const en = CONFIG.SKILL_ENERGY[sk.name];
+      const enTxt = en === undefined ? 0 : en;
+      text(ctx, `${sk.type ? sk.type + '·' : ''}能耗 ${enTxt}`, gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
       // 分隔线（塔色渐隐），上下分区
       fillRoundRect(ctx, gx + 18, gy + 82, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
       // ---- 下区：技能描述（左右各留 20px 白）----
