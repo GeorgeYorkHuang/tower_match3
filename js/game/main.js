@@ -549,6 +549,14 @@ class GameMain {
     if (this.run.wave % EV.interval === 0) {
       this.depthMult *= (this.run.wave < EV.lateWave ? EV.depthMult : EV.depthMultLate);
       if (this.menuStage !== 'test') {
+        // v1.16.116 撤离决策层只允许两个选项（正常撤离/继续前进）：清掉所有可能叠加的弹层，
+        // 否则波中途打开的设置弹层（含「重新开始」按钮）会盖在决策层上造成歧义
+        this.funcLayer = null;
+        this.funcLayerHits = {};
+        this.shopOpen = false;
+        this.relicDetail = null;
+        this.towerInfo = null;
+        this.towerSkill = null;
         this.state = 'evacuation';
         this.evacHits = {};
         return;

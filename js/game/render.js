@@ -3954,14 +3954,14 @@ class Renderer {
     });
   }
 
-  /** v1.16.113 技能分支面板重做：塔色丝带+描边、150px 大图标居中、类型/能耗胶囊、A/B/C 分支卡（金色 Lv 前缀），替换旧固定蓝边通用壳 */
+  /** v1.16.115 技能分支面板放大一档：字体整体按阶梯上移一级（14→18→22→28→48），图标 150→195（+30%） */
   codexSkillPanel(ctx, s, push) {
     const p = s.panel || {};
     const towerKey = p.tower || s.codexSel || 'fire';
     const sk = (CONFIG.EFFECT_POOLS[towerKey] || [])[p.idx];
     if (!sk) return;
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
-    const W2 = 700, H2 = 1240, px = 25, py = Math.round((LOGIC_H - H2) / 2);
+    const W2 = 700, H2 = 1360, px = 25, py = Math.round((LOGIC_H - H2) / 2);
     // 遮罩 + 面板（底 #151b24，描边=塔色）
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -3972,47 +3972,47 @@ class Renderer {
     fillRoundRect(ctx, px, py, W2, 64, 24, cCol);
     fillRoundRect(ctx, px, py + 42, W2, 22, 0, cCol);
     fillRoundRect(ctx, px + 16, py + 3, W2 - 32, 3, 1.5, 'rgba(255,255,255,0.35)');
-    text(ctx, '技 能 分 支 · 升 级 三 选 一', 375, py + 34, 24, '#ffffff', 'center');
+    text(ctx, '技 能 分 支 · 升 级 三 选 一', 375, py + 34, 28, '#ffffff', 'center');
     push('panelClose', null, px + W2 - 76, py + 8, 52, 52);
     ctx.beginPath(); ctx.arc(px + W2 - 50, py + 34, 20, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
     text(ctx, '✕', px + W2 - 50, py + 35, 24, '#ffffff', 'center');
-    // 大图标（150px 居中 + 塔色氛围光）
-    const icy = py + 96, icx = 375;
-    const glow = ctx.createRadialGradient(icx, icy + 75, 10, icx, icy + 75, 150);
+    // 大图标（195px 居中 + 塔色氛围光）
+    const icy = py + 80, icx = 375, ISZ = 195, IHD = ISZ / 2;
+    const glow = ctx.createRadialGradient(icx, icy + IHD, 10, icx, icy + IHD, ISZ);
     glow.addColorStop(0, hexA(cCol, 0.30)); glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(icx, icy + 75, 150, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(icx, icy + IHD, ISZ, 0, Math.PI * 2);
     ctx.fillStyle = glow; ctx.fill();
-    if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), icx - 75, icy, 150, 150)) {
-      fillRoundRect(ctx, icx - 75, icy, 150, 150, 28, hexA(cCol, 0.18));
-      strokeRoundRect(ctx, icx - 75, icy, 150, 150, 28, cCol, 2);
-      text(ctx, sk.icon || '?', icx, icy + 80, 64, '#ffffff', 'center');
+    if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), icx - IHD, icy, ISZ, ISZ)) {
+      fillRoundRect(ctx, icx - IHD, icy, ISZ, ISZ, 36, hexA(cCol, 0.18));
+      strokeRoundRect(ctx, icx - IHD, icy, ISZ, ISZ, 36, cCol, 2);
+      text(ctx, sk.icon || '?', icx, icy + 104, 82, '#ffffff', 'center');
     }
-    text(ctx, sk.name, 375, py + 282, 40, '#ffffff', 'center');
+    text(ctx, sk.name, 375, py + 312, 48, '#ffffff', 'center');
     // 类型 + 能耗胶囊（居中）
     const en = CONFIG.SKILL_ENERGY[sk.name];
     const enTxt = en === undefined ? 0 : en;
-    const mw = 280, mh = 44, mx = 375 - mw / 2, my = py + 314;
+    const mw = 320, mh = 48, mx = 375 - mw / 2, my = py + 348;
     fillRoundRect(ctx, mx, my, mw, mh, mh / 2, '#0b0f16');
     strokeRoundRect(ctx, mx, my, mw, mh, mh / 2, hexA(cCol, 0.65), 1.2);
-    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 19, lighten(cCol, 1.25), 'center');
-    // 基础效果（居中排版，最多 3 行）
-    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 560, 22).slice(0, 3);
+    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 22, lighten(cCol, 1.25), 'center');
+    // 基础效果（居中排版，最多 2 行）
+    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 600, 28).slice(0, 2);
     baseLines.forEach((ln, li) => {
-      text(ctx, ln, 375, py + 372 + li * 32, 22, '#c9d6e4', 'center');
+      text(ctx, ln, 375, py + 428 + li * 38, 28, '#c9d6e4', 'center');
     });
-    fillRoundRect(ctx, px + 30, py + 470, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
-    text(ctx, '升级分支 · 三选一', px + 30, py + 506, 24, '#ffffff', 'left');
-    text(ctx, '对局内技能升级时选其一条强化', px + W2 - 30, py + 506, 17, '#8ea3b8', 'right');
+    fillRoundRect(ctx, px + 30, py + 514, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
+    text(ctx, '升级分支 · 三选一', px + 30, py + 552, 28, '#ffffff', 'left');
+    text(ctx, '对局内技能升级时选其一条强化', px + W2 - 30, py + 552, 18, '#8ea3b8', 'right');
     // 三张分支卡：字母徽章列 + 分支名 + 概述 + 金色 Lv 前缀逐级行
-    const cx0 = px + 40, cw = W2 - 80, chh = 218;
+    const cx0 = px + 40, cw = W2 - 80, chh = 250;
     [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk], bi) => {
       const overview = sk[ak] || '';
-      const cy0 = py + 530 + bi * (chh + 14);
+      const cy0 = py + 584 + bi * (chh + 8);
       if (!overview) {
         fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.03)');
         strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.10)', 1);
-        text(ctx, `${bk} 分支未开放`, cx0 + cw / 2, cy0 + chh / 2, 21, '#5a6c80', 'center');
+        text(ctx, `${bk} 分支未开放`, cx0 + cw / 2, cy0 + chh / 2, 22, '#5a6c80', 'center');
         return;
       }
       const bi2 = overview.indexOf('：');
@@ -4021,16 +4021,19 @@ class Renderer {
       const lvls = sk[pk] || [];
       fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.05)');
       strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, cCol, 1.5);
-      fillRoundRect(ctx, cx0 + 22, cy0 + 22, 56, 56, 14, cCol);
-      text(ctx, bk, cx0 + 50, cy0 + 52, 30, '#0d1117', 'center');
-      text(ctx, bName, cx0 + 100, cy0 + 42, 27, '#ffffff', 'left');
-      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, cw - 130, 22)[0] || '', cx0 + 100, cy0 + 76, 22, '#c9d6e4', 'left');
-      fillRoundRect(ctx, cx0 + 22, cy0 + 102, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
+      fillRoundRect(ctx, cx0 + 22, cy0 + 20, 64, 64, 16, cCol);
+      text(ctx, bk, cx0 + 54, cy0 + 54, 34, '#0d1117', 'center');
+      text(ctx, bName, cx0 + 104, cy0 + 42, 32, '#ffffff', 'left');
+      // 概述最多 2 行（28px）
+      this.wrapText(ctx, bDesc || '', cw - 130, 28).slice(0, 2).forEach((ln, li) => {
+        text(ctx, ln, cx0 + 104, cy0 + 84 + li * 34, 28, '#c9d6e4', 'left');
+      });
+      fillRoundRect(ctx, cx0 + 22, cy0 + 148, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
       lvls.slice(0, 3).forEach((t, li) => {
-        const ry2 = cy0 + 130 + li * 28;
-        text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 100, ry2, 18, '#f7c948', 'left');
-        const ln = this.wrapText(ctx, t, cw - 220, 21)[0] || '';
-        text(ctx, ln, cx0 + 190, ry2, 21, '#9fb2c3', 'left');
+        const ry2 = cy0 + 174 + li * 28;
+        text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
+        const ln = this.wrapText(ctx, t, cw - 220, 22)[0] || '';
+        text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');
       });
     });
   }
@@ -4058,8 +4061,8 @@ class Renderer {
     if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#a86bff', 'center');
     // 按钮
     // v1.16.86 修复：button() 返回 {hit} 对象，dispatchTouch 按 .hit 调用；此前误存裸函数导致按钮永不命中
-    hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 安全撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 });
-    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续深入 · 阵亡保底 30%', { bg: '#3a6ea5', fontSize: 25 });
+    hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 正常撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 });
+    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续前进 · 正常进入下一波', { bg: '#3a6ea5', fontSize: 25 });
   }
 
   /** v1.16.76 圣遗物升星面板：1★ 解锁 → 2★ 效果升级 → 3★ 质变（碎片+金币[+星辉石]） */
