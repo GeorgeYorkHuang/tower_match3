@@ -206,6 +206,8 @@ class CombatSystem {
     if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
+    // v1.16.101 快充3★：充能满层释放过载脉冲，全塔攻速 +20%（持续 3 秒，触发后清层重计）
+    if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
     return Math.max(0.15, iv);
@@ -373,6 +375,12 @@ class CombatSystem {
         if (s.fx) s.fx.t = s.fx.dur;
         this.damage(hitE, s.dmg, 'electric');
         this.tryAttackDebuff('electric', hitE, s.dmg);   // v1.16.53 活电电球属普攻强化：统一麻痹判定（吃麻痹技能加成）
+        // v1.16.101 电球3★：电球游走路径留电痕 1 秒，触碰敌人受 10% 伤害
+        if (this.game.run.relic3('elec_orb')) {
+          this.groundDots = this.groundDots || [];
+          this.groundDots.push({ x: hitE.x, y: hitE.y, r: 50, ttl: 1, dps: this.shotDmg('electric') * 0.1, key: 'electric' });
+          this.fxRing(hitE.x, hitE.y, '#f4d03f', 50, 0.4, 3);
+        }
         this.fxFlash(hitE.x, hitE.y, '#f4d03f');
         this.fxParticle(hitE.x, hitE.y, '#f4d03f', 5, 30, 0.3, 120, 4);
         return false;
@@ -652,6 +660,11 @@ class CombatSystem {
     // v1.16.96 火塔 3★ 标记衰减：熔心3★ 火伤标记 / 火墙增烈3★ 停留增伤计时
     if (e._core) { e._core.ttl -= dt; if (e._core.ttl <= 0) e._core = null; }
     if (e._wallStay > 0) e._wallStay -= dt;
+    // v1.16.101 闪电链增强3★：连锁增伤窗口递减
+    if (e._elecBoost) {
+      e._elecBoost.ttl -= dt;
+      if (e._elecBoost.ttl <= 0) e._elecBoost = null;
+    }
     // v1.16.98 冬域3★：冰缓→冰冻转化冷却
     if (e._domainCd > 0) e._domainCd -= dt;
     // v1.16.99 寒髓3★：冻结事件检测（由未冻结→冻结为一次，任意来源；charge 在 freezeE 处理，此处补非 freezeE 路径）
@@ -869,6 +882,8 @@ class CombatSystem {
     if (this.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
     // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%
     if (e._fragile && this.game.run.relic3('ice_forever')) v *= 1.2;
+    // v1.16.101 闪电链增强3★：连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）
+    if (this.game.run.relic3('elec_boost') && e._elecBoost && e._elecBoost.ttl > 0) v *= (1 + 0.05 * e._elecBoost.n);
     // v1.16.100 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
     if (this.game.run.relic3('poison_all') && e.dots) {
       const pd = e.dots.find((d) => d.type === 'poison');
@@ -1010,6 +1025,17 @@ class CombatSystem {
         });
         this.fxRing(e.x, e.y, '#a9d6f5', 80, 0.5, 4);
         this.fxParticle(e.x, e.y, '#d6f0ff', 8, 60, 0.5, 120, 5);
+      }
+      // v1.16.101 静电3★：被麻痹敌人死亡时释放静电，麻痹周围敌人 0.8 秒
+      if (key === 'electric' && this.game.run.relic3('elec_static') && e.paralyzed > 0) {
+        this.enemies().forEach((o) => {
+          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100) {
+            o.paralyzed = Math.max(o.paralyzed || 0, 0.8);
+            this.applySlow(o, 0.5, 0.8);
+          }
+        });
+        this.fxRing(e.x, e.y, '#f4d03f', 100, 0.4, 4);
+        this.fxParticle(e.x, e.y, '#ffe08a', 8, 60, 0.4, 130, 5);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
@@ -1153,6 +1179,13 @@ class CombatSystem {
     if (key === 'electric' && chargeLv > 0) {
       const t = this.tower('electric');
       t._chargeLayers = Math.min(5 * chargeLv, (t._chargeLayers || 0) + 1);
+      // v1.16.101 快充3★：充能满层时释放过载脉冲（全塔攻速+20%×3s，触发后清空层数重新累计）
+      if (this.game.run.relic3('elec_fast') && t._chargeLayers >= 5 * chargeLv) {
+        t._chargeLayers = 0;
+        this.game.run._elecPulseTtl = 3;
+        this.fxFlash(this.towerMuzzle('electric').x, this.towerMuzzle('electric').y, '#f4d03f', 0.4);
+        this.fxRing(this.towerMuzzle('electric').x, this.towerMuzzle('electric').y, '#f4d03f', 60, 0.5, 4);
+      }
     }
     // 弹道（视觉）+ 命中（逻辑）
     // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
@@ -1350,22 +1383,39 @@ class CombatSystem {
       const pA = this.branchLv('electric', '麻痹', 'A');
       const pB = this.branchLv('electric', '麻痹', 'B');
       const pC = this.branchLv('electric', '麻痹', 'C');
-      if (Math.random() < Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA)) {
+      const pProb = Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA);
+      // v1.16.101 强麻3★：麻痹概率触顶（≥80%）时，多余判定转为麻痹时长 +0.5 秒
+      const strong = this.game.run.relic3('elec_strong') && pProb >= 0.8;
+      if (strong ? Math.random() < 0.8 : Math.random() < pProb) {
         const dur = 2 + 0.5 * pB;
         o.paralyzed = Math.max(o.paralyzed || 0, dur);
         this.applySlow(o, 0.5, dur);
         this.fxParticle(o.x, o.y, '#f4d03f', 8, 50, 0.4, 140, 5);
         if (pC > 0) {
-          const cProb = SKILL_NUM.electric['麻痹'].cond[pC];
-          this.enemies().forEach((q) => {
-            if (q === o || q.hp <= 0 || Math.hypot(q.x - o.x, q.y - o.y) > 100) return;
-            if (Math.random() < cProb) {
+          // v1.16.101 麻痹扩散3★：麻痹传导链最多 3 跳（原 1 跳），每跳概率衰减 5%
+          const hopMax = this.game.run.relic3('elec_spread') ? 3 : 1;
+          const cProb0 = SKILL_NUM.electric['麻痹'].cond[pC];
+          let prev = o;
+          let chainProb = cProb0;
+          for (let hop = 0; hop < hopMax; hop++) {
+            const nexts = this.enemies().filter((q) => q !== prev && q.hp > 0 && Math.hypot(q.x - prev.x, q.y - prev.y) <= 100);
+            if (!nexts.length) break;
+            if (Math.random() < chainProb) {
+              const q = nexts[Math.floor(Math.random() * nexts.length)];
               q.paralyzed = Math.max(q.paralyzed || 0, 1);
               this.applySlow(q, 0.5, 1);
               this.fxParticle(q.x, q.y, '#f4d03f', 4, 30, 0.35, 110, 4);
-            }
-          });
+              this.fxBeam(prev.x, prev.y, q.x, q.y, '#ffe08a', 0.25, 2.5);
+              prev = q;
+              chainProb -= 0.05;
+            } else break;
+          }
         }
+      } else if (strong) {
+        // 强麻：失败判定转为麻痹时长 +0.5 秒（仍能短暂麻痹）
+        o.paralyzed = Math.max(o.paralyzed || 0, 0.5);
+        this.applySlow(o, 0.5, 0.5);
+        this.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.3, 100, 4);
       }
     } else if (key === 'poison') {
       // 中毒（v1.16.21）：基础 20%；学剧毒 +25% + A 每级 +15%
@@ -1405,12 +1455,24 @@ class CombatSystem {
       if (Math.random() < 0.10 + 0.10 * (em - 1) + 0.10 * emA) {
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < 110 && Math.abs(o.y - e.y) < 110);
         const emDmg = this.shotDmg('electric') * 0.4 * (1 + 0.3 * (em - 1)) * (1 + 0.3 * emB);
-        const n = 1 + emC;   // C 扩磁：目标 +1/级
+        // v1.16.101 超导3★：全部连锁类效果目标数 +1
+        const n = 1 + emC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 扩磁：目标 +1/级
         for (let i = 0; i < n && cands.length; i++) {
           const pick = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
           this.damage(pick, emDmg, 'electric');
           this.tryAttackDebuff('electric', pick, emDmg);   // v1.16.53 电磁场微型连锁属普攻强化：同样判定麻痹（吃麻痹技能加成）
           this.fxFlash(pick.x, pick.y, '#f4d03f');
+          // v1.16.101 磁力3★：电磁场的微型连锁命中敌人后，向其 90 码内最多 2 名敌人跳跃（每跳 40% 伤害，可正常触发麻痹判定）
+          if (this.game.run.relic3('elec_magnet')) {
+            const hop2 = this.enemies().filter((o) => o !== pick && o !== e && o.hp > 0 && Math.hypot(o.x - pick.x, o.y - pick.y) <= 90)
+              .sort((a2, b2) => Math.hypot(a2.x - pick.x, a2.y - pick.y) - Math.hypot(b2.x - pick.x, b2.y - pick.y)).slice(0, 2);
+            hop2.forEach((o) => {
+              this.damage(o, emDmg * 0.4, 'electric');
+              this.tryAttackDebuff('electric', o, emDmg * 0.4);
+              this.fxBeam(pick.x, pick.y, o.x, o.y, '#f4d03f', 0.25, 2);
+              this.fxFlash(o.x, o.y, '#f4d03f');
+            });
+          }
         }
         this.fxRing(e.x, e.y, '#f4d03f', 110, 0.3, 3);
       }
@@ -2215,8 +2277,27 @@ class CombatSystem {
 
   /* ============ 电塔 ============ */
   hitElectric(e, dmg) {
+    // v1.16.101 过载3★：满层过载时下一发普攻必为双倍伤害（满层置标，本发消费）
+    const ovDbl = e._ovDbl;
+    e._ovDbl = false;
     // 主目标伤害（过载层数为上一击累计，连续命中递增）
-    this.damage(e, dmg, 'electric');
+    this.damage(e, ovDbl ? dmg * 2 : dmg, 'electric');
+    // v1.16.101 电涌1★/2★补齐 + 3★：普攻 20%/30% 概率额外产生一次小电弧（30% 伤害射向最近敌；3★ 小电弧命中 20% 概率填充 1 点能量）
+    const surgeN = this.game.run.relicNum('elec_surge');
+    if (surgeN > 0 && Math.random() < surgeN / 100) {
+      const mini = this.enemies().filter((o) => o !== e && o.hp > 0)
+        .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
+      if (mini) {
+        const miniDmg = dmg * 0.3;
+        this.damage(mini, miniDmg, 'electric');
+        this.tryAttackDebuff('electric', mini, miniDmg);
+        this.fxBeam(e.x, e.y, mini.x, mini.y, '#ffe08a', 0.2, 2.5);
+        if (this.game.run.relic3('elec_surge') && Math.random() < 0.2) {
+          const et = this.tower('electric');
+          if (et) et.energy = Math.min(et.energy + 1, this.game.run.armoryEnergyMax());
+        }
+      }
+    }
     // 过载（v1.16.21 重做）：仅命中麻痹目标叠层（上限 3 层·2s）；A 每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 发炮弹；C 满层闪电爆发（不变）
     const over = this.lv('electric', '过载');
     if (over > 0) {
@@ -2224,6 +2305,8 @@ class CombatSystem {
         if (!e.overload) e.overload = { n: 0, ttl: 2 };
         e.overload.n = Math.min(3, e.overload.n + 1);
         e.overload.ttl = 2;
+        // v1.16.101 过载3★：满层过载时标记下一发普攻必为双倍伤害
+        if (this.game.run.relic3('elec_overload') && e.overload.n >= 3) e._ovDbl = true;
         // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
         if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
           e.overload._burst = true;
@@ -2282,9 +2365,12 @@ class CombatSystem {
     const chainB = this.branchLv('electric', '连锁', 'B');
     const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
-      const extra = 2 + 1 * chainA;      // 基础连锁 3 个敌人（主+2）+ A 每级 +1
+      const super3 = this.game.run.relic3('elec_super');   // v1.16.101 超导3★：全部连锁类衰减归零 + 目标数 +1
+      const extra = (2 + 1 * chainA + (super3 ? 1 : 0)) + (this.game.run.relic3('elec_light') && (this.tower('electric')._chargeLayers || 0) > 0 ? 1 : 0);   // 电光3★：攻速加成期间连锁数量 +1
       let decay = 0.30 * (1 - 0.2 * chainB);   // 基础衰减 30% - B 稳流每级 20%
-      decay = Math.max(0.10, decay);
+      decay = super3 ? 0 : Math.max(0.10, decay);
+      // v1.16.101 传导3★：连锁衰减降为 0 时，每跳额外 +5% 伤害
+      const conduit = this.game.run.relic3('elec_conduit') && decay <= 0.11;
       const hitSet = [e];
       let cur = e;
       for (let i = 0; i < extra; i++) {
@@ -2294,8 +2380,15 @@ class CombatSystem {
         // 连锁视觉：电弧连线（每次弹跳）
         this.fxBeam(cur.x, cur.y, next.x, next.y, '#f4d03f', 0.25, 3.5);
         let cDmg = dmg * (1 - decay);
+        // v1.16.101 电弧3★：连锁命中 3 人以上时，最后一跳伤害不衰减
+        if (this.game.run.relic3('elec_arc') && hitSet.length >= 3 && i === extra - 1) cDmg = dmg;
+        if (conduit) cDmg *= (1 + 0.05 * (i + 1));
         this.damage(next, cDmg, 'electric');
         this.tryAttackDebuff('electric', next, cDmg);   // v1.16.53 连锁命中属普攻强化：统一麻痹判定（吃麻痹技能加成）
+        // v1.16.101 闪电链增强3★：连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）
+        if (this.game.run.relic3('elec_boost')) {
+          next._elecBoost = { n: (next._elecBoost ? next._elecBoost.n : 0) + 1, ttl: 3 };
+        }
         // C 回能：每次连锁命中缩短电塔攻击间隔（3%/级）
         if (chainC > 0 && this.atkTimers.electric !== undefined) {
           this.atkTimers.electric = Math.max(0, this.atkTimers.electric - this.interval('electric') * 0.03 * chainC);
@@ -2310,6 +2403,8 @@ class CombatSystem {
 
   tickElectric(dt) {
     const g = this.game;
+    // v1.16.101 快充3★：过载脉冲窗口递减（interval 读取 run._elecPulseTtl）
+    if (g.run._elecPulseTtl > 0) g.run._elecPulseTtl -= dt;
     // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 裂电；
     //   v1.16.51 基础重做）：每 8 秒电击最近敌人（不再穿透延长线），并向 (100+20×A) 码内分叉电弧命中 3+arcC 个敌人
     //   （各造成主线伤害 40%）；A 扩域：分叉寻敌范围 +20/级（100→120→140→160）；
@@ -2339,7 +2434,10 @@ class CombatSystem {
           // v1.16.51 分叉电弧：从最近敌向 (100+20×A) 码内分叉 3+arcC 个敌人，各 40% 主线伤害（不递归、不重复）
           const hitSet = new Set([nearest]);
           const branchRange = 100 + 20 * arcA;   // A 扩域：100→120→140→160 码
-          const nB = 3 + arcC;                   // C 裂电：3→4→5→6 个
+          // v1.16.101 超导3★：全部连锁类效果目标数 +1
+          const nB = 3 + arcC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 裂电：3→4→5→6 个
+          // v1.16.101 电链3★：分叉电弧可再分叉一次（各 20% 伤害）
+          const reFork = this.game.run.relic3('elec_chain');
           for (let k = 0; k < nB; k++) {
             const cands = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - nearest.x, o.y - nearest.y) <= branchRange);
             if (!cands.length) break;
@@ -2353,6 +2451,17 @@ class CombatSystem {
               { x: tgt.x, y: tgt.y },
             ];
             this.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
+            // 电链：每个分叉目标再分叉 1 次（各 20% 主线伤害）
+            if (reFork) {
+              const sub = this.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= branchRange)
+                .sort((a, b) => Math.hypot(a.x - tgt.x, a.y - tgt.y) - Math.hypot(b.x - tgt.x, b.y - tgt.y))[0];
+              if (sub) {
+                hitSet.add(sub);
+                this.damage(sub, dmg * 0.2, 'electric');
+                this.fxFlash(sub.x, sub.y, '#aed6f1');
+                this.fxBeam(tgt.x, tgt.y, sub.x, sub.y, '#aed6f1', 0.25, 2);
+              }
+            }
           }
           // 视觉：塔口 → 最近敌人 金色主弧（v1.16.47 强化粗电弧+光晕；v1.16.49 0.6s）
           const path = [{ x: x1, y: y1 }];
@@ -2384,9 +2493,14 @@ class CombatSystem {
         // 全图随机 N 个存活目标（Fisher-Yates）
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('electric', e.x, e.y));
         const pool = alive.slice();
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+        // v1.16.101 雷域3★：雷暴优先命中血量最高的敌人
+        if (this.game.run.relic3('elec_domain')) {
+          pool.sort((a, b) => b.hp - a.hp);
+        } else {
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+          }
         }
         const targets = pool.slice(0, n);
         // 按 y 从上到下分 2-3 批，每批间隔 0.12s（落雷演出分批）
@@ -2396,10 +2510,23 @@ class CombatSystem {
           const delay = Math.floor(idx * batches / n) * 0.12;
           // 雷击伤害（即时结算）
           this.damage(e, dmg, 'electric');
+          // v1.16.101 雷霆3★：雷暴击中麻痹的敌人时，将其麻痹向 90 码内 2 名敌人传导（各 1 秒）
+          if (this.game.run.relic3('elec_storm') && e.paralyzed > 0) {
+            const spread2 = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
+              .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, 2);
+            spread2.forEach((o) => {
+              o.paralyzed = Math.max(o.paralyzed || 0, 1);
+              this.applySlow(o, 0.5, 1);
+              this.fxBeam(e.x, e.y, o.x, o.y, '#ffe08a', 0.25, 2.5);
+              this.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.35, 110, 4);
+            });
+          }
           // B 分支（v1.16.21 连雷）：雷击 30%/45%/60% 几率连锁周边最近 bLv 个敌人（90px，50% 伤害）
           if (bLv > 0 && Math.random() < SKILL_NUM.poison['瘟疫'].prob[bLv]) {
+            // v1.16.101 超导3★：全部连锁类效果目标数 +1
+            const chainN = bLv + (this.game.run.relic3('elec_super') ? 1 : 0);
             const chain = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
-              .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, bLv);
+              .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, chainN);
             chain.forEach((o) => {
               this.damage(o, dmg * 0.5, 'electric');
               const cpath = [{ x: e.x, y: e.y }];
