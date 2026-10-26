@@ -656,23 +656,13 @@ class GameMain {
   }
 
   restart() {
-    // 重开一局：塔等级/技能/棋盘重置（金币保留在 meta），塔位清空——由最先消除的 4 种颜色重新决定
-    Object.keys(this.run.effects.towers).forEach((k) => this.run.effects.tower(k).resetRunBuild());
-    this.run.slotOrder = [];
-    this.run.board.regen();
-    // v1.9：磐石印圣物加成在重开时同样生效（与 enterBattle 一致）
-    this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * this.meta.relicBonus().wall));
-    this.run.lineMaxHp = this.run.lineHp;   // v1.13.25 冰墙回血上限基准
-    this.run.broken = false;
-    this.run.pendingPeak = 0;
-    this.run.picks = 0;
-    this.run.firstSynergyWave = null;
-    this.state = 'fighting';
-    this.waveTime = 0;
-    this.battleRelics = [];
-    this.relicDetail = null; // v1.16.73 圣遗物详情弹层清理（restart）
-    this.shopOpen = false;   // v1.16.77 局内商店开关（restart 清理）
-    this.enterBattle();
+    // v1.16.115 修复：旧实现只清棋盘/塔位/技能，未重置 run.wave 与深度收益池——
+    // 第 10 波（或任意波）重开后 wave.start() 使波数 +1，出现"塔清空却从 11 波继续"且深度池带旧账。
+    // 改为复用 newRun(true)：全新 Run（波数/深度池/倍率/经验/敌人/战斗实体全部归零），波 1 重来。
+    const fb = this.firstBonus;   // 重开不计入每日首战加成次数
+    this.newRun(true);
+    this.firstBonus = fb;
+    this.toast('重新开局 · 第 1 波', '#7ef0a3');
   }
 
   /** v1.16.77 局内商店购买：扣局内金币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
