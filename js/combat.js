@@ -1323,6 +1323,8 @@ class CombatSystem {
         this.fxRing(this.towerMuzzle('electric').x, this.towerMuzzle('electric').y, '#f4d03f', 60, 0.5, 4);
       }
     }
+    // v1.16.112 火塔攻击级挂点（熔炉之息免费火柱 / 火焰弹射：每攻击一次判定一次，与弹道数量无关）
+    if (key === 'fire') this._fireAttackOnAttack();
     // 弹道（视觉）+ 命中（逻辑）
     // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
     const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target, fold: key === 'boomerang' && this.lv('boomerang', '折返增伤') > 0 };
@@ -1658,25 +1660,35 @@ class CombatSystem {
   }
 
   /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
-  hitFire(e, dmg) {
-    const g = this.game;
-    const run = g.run;
-    // v1.16.21：火焰鹰眼已重做为「烈焰墙」（周期技），此处不再有普攻乘区
-
-    /* v1.16.96 火塔 3★ 普攻挂点 */
+  /** v1.16.112 火塔普攻命中统一挂点（3★ 圣遗物）：hitFire 与多重火球 strike 共用，保证所有普攻路径生效
+   *  焰雨3★：火球命中同一目标 3 次 → 下次命中必为三连火球（追加 3 发等额伤害 + 三连火花爆发）
+   *  熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量）
+   *  火焰弹射（1★/2★）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量 */
+  _attackFireOnHit(e, dmg) {
+    const g = this.game, run = g.run;
     // 焰雨3★：火球命中同一目标 3 次 → 下次攻击必为三连火球（追加 3 发等额伤害）
-    if (run._fireTripleNext) {
-      run._fireTripleNext = false;
-      for (let k = 0; k < 3; k++) {
-        this.damage(e, dmg, 'fire');
-        this.fxFlash(e.x, e.y, '#ff9f43', 0.22);
-        this.fxParticle(e.x, e.y - 8, '#ffd24a', 4, 40, 0.35, 130, 4);
+    if (run.relic3('fire_rain')) {
+      if (run._fireTripleNext) {
+        run._fireTripleNext = false;
+        for (let k = 0; k < 3; k++) {
+          this.damage(e, dmg, 'fire');
+          this.fxFlash(e.x, e.y, '#ff9f43', 0.22);
+          this.fxParticle(e.x, e.y - 8, '#ffd24a', 4, 40, 0.35, 130, 4);
+        }
+        this.fxRing(e.x, e.y, '#ff9f43', 60, 0.5, 4);
+      } else {
+        e._fireHits = (e._fireHits || 0) + 1;
+        if (e._fireHits >= 3) { e._fireHits = 0; run._fireTripleNext = true; }
       }
-    } else {
-      e._fireHits = (e._fireHits || 0) + 1;
-      if (e._fireHits >= 3) { e._fireHits = 0; run._fireTripleNext = true; }
     }
-    // 熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量，复用周期技结算）
+  }
+
+  /** v1.16.112 火塔普攻级挂点（每攻击一次判定一次，与弹道数量无关）：
+   *  熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量）
+   *  火焰弹射（1★/2★）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量 */
+  _fireAttackOnAttack() {
+    const g = this.game, run = g.run;
+    // 熔炉之息3★：每 5 次普攻附带一次免费火柱
     run._forgeCount = (run._forgeCount || 0) + 1;
     if (run.relic3('fire_forge') && run._forgeCount >= 5) {
       run._forgeCount = 0;
@@ -1689,7 +1701,8 @@ class CombatSystem {
         this.fxParticle(ftgt.x, ftgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
       }
     }
-    // 火焰弹射（1★/2★ 补齐保留项行为）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量
+    // 火焰弹射：普攻 25%/40% 概率额外发射一枚火球；3★ 命中 50% 概率返还 1 点能量
+    const dmg = this.shotDmg('fire');
     const fbN = run.relicNum('fire_bounce');
     if (fbN > 0 && Math.random() < fbN / 100) {
       const mz = this.towerMuzzle('fire');
@@ -1700,7 +1713,6 @@ class CombatSystem {
         this.damage(m2, dmg, 'fire');
         this.tryAttackDebuff('fire', m2, dmg);
         this.fxParticle(m2.x, m2.y, '#ff9f43', 4, 30, 0.3, 120, 4);
-        // 3★：命中 50% 概率返还 1 点能量
         if (run.relic3('fire_bounce') && Math.random() < 0.5) {
           const ft = this.tower('fire');
           if (ft) ft.energy = Math.min(ft.energy + 1, run.armoryEnergyMax());
@@ -1709,7 +1721,19 @@ class CombatSystem {
       this.shots.push({ key: 'fire', scatter: true, dmg, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz.x, sy: mz.y, tx, ty, hitR: 42, onHit: fbStrike });
       g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx, ty });
     }
+  }
 
+  /** v1.16.112 薄壳：火塔弹道命中入口（未学多重火球的普攻弹道 resolveShot → hit() → hitFire） */
+  hitFire(e, dmg) {
+    const g = this.game;
+    const run = g.run;
+    // v1.16.21：火焰鹰眼已重做为「烈焰墙」（周期技），此处不再有普攻乘区
+    this._attackFireOnHit(e, dmg);   // 3★ 圣遗物挂点（焰雨三连）
+    this._fireAttackHit(e, dmg);     // 命中伤害段（灼烧判定/大火球/多重火球）
+  }
+
+  /** v1.16.112 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
+  _fireAttackHit(e, dmg) {
     // 普攻灼烧（v1.16.21→v1.16.53 统一判定）：基础 20%；学「点燃」+25%（A 炽焰每级 +15%）；强化攻击同吃此加成
     this.tryAttackDebuff('fire', e, dmg);
     // 大火球：主目标 120%
@@ -1740,6 +1764,7 @@ class CombatSystem {
       const cLv = this.branchLv('fire', '多重火球', 'C');
       const strike = (o, d, ang) => {
         this.damage(o, d, 'fire');
+        this._attackFireOnHit(o, d);   // v1.16.112 多重火球路径同样接入焰雨3★三连
         this.tryAttackDebuff('fire', o, d);   // v1.16.53 多重火球散射命中属普攻强化：统一灼烧判定
         this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
         this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
