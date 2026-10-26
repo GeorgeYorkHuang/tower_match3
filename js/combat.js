@@ -627,6 +627,24 @@ class CombatSystem {
     if (e._wallStay > 0) e._wallStay -= dt;
     // v1.16.98 冬域3★：冰缓→冰冻转化冷却
     if (e._domainCd > 0) e._domainCd -= dt;
+    // v1.16.99 寒髓3★：冻结事件检测（由未冻结→冻结为一次，任意来源；charge 在 freezeE 处理，此处补非 freezeE 路径）
+    if (e.frozen > 0) {
+      if (!e._wasFrozen && this.game.run.relic3('ice_marrow')) {
+        e._wasFrozen = true;
+        const it = this.tower('ice');
+        if (it) it.energy = Math.min(it.energy + 2, this.game.run.armoryEnergyMax());
+      }
+    } else {
+      e._wasFrozen = false;
+    }
+    // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%（冻得越久越脆）
+    if (e.frozen > 0) {
+      e._frozenLongT = (e._frozenLongT || 0) + dt;
+      e._fragile = (e._frozenLongT >= 1.5);
+    } else {
+      e._frozenLongT = 0;
+      e._fragile = false;
+    }
     // DoT
     if (e.dots.length) {
       for (let i = e.dots.length - 1; i >= 0; i--) {
@@ -790,6 +808,8 @@ class CombatSystem {
     if (e._wallStay > 0 && this.game.run.relic3('fire_wall')) v *= (1 + 0.10 * Math.min(5, Math.floor(e._wallStay)));
     // v1.16.98 凝霜3★：冰缓敌人受暴击率 +10%（无全局暴击判定，以受击 ×1.1 实现暴击期望）
     if (this.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
+    // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%
+    if (e._fragile && this.game.run.relic3('ice_forever')) v *= 1.2;
     // 圣物·利刃符：全塔伤害 +8%/级
     const g = this.game;
     const m = g.meta;
@@ -894,6 +914,14 @@ class CombatSystem {
         this.enemies().forEach((o) => {
           if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 120) this.freezeE(o, 1);
         });
+      }
+      // v1.16.99 霜刺3★：冰缓的敌人被击杀时，减速光环扩散至周围 80码
+      if (key === 'ice' && this.game.run.relic3('ice_spike') && e.slow && e.slow.ttl > 0) {
+        this.enemies().forEach((o) => {
+          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) this.applySlow(o, 0.3, 3);
+        });
+        this.fxRing(e.x, e.y, '#a9d6f5', 80, 0.5, 4);
+        this.fxParticle(e.x, e.y, '#d6f0ff', 8, 60, 0.5, 120, 5);
       }
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
@@ -1204,11 +1232,16 @@ class CombatSystem {
       // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
       const frost = this.lv('ice', '寒霜');
       const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0);
-      if (Math.random() < probSlow) {
+      // v1.16.99 极寒3★：冰缓概率触顶（≥80%）时，多余判定转为 0.3 秒冻结
+      const ext = this.game.run.relic3('ice_extreme') && probSlow >= 0.8;
+      const slowOK = ext ? Math.random() < 0.8 : Math.random() < probSlow;
+      if (slowOK) {
         const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')];
         const ttl = 3 + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
         this.applySlow(o, mult, ttl);
         this.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
+      } else if (ext) {
+        this.freezeE(o, 0.3);
       }
       // 冰冻（v1.16.21）：学技能后 20% 概率冻结 + A 档位；B 深结 时长 +1/1.5/2s
       const frzLv = this.lv('ice', '冰冻');
@@ -2672,7 +2705,13 @@ class CombatSystem {
   /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
   freezeE(e, dur) {
     const d = (e.isBoss ? dur * 0.6 : dur);
-    e.frozen = Math.max(e.frozen || 0, d);
+    const prev = e.frozen || 0;
+    e.frozen = Math.max(prev, d);
+    // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
+    if (d > prev && this.game.run.relic3('ice_marrow')) {
+      const it = this.tower('ice');
+      if (it) it.energy = Math.min(it.energy + 2, this.game.run.armoryEnergyMax());
+    }
     this.fxFlash(e.x, e.y, '#d6f0ff', 0.3);
     this.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
   }
