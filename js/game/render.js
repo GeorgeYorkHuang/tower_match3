@@ -3689,64 +3689,112 @@ class Renderer {
   }
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
+  /** v1.17.1 圣遗物详情卡重做：左上稀有度徽章 → 大图标(200px) → 胶囊进度条(与图标同宽,内显进度) → 名称
+   *   → 3★/2★/1★ 三行（星标圆=★★★/★★/★，当前星级高亮）→ 小号升级按钮(🪙银币) */
   menuRelicInfo(ctx, s, push) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    const oy = this._menuPanelShell(ctx, s, push, '', 780, true);   // v1.16.91 面板在屏幕内垂直居中
+    const oy = this._menuPanelShell(ctx, s, push, '', 840, true);   // v1.17.1 面板加高容纳纵向卡片
     const rar = CONFIG.relicRarity(id);
     const rc = this._relicRarColor(rar);
     const owned = this._relicUnlocked(s, id);
     const star = owned ? (s.relicStars[id] || 1) : 0;
-    // ---- 头部：图标圆框居中 + 名称 + 稀有度·星级 ----
-    ctx.beginPath(); ctx.arc(375, oy + 92, 56, 0, Math.PI * 2);
-    ctx.fillStyle = '#151a22'; ctx.fill();
-    ctx.strokeStyle = rc; ctx.lineWidth = 2.5; ctx.stroke();
+    const cardX = (750 - 560) / 2;   // 卡片区 560 宽居中
+    // ---- 左上角稀有度徽章（◆ SSR）----
+    ctx.save();
+    const rg = ctx.createLinearGradient(0, oy + 20, 0, oy + 64);
+    rg.addColorStop(0, '#fff2b3'); rg.addColorStop(1, rc);
+    fillRoundRect(ctx, cardX, oy + 20, 132, 44, 22, rg);
+    ctx.restore();
+    strokeRoundRect(ctx, cardX, oy + 20, 132, 44, 22, 'rgba(255,255,255,0.6)', 1.5);
+    text(ctx, `◆ ${rar.toUpperCase()}`, cardX + 26, oy + 42, 22, '#2a1a02', 'left');
+    // ---- 图标区：200px 宝石圆（稀有度色 + 高光 + 外圈光环）----
+    const gx = 375, gy = oy + 168, dia = 200;
+    ctx.beginPath(); ctx.arc(gx, gy, dia / 2 + 20, 0, Math.PI * 2);
+    const halo = ctx.createRadialGradient(gx, gy, 40, gx, gy, dia / 2 + 20);
+    halo.addColorStop(0, rc + '59'); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.fill();
+    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2);
+    ctx.fillStyle = rc; ctx.fill();
+    // 高光（左上）+ 内阴影（右下）
+    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2);
+    ctx.save();
+    ctx.clip();
+    const hl = ctx.createRadialGradient(gx - dia / 4, gy - dia / 4, 6, gx - dia / 4, gy - dia / 4, dia * 0.62);
+    hl.addColorStop(0, 'rgba(255,255,255,0.65)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hl; ctx.fillRect(gx - dia, gy - dia, dia * 2, dia * 2);
+    const sh = ctx.createRadialGradient(gx + dia / 4, gy + dia / 4, 6, gx + dia / 4, gy + dia / 4, dia * 0.6);
+    sh.addColorStop(0, 'rgba(0,0,0,0.42)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh; ctx.fillRect(gx - dia, gy - dia, dia * 2, dia * 2);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(gx, gy, dia / 2, 0, Math.PI * 2); ctx.stroke();
     const src = relicIconSrc(id);
-    if (!(src && drawImg(ctx, src, 375 - 46, oy + 92 - 46, 92, 92))) text(ctx, d.icon, 375, oy + 98, 44, '#ffffff', 'center');
-    text(ctx, d.name, 375, oy + 192, 40, '#ffffff', 'center');
-    text(ctx, `${rar.toUpperCase()} · ${owned ? star + '★' : '未解锁'}`, 375, oy + 232, 26, rc, 'center');
-    // ---- 1★/2★/3★ 三栏效果（当前等级金框高亮；wrapText 防出框）----
-    const colW = 204, colGap = 24, colY = oy + 268, colH = 296;
-    const colX0 = (750 - (colW * 3 + colGap * 2)) / 2;
-    const cols = [
-      { lbl: '1★', txt: d.desc || '（暂无）', col: '#7cd6a6' },
-      { lbl: '2★', txt: d.star2 || '（暂无）', col: '#a86bff' },
-      { lbl: '3★', txt: d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', col: '#f7c948' },
-    ];
-    cols.forEach((c, ci) => {
-      const cx0 = colX0 + ci * (colW + colGap);
-      const active = owned && star === ci + 1;
-      fillRoundRect(ctx, cx0, colY, colW, colH, 14, active ? 'rgba(247,201,72,0.10)' : 'rgba(255,255,255,0.04)');
-      strokeRoundRect(ctx, cx0, colY, colW, colH, 14, active ? '#f7c948' : 'rgba(255,255,255,0.14)', active ? 2.5 : 1);
-      text(ctx, c.lbl, cx0 + colW / 2, colY + 34, 30, active ? '#f7c948' : c.col, 'center');
-      fillRoundRect(ctx, cx0 + 30, colY + 62, colW - 60, 1.5, 0.75, active ? 'rgba(247,201,72,0.5)' : 'rgba(255,255,255,0.12)');
-      const lines = this.wrapText(ctx, c.txt, colW - 24, 22).slice(0, 7);
-      lines.forEach((ln, li) => text(ctx, ln, cx0 + 12, colY + 92 + li * 28, 22, active ? '#ffe9a8' : '#9fb2c3', 'left'));
-    });
-    // ---- 碎片收集进度（升星按钮上方：文字 + 进度条）----
+    if (!(src && drawImg(ctx, src, gx - 76, gy - 76, 152, 152))) text(ctx, d.icon, gx, gy + 12, 100, '#ffffff', 'center');
+    // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
     const cost = CONFIG.STAR_UP.cost[star + 1];
     const need = cost ? cost.shards : 0;
-    const cur = CONFIG.relicNum(id, star);
-    const next = CONFIG.relicNum(id, star + 1);
-    const pw2 = 380, px0 = (750 - pw2) / 2, py2 = oy + 616;
-    text(ctx, `碎片 ${shards} / ${need} · 金币 ${cost ? cost.gold : 0}`, 375, oy + 594, 20, '#c9b98a', 'center');
-    fillRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.08)');
+    const px0 = gx - 100, py0 = oy + 268, pw = 200, ph = 36;
+    fillRoundRect(ctx, px0, py0, pw, ph, 18, 'rgba(20,26,38,0.95)');
+    strokeRoundRect(ctx, px0, py0, pw, ph, 18, '#3a4553', 2);
     const pr = need > 0 ? Math.min(1, shards / need) : 0;
-    if (pr > 0) fillRoundRect(ctx, px0, py2, Math.max(16, pw2 * pr), 16, 8, pr >= 1 ? '#f7c948' : '#7ca8ff');
-    strokeRoundRect(ctx, px0, py2, pw2, 16, 8, 'rgba(255,255,255,0.18)', 1);
-    // ---- 底部居中升星按钮（底部留白 28px）----
+    if (pr > 0) {
+      const fw = Math.max(16, pw * pr);
+      const fg = ctx.createLinearGradient(0, py0, 0, py0 + ph);
+      fg.addColorStop(0, '#fff0b8'); fg.addColorStop(0.45, '#ffd34d'); fg.addColorStop(1, '#e0a825');
+      fillRoundRect(ctx, px0, py0, fw, ph, 18, fg);
+      fillRoundRect(ctx, px0 + 8, py0 + 4, fw - 16, 8, 4, 'rgba(255,255,255,0.55)');
+    }
+    text(ctx, need > 0 ? `${shards} / ${need}` : (owned && star >= 3 ? 'MAX' : '0 / 0'), gx, py0 + ph / 2 + 1, 20, '#ffffff', 'center');
+    // ---- 名称 ----
+    text(ctx, d.name, 375, py0 + ph + 14 + 21, 42, '#ffffff', 'center');
+    // ---- 3★/2★/1★ 三行（420 宽居中；星标=★★★/★★/★；当前星级高亮）----
+    const rw = 420, rx = (750 - rw) / 2, ry0 = py0 + ph + 14 + 48 + 34;
+    const cols = [
+      { star: '★★★', txt: d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', lv: 3 },
+      { star: '★★', txt: d.star2 || '（暂无）', lv: 2 },
+      { star: '★', txt: d.desc || '（暂无）', lv: 1 },
+    ];
+    const rh = 84, rgap = 10;
+    cols.forEach((c, ci) => {
+      const cy0 = ry0 + ci * (rh + rgap);
+      const active = owned && star === c.lv;
+      fillRoundRect(ctx, rx, cy0, rw, rh, 14, active ? 'rgba(247,201,72,0.12)' : 'rgba(255,255,255,0.045)');
+      strokeRoundRect(ctx, rx, cy0, rw, rh, 14, active ? '#f7c948' : 'rgba(255,255,255,0.14)', active ? 2.5 : 1);
+      // 星标圆
+      const bx = rx + 22, by = cy0 + rh / 2;
+      ctx.beginPath(); ctx.arc(bx + 35, by, 35, 0, Math.PI * 2);
+      if (active) {
+        const sg = ctx.createLinearGradient(0, by - 35, 0, by + 35);
+        sg.addColorStop(0, '#ffe9a8'); sg.addColorStop(1, '#f7c948');
+        ctx.fillStyle = sg;
+      } else { ctx.fillStyle = '#141a26'; }
+      ctx.fill();
+      ctx.strokeStyle = active ? '#ffe9a8' : 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 2; ctx.stroke();
+      text(ctx, c.star, bx + 35, by + 2, c.lv === 3 ? 19 : 24, active ? '#1a1405' : '#9fb2c3', 'center');
+      // 效果文字（换行，最多 2 行）
+      const lines = this.wrapText(ctx, c.txt, rw - 108 - 20, 21).slice(0, 2);
+      lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
+    });
+    // ---- 升级按钮（小号 420×62：升到 N★ + 🪙 银币）----
+    const btnY = ry0 + 3 * (rh + rgap) + 24;
     if (!owned) {
-      text(ctx, '战斗中获取碎片解锁圣遗物', 375, oy + 714, 26, '#5a6c80', 'center');
+      text(ctx, '战斗中获取碎片解锁圣遗物', 375, btnY + 31, 24, '#5a6c80', 'center');
     } else if (cost && star < 3) {
-      push('relicStar', id, 205, oy + 676, 340, 76);
-      fillRoundRect(ctx, 205, oy + 676, 340, 76, 14, '#1b2230');
-      strokeRoundRect(ctx, 205, oy + 676, 340, 76, 14, rc, 2);
-      text(ctx, `升到 ${star + 1}★`, 375, oy + 706, 26, rc, 'center');
-      text(ctx, `数值 ${cur} → ${next}`, 375, oy + 734, 18, '#8ea3b8', 'center');
+      push('relicStar', id, rx, btnY, rw, 62);
+      const bg = ctx.createLinearGradient(0, btnY, 0, btnY + 62);
+      bg.addColorStop(0, '#4b3a15'); bg.addColorStop(1, '#33270e');
+      fillRoundRect(ctx, rx, btnY, rw, 62, 16, bg);
+      strokeRoundRect(ctx, rx, btnY, rw, 62, 16, rc, 2.5);
+      text(ctx, `升到 ${star + 1}★`, rx + rw / 2 - 66, btnY + 31, 24, '#ffd34d', 'center');
+      const coinX = rx + rw / 2 + 46;
+      text(ctx, `🪙 ${fmtNum(cost.gold)}`, coinX, btnY + 31, 22, '#ffe9a8', 'center');
+      if (cost.stone) text(ctx, `⭐ ${cost.stone}`, coinX + 120, btnY + 31, 20, '#a86bff', 'center');
     } else {
-      text(ctx, '已达满级 3★', 375, oy + 714, 28, '#f7c948', 'center');
+      text(ctx, '已达满级 3★', 375, btnY + 31, 28, '#f7c948', 'center');
     }
   }
 
