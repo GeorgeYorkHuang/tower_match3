@@ -115,6 +115,8 @@ class Run {
   /** v1.16.96 城墙受击统一入口：减伤护符3★ 大额伤害截断（超10%最大血量部分减免50%）→ 生命回复3★ 护盾优先抵扣 */
   applyWallDamage(d) {
     if (!(d > 0)) return 0;
+    // v1.16.102 疾接3★：接镖瞬间 0.3 秒无敌帧（对精英投射物有效），窗口内城墙完全免伤
+    if ((this._wallInvT || 0) > 0) return 0;
     let dmg = d;
     // v1.16.98 冰墙裂变3★：城墙受击伤害累计（冰盾生效期间由 combat 转冰塔能量）
     this._wallDmgAcc = (this._wallDmgAcc || 0) + dmg;

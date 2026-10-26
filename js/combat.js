@@ -300,6 +300,8 @@ class CombatSystem {
 
     // v1.16.96 3★ 时间窗口递减：智慧典籍3★ 攻速窗口 / 战术转移3★ 洗牌伤害窗口 / 焚天3★ 攻速窗口（秒）
     if (g.run._tomeBuffTtl > 0) g.run._tomeBuffTtl = Math.max(0, g.run._tomeBuffTtl - dt);
+    // v1.16.102 疾接3★：城墙无敌帧递减
+    if (g.run._wallInvT > 0) g.run._wallInvT = Math.max(0, g.run._wallInvT - dt);
     if (g.run._shuffleBuffTtl > 0) g.run._shuffleBuffTtl = Math.max(0, g.run._shuffleBuffTtl - dt);
     if (g.run._burnallTtl > 0) g.run._burnallTtl = Math.max(0, g.run._burnallTtl - dt);
     // v1.16.96 余烬风暴3★：余烬弹倒计时，1 秒后射向最近敌人
@@ -400,7 +402,9 @@ class CombatSystem {
       if (hitE) {
         if (!s.hitIds[hitE.id]) {
           s.hitIds[hitE.id] = true;
-          this.damage(hitE, s.dmg, 'boomerang');
+          // v1.16.102 弹力3★：弹力镖每次反弹伤害 +5%（最多 +50%）
+          const bounceV = this.game.run.relic3('boo_bounce') ? (1 + 0.05 * Math.min(10, s.bounces)) : 1;
+          this.damage(hitE, s.dmg * bounceV, 'boomerang');
           this.fxFlash(hitE.x, hitE.y, '#c39bd3');
           this.fxParticle(hitE.x, hitE.y, '#c39bd3', 3, 18, 0.3, 90, 4);
         }
@@ -413,6 +417,18 @@ class CombatSystem {
       }
       if (s.bounces >= s.maxB || s.t >= s.dur) {
         if (s.fx) s.fx.t = s.fx.dur;   // v1.16.38 弹力镖提前结束（反弹满/超时）时同步结束其 fx，防止幽灵残留
+        // v1.16.102 飞刃3★：弹力镖消失时 30% 概率分裂为 2 枚小镖（50% 伤害，反弹 2 次）
+        if (this.game.run.relic3('boo_blade') && Math.random() < 0.3 && !s._splitDone) {
+          s._splitDone = true;
+          for (let k = 0; k < 2; k++) {
+            const subAng = s.ang + (Math.PI / 2) * (k === 0 ? -1 : 1) + (Math.random() * 0.6 - 0.3);
+            const sub = { key: 'boomerang', dmg: s.dmg * 0.5, t: 0, dur: 3, x: s.x, y: s.y, ang: subAng, speed: 380, bounce: true, bounces: 0, maxB: 2, hitR: 22, hitIds: {} };
+            this.shots.push(sub);
+            const subFx = { type: 'shot', kind: 'bounce', ref: sub, t: 0, dur: 3, color: '#aed6f1' };
+            sub.fx = subFx;
+            this.game.fx.push(subFx);
+          }
+        }
         return false;
       }
       return true;
@@ -619,8 +635,25 @@ class CombatSystem {
       st.ttl -= dt;
       if (st.ttl <= 0) {
         if (st.fx) st.fx.t = st.fx.dur;   // v1.16.38 同步结束风暴镖 fx
+        // v1.16.102 旋风3★：风暴镖结束时原地爆炸（150% 伤害，半径 140 码）
+        if (this.game.run.relic3('boo_cyclone')) {
+          this.explode(st.x, st.y, 140, this.shotDmg('boomerang', true) * 1.5, 'boomerang');
+        }
         this.storms.splice(i, 1);
         continue;
+      }
+      // v1.16.102 风暴眼3★：风暴镖中心的敌人每秒受到 15% 额外伤害
+      if (this.game.run.relic3('boo_eye')) {
+        st._eyeT = (st._eyeT || 0) + dt;
+        if (st._eyeT >= 1) {
+          st._eyeT = 0;
+          const center = this.enemies().filter((o) => o.hp > 0)
+            .sort((a, b) => Math.hypot(a.x - st.x, a.y - st.y) - Math.hypot(b.x - st.x, b.y - st.y))[0];
+          if (center) {
+            this.damage(center, this.shotDmg('boomerang') * 0.15, 'boomerang');
+            this.fxFlash(center.x, center.y, '#c39bd3', 0.25);
+          }
+        }
       }
       const ds = st.darts;
       for (let j = ds.length - 1; j >= 0; j--) {
@@ -648,7 +681,24 @@ class CombatSystem {
       if (w.ttl <= 0) { this.windTrails.splice(i, 1); continue; }
       this.enemies().forEach((o) => {
         if (o.hp <= 0 || Math.hypot(o.x - w.x, o.y - w.y) > w.r) return;
-        this.damage(o, w.dps * dt, 'boomerang');
+        // v1.16.102 风刃3★：风痕叠加时伤害取最高值 +30%/层（上限 3 层）
+        let mult = 1;
+        if (this.game.run.relic3('boo_wind')) {
+          const layers = Math.min(3, this.windTrails.filter((w2) => w2 !== w && Math.hypot(o.x - w2.x, o.y - w2.y) <= w2.r).length + 1);
+          mult = 1 + 0.3 * layers;
+        }
+        this.damage(o, w.dps * dt * mult, 'boomerang');
+        // v1.16.102 长痕3★：风痕命中的敌人附加 1 层标记（持续 5 秒，需学习猎手标记技能；每敌 1 秒内至多叠 1 层）
+        if (this.game.run.relic3('boo_trail') && this.lv('boomerang', '猎手标记') > 0) {
+          o._trailMarkCd = (o._trailMarkCd || 0) - dt;
+          if (o._trailMarkCd <= 0) {
+            o._trailMarkCd = 1;
+            const cap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
+            o._mark = Math.min(cap, (o._mark || 0) + 1);
+            o._markT = 5;
+            this.fxParticle(o.x, o.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
+          }
+        }
         if (w.slow) this.applySlow(o, w.slow, 0.2);
       });
     }
@@ -884,6 +934,8 @@ class CombatSystem {
     if (e._fragile && this.game.run.relic3('ice_forever')) v *= 1.2;
     // v1.16.101 闪电链增强3★：连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）
     if (this.game.run.relic3('elec_boost') && e._elecBoost && e._elecBoost.ttl > 0) v *= (1 + 0.05 * e._elecBoost.n);
+    // v1.16.102 镖尖3★：所有飞镖无视 20% 护甲（对高防怪与 Boss 质变）
+    if (srcKey === 'boomerang' && this.game.run.relic3('boo_tip')) v *= 1.2;
     // v1.16.100 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
     if (this.game.run.relic3('poison_all') && e.dots) {
       const pd = e.dots.find((d) => d.type === 'poison');
@@ -1041,13 +1093,39 @@ class CombatSystem {
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
       if (key === 'boomerang' && this.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
         const cLv = this.branchLv('boomerang', '猎手标记', 'C');
+        const markCap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100);
         for (let i = 0; i < Math.min(cLv, cands.length); i++) {
           const pick = cands[i];
-          pick._mark = Math.min(3 + 2 * this.branchLv('boomerang', '猎手标记', 'B'), (pick._mark || 0) + 1);
+          pick._mark = Math.min(markCap, (pick._mark || 0) + 1);
           pick._markT = 5;
           this.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
         }
+        // v1.16.102 猎心3★：标记满层的敌人死亡时，标记转移至最近的敌人并保留全部层数
+        if (this.game.run.relic3('boo_hunt') && (e._mark || 0) >= markCap) {
+          const rec = cands.slice().sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
+          if (rec) {
+            rec._mark = Math.min(markCap, (rec._mark || 0) + e._mark);
+            rec._markT = 5;
+            this.fxBeam(e.x, e.y, rec.x, rec.y, '#d2b4de', 0.4, 3);
+          }
+        }
+      }
+      // v1.16.102 血刃3★：流血的敌人死亡时喷溅血液：80 码内敌人附加 1 层流血
+      if (key === 'boomerang' && this.game.run.relic3('boo_blood') && this.hasDot(e, 'bleed')) {
+        this.enemies().forEach((o) => {
+          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) {
+            this.applyBleed(o, this.shotDmg('boomerang', true));
+          }
+        });
+        this.fxRing(e.x, e.y, '#c0392b', 80, 0.5, 4);
+        this.fxParticle(e.x, e.y, '#c0392b', 10, 70, 0.5, 140, 5);
+      }
+      // v1.16.102 追猎3★：标记的敌人被其他塔击杀时，返还 1 点能量
+      if (key === 'boomerang' && this.game.run.relic3('boo_mark') && (e._mark || 0) > 0 && e.lastDmgKey && e.lastDmgKey !== 'boomerang') {
+        const bt = this.tower('boomerang');
+        if (bt) bt.energy = Math.min(bt.energy + 1, this.game.run.armoryEnergyMax());
+        this.fxParticle(e.x, e.y - 10, '#d2b4de', 3, 20, 0.4, 80, 4);
       }
     });
     // 爆炸表现 + 音效（按最近伤害来源着色）
@@ -1108,6 +1186,8 @@ class CombatSystem {
       const catchSkill = this.lv('boomerang', '接镖') > 0;
       if (this.bWait[key]) {
         this.bWait[key] = false;
+        // v1.16.102 疾接3★：接镖瞬间 0.3 秒无敌帧（对精英投射物有效，窗口由 run._wallInvT 承载）
+        if (g.run.relic3('boo_catch')) g.run._wallInvT = 0.3;
         if (catchSkill) {
           const cnt = this.branchLv('boomerang', '接镖', 'C');
           if (cnt > 0) this._nextDmg[key] = (this._nextDmg[key] || 0) + 0.10 * cnt;
@@ -1163,6 +1243,10 @@ class CombatSystem {
     // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补）
     const regain = key === 'boomerang' && this.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < SKILL_NUM.boomerang['接镖'].catchRegain;
     if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + CONFIG.GLOBAL_SKILL.perAttack, g.run.armoryEnergyMax());
+    // v1.16.102 疾风回旋3★：攻速加成期间接镖 15% 概率不耗能量（攻速加成存在 = 实际攻击间隔 < 基础间隔）
+    if (ammoT && key === 'boomerang' && g.run.relic3('boo_speed') && this.interval(key) < CONFIG.TOWERS[key].atkInterval && Math.random() < 0.15) {
+      ammoT.energy = Math.min(ammoT.energy + CONFIG.GLOBAL_SKILL.perAttack, g.run.armoryEnergyMax());
+    }
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();
     // v1.16.37 发射点统一走 towerMuzzle（测试战场单塔大槽 / 正式战斗槽位），修复弹道从塔区中间凭空发出
@@ -1307,11 +1391,24 @@ class CombatSystem {
     const foldC = this.branchLv('boomerang', '折返增伤', 'C');
     const r = 42 * (1 + 0.20 * foldC);
     for (const e of g.enemies) {
-      if (e.hp <= 0 || s.hitIds[e.id]) continue;
+      if (e.hp <= 0 || s.hitIds[e.id]) {
+        // v1.16.102 强返3★：折返镖命中同一目标第二次时伤害 ×1.5（仅折返增伤激活）
+        // v1.16.102 镖群3★：多镖呈环状回收时命中路径上的所有敌人（每敌额外一次回程命中）
+        const wantReturn = g.run.relic3('boo_return') && this.lv('boomerang', '折返增伤') > 0 && !s.hitIds[e.id + '_r'];
+        const wantMulti = g.run.relic3('boo_multi') && this.lv('boomerang', '多镖') > 0 && !s.hitIds[e.id + '_2'];
+        if ((wantReturn || wantMulti) && Math.hypot(e.x - bx, e.y - by) <= r) {
+          if (wantReturn) s.hitIds[e.id + '_r'] = true;
+          if (wantMulti) s.hitIds[e.id + '_2'] = true;
+          this.damage(e, s.dmg * (wantReturn ? 1.5 : 1), 'boomerang');
+        }
+        continue;
+      }
       if (Math.hypot(e.x - bx, e.y - by) <= r) {
         s.hitIds[e.id] = true;
-        this.damage(e, s.dmg, 'boomerang');
-        this.tryAttackDebuff('boomerang', e, s.dmg);   // v1.16.53 多镖扫过属普攻强化：统一流血判定（吃放血技能加成）
+        // v1.16.102 回旋3★：飞镖速度提升使命中率提高，Miss 补偿为 +10% 伤害
+        const spinV = g.run.relic3('boo_spin') ? 1.1 : 1;
+        this.damage(e, s.dmg * spinV, 'boomerang');
+        this.tryAttackDebuff('boomerang', e, s.dmg * spinV);   // v1.16.53 多镖扫过属普攻强化：统一流血判定（吃放血技能加成）
       }
     }
     // 风痕（v1.16）：镖路径每秒留下风痕伤害区（A 久痕 +0.5s/级；B 劲风 +30%/级；C 卷痕减速 15%）
@@ -1439,7 +1536,15 @@ class CombatSystem {
       // 流血（v1.16.21）：基础 20%；学放血 +25%（20→45）+ A 刺骨 +15%/级（45→90%）
       const bleedLv = this.lv('boomerang', '放血');
       const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0);
-      if (Math.random() < bleedChance) this.applyBleed(o, dmg);
+      // v1.16.102 放血刃3★：流血概率触顶（≥80%）时，多余判定转为流血时长 +1 秒
+      const bleedTip = this.game.run.relic3('boo_bleed') && bleedChance >= 0.8;
+      if (bleedTip ? Math.random() < 0.8 : Math.random() < bleedChance) {
+        this.applyBleed(o, dmg);
+      } else if (bleedTip) {
+        this.applyBleed(o, dmg);
+        o.bleedT += 1;   // 触顶失败判定转流血时长 +1 秒
+        this.fxParticle(o.x, o.y - 8, '#c0392b', 4, 20, 0.4, 80, 4);
+      }
     }
   }
 
@@ -2875,8 +2980,10 @@ class CombatSystem {
             for (let i = 0; i < n; i++) darts.push({ r: rc.r, spd, a: (Math.PI * 2 * i) / n, hitIds: {} });
           });
           this.storms = this.storms || [];
-          const sto = { x: t.x, y: t.y, r: 120, ttl: 3, darts, perDmg };
-          const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: 3, darts };
+          // v1.16.102 旋风3★：风暴镖持续时间翻倍（3→6 秒）
+          const cyclTtl = this.game.run.relic3('boo_cyclone') ? 6 : 3;
+          const sto = { x: t.x, y: t.y, r: 120, ttl: cyclTtl, darts, perDmg };
+          const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: cyclTtl, darts };
           sto.fx = fxo;                    // v1.16.38 风暴镖 fx 引用（同步清除）
           this.storms.push(sto);
           g.fx.push(fxo);
