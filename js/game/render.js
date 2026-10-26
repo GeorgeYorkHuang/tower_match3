@@ -3917,45 +3917,84 @@ class Renderer {
     });
   }
 
-  /** v1.16.91 技能分支面板（大字号）：从图鉴技能卡点入，展示基础效果 + A/B/C 分支逐级效果 */
+  /** v1.16.113 技能分支面板重做：塔色丝带+描边、150px 大图标居中、类型/能耗胶囊、A/B/C 分支卡（金色 Lv 前缀），替换旧固定蓝边通用壳 */
   codexSkillPanel(ctx, s, push) {
     const p = s.panel || {};
     const towerKey = p.tower || s.codexSel || 'fire';
     const sk = (CONFIG.EFFECT_POOLS[towerKey] || [])[p.idx];
     if (!sk) return;
-    this._menuPanelShell(ctx, s, push, sk.name, 1100);
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
-    // 头部：美术图标 + 基础效果（wrapText 防出框）
-    if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), 70, 258, 84, 84)) {
-      fillRoundRect(ctx, 70, 258, 84, 84, 14, 'rgba(255,255,255,0.08)');
-      text(ctx, sk.icon || '?', 112, 310, 42, '#ffffff', 'center');
+    const W2 = 700, H2 = 1240, px = 25, py = Math.round((LOGIC_H - H2) / 2);
+    // 遮罩 + 面板（底 #151b24，描边=塔色）
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    strokeRoundRect(ctx, px - 4, py - 4, W2 + 8, H2 + 8, 28, hexA(cCol, 0.30), 6);   // 外圈柔光
+    fillRoundRect(ctx, px, py, W2, H2, 24, '#151b24');
+    strokeRoundRect(ctx, px, py, W2, H2, 24, cCol, 2);
+    // 顶部塔色丝带（上圆角下直角 + 顶边内高光），标题点明"三选一"语义
+    fillRoundRect(ctx, px, py, W2, 64, 24, cCol);
+    fillRoundRect(ctx, px, py + 42, W2, 22, 0, cCol);
+    fillRoundRect(ctx, px + 16, py + 3, W2 - 32, 3, 1.5, 'rgba(255,255,255,0.35)');
+    text(ctx, '技 能 分 支 · 升 级 三 选 一', 375, py + 34, 24, '#ffffff', 'center');
+    push('panelClose', null, px + W2 - 76, py + 8, 52, 52);
+    ctx.beginPath(); ctx.arc(px + W2 - 50, py + 34, 20, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
+    text(ctx, '✕', px + W2 - 50, py + 35, 24, '#ffffff', 'center');
+    // 大图标（150px 居中 + 塔色氛围光）
+    const icy = py + 96, icx = 375;
+    const glow = ctx.createRadialGradient(icx, icy + 75, 10, icx, icy + 75, 150);
+    glow.addColorStop(0, hexA(cCol, 0.30)); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(icx, icy + 75, 150, 0, Math.PI * 2);
+    ctx.fillStyle = glow; ctx.fill();
+    if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), icx - 75, icy, 150, 150)) {
+      fillRoundRect(ctx, icx - 75, icy, 150, 150, 28, hexA(cCol, 0.18));
+      strokeRoundRect(ctx, icx - 75, icy, 150, 150, 28, cCol, 2);
+      text(ctx, sk.icon || '?', icx, icy + 80, 64, '#ffffff', 'center');
     }
-    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 470, 28).slice(0, 3);
+    text(ctx, sk.name, 375, py + 282, 40, '#ffffff', 'center');
+    // 类型 + 能耗胶囊（居中）
+    const en = CONFIG.SKILL_ENERGY[sk.name];
+    const enTxt = en === undefined ? 0 : en;
+    const mw = 280, mh = 44, mx = 375 - mw / 2, my = py + 314;
+    fillRoundRect(ctx, mx, my, mw, mh, mh / 2, '#0b0f16');
+    strokeRoundRect(ctx, mx, my, mw, mh, mh / 2, hexA(cCol, 0.65), 1.2);
+    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 19, lighten(cCol, 1.25), 'center');
+    // 基础效果（居中排版，最多 3 行）
+    const baseLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', 560, 22).slice(0, 3);
     baseLines.forEach((ln, li) => {
-      text(ctx, ln, 190, 282 + li * 34, 28, '#c9d6e4', 'left');
+      text(ctx, ln, 375, py + 372 + li * 32, 22, '#c9d6e4', 'center');
     });
-    // 三分支：A/B/C（config 扁平键 a/ap, b/bp, c/cp；a='分支名：概述'，ap=逐级效果数组）
-    let by = 390;
-    [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk]) => {
+    fillRoundRect(ctx, px + 30, py + 470, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
+    text(ctx, '升级分支 · 三选一', px + 30, py + 506, 24, '#ffffff', 'left');
+    text(ctx, '对局内技能升级时选其一条强化', px + W2 - 30, py + 506, 17, '#8ea3b8', 'right');
+    // 三张分支卡：字母徽章列 + 分支名 + 概述 + 金色 Lv 前缀逐级行
+    const cx0 = px + 40, cw = W2 - 80, chh = 218;
+    [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk], bi) => {
       const overview = sk[ak] || '';
-      if (!overview) return;
-      const bi = overview.indexOf('：');
-      const bName = bi > 0 ? overview.slice(0, bi) : overview;
-      const bDesc = bi > 0 ? overview.slice(bi + 1) : '';
+      const cy0 = py + 530 + bi * (chh + 14);
+      if (!overview) {
+        fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.03)');
+        strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.10)', 1);
+        text(ctx, `${bk} 分支未开放`, cx0 + cw / 2, cy0 + chh / 2, 21, '#5a6c80', 'center');
+        return;
+      }
+      const bi2 = overview.indexOf('：');
+      const bName = bi2 > 0 ? overview.slice(0, bi2) : overview;
+      const bDesc = bi2 > 0 ? overview.slice(bi2 + 1) : '';
       const lvls = sk[pk] || [];
-      fillRoundRect(ctx, 60, by, 630, 206, 14, 'rgba(255,255,255,0.05)');
-      strokeRoundRect(ctx, 60, by, 630, 206, 14, cCol, 1.2);
-      fillRoundRect(ctx, 76, by + 18, 48, 48, 10, cCol);
-      text(ctx, bk, 100, by + 50, 30, '#0d1117', 'center');
-      text(ctx, `${bName}（${bk} 分支）`, 140, by + 32, 31, '#ffffff', 'left');
-      // 分支概述（wrapText 最多 1 行）
-      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, 510, 24)[0] || '', 140, by + 74, 24, '#c9d6e4', 'left');
-      // 逐级效果 Lv→Lv+1（23px，最多 3 行，wrapText 防出框）
+      fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, cCol, 1.5);
+      fillRoundRect(ctx, cx0 + 22, cy0 + 22, 56, 56, 14, cCol);
+      text(ctx, bk, cx0 + 50, cy0 + 52, 30, '#0d1117', 'center');
+      text(ctx, bName, cx0 + 100, cy0 + 42, 27, '#ffffff', 'left');
+      if (bDesc) text(ctx, this.wrapText(ctx, bDesc, cw - 130, 22)[0] || '', cx0 + 100, cy0 + 76, 22, '#c9d6e4', 'left');
+      fillRoundRect(ctx, cx0 + 22, cy0 + 102, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
       lvls.slice(0, 3).forEach((t, li) => {
-        const ln = this.wrapText(ctx, `Lv${li + 1}→${li + 2} ${t}`, 490, 23)[0] || '';
-        text(ctx, ln, 140, by + 110 + li * 30, 23, '#9fb2c3', 'left');
+        const ry2 = cy0 + 130 + li * 28;
+        text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 100, ry2, 18, '#f7c948', 'left');
+        const ln = this.wrapText(ctx, t, cw - 220, 21)[0] || '';
+        text(ctx, ln, cx0 + 190, ry2, 21, '#9fb2c3', 'left');
       });
-      by += 220;
     });
   }
 
