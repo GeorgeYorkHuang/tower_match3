@@ -3051,6 +3051,11 @@ class Renderer {
     fillRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, 'rgba(0,0,0,0.35)');
     strokeRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, '#7ca8ff', 1.5);
     text(ctx, '＋ 添加圣遗物', 320, AREA_Y + 40, 15, '#7ca8ff', 'center');
+    // v1.16.104 测试战场：添加 3★ 圣遗物（已拥有圣遗物按 3★ 质变生效测试）
+    push('tf_addRelic3', null, 405, AREA_Y + 14, 140, 40);
+    fillRoundRect(ctx, 405, AREA_Y + 14, 140, 40, 10, 'rgba(0,0,0,0.35)');
+    strokeRoundRect(ctx, 405, AREA_Y + 14, 140, 40, 10, '#ffb347', 1.5);
+    text(ctx, '✦ 3★ 圣遗物', 475, AREA_Y + 40, 15, '#ffb347', 'center');
     text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
     // 城墙（测试战场恒满）
     this.wall(ctx, s.lineHp, s.lineMaxHp);

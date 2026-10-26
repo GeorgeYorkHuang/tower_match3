@@ -715,17 +715,20 @@ class GameMain {
     this.testPanel = null;   // v1.14 测试战场配置面板清理
     this.testSpeed = 1;
     this.run.effects.setActiveKeys(null); // v1.16.4 离开测试战场恢复全部塔生效
+    this.run._testStar3Mode = false;      // v1.16.104 退出测试战场清空 3★ 测试注入
+    this.run._testStar3 = null;
     this.sfx.stopBgm();
     this.save.save();
   }
 
-  /** v1.16.73 测试战场：添加圣遗物 → 弹圣物三选一（可反复添加，测试任意圣遗物效果） */
-  testAddRelic() {
+  /** v1.16.73 测试战场：添加圣遗物 → 弹圣物三选一（可反复添加，测试任意圣遗物效果）；v1.16.104 支持 star3 模式 */
+  testAddRelic(star) {
     this.pendingRelicPicks = []; // 测试战场逐次弹层，不积累队列
-    this.spawnRelicPick();       // 复用局内圣遗物候选生成（在场塔塔池 + 通用池）
+    this.spawnRelicPick(star === 'star3' ? 'star3' : 'star1');       // 复用局内圣遗物候选生成（在场塔塔池 + 通用池）
     if (!this.pendingRelicPicks.length) { this.toast('暂无可用圣遗物池', '#9fb2c3'); return; }
     this._relicReturnState = 'testfield'; // 选择完成后回到测试战场
     this.relicPick = this.pendingRelicPicks.shift();
+    this._lastPickStar3 = !!this.relicPick.star3; // v1.16.104 记录本次三选一是否为 3★ 模式
     this.relicPickHits = [];
     this.relicPick.t = 0; // v1.16.74 弹出动画
     this.state = 'relicpick';
@@ -789,13 +792,33 @@ class GameMain {
 
   /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
    *   v1.16.78 过滤已解锁 + 稀有度权重三选一（蓝50/紫38/金12，按设计文档 2.2） */
-  spawnRelicPick() {
+  spawnRelicPick(mode) {
     const RR = CONFIG.RELIC_RUN;
     // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
+    // v1.16.104 测试战场 3★ 模式：池 = 已拥有（starOf≥1）圣遗物，候选 desc 用 star3 文案
+    const star3Mode = mode === 'star3';
     const ownedKeys = this.run.slotOrder || [];
     const meta = this.meta;
     const isUnlocked = (id) => meta.starOf(id) >= 1;   // v1.16.78 已解锁（图鉴/碎片达阈值）不再出现在三选一
     let pool = [];
+    if (star3Mode) {
+      ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: k }); }); });
+      RR.common.forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: 'common' }); });
+      if (!pool.length) { this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return; }
+      // 3★ 模式：候选 = 已拥有池中随机 3 张（不重复），desc 取 star3
+      const cands3 = [];
+      const used3 = new Set();
+      for (let i = 0; i < 3; i++) {
+        const tier = pool.filter((p) => !used3.has(p.def.id));
+        if (!tier.length) break;
+        const pick = tier[Math.floor(Math.random() * tier.length)];
+        used3.add(pick.def.id);
+        cands3.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.star3 || pick.def.desc, run: true, tint: pick.tint });
+      }
+      this.pendingRelicPicks.push({ candidates: cands3, star3: true });
+      this._chestBusy = false;
+      return;
+    }
     ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: k }); }); });
     RR.common.forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: 'common' }); });
     if (!pool.length) {
@@ -1116,6 +1139,7 @@ class GameMain {
         case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
         case 'tf_clear': this.clearTestEnemies(); return true;
         case 'tf_addRelic': this.testAddRelic(); return true; // v1.16.73 测试战场添加圣遗物
+        case 'tf_addRelic3': this.testAddRelic('star3'); return true; // v1.16.104 测试战场添加 3★ 圣遗物
         case 'tf_slot': this.testPanel = { key: it.data }; return true;
         case 'tf_switch': this.switchTestTower(it.data); return true;
         case 'panel_close': this.testPanel = null; return true;
@@ -1417,6 +1441,13 @@ class GameMain {
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
     }
     this.relicPick = null;
+    // v1.16.104 测试战场 3★ 模式：选中圣遗物按 3★ 质变注入（无需真实 3★ 解锁）
+    if (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) {
+      this.run._testStar3Mode = true;
+      this.run._testStar3 = this.run._testStar3 || {};
+      this.run._testStar3[c.id] = true;
+    }
+    this._lastPickStar3 = false;
     // v1.16.73 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
     this.state = this._relicReturnState || 'fighting';
     this._relicReturnState = null;

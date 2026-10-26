@@ -104,10 +104,12 @@ class Run {
     return CONFIG.relicNum(id, star);
   }
 
-  /** v1.16.96 3★ 质变行为生效判定：STAR3_ENABLED 开启 + 拥有 + 星级≥3；模拟层无 metaRef 按 false（不生效） */
+  /** v1.16.96 3★ 质变行为生效判定：STAR3_ENABLED 开启 + 拥有 + 星级≥3；模拟层无 metaRef 按 false（不生效）
+   *  v1.16.104 测试战场 3★ 模式：_testStar3Mode=true 且 _testStar3[id] 被注入时，该圣遗物按 3★ 质变生效（无需真实 3★ 解锁） */
   relic3(id) {
-    if (!CONFIG.STAR3_ENABLED) return false;
+    if (!CONFIG.STAR3_ENABLED && !this._testStar3Mode) return false;
     if (this.relicRun(id) <= 0) return false;
+    if (this._testStar3 && this._testStar3[id]) return true;
     if (!this.metaRef || !this.metaRef.starOf) return false;
     return this.metaRef.starOf(id) >= 3;
   }
