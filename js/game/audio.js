@@ -22,10 +22,18 @@ class SfxManager {
     this._bgmStarted = false;
     this._lastShotSfx = 0;
     this._lastBoomSfx = 0;
+    this.enabled = true;   // v1.16.107 声音总开关（设置弹层可切换）
+  }
+
+  /** v1.16.107 声音开关：关闭时停 BGM，play/startBgm 一律不发声 */
+  setEnabled(on) {
+    this.enabled = !!on;
+    if (!this.enabled) this.stopBgm();
   }
 
   /** 播放一次性音效（minGap 秒内防抖；kind 目前支持 shot / boom） */
   play(kind, minGap) {
+    if (!this.enabled) return;   // v1.16.107 声音关闭不播放
     const now = Date.now();
     const last = kind === 'shot' ? this._lastShotSfx : this._lastBoomSfx;
     if (now - last < minGap * 1000) return;
@@ -36,6 +44,7 @@ class SfxManager {
   }
 
   startBgm() {
+    if (!this.enabled) return;   // v1.16.107 声音关闭不启 BGM
     if (this.bgm && !this._bgmStarted) {
       this._bgmStarted = true;
       try { this.bgm.play(); } catch (e) {}

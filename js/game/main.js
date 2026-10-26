@@ -70,6 +70,7 @@ class GameMain {
     this.saveData = this.save.load();
     // 局外数据（主界面）：金币 / 圣物 / 宝箱 / 每日精选
     this.meta = this.save.applyMeta(this.saveData);
+    this.sfx.setEnabled(this.meta.soundOn !== false);   // v1.16.107 应用声音开关存档
     // 主界面状态
     this.menuTab = 'battle';     // battle / shop / relic / codex（v1.16.75 新增塔图鉴页签）
     this.codexSel = 'fire';      // v1.16.75 塔图鉴当前选中塔
@@ -1533,20 +1534,22 @@ class GameMain {
       if (h.bg && h.bg.hit(p.x, p.y)) { this.towerInfo = null; return true; }
       return true; // 面板内点击不处理其它
     }
-    // 底部功能弹层打开中：清档确认 / 返回主界面 / 关闭 / 遮罩关闭
+    // 底部功能弹层打开中：声音开关 / 重新开始 / 返回主界面 / 关闭 / 遮罩关闭
     if (this.funcLayer) {
       const h = this.funcLayerHits;
+      if (this.funcLayer.type === 'setting' && h.sound && h.sound.hit(p.x, p.y)) {
+        // v1.16.107 声音开关：持久化 + 即时应用
+        this.meta.soundOn = !this.meta.soundOn;
+        this.save.save();
+        this.sfx.setEnabled(this.meta.soundOn);
+        this.toast(this.meta.soundOn ? '🔊 音效已开启' : '🔇 音效已关闭', '#9fb2c3');
+        return true;
+      }
       if (this.funcLayer.type === 'setting' && h.confirm && h.confirm.hit(p.x, p.y)) {
-        if (this.funcLayer.confirming) {
-          this.save.clear();
-          this.saveData = null;
-          this.meta = this.save.applyMeta(null);
-          this.funcLayer = null;
-          this.goMenu();
-          this.toast('已清档', '#7ef0a3');
-        } else {
-          this.funcLayer.confirming = true;
-        }
+        // v1.16.107 重新开始（不清档）：返回主界面重开本局，塔/银币/解锁进度全部保留
+        this.funcLayer = null;
+        this.goMenu();
+        this.toast('已重新开始 · 存档保留', '#7ef0a3');
         return true;
       }
       // 设置弹层底部按钮 =「返回主菜单」；其它弹层 =「关闭」
@@ -1568,7 +1571,7 @@ class GameMain {
       for (const f of this.funcHits) {
         if (f.hit(p.x, p.y)) {
           if (f.key === 'shop') { this.shopOpen = true; return true; }
-          this.funcLayer = { type: f.key, version: GAME_VERSION };
+          this.funcLayer = { type: f.key, version: GAME_VERSION, soundOn: this.meta.soundOn !== false };
           return true;
         }
       }

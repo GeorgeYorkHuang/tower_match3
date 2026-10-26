@@ -3020,7 +3020,7 @@ class Renderer {
   /** 底部功能弹层：设置 / 帮助（共用遮罩+面板+关闭；v1.16.77 塔图鉴与商店弹层已移除） */
   funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
-    const heights = { setting: 430, help: 900 };   // v1.16.89 帮助面板加高容纳大字号换行
+    const heights = { setting: 500, help: 900 };   // v1.16.89 帮助面板加高容纳大字号换行；v1.16.107 设置面板加声音开关行
     const hgt = heights[layer.type] || 560;
     const y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
@@ -3032,10 +3032,14 @@ class Renderer {
     text(ctx, title, 375, y + 52, 36, '#ffffff', 'center');
     if (layer.type === 'setting') {
       text(ctx, `版本 ${layer.version || 'v1.0.0'}`, 375, y + 118, 22, '#9fb2c3', 'center');
-      text(ctx, '清档后将重新开始：', 375, y + 168, 20, 'rgba(255,255,255,0.7)', 'center');
-      text(ctx, '塔等级 · 银币 · 解锁进度全部清零', 375, y + 200, 20, 'rgba(255,255,255,0.55)', 'center');
-      const label = layer.confirming ? '确认清档？再点一次执行' : '清档重开';
-      hits.confirm = button(ctx, x + 120, y + 246, 400, 70, label, { bg: layer.confirming ? '#c0392b' : '#7a3b3b', fontSize: 26 });
+      // v1.16.107 声音开关行
+      const sndOn = layer.soundOn !== false;
+      text(ctx, '🔊 音效与背景音乐', x + 96, y + 176, 24, '#dfe6ee', 'left');
+      hits.sound = button(ctx, x + 400, y + 148, 144, 56, sndOn ? '开' : '关', { bg: sndOn ? '#2b6d4f' : '#45505f', fontSize: 26 });
+      // v1.16.107 重新开始（不清档）
+      text(ctx, '重新开始将返回主界面重开一局：', 375, y + 240, 20, 'rgba(255,255,255,0.7)', 'center');
+      text(ctx, '塔等级 · 银币 · 解锁进度全部保留', 375, y + 272, 20, 'rgba(255,255,255,0.55)', 'center');
+      hits.confirm = button(ctx, x + 120, y + 306, 400, 70, '重新开始', { bg: '#2b6d4f', fontSize: 28 });
     } else if (layer.type === 'help') {
       // v1.16.89 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
       const lines = [

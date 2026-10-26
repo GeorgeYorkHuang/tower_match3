@@ -34,6 +34,7 @@ class Meta {
     this.chestTimer = null;      // { endAt: ms }
     this.dailyPicks = null;      // { date, picks: [{relic, price}] }
     this.towerUnlocks = [];
+    this.soundOn = true;             // v1.16.107 声音开关（默认开）
     this.runCodex = {};            // v1.16.60 局内圣遗物图鉴解锁 { id: 1 }（获得过才显示）
     this.towerCodex = { fire: 1, ice: 1, poison: 1, electric: 1 }; // v1.16.75 塔图鉴已学习塔（基础四塔默认解锁）
     /* ---------- v1.16.76 激励系统 ---------- */
@@ -251,6 +252,7 @@ class Meta {
       chestTimer: this.chestTimer,
       dailyPicks: this.dailyPicks,
       towerUnlocks: this.towerUnlocks,
+      soundOn: this.soundOn,             // v1.16.107 声音开关
       runCodex: this.runCodex,
       towerCodex: this.towerCodex,
       /* v1.16.76 激励系统 */
@@ -288,6 +290,7 @@ class Meta {
     m.totalDiamondSpent = d.totalDiamondSpent || 0;
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
+    m.soundOn = d.soundOn !== false;   // v1.16.107 声音开关（旧档默认开）
     // v4 及以下迁移：装备过的圣物视为已拥有（+1）；技能卡/技能槽丢弃（技能回归默认 3 个）
     if (d.relicSlots && Array.isArray(d.relicSlots)) {
       d.relicSlots.forEach((id) => {
