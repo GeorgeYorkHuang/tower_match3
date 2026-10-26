@@ -3938,11 +3938,12 @@ class Renderer {
 
   /** v1.16.76 调试工具面板（仅 CONFIG.DEBUG_ACCOUNT=true 时入口可见） */
   debugPanel(ctx, s, push) {
-    this._menuPanelShell(ctx, s, push, '🛠 测试工具', 560);
+    this._menuPanelShell(ctx, s, push, '🛠 测试工具', 680);
     const acts = [
       ['dbg_gold', '💰 金币 +1000'], ['dbg_diamond', '💎 钻石 +100'],
       ['dbg_shard', '🧩 全碎片 +2'], ['dbg_unlock', '🔓 解锁全部圣遗物'],
-      ['dbg_stone', '⭐ 星辉石 +5'], ['dbg_chest', '📦 发放星辉宝箱'],
+      ['dbg_star3', '🌟 全圣遗物升3★'], ['dbg_stone', '⭐ 星辉石 +5'],
+      ['dbg_chest', '📦 发放星辉宝箱'],
     ];
     acts.forEach(([k, label], i) => {
       const bx = 70 + (i % 2) * 310, by = 280 + Math.floor(i / 2) * 86;
@@ -3951,7 +3952,7 @@ class Renderer {
       strokeRoundRect(ctx, bx, by, 280, 64, 12, '#5a6c80', 1);
       text(ctx, label, bx + 140, by + 38, 21, '#c9d6e4', 'center');
     });
-    text(ctx, `bestWave ${s.bestWave || 0} · 仅调试构建可见`, 375, 570 + 60, 17, '#5a6c80', 'center');
+    text(ctx, `bestWave ${s.bestWave || 0} · 仅调试构建可见`, 375, 620 + 60, 17, '#5a6c80', 'center');
   }
 
   /** 子面板外壳：遮罩 + 面板 + 标题 + 关闭（hgt 可自定义高度） */

@@ -1402,6 +1402,13 @@ class GameMain {
         this.toast('已解锁全部圣遗物（1★）', '#7ef0a3');
         break;
       }
+      case 'dbg_star3': {
+        // v1.16.105 调试：全部圣遗物直接升 3★（解锁 + 星级拉满），便于 IDE 端完整验证 3★ 养成/图鉴/战斗链路
+        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; }));
+        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; });
+        this.toast('全部圣遗物已升至 3★', '#ffb347');
+        break;
+      }
       case 'dbg_stone': m.starStones += 5; this.toast('星辉石 +5', '#a86bff'); break;
       case 'dbg_chest': {
         if (m.grantDeepChest(CONFIG.DEPTH_CHEST.tiers[4])) this.toast('已发放星辉宝箱（12h）', '#a86bff');

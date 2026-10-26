@@ -241,7 +241,7 @@ module.exports = {
     goldStarExtraStone: true, // 金级圣遗物升 3★ 额外需要星辉石
   },
   /* v1.16.78 圣遗物星级效果与收益对齐 */
-  STAR3_ENABLED: false,         // 3★ 质变行为灰度开关：false 时效果不生效（图鉴仍可查看文本），true 时接入 effects 挂点
+  STAR3_ENABLED: true,          // 3★ 质变行为灰度开关：false 时效果不生效（图鉴仍可查看文本），true 时接入 effects 挂点（v1.16.104 全 112 条接入后统一开启）
   RELIC_PICK_WEIGHT: { r: 0.50, sr: 0.38, ssr: 0.12 },   // 三选一稀有度权重（设计文档 2.2：蓝50/紫38/金12）
   DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8 },             // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金）
   /* 战场合约（v1.16.76）：A 熔岩矿场 / B 霜风峡谷 / C 深渊裂隙；ancient 远古保留 */
