@@ -941,7 +941,11 @@ class GameMain {
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
       this.renderer.toast(ctx, this.toasts);
-      if (this.state === 'relicpick') this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits);
+      if (this.state === 'relicpick') {
+        // v1.16.109 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
+        if (!this.relicPick.t) this.relicPick.t = Date.now();
+        this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t);
+      }
       return;
     }
     const st = this.sceneState();
