@@ -2829,21 +2829,22 @@ class Renderer {
       // v1.16.27：技能图标 = 美术图片（88px；垂直居中，水平右移 4px 中和 Lv 角标/素材残余左偏），缺失回退 emoji
       const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 40, iconCy - 44, 88, 88);
       if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx + 4, iconCy + 6, 52, '#ffffff', 'center');
-      // 等级角标（v1.16.92 三态：新技能=NEW 暗底 / 新分支=黄底 Lv0 / 升级=黄底选择后等级）
-      fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, isBranch ? '#f7c948' : '#2c3542');
+      // 等级角标（v1.16.93 三态：新技能=NEW 黄底 / 新分支=黄底 Lv0 / 升级=暗底当前等级）
+      const badgeBg = isUpgrade ? '#2c3542' : '#f7c948';
+      fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, badgeBg);
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
-      text(ctx, isSkill ? 'NEW' : `Lv${isNewBranch ? 0 : targetLv}`, iconCx + ir + 4, iconCy - ir + 24, isSkill ? 16 : 19, isBranch ? '#1a1a1a' : '#ffffff', 'center');
+      text(ctx, isSkill ? 'NEW' : (isNewBranch ? 'Lv0' : `Lv${ef.branchLv}`), iconCx + ir + 4, iconCy - ir + 24, isSkill ? 16 : 19, isUpgrade ? '#ffffff' : '#1a1a1a', 'center');
       // v1.16.55 技能名（金色 40px 大字，nameY=topY+182，与图标底 130 留 12px、与下方标签留 20px）
       const nameY = topY + 182;
       // v1.16.57 分支标签胶囊：新技能/分支标签整体下移 10px（tY = nameY+30）；
       //   分支文字较长（分支名 · LvX → Y）时字号 21→最小 16 自适应，保证胶囊不超出卡片外框
       const tSize = 21;
-      // v1.16.92 标签文案三态：新技能 / 进化 · 分支名 / 等级从X级升到Y级
+      // v1.16.93 标签文案三态：新技能 / → 分支名 / LvX → LvY
       const tagTxt = isSkill
         ? '新技能'
         : (isNewBranch
-          ? `进化 · ${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)}`
-          : `等级从${ef.branchLv}级升到${ef.branchLv + 1}级`);
+          ? `→ ${this.branchName(defOf(ef.name, ef.fromTower), ef.branch)}`
+          : `Lv${ef.branchLv} → Lv${ef.branchLv + 1}`);
       let tSizeA = tSize;
       let tW = txtW(tagTxt, tSizeA) + 34;
       while (tW > cardW - 20 && tSizeA > 16) { tSizeA -= 1; tW = txtW(tagTxt, tSizeA) + 34; }

@@ -65,7 +65,7 @@ texts.length = 0;
 game.pickHits = [];
 game.renderer.pickLayer(ctx2d, game.pickQueue[0], game.pickHits, {});
 const joined = texts.join('|');
-const need = ['确认技能', '确认分支', '确认升级', 'NEW', 'Lv0', 'Lv2', '新技能', '进化 ·', '等级从1级升到2级'];
+const need = ['确认技能', '确认分支', '确认升级', 'NEW', 'Lv0', 'Lv1 → Lv2', '新技能', '→ '];
 const missing = need.filter((n) => !joined.includes(n));
 console.log('pickLayer texts check →', missing.length ? 'MISSING: ' + missing.join(', ') : 'all present');
 if (missing.length) { console.error('FAIL: 三选一三态文案缺失'); process.exit(1); }
