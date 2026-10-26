@@ -453,7 +453,20 @@ class CombatSystem {
       gd.ttl -= dt;
       if (gd.ttl <= 0) { this.groundDots.splice(i, 1); continue; }
       this.enemies().forEach((o) => {
-        if (o.hp <= 0 || Math.hypot(o.x - gd.x, o.y - gd.y) > gd.r) return;
+        if (o.hp <= 0) return;
+        const dist = Math.hypot(o.x - gd.x, o.y - gd.y);
+        if (dist > gd.r) {
+          // v1.16.100 腐沼3★：毒池边缘生成毒雾环，进出敌人各叠 1 层毒
+          if (gd.ring && dist <= gd.r * 1.1) {
+            gd._ft = (gd._ft || 0) + dt;
+            while (gd._ft >= 1) {
+              gd._ft -= 1;
+              this.applyPoison(o, this.shotDmg('poison', true), 'poison', 1);
+              this.fxParticle(o.x, o.y, '#7ee2a8', 2, 20, 0.4, 70, 3);
+            }
+          }
+          return;
+        }
         if (gd.dps) this.damage(o, gd.dps * dt, gd.key || 'fire');
         // v1.16.42 毒沼：泥沼减速（与毒池区分——毒沼纯叠毒 + 减速，无直伤）
         if (gd.swamp && gd.slow) this.applySlow(o, gd.slow, 1);
@@ -462,6 +475,10 @@ class CombatSystem {
           while (gd._t >= 1) {
             gd._t -= 1;
             this.applyPoison(o, this.shotDmg('poison', true), 'poison', gd.stackPerSec);
+          }
+          // v1.16.100 毒云3★：毒池上的敌人每秒丢失 1 点能量（对 Boss 无效；敌人无能量系统时挂点保留）
+          if (this.game.run.relic3('poison_cloud') && !gd.swamp && !o.isBoss && o.energy > 0) {
+            o.energy = Math.max(0, o.energy - 1);
           }
         }
       });
@@ -487,7 +504,15 @@ class CombatSystem {
     for (let i = this.poisonSticks.length - 1; i >= 0; i--) {
       const st = this.poisonSticks[i];
       st.ttl -= dt;
-      if (st.ttl <= 0) { this.poisonSticks.splice(i, 1); continue; }
+      if (st.ttl <= 0) {
+        // v1.16.100 毒巢3★：毒棒消失时留下 2 秒小毒池（10%/秒）
+        if (this.game.run.relic3('poison_nest')) {
+          this.groundDots = this.groundDots || [];
+          this.groundDots.push({ x: st.x, y: st.y, r: 70, ttl: 2, dps: this.shotDmg('poison', true) * 0.1, key: 'poison' });
+          this.fxRing(st.x, st.y, '#1e8449', 70, 0.5, 3);
+        }
+        this.poisonSticks.splice(i, 1); continue;
+      }
       st.atkT += dt;
       if (st.atkT >= st.atkI) {
         st.atkT -= st.atkI;
@@ -497,6 +522,8 @@ class CombatSystem {
         picks.forEach((o) => {
           this.damage(o, st.dmg, 'poison');
           this.applyPoison(o, this.shotDmg('poison', true), 'poison', 1);
+          // v1.16.100 毒枝3★：毒棒攻击附带 0.5 秒减速
+          if (this.game.run.relic3('poison_branch')) this.applySlow(o, 0.3, 0.5);
           // 毒棒攻击弹道（v1.16.1）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
           g.fx.push({ type: 'thorn', x: st.x, y: st.y, tx: o.x, ty: o.y, t: 0, dur: 0.25, color: '#2e7d32' });
           this.fxParticle(o.x, o.y, '#2e7d32', 4, 30, 0.3, 90, 4);
@@ -645,6 +672,19 @@ class CombatSystem {
       e._frozenLongT = 0;
       e._fragile = false;
     }
+    // v1.16.100 腐化3★：中毒的敌人每移动 60 码，额外受到其最大生命值 2% 的真实伤害（对 Boss 单次上限 1%，无视减伤）
+    if (this.game.run.relic3('poison_corrode') && this.hasDot(e, 'poison') && e.hp > 0) {
+      const spd = (e.speed || 0) * (e.slow && e.slow.ttl > 0 ? e.slow.mult : 1);
+      e._corrodeD = (e._corrodeD || 0) + spd * dt;
+      while (e._corrodeD >= 60) {
+        e._corrodeD -= 60;
+        const pct = e.isBoss ? 0.01 : 0.02;
+        const v0 = (e.maxHp || e.hp) * pct;
+        e.hp -= v0;
+        if (e.hp <= 0 && !e._dying) { e._dying = true; this.onKill(e); }
+        this.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);
+      }
+    }
     // DoT
     if (e.dots.length) {
       for (let i = e.dots.length - 1; i >= 0; i--) {
@@ -666,8 +706,16 @@ class CombatSystem {
           d.tickT += tickI;
           // 毒（层数×每层 dps）走 stackDps；灼烧等旧 DoT 走 dps×全局强化
           const dealt = d.stackDps ? (d.stack || 1) * d.stackDps * tickI : d.dps * boost.dmg * tickI;
-          this.damage(e, dealt, d.src);
+          // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
+          let dealtV = dealt;
+          if (d.type === 'poison' && e._poisonChain > 0) dealtV *= (1 + 0.10 * e._poisonChain);
+          this.damage(e, dealtV, d.src);
           d.totalDealt = (d.totalDealt || 0) + dealt;
+          // v1.16.100 毒腺3★：中毒伤害的 20% 转化为城墙修复
+          if (d.type === 'poison' && this.game.run.relic3('poison_gland')) {
+            const maxHp = this.game.run.lineMaxHp || CONFIG.LINE.hp;
+            this.game.run.lineHp = Math.min(maxHp, (this.game.run.lineHp || 0) + dealt * 0.2);
+          }
           // 火·爆燃 C 灼裂：灼烧每跳 15%/30%/50% 概率爆炸一次（30% 范围伤害）
           const burstLv = this.branchLv('fire', '爆燃', 'C');
           if (d.type === 'burn' && burstLv > 0 && Math.random() < SKILL_NUM.fire['灼烧'].burst[burstLv]) {
@@ -723,9 +771,12 @@ class CombatSystem {
           const rP = 50 + 25 * this.branchLv('poison', '瘟疫', 'B');
           const near = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= rP);
           if (near.length) {
-            const pick = near[Math.floor(Math.random() * near.length)];
-            this.applyPoison(pick, this.shotDmg('poison', true), 'poison', 1);
-            this.fxBeam(e.x, e.y, pick.x, pick.y, '#45b39d', 0.35, 2.5);
+            // v1.16.100 速疫3★：瘟疫传染无人数上限（按范围判定，范围内全部判定）
+            const picks = this.game.run.relic3('poison_quick') ? near : [near[Math.floor(Math.random() * near.length)]];
+            picks.forEach((pick) => {
+              this.applyPoison(pick, this.shotDmg('poison', true), 'poison', 1);
+              this.fxBeam(e.x, e.y, pick.x, pick.y, '#45b39d', 0.35, 2.5);
+            });
           }
         }
       }
@@ -759,6 +810,14 @@ class CombatSystem {
           // v1.16.42 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
           const bLv = this.branchLv('poison', '瘴气', 'B');
           this.applyPoison(e, this.shotDmg('poison', true) * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', 1);
+          // v1.16.100 瘴毒3★：瘴气每叠 4 层毒引发一次小毒爆（30% 攻击伤害）
+          if (this.game.run.relic3('poison_miasma')) {
+            e._miaLayers = (e._miaLayers || 0) + 1;
+            if (e._miaLayers >= 4) {
+              e._miaLayers = 0;
+              this.explode(e.x, e.y, 60, this.shotDmg('poison', true) * 0.3, 'poison');
+            }
+          }
         }
         if (Math.random() < 0.4) this.fxParticle(e.x, e.y - 6, '#7ee2a8', 1, 16, 0.6, 50, 4);
       }
@@ -810,6 +869,11 @@ class CombatSystem {
     if (this.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
     // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%
     if (e._fragile && this.game.run.relic3('ice_forever')) v *= 1.2;
+    // v1.16.100 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
+    if (this.game.run.relic3('poison_all') && e.dots) {
+      const pd = e.dots.find((d) => d.type === 'poison');
+      if (pd && pd.stack > 0) v *= (1 + 0.01 * pd.stack);
+    }
     // 圣物·利刃符：全塔伤害 +8%/级
     const g = this.game;
     const m = g.meta;
@@ -872,10 +936,15 @@ class CombatSystem {
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r)
           .sort((a, b) => (Math.abs(a.x - e.x) + Math.abs(a.y - e.y)) - (Math.abs(b.x - e.x) + Math.abs(b.y - e.y)));
         const picks = cands.slice(0, n);
+        // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤，链数随传染传递）
+        const chainN = (e._poisonChain || 0) + 1;
         picks.forEach((o) => {
           if (Math.random() < SKILL_NUM.poison['毒爆'].spreadP) {
-            const layers = (bLv > 0 && Math.random() < SKILL_NUM.poison['毒爆'].inherit[bLv]) ? this.poisonStack(e) : 1;
+            // v1.16.100 瘟疫之源3★：传染时保留目标 50% 现有层数（无论是否触发 B 继承）
+            const base = this.game.run.relic3('poison_source') ? Math.max(1, Math.floor(this.poisonStack(e) * 0.5)) : 1;
+            const layers = (bLv > 0 && Math.random() < SKILL_NUM.poison['毒爆'].inherit[bLv]) ? this.poisonStack(e) : base;
             this.applyPoison(o, this.shotDmg('poison', true), 'poison', layers);
+            o._poisonChain = chainN;
             this.fxBeam(e.x, e.y, o.x, o.y, '#7ee2a8', 0.3, 3);
           }
         });
@@ -888,6 +957,19 @@ class CombatSystem {
           this.groundDots.push({ x: e.x, y: e.y, r: SKILL_NUM.poison['毒爆'].swampR, ttl: SKILL_NUM.poison['毒爆'].swampTtl[cLv], key: 'poison', dps: 0, stackPerSec: 1, swamp: true, slow: SKILL_NUM.poison['毒爆'].swampSlow });
         }
       }
+      // v1.16.100 剧毒精华3★：毒满层的敌人死亡时毒液溅射，90码 内叠 2 层（不依赖毒爆技能）
+      if (key === 'poison' && this.game.run.relic3('poison_essence') && this.hasDot(e, 'poison')) {
+        const pd = e.dots.find((d) => d.type === 'poison');
+        if (pd && pd.stack >= pd.maxStack) {
+          this.enemies().forEach((o) => {
+            if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 90) {
+              this.applyPoison(o, this.shotDmg('poison', true), 'poison', 2);
+            }
+          });
+          this.fxRing(e.x, e.y, '#1e8449', 90, 0.5, 4);
+          this.fxParticle(e.x, e.y, '#52be80', 10, 70, 0.5, 140, 5);
+        }
+      }
       // 毒·毒藤 C（v1.15）：被缠绕敌人死亡时，藤蔓延伸缠住 100px（每级 +50px）内下一个敌人
       if (key === 'poison' && this.lv('poison', '毒藤') > 0 && e._vineT > 0) {
         const vc = this.branchLv('poison', '毒藤', 'C');
@@ -898,6 +980,12 @@ class CombatSystem {
           if (next) {
             next.frozen = Math.max(next.frozen || 0, 2);
             next._vineT = Math.max(next._vineT || 0, 2);
+            // v1.16.100 蔓延3★：蔓延路径也留毒痕，每秒 10% 伤害（3 秒）
+            if (this.game.run.relic3('poison_spread')) {
+              this.groundDots = this.groundDots || [];
+              this.groundDots.push({ x: next.x, y: next.y, r: 80, ttl: 3, dps: this.shotDmg('poison', true) * 0.1, key: 'poison' });
+              this.fxRing(next.x, next.y, '#7dcea0', 80, 0.4, 3);
+            }
             this.fxBeam(e.x, e.y, next.x, next.y, '#2ecc71', 1, 4);
             this.fxRing(next.x, next.y, '#7dcea0', 26, 1, 3);
           }
@@ -1284,7 +1372,16 @@ class CombatSystem {
       let prob = 0.20;
       const toxic = this.lv('poison', '剧毒');
       if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
-      if (Math.random() < prob) {
+      // v1.16.100 毒牙3★：中毒概率触顶（≥80%）时，多余判定转为 +1 层毒
+      if (this.game.run.relic3('poison_fang') && prob >= 0.8) {
+        if (Math.random() < 0.8) {
+          this.applyPoison(o, dmg, 'poison', 1);
+          this.fxParticle(o.x, o.y, '#7ee2a8', 6, 44, 0.45, 100, 5);
+        } else {
+          this.applyPoison(o, dmg, 'poison', 1);
+          this.fxFlash(o.x, o.y, '#52be80', 0.25);
+        }
+      } else if (Math.random() < prob) {
         this.applyPoison(o, dmg, 'poison', 1);
         this.fxParticle(o.x, o.y, '#7ee2a8', 6, 44, 0.45, 100, 5);
       }
@@ -2350,6 +2447,10 @@ class CombatSystem {
       dot.freq = freq;
       dot.ttl = Math.max(dot.ttl, ttl);
     }
+    // v1.16.100 缠毒3★：被缠绕的敌人每被叠 1 层中毒，缠绕时间延长 0.5 秒（上限 +3 秒）
+    if (this.game.run.relic3('poison_vine') && e._vineT > 0) {
+      e._vineT = Math.min(e._vineT + 0.5 * add, 6);
+    }
   }
 
   /** 当前中毒层数（毒爆 B 继承用） */
@@ -2377,7 +2478,7 @@ class CombatSystem {
         const dps = this.shotDmg('poison') * 0.20 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
         const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
         this.groundDots = this.groundDots || [];
-        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449' });
+        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449', ring: this.game.run.relic3('poison_fen') });
         this.fxRing(tgt.x, tgt.y, '#1e8449', pr, 0.8, 5);
         this.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
       }

@@ -502,6 +502,10 @@ class GameMain {
     if (e.y >= this.ly.wallY - 10) return;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
     if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
+    // v1.16.100 缓毒3★：中毒减速与冰缓/麻痹叠加时，总减速上限 +15%（移动再减 15%）
+    if (this.run.relic3('poison_slow') && this.combat.hasDot(e, 'poison') && (e.slow || e.paralyzed > 0)) {
+      slowEff = Math.min(slowEff, slowEff * 0.85);
+    }
     // v1.16.78 时间停滞（局内圣遗物）：怪物移速降低 N%（按星级）
     const stasis = this.run.relicNum('cm_stasis');
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
