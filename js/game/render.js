@@ -55,32 +55,32 @@ const TOME_ROWS = [
 
 /* 图片资源映射（微信小游戏相对路径）；加载失败/未完成时回退色块+字符 */
 const IMG_SRC = {
-  fire: 'images/towers/fire.png', ice: 'images/towers/ice.png',
-  poison: 'images/towers/poison.png', electric: 'images/towers/electric.png',
-  boomerang: 'images/towers/boomerang.png', cannon: 'images/towers/cannon.png',
-  enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
-  runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
+  fire: 'assets/images/towers/fire.png', ice: 'assets/images/towers/ice.png',
+  poison: 'assets/images/towers/poison.png', electric: 'assets/images/towers/electric.png',
+  boomerang: 'assets/images/towers/boomerang.png', cannon: 'assets/images/towers/cannon.png',
+  enemy: 'assets/images/enemies/normal.png', boss: 'assets/images/enemies/boss.png',
+  runner: 'assets/images/enemies/runner.png', tank: 'assets/images/enemies/tank.png',
   // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；v1.16.124 改主包直连，量化 512×102）
-  lv1: 'images/enemies/lv1.png', lv2: 'images/enemies/lv2.png',
-  lv3: 'images/enemies/lv3.png', lv4: 'images/enemies/lv4.png',
-  lv5: 'images/enemies/lv5.png', lv6: 'images/enemies/lv6.png',
-  lv7: 'images/enemies/lv7.png', lv8: 'images/enemies/lv8.png',
-  coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
-  chestClosed: 'images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
-  chestQuarter: 'images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
-  chestHalf: 'images/ui/chest_half.png',      // 半开帧（帧3）
-  chestFast: 'images/ui/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
-  chestOpen: 'images/ui/chest_open.png',      // 全开帧（帧5，金光绽放）
-  actionArea: 'images/ui/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
-  wall: 'images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
-  towerRow: 'images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
-  boardBg: 'images/ui/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
+  lv1: 'assets/images/enemies/lv1.png', lv2: 'assets/images/enemies/lv2.png',
+  lv3: 'assets/images/enemies/lv3.png', lv4: 'assets/images/enemies/lv4.png',
+  lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
+  lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
+  coin: 'assets/images/ui/coin.png', bullet: 'assets/images/bullet.png',
+  chestClosed: 'assets/images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
+  chestQuarter: 'assets/images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
+  chestHalf: 'assets/images/ui/chest_half.png',      // 半开帧（帧3）
+  chestFast: 'assets/images/ui/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
+  chestOpen: 'assets/images/ui/chest_open.png',      // 全开帧（帧5，金光绽放）
+  actionArea: 'assets/images/ui/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
+  wall: 'assets/images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
+  towerRow: 'assets/images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
+  boardBg: 'assets/images/ui/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
-  red: 'images/board/fire.png', blue: 'images/board/ice.png',
-  green: 'images/board/poison.png', yellow: 'images/board/electric.png',
-  purple: 'images/board/boomerang.png', orange: 'images/board/cannon.png',
+  red: 'assets/images/board/fire.png', blue: 'assets/images/board/ice.png',
+  green: 'assets/images/board/poison.png', yellow: 'assets/images/board/electric.png',
+  purple: 'assets/images/board/boomerang.png', orange: 'assets/images/board/cannon.png',
 };
 const imgCache = {};
 // v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
@@ -130,7 +130,7 @@ function drawImg(ctx, src, x, y, w, h) {
   return false;
 }
 
-/* v1.16.27 技能图标（美术资源 images/skillicons/<塔>/<文件名>.png，缺失时回退 emoji） */
+/* v1.16.27 技能图标（美术资源 assets/images/skillicons/<塔>/<文件名>.png，缺失时回退 emoji） */
 const SKILL_ICON = {
   fire:      { 点燃: 'ignite', 灼烧: 'burnstack', 火柱: 'pillar', 大火球: 'bigfireball', 爆燃: 'detonate', 多重火球: 'multifireball', 火雨: 'firerain' },
   ice:       { 寒霜: 'frost', 冰冻: 'freeze', 冰穿刺: 'pierce', 多重冰锥: 'multiicicle', 冰花: 'frostflower', 冬珠: 'winterorb', 碎冰: 'shatter', 冰墙: 'icewall' },
@@ -141,7 +141,7 @@ const SKILL_ICON = {
 };
 function skillIconSrc(towerKey, skillName) {
   const f = (SKILL_ICON[towerKey] || {})[skillName];
-  return f ? `images/skillicons/${towerKey}/${f}.png` : null;
+  return f ? `assets/images/skillicons/${towerKey}/${f}.png` : null;
 }
 
 /** v1.16.80 hex → rgba（图鉴卡片塔色渲染用） */
@@ -151,11 +151,11 @@ function hexA(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/* v1.16.74 技能帧动画（精灵表横向条带，images/anims/<set>_<variant>.png） */
+/* v1.16.74 技能帧动画（精灵表横向条带，assets/images/anims/<set>_<variant>.png） */
 const ANIM_SHEETS = {
-  explosion: { orange: ['images/anims/anim_explosion_orange.png', 10], blue: ['images/anims/anim_explosion_blue.png', 10], green: ['images/anims/anim_explosion_green.png', 10] },
-  fallstrike: { orange: ['images/anims/anim_fallstrike_orange.png', 8], blue: ['images/anims/anim_fallstrike_blue.png', 8] },
-  spark: { gold: ['images/anims/anim_spark_gold.png', 6] },
+  explosion: { orange: ['assets/images/anims/anim_explosion_orange.png', 10], blue: ['assets/images/anims/anim_explosion_blue.png', 10], green: ['assets/images/anims/anim_explosion_green.png', 10] },
+  fallstrike: { orange: ['assets/images/anims/anim_fallstrike_orange.png', 8], blue: ['assets/images/anims/anim_fallstrike_blue.png', 8] },
+  spark: { gold: ['assets/images/anims/anim_spark_gold.png', 6] },
 };
 /* fx 颜色 → 帧动画变体：绿系→green、蓝系→blue、其余→orange */
 function animVariantOf(color) {
@@ -182,11 +182,11 @@ function drawAnimSheet(ctx, set, variant, x, y, size, p) {
   return true;
 }
 
-/* v1.16.61 局内圣遗物图标（images/relic/<塔系>/<id>.png，缺失时回退 emoji） */
+/* v1.16.61 局内圣遗物图标（assets/images/relic/<塔系>/<id>.png，缺失时回退 emoji） */
 function relicIconSrc(id) {
   const dir = { fire_: 'fire', ice_: 'ice', poison_: 'poison', elec_: 'electric', boo_: 'boomerang', can_: 'cannon', cm_: 'universal' };
   for (const [pre, cat] of Object.entries(dir)) {
-    if (typeof id === 'string' && id.startsWith(pre)) return `images/relic/${cat}/${id}.png`;
+    if (typeof id === 'string' && id.startsWith(pre)) return `assets/images/relic/${cat}/${id}.png`;
   }
   return null;
 }
@@ -312,7 +312,7 @@ class Renderer {
   actionArea(ctx, s) {
     // 行动区背景图（y128 起 720 高 = 怪物行走区）；v1.16.77 按战场切换主题背景；加载失败回退深色底
     const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
-      ? `images/ui/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
+      ? `assets/images/ui/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
     }
@@ -1167,7 +1167,7 @@ class Renderer {
           const cx = x + size / 2, cy = y + size / 2;
           const fw = size * (0.68 + 0.05 * Math.min(2, fireI)), fh = size * (0.68 + 0.05 * Math.min(2, fireI));
           const frameIdx = Math.floor(Date.now() / 120) % 4;
-          if (!drawImg(ctx, `images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, y + size - fh, fw, fh)) {
+          if (!drawImg(ctx, `assets/images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, y + size - fh, fw, fh)) {
             // 贴图未加载时回退：火光圆 + 跳动火苗（确定性），位置与贴图一致（下边界贴齐）
             const fireCy = y + size - fh / 2;
             ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
@@ -1506,7 +1506,7 @@ class Renderer {
           frameIdx = Math.floor(ph * 3);
         }
         const fw = 30, fh = 36;
-        if (!drawImg(ctx, `images/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
+        if (!drawImg(ctx, `assets/images/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
           // 贴图未加载回退：简化几何（木柄 + 毒囊）
           const pulse2 = 1 + 0.08 * Math.sin(tNow / 280 + seed);
           ctx.save();
@@ -1836,11 +1836,11 @@ class Renderer {
         ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === 'icebloom') {
-        // v1.13.28 冰花帧动画：4 帧绽放序列（images/icebloom/icebloom1-4.png，按进度选帧）
+        // v1.13.28 冰花帧动画：4 帧绽放序列（assets/images/icebloom/icebloom1-4.png，按进度选帧）
         const fp = Math.min(1, f.t / f.dur);
         const frameIdx = Math.min(3, Math.floor(fp * 4));
         const fw = (f.r || 100) * 1.9, fh = (f.r || 100) * 1.9;
-        if (!drawImg(ctx, `images/icebloom/icebloom${frameIdx + 1}.png`, f.x - fw / 2, f.y - fh / 2, fw, fh)) {
+        if (!drawImg(ctx, `assets/images/icebloom/icebloom${frameIdx + 1}.png`, f.x - fw / 2, f.y - fh / 2, fw, fh)) {
           // 回退：六瓣雪花展开 + 冰晶高光 + 扩散（贴图未加载时）
           const bloomR = (f.r || 100) * (0.25 + 0.75 * fp);
           const rot = Date.now() / 200;
@@ -2182,7 +2182,7 @@ class Renderer {
   fxBoom(ctx, f) {
       const p = Math.min(1, f.t / f.dur);
       // v1.16.74 统一爆炸演出：anim_explosion 精灵表按颜色变体播放
-      // （替换原 images/explosionN 序列帧，并移除 v1.16.6 程序化"爆炸增强"叠加段，避免重叠渲染）
+      // （替换原 assets/images/explosionN 序列帧，并移除 v1.16.6 程序化"爆炸增强"叠加段，避免重叠渲染）
       const size = (f.r ? f.r * 2.4 : 108);
       if (!drawAnimSheet(ctx, 'explosion', animVariantOf(f.color), f.x, f.y, size, p)) {
         // 兜底：精灵表未加载时简版闪光圆
@@ -2353,7 +2353,7 @@ class Renderer {
         frameIdx = Math.floor(ph * 3);
       }
       const fw = 34, fh = 36;
-      if (!drawImg(ctx, `images/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
+      if (!drawImg(ctx, `assets/images/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
         // 贴图未加载回退：简化几何炮台（底座 + 摆动炮管）
         const sway = Math.sin(p * 8 + seed) * 0.12;
         ctx.fillStyle = '#7a5a30';
@@ -3347,7 +3347,7 @@ class Renderer {
     const theme = MENU_TAB_THEME[s.tab] || MENU_TAB_THEME.battle;
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    drawImg(ctx, `images/menubg/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
+    drawImg(ctx, `assets/images/menubg/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
@@ -3459,7 +3459,7 @@ class Renderer {
     strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
     ctx.globalAlpha = 1;
     // v1.16.78 战场图标：卡片内嵌超大图（顶部居中 260px，白底已抠透明）
-    const badge = drawImg(ctx, isTest ? 'images/menubg/icon_stage_test.png' : `images/menubg/icon_stage_${stage}.png`, 375 - 130, sy + 18, 260, 260);
+    const badge = drawImg(ctx, isTest ? 'assets/images/menubg/icon_stage_test.png' : `assets/images/menubg/icon_stage_${stage}.png`, 375 - 130, sy + 18, 260, 260);
     if (!badge) { ctx.beginPath(); ctx.arc(375, sy + 148, 118, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill(); text(ctx, isTest ? '🧪' : '🏰', 375, sy + 160, 100, '#ffffff', 'center'); }
     // 战场标题 + 副标题（图标下方）
     text(ctx, F.name, 375, sy + 316, 38, '#ffffff', 'center');

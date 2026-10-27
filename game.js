@@ -1,1 +1,1 @@
-import './js/game/main';
+import './js/loading';
