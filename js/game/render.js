@@ -1020,14 +1020,16 @@ class Renderer {
     }
   }
 
-  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪/绘制异常返回 false */
+  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪/绘制异常返回 false
+   *  v1.16.126 每帧时长翻倍（整体放慢一倍）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     try {
-      const FRAME_DUR = { runner: 80, normal: 120, tank: 150, elite: 100, boss: 130 }; // ms/帧，快怪循环更快
+      const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
       const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
-      const f = Math.floor(Date.now() / dur) % 5;
+      const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
+      const f = Math.floor((Date.now() + phase) / dur) % 5;
       const fw = img.width / 5, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
       return true;
