@@ -60,11 +60,11 @@ const IMG_SRC = {
   boomerang: 'images/towers/boomerang.png', cannon: 'images/towers/cannon.png',
   enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
   runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
-  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；资源位于 assets 分包）
-  lv1: 'assets/images/enemies/lv1.png', lv2: 'assets/images/enemies/lv2.png',
-  lv3: 'assets/images/enemies/lv3.png', lv4: 'assets/images/enemies/lv4.png',
-  lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
-  lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
+  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；v1.16.124 改主包直连，量化 512×102）
+  lv1: 'images/enemies/lv1.png', lv2: 'images/enemies/lv2.png',
+  lv3: 'images/enemies/lv3.png', lv4: 'images/enemies/lv4.png',
+  lv5: 'images/enemies/lv5.png', lv6: 'images/enemies/lv6.png',
+  lv7: 'images/enemies/lv7.png', lv8: 'images/enemies/lv8.png',
   coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
   chestClosed: 'images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
   chestQuarter: 'images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
@@ -1020,16 +1020,20 @@ class Renderer {
     }
   }
 
-  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪返回 false */
+  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪/绘制异常返回 false */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
-    const FRAME_DUR = { runner: 80, normal: 120, tank: 150, elite: 100, boss: 130 }; // ms/帧，快怪循环更快
-    const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
-    const f = Math.floor(Date.now() / dur) % 5;
-    const fw = img.width / 5, fh = img.height;
-    ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
-    return true;
+    try {
+      const FRAME_DUR = { runner: 80, normal: 120, tank: 150, elite: 100, boss: 130 }; // ms/帧，快怪循环更快
+      const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
+      const f = Math.floor(Date.now() / dur) % 5;
+      const fw = img.width / 5, fh = img.height;
+      ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
+      return true;
+    } catch (err) {
+      return false; // 动画帧绘制异常：回退旧图，不中断渲染
+    }
   }
 
   drawEnemyDebuffs(ctx, e, x, y, size) {

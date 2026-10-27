@@ -284,11 +284,13 @@ class GameMain {
     const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
     // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
     const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
+    // v1.16.123 测试怪按类型对应代际等级（动画表：普→lv1 / 快→lv2 / 重→lv3 / 精英→lv4 / Boss→lv6）
+    const TEST_LV = { normal: 1, runner: 2, tank: 3, elite: 4, boss: 6 };
     for (let i = 0; i < count; i++) {
       const isBoss = type === 'boss';
       this.wave.pushEnemy(
         HP[type] || 500, entryY, baseSpeed,
-        0.5 + Math.random() * 0.5, isBoss, type
+        0.5 + Math.random() * 0.5, isBoss, type, TEST_LV[type] || 1
       );
     }
     this.toast(`召唤 ${type === 'normal' ? '普通' : type === 'runner' ? '快速' : type === 'tank' ? '重甲' : type === 'elite' ? '精英' : 'Boss'} ×${count}`, '#f7c948');
@@ -626,7 +628,7 @@ class GameMain {
   startNextWave() {
     this.state = 'fighting';
     this.wave.start(); // run.wave += 1
-    const w = this.run.wave;
+    const w = this.run.wave || 1; // v1.16.124 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
     this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;
   }
