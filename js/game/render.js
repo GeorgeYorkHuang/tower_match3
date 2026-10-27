@@ -60,11 +60,11 @@ const IMG_SRC = {
   boomerang: 'images/towers/boomerang.png', cannon: 'images/towers/cannon.png',
   enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
   runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
-  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5）
-  lv1: 'images/enemies/lv1.png', lv2: 'images/enemies/lv2.png',
-  lv3: 'images/enemies/lv3.png', lv4: 'images/enemies/lv4.png',
-  lv5: 'images/enemies/lv5.png', lv6: 'images/enemies/lv6.png',
-  lv7: 'images/enemies/lv7.png', lv8: 'images/enemies/lv8.png',
+  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；资源位于 assets 分包）
+  lv1: 'assets/images/enemies/lv1.png', lv2: 'assets/images/enemies/lv2.png',
+  lv3: 'assets/images/enemies/lv3.png', lv4: 'assets/images/enemies/lv4.png',
+  lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
+  lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
   coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
   chestClosed: 'images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
   chestQuarter: 'images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）

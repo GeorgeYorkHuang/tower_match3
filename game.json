@@ -1,5 +1,8 @@
 {
   "deviceOrientation": "portrait",
+  "subpackages": [
+    { "root": "assets", "name": "assets" }
+  ],
   "packOptions": {
     "ignore": [
       { "type": "folder", "value": "tools" },
