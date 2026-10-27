@@ -36,7 +36,7 @@ for (const k of keys) {
   game.renderer.menuCodex(ctx2d, { codexSel: k }, push());
   const joined = texts.join('|');
   // 4 列属性 + 数值 + 技能池标题必须在
-  const needCols = ['伤害', '攻速', '射程', '耗能', '技能池 · 点击卡片查看详情'];
+  const needCols = ['伤害', '攻速', '射程', '耗能', '技能池'];
   const missing = needCols.filter((n) => !joined.includes(n));
   // 旧第二行信息必须已删除
   const gone = ['直线弹道', '闪电折线', '回旋弧线', '抛物线炮弹'].filter((n) => joined.includes(n));   // 旧弹道字段（技能描述里偶发的"能量上限"不算）

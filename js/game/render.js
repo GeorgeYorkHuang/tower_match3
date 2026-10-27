@@ -3961,11 +3961,12 @@ class Renderer {
     text(ctx, `⚡ 耗能 ${enV}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 19, '#f4d03f', 'center');
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
-    text(ctx, '技能池 · 点击卡片查看详情', dx + 30, dy + 264, 30, '#ffffff', 'left');
+    // v1.16.128 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）
+    text(ctx, '技能池', dx + 30, dy + 264, 30, '#ffffff', 'left');
     const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
-    const cw3 = 300, ch3 = 210;               // 卡片宽高（+22 容纳大字号）
-    const gx0 = Math.round(750 * 0.05);       // 5% 左边距 = 38
-    const colX = [gx0, 750 - gx0 - cw3];      // 两列对称
+    const cw3 = 300, ch3 = 205;               // v1.16.128 卡高 210→205
+    const gx0 = Math.round(750 * 0.05) + 10;  // v1.16.128 5% 左边距再向内 10px
+    const colX = [gx0, 750 - gx0 - cw3];      // 两列对称（左右各内收 10）
     const gy0 = dy + 292;                     // 首行 y（面板加高后下移）
     const rows = Math.ceil(pool.length / 2);
     const bottomY = TAB_Y - Math.round(LOGIC_H * 0.05);   // 底部留 5% 屏高的白

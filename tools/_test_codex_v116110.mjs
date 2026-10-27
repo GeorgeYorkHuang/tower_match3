@@ -37,7 +37,7 @@ for (const k of keys) {
   texts.length = 0;
   game.renderer.menuCodex(ctx2d, { codexSel: k }, push());
   const j = texts.join('|');
-  const miss = ['⚡ 耗能', '技能池 · 点击卡片查看详情', '伤害', '攻速', '射程'].filter((n) => !j.includes(n));
+  const miss = ['⚡ 耗能', '技能池', '伤害', '攻速', '射程'].filter((n) => !j.includes(n));
   const gone = ['点击查看详情', '能耗 '].filter((n) => j.includes(n));
   console.log(`[codex ${k}] ${miss.length ? 'MISSING:' + miss.join(',') : 'ok'}${gone.length ? ' | 残留:' + gone.join(',') : ''}`);
   if (miss.length || gone.length) process.exit(1);
