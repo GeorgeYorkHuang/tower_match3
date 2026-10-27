@@ -348,8 +348,7 @@ class Renderer {
     this.board(ctx, s.grid, s.selected, s.anim);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
-    // v1.16.77 局内商店（右上角按钮 + 点开面板，不暂停战斗）
-    this.battleShop(ctx, s);
+    // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
   }
 
   wall(ctx, hp, maxHp) {
@@ -1026,20 +1025,22 @@ class Renderer {
   drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
+    // v1.17 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
+    const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
       const frameCount = imgLv === 1 ? 6 : 5;
       let f;
       if (imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
         const DURS = [140, 160, 200, 310, 200, 220];
-        let t = (Date.now() + ((e.id || 0) * 53) % 1000) % DURS.reduce((a, b) => a + b, 0);
+        let t = (now + ((e.id || 0) * 53) % 1000) % DURS.reduce((a, b) => a + b, 0);
         f = 0;
         while (t >= DURS[f]) { t -= DURS[f]; f++; }
       } else {
         const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
         const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
-        f = Math.floor((Date.now() + phase) / dur) % 5;
+        f = Math.floor((now + phase) / dur) % 5;
       }
       const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
@@ -3033,7 +3034,7 @@ class Renderer {
         });
         if (rel.length > 10) text(ctx, `+${rel.length - 10}`, X2 + W2 - 44, Y2 + 348, 22, '#a86bff', 'right');
       }
-      // —— 碎片总额：奖励区正中间，弹跳出场 ——
+      // —— 碎片收益：对应圣遗物碎片图标 × 数量（v1.17 替代 🧩 通用 emoji + 总数；无碎片不展示）——
       const shT = 250 + Math.min(rel.length, 10) * 160 + 120;
       const sp = ph(shT, 320);
       if (sp > 0) {
@@ -3042,38 +3043,74 @@ class Renderer {
         ctx.globalAlpha = Math.min(1, sp * 1.5);
         ctx.translate(375, Y2 + 430);
         ctx.scale(sc2, sc2);
-        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
-        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-        text(ctx, `🧩 圣遗物碎片 +${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
+        const detail = su.shardDetail || {};
+        const entries = Object.keys(detail).map((id) => ({ id, n: detail[id] })).filter((x) => x.n > 0);
+        if (entries.length) {
+          // 每组：图标 48px + ×数量；胶囊内最多 3 组，超出右下角 +k
+          const ICON = 48, GAP = 118;
+          const show = entries.slice(0, 3);
+          fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
+          strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
+          const x0 = -((show.length * GAP - GAP + ICON) / 2);
+          show.forEach((en, i) => {
+            const ix = x0 + i * GAP;
+            const src = relicIconSrc(en.id);
+            if (!drawImg(ctx, src, ix, -34, ICON, ICON)) {
+              // 图标缺失回退：星辉圆底 + 圣遗物 emoji
+              ctx.beginPath(); ctx.arc(ix + ICON / 2, -34 + ICON / 2, ICON / 2, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
+              const def = CONFIG.relicRunDef ? CONFIG.relicRunDef(en.id) : null;
+              text(ctx, (def && def.icon) || '🧩', ix + ICON / 2, -34 + ICON / 2 + 2, 30, '#ffffff', 'center');
+            }
+            text(ctx, `×${en.n}`, ix + ICON + 6, -6, 26, '#c9a6ff', 'left');
+          });
+          if (entries.length > 3) text(ctx, `+${entries.length - 3}`, x0 + 3 * GAP, -6, 22, '#a86bff', 'left');
+        } else if ((su.shards || 0) > 0) {
+          // 兜底：有碎片总数但明细缺失（异常/老数据）→ 通用碎片样式
+          fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
+          strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
+          text(ctx, `🧩 ×${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
+        }
         ctx.restore();
       }
       ctx.globalAlpha = 1;
-      // —— 次要收益（缩小、最后淡入）——
+      // —— 次要收益（v1.17：金币=coin 大图标×总量；宝箱=纯图标无文字；里程碑保留文字行）——
       ctx.strokeStyle = 'rgba(255,255,255,0.14)';
       ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 500); ctx.lineTo(X2 + W2 - 44, Y2 + 500); ctx.stroke();
-      const rows = [];
-      rows.push({ n: `🪙 深度结算（${win ? '撤离 100%' : '阵亡 30%'}）`, v: `+${fmtNum(su.payout)} 银币`, c: '#f7c948' });
-      if (su.silver > 0) rows.push({
-        n: `💰 局内金币折算${su.goldBonus ? `（招财符 +${Math.round(su.goldBonus * 100)}%）` : ''}`,
-        v: `+${fmtNum(su.silver)} 银币`, c: '#f7c948',
-      });
-      if (su.miles && su.miles.length) rows.push({ n: '🏆 里程碑首达', v: su.miles.join(' / '), c: '#a86bff' });
-      rows.push({
-        n: '📦 深度宝箱',
-        v: su.chestSkipped ? '前三波阵亡 · 未发放'
-          : su.chestGranted ? `${su.chestName}${su.chestExtra ? ` + ${su.chestExtra}` : ''}`
-          : '槽位已满 · 未发放',
-        c: '#d89e63',
-      });
-      rows.forEach((r, i) => {
-        const a = ph(shT + 320 + i * 90, 240);
-        if (a <= 0) return;
-        ctx.globalAlpha = a;
-        const ry = Y2 + 534 + i * 38;
-        text(ctx, r.n, X2 + 48, ry, 18, '#9fb2c3', 'left');
-        text(ctx, r.v, X2 + W2 - 48, ry, 20, r.c, 'right');
+      // 金币：深度结算 + 局内折算，合并为 coin 大图标 × 总银币
+      const totalSilver = (su.payout || 0) + (su.silver || 0);
+      const cA = ph(shT + 320, 240);
+      if (cA > 0 && totalSilver > 0) {
+        ctx.globalAlpha = cA;
+        const gy = Y2 + 536, COIN = 58;
+        if (!drawImg(ctx, IMG_SRC.coin, X2 + 64, gy - COIN, COIN, COIN)) {
+          text(ctx, '🪙', X2 + 64 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
+        }
+        text(ctx, `×${fmtNum(totalSilver)}`, X2 + 64 + COIN + 20, gy, 34, '#f7c948', 'left');
         ctx.globalAlpha = 1;
-      });
+      }
+      // 宝箱：纯图标（无数量、无文字描述），仅获得时显示
+      if (su.chestGranted) {
+        const bA = ph(shT + 320 + 90, 240);
+        if (bA > 0) {
+          ctx.globalAlpha = bA;
+          const by = Y2 + 604, CH = 58;
+          if (!drawImg(ctx, IMG_SRC.chestClosed, X2 + 64, by - CH, CH, CH)) {
+            text(ctx, '📦', X2 + 64 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
+      // 里程碑：保留原文字行
+      if (su.miles && su.miles.length) {
+        const mA = ph(shT + 320 + 90, 240);
+        if (mA > 0) {
+          ctx.globalAlpha = mA;
+          text(ctx, '🏆 里程碑首达', X2 + 48, Y2 + 640, 18, '#9fb2c3', 'left');
+          text(ctx, su.miles.join(' / '), X2 + W2 - 48, Y2 + 640, 20, '#a86bff', 'right');
+          ctx.globalAlpha = 1;
+        }
+      }
       // 按钮（收益全部弹出后浮现；命中区始终注册）
       const bA = ph(shT + 700, 260);
       ctx.globalAlpha = bA > 0 ? bA : 0;

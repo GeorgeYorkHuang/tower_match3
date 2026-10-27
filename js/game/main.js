@@ -115,6 +115,8 @@ class GameMain {
     this.depthPool = 0;          // 深度收益池（撤离拿 100%，阵亡保底 30%）
     this.depthMult = 1;          // 深度倍率（每通过一个撤离点 ×1.30，40 波后 ×1.10）
     this.runShardGained = 0;     // 本局击杀获得碎片数（结算展示）
+    this.runShardDetail = {};    // v1.17 本局碎片明细（圣遗物id→数量，结算页"图标×数量"展示）
+    this.animClock = 0;          // v1.17 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
     // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
     this.firstBonus = (this.menuStage !== 'test') ? this.meta.dailyFirstBonus(this.menuStage, Date.now()) : 1;
@@ -162,6 +164,7 @@ class GameMain {
     this.pickCell = null;
     this.combat.reset();
     this.battleRelics = [];
+    this.runShardDetail = {};    // v1.17 测试战场重置碎片明细
     // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
     this.run.slotOrder = ['fire'];
     this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
@@ -348,6 +351,8 @@ class GameMain {
   update(dt) {
     // toast 过期
     this.toasts = this.toasts.filter((t) => (t.ttl -= dt) > 0);
+    // v1.17 怪物帧动画时钟：仅战斗推进时累加；三选一/撤离/结算/弹层等暂停状态冻结 → 怪物帧动画停住
+    if (this.state === 'fighting' || this.state === 'testfield') this.animClock += dt * 1000;
     // 特效推进（v1.16.48：战斗状态内随倍速加速——弹道/爆炸/粒子/技能演出与怪物移速、塔攻速同频，
     //  避免"逻辑快、动画慢"的不和谐；菜单/弹层等状态倍速为 1 不受影响）
     const fxMul = (this.state === 'fighting' || this.state === 'testfield')
@@ -606,6 +611,7 @@ class GameMain {
       chestName: tier ? tier.name : null, chestGranted: ok1, chestExtra,
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       shards: this.runShardGained, depthMult: this.depthMult,
+      shardDetail: this.runShardDetail,   // v1.17 本局碎片明细（圣遗物id→数量，结算页图标×数量展示）
       silver: this.silverGained || 0,   // v1.16.77 局内金币结算的银币
       goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
       kills: ks,                        // v1.16.106 本局总击杀
@@ -786,6 +792,7 @@ class GameMain {
         if (id) {
           this.meta.addShard(id, n);
           this.runShardGained += n;
+          this.runShardDetail[id] = (this.runShardDetail[id] || 0) + n;   // v1.17 碎片明细（击杀掉落）
           this.toast(`🧩 圣遗物碎片 +${n}`, '#a86bff');
         }
       }
@@ -817,7 +824,9 @@ class GameMain {
     if (!star3Mode && (!cands || !cands.length)) {
       this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
       // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
-      this.meta.addShard(CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r'), 1);
+      const shardId = CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r');
+      this.meta.addShard(shardId, 1);
+      if (shardId) this.runShardDetail[shardId] = (this.runShardDetail[shardId] || 0) + 1;   // v1.17 碎片明细（全解锁折算）
       this.save.save();
       this._chestBusy = false;
       return;
@@ -975,6 +984,7 @@ class GameMain {
     }
     // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）；v1.16.73 测试战场弹圣遗物三选一时底层保持测试战场
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
+      this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（relicpick 冻结）
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
       this.renderer.toast(ctx, this.toasts);
       if (this.relicDetail) {   // v1.16.113 测试战场圣遗物详情弹层
@@ -994,10 +1004,14 @@ class GameMain {
     this.funcHits = this.renderer.funcHits || [];
     // v1.16.1 地面持续效果（毒池毒液池/毒棒召唤物）画在敌人下层
     this.renderer.groundFx(ctx, this.combat);
+    this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（暂停状态冻结）
     this.renderer.enemies(ctx, this.enemies);
     this.renderer.fx(ctx, this.fx);
     // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）
     this.renderer.fieldChests(ctx, this.fieldChests);
+    // v1.17 局内商店面板：从 actionArea 内移到敌人/特效层之后绘制（否则怪物贴图浮在商店面板上方）；
+    // 在 toast 之前画（商店遮罩不盖 toast），仍先于三选一/塔详情/功能弹层，保持"弹层盖商店"的既有层级
+    this.renderer.battleShop(ctx, st);
     this.renderer.toast(ctx, this.toasts);
     if (this.state === 'picking') {
       const group = this.pickQueue[this.pickIndex];
@@ -1488,6 +1502,7 @@ class GameMain {
       if (this.meta.starOf(c.id) >= 1 && this._relicReturnState !== 'testfield') {
         const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
         this.meta.addShard(c.id, n);
+        this.runShardDetail[c.id] = (this.runShardDetail[c.id] || 0) + n;   // v1.17 碎片明细（重复圣遗物折算）
         this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}`, '#a86bff');
         this.save.save();
         return;
