@@ -1,7 +1,7 @@
 /* v1.16.128 塔图鉴技能池卡片布局断言
  * 1) 标题只保留「技能池」（无「· 点击卡片查看详情」）
  * 2) 两列各向中间内收 10px：左列 x=48，右列 x=402（750-48-300）
- * 3) 卡高 205（原 210 减 5），卡底不得越过底部 5% 白区（bottomY = 1504-81 = 1423） */
+ * 3) 卡高 205（原 210 减 5），卡底不得越过 bottomY=1450（v1.16.129 顶部下移后放宽到底部留白 54px） */
 const path = require('path');
 const { Renderer } = require('../js/game/render.js');
 const CONFIG = require('../js/config.js');
@@ -51,7 +51,7 @@ for (const k of Object.keys(CONFIG.TOWERS)) {
   if (badH.length) fail(`[${k}] ${badH.length} 张卡高 ≠ ${KH}`);
 
   const maxBottom = Math.max(...cards.map((c) => c.rect.y + c.rect.h));
-  if (maxBottom > 1423) fail(`[${k}] 卡底 ${maxBottom} 越界（bottomY=1423）`);
+  if (maxBottom > 1450) fail(`[${k}] 卡底 ${maxBottom} 越界（bottomY=1450，v1.16.129 起）`);
 
   // 左右外边距对称
   const leftMargin = Math.min(...cards.map((c) => c.rect.x));

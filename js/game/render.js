@@ -3348,18 +3348,20 @@ class Renderer {
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     drawImg(ctx, `images/menubg/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
-    const grad = ctx.createLinearGradient(0, 0, 0, 170);
+    const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 170);
-    text(ctx, '消消防线', 40, 92, 52, '#ffffff', 'left');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
+    // v1.16.129 顶部安全区：灵动岛（居中 y≈22~96）+ 微信胶囊（右上 y≈100~164）下方才放内容
+    //   标题 baseline 210（占 ~172~222，x 40~248 落在岛左侧空白带）；货币胶囊 y 172~224，整体左移避开 x>552 的胶囊列
+    text(ctx, '消消防线', 40, 210, 52, '#ffffff', 'left');
     // 银币（v1.16.77 局外货币改银币，与局内金币区分）
-    fillRoundRect(ctx, 320, 56, 180, 58, 29, 'rgba(201,214,228,0.12)');
-    strokeRoundRect(ctx, 320, 56, 180, 58, 29, '#c9d6e4', 1.5);
-    text(ctx, `🪙 ${fmtNum(s.gold)}`, 410, 94, 30, '#c9d6e4', 'center');
+    fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(201,214,228,0.12)');
+    strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#c9d6e4', 1.5);
+    text(ctx, `🪙 ${fmtNum(s.gold)}`, 390, 206, 30, '#c9d6e4', 'center');
     // 钻石（充值货币，占位）
-    fillRoundRect(ctx, 520, 56, 150, 58, 29, 'rgba(124,168,255,0.12)');
-    strokeRoundRect(ctx, 520, 56, 150, 58, 29, '#7ca8ff', 1.5);
-    text(ctx, `💎 ${s.diamond}`, 595, 94, 30, '#7ca8ff', 'center');
+    fillRoundRect(ctx, 496, 172, 154, 52, 26, 'rgba(124,168,255,0.12)');
+    strokeRoundRect(ctx, 496, 172, 154, 52, 26, '#7ca8ff', 1.5);
+    text(ctx, `💎 ${s.diamond}`, 573, 206, 30, '#7ca8ff', 'center');
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
@@ -3891,7 +3893,8 @@ class Renderer {
     // ---- 贴合式塔标签（attached tabs）：仅上圆角，激活页签与下方面板同底色无缝粘连 ----
     // v1.16.94 只显示图标（56px = 原"图标+塔名"合计高度），激活页签=塔色不透明
     // v1.16.110 六页签等宽：726/6=121，无缝拼接 + 未激活页签间竖线分隔
-    const tw2 = 121, th2 = 72, tg2 = 0, tx0 = 12, ty0 = 206;
+    // v1.16.129 ty0 206→230：顶部标题/货币下移到安全区下方后，页签行随之下移让位
+    const tw2 = 121, th2 = 72, tg2 = 0, tx0 = 12, ty0 = 230;
     keys.forEach((k, i) => {
       const cx = tx0 + i * (tw2 + tg2);
       const cCol = TOWER_HEX[TOWERS_COLOR(k)] || '#8ea3b8';
@@ -3969,7 +3972,7 @@ class Renderer {
     const colX = [gx0, 750 - gx0 - cw3];      // 两列对称（左右各内收 10）
     const gy0 = dy + 292;                     // 首行 y（面板加高后下移）
     const rows = Math.ceil(pool.length / 2);
-    const bottomY = TAB_Y - Math.round(LOGIC_H * 0.05);   // 底部留 5% 屏高的白
+    const bottomY = TAB_Y - 54;               // v1.16.129 底部留白 5%屏高→54px（约 3.3%），补回页签行下移占用的 24px
     const rgap = rows > 1 ? Math.floor((bottomY - gy0 - rows * ch3) / (rows - 1)) : 0;   // 纵向均匀间隔
     pool.forEach((sk, i) => {
       const col = i % 2, row = Math.floor(i / 2);
