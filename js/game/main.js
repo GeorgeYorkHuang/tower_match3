@@ -1004,7 +1004,7 @@ class GameMain {
     }
     if (this.state === 'relicpick') {
       if (!this.relicPick.t) this.relicPick.t = Date.now(); // 弹出动画首帧
-      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t);
+      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // v1.17 修复：漏传金币导致重掷按钮恒显"金币不足"
     }
     // v1.16.73 本局圣遗物详情弹层（战斗暂停）
     if (this.relicDetail) {
