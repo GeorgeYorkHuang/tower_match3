@@ -254,6 +254,22 @@ module.exports = {
   RELIC_PICK_WEIGHT: { r: 0.50, sr: 0.38, ssr: 0.12 },   // 三选一稀有度权重（设计文档 2.2：蓝50/紫38/金12）
   // v1.17 三选一重掷（局内金币）：每次窗口内重掷费用 200/400/800/1600 指数增长（×2），上限 4 次，跨窗口重置
   RELIC_REROLL: { costs: [200, 400, 800, 1600] },
+  // v1.17 圣遗物生效触发提示：同款圣遗物在 cooldown 秒内只飘字一次（防刷屏）
+  RELIC_FX: { cooldown: 0.8 },
+  /** v1.17 圣遗物展示色：塔圣遗物按所属塔色、通用圣遗物金色（触发飘字/卡片 tint 同源） */
+  relicColor(id) {
+    const T = { fire: '#e74c3c', ice: '#5dade2', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' };
+    for (const k in this.RELIC_RUN.tower) {
+      if (this.RELIC_RUN.tower[k].some((d) => d.id === id)) return T[k];
+    }
+    return '#f7c948';
+  },
+  /** v1.17 按 id 查圣遗物定义（塔池/通用池） */
+  relicDef(id) {
+    const RR = this.RELIC_RUN;
+    for (const k in RR.tower) { const d = RR.tower[k].find((x) => x.id === id); if (d) return d; }
+    return RR.common.find((x) => x.id === id) || null;
+  },
   DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8 },             // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金）
   /* 战场合约（v1.16.76）：A 熔岩矿场 / B 霜风峡谷 / C 深渊裂隙；ancient 远古保留 */
   FIELDS: {

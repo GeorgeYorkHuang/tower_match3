@@ -116,7 +116,10 @@ class WaveDirector {
     // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；v1.16.96 3★：其后 60 码内 2 名敌人各冻 2 秒
     if (!this._freezeDone) {
       const frz = this.game.run.relicNum('cm_freeze');
-      if (frz > 0) en.frozen = frz;
+      if (frz > 0) {
+        en.frozen = frz;
+        this.game.run.relicFx('cm_freeze', `首敌冻结 ${frz} 秒`, en.x, en.y); // v1.17 生效提示
+      }
       if (this.game.run.relic3('cm_freeze')) {
         const cands = this.game.enemies.filter((o) => o.hp > 0 && !(o.frozen > 0) && Math.abs(o.y - en.y) <= 60 && o.y > en.y);
         cands.slice(0, 2).forEach((o) => { o.frozen = Math.max(o.frozen || 0, 2); });

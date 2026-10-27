@@ -94,6 +94,7 @@ class GameMain {
   newRun(enterBattle) {
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
     this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
+    this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
     this.save.apply(this.saveData);
     this.waveTime = 0;
     this.enemies = [];
@@ -150,6 +151,8 @@ class GameMain {
   enterTestField() {
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
+    this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
+    this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
     this.waveTime = 0;
@@ -749,6 +752,7 @@ class GameMain {
     const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
     const gained = Math.round(base * (1 + 0.20 * b.exp) * (1 + this.run.relicNum('cm_exp') / 100));
     this.run.gainExp(gained);
+    if (this.run.relicNum('cm_exp') > 0) this.run.relicFx('cm_exp', `击杀经验 +${this.run.relicNum('cm_exp')}%`, e.x, e.y); // v1.17 生效提示
     // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
     // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）；v1.16.96 赏金猎人3★ 连续3波无宝箱必掉
@@ -1500,6 +1504,7 @@ class GameMain {
       this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: this.meta.starOf(c.id) >= 3 }); // v1.9：本局圣物展示；v1.16.73 带 desc
       this.save.save();
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
+      this.run.relicFx(c.id, '已生效'); // v1.17 圣遗物生效提示（★星级 + 名称 + 圣遗物色）
     }
     this.relicPick = null;
     // v1.16.104 测试战场 3★ 模式：选中圣遗物按 3★ 质变注入（无需真实 3★ 解锁）

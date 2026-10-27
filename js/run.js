@@ -114,6 +114,29 @@ class Run {
     return this.metaRef.starOf(id) >= 3;
   }
 
+  /** v1.17 圣遗物生效触发飘字：★星级 + 圣遗物名 + 触发文案（圣遗物色）
+   *  由 main 注入 fxTarget（= game.fx）承接渲染；同款圣遗物 RELIC_FX.cooldown 秒内只显示一次。
+   *  x/y 缺省显示在屏幕上部中央（375,240），避免遮挡塔区 */
+  relicFx(id, text, x, y) {
+    if (this.relicRun(id) <= 0) return false;
+    const now = Date.now();
+    this._relicFxTtl = this._relicFxTtl || {};
+    const cd = CONFIG.RELIC_FX.cooldown || 0.8;
+    if ((this._relicFxTtl[id] || 0) > now) return false;
+    this._relicFxTtl[id] = now + cd * 1000;
+    if (!this.fxTarget) return false;
+    const def = CONFIG.relicDef(id);
+    const star = (this._testStar3 && this._testStar3[id]) ? 3
+      : (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
+    this.fxTarget.push({
+      type: 'floatText',
+      text: `★${star} ${def ? def.name : id}${text ? ' ' + text : ''}`,
+      x: x == null ? 375 : x, y: y == null ? 240 : y,
+      t: 0, dur: 1.0, size: 20, color: CONFIG.relicColor(id),
+    });
+    return true;
+  }
+
   /** v1.16.96 城墙受击统一入口：减伤护符3★ 大额伤害截断（超10%最大血量部分减免50%）→ 生命回复3★ 护盾优先抵扣 */
   applyWallDamage(d) {
     if (!(d > 0)) return 0;
@@ -123,7 +146,10 @@ class Run {
     // v1.16.98 冰墙裂变3★：城墙受击伤害累计（冰盾生效期间由 combat 转冰塔能量）
     this._wallDmgAcc = (this._wallDmgAcc || 0) + dmg;
     const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
-    if (this.relic3('cm_guard') && dmg > maxHp * 0.1) dmg = maxHp * 0.1 + (dmg - maxHp * 0.1) * 0.5;
+    if (this.relic3('cm_guard') && dmg > maxHp * 0.1) {
+      dmg = maxHp * 0.1 + (dmg - maxHp * 0.1) * 0.5;
+      this.relicFx('cm_guard', '大额伤害截断 50%'); // v1.17 生效提示
+    }
     if (this.wallShield > 0) {
       const s = Math.min(this.wallShield, dmg);
       this.wallShield -= s;
@@ -210,9 +236,15 @@ class Run {
       this.expLevel += 1;
       ups += 1;
       // v1.16.96 经验之心3★：升级时 20% 概率返还本级经验的 50%（滚雪球加速）
-      if (this.relic3('cm_exp') && this.rng() < 0.2) this.exp += Math.round(need * 0.5);
+      if (this.relic3('cm_exp') && this.rng() < 0.2) {
+        this.exp += Math.round(need * 0.5);
+        this.relicFx('cm_exp', '升级返还 50% 经验'); // v1.17 生效提示
+      }
       // v1.16.96 智慧典籍3★：升级时触发全塔 3 秒攻速 +20%（窗口由 combat 递减）
-      if (this.relic3('cm_tome')) this._tomeBuffTtl = 3;
+      if (this.relic3('cm_tome')) {
+        this._tomeBuffTtl = 3;
+        this.relicFx('cm_tome', '升级攻速 +20%'); // v1.17 生效提示
+      }
       const t = this._nextPendingTower();
       if (t) t.pending = Math.min(t.pending + 1, CONFIG.EFFECT.pendingCap);
     }
@@ -233,10 +265,14 @@ class Run {
     const GS = CONFIG.GLOBAL_SKILL;
     // v1.16.78 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
     const comboN = this.relicNum('cm_combo');
-    if (comboN > 0 && size <= 3 && this.rng() < comboN / 100) { shape = '4'; size = 4; }
+    if (comboN > 0 && size <= 3 && this.rng() < comboN / 100) {
+      shape = '4'; size = 4;
+      this.relicFx('cm_combo', `4连触发 +${comboN}%`); // v1.17 生效提示
+    }
     // v1.16.96 力量符3★：4连及以上消除 → 全塔伤害永久 +0.5%（本局，上限15%）
     if (this.relic3('cm_power') && (size >= 4 || shape === '4' || shape === 'L5' || shape === '5')) {
       this.cmPower3 = Math.min(15, this.cmPower3 + 0.5);
+      this.relicFx('cm_power', `4连叠伤 +${this.cmPower3}%`); // v1.17 生效提示
     }
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
@@ -254,11 +290,14 @@ class Run {
         const gain = 15 + this._energyGain(shape, size) + this.relicNum('cm_ammobox');
         t.energy = Math.min(gain, this.armoryEnergyMax());
         ammoGain = t.energy;
+        if (this.relicNum('cm_ammobox') > 0) this.relicFx('cm_ammobox', `能量 +${gain}`); // v1.17 生效提示
       } else {
         // 塔位满：该色未被选中 → 对应全局技能按能量口径充能（剩余 2 色动态分配）+ 半量经验
         // v1.16.60 全局充能 +N%、弹药箱 +N（v1.16.78 按星级数值）
         const skill = this._globalSkillOf(color);
         const ammo = Math.round(this._energyGain(shape, size) * (1 + this.relicNum('cm_charge') / 100) + this.relicNum('cm_ammobox'));
+        if (this.relicNum('cm_charge') > 0) this.relicFx('cm_charge', `全局充能 +${this.relicNum('cm_charge')}%`); // v1.17 生效提示
+        if (this.relicNum('cm_ammobox') > 0) this.relicFx('cm_ammobox', `充能 +${ammo}`); // v1.17 生效提示
         if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
         else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
         this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
@@ -431,7 +470,11 @@ class Run {
       if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
     }
     // v1.16.78 战术转移：每波免费洗牌 +N 次（按星级）；v1.16.96 3★ 额外 +1 次
-    this.freeShuffle += this.relicNum('cm_shuffle') + (this.relic3('cm_shuffle') ? 1 : 0);
+    const shN = this.relicNum('cm_shuffle');
+    if (shN > 0) {
+      this.freeShuffle += shN + (this.relic3('cm_shuffle') ? 1 : 0);
+      this.relicFx('cm_shuffle', `免费洗牌 +${shN + (this.relic3('cm_shuffle') ? 1 : 0)}`); // v1.17 生效提示
+    }
     // v1.16.96 金库3★：记录波初城墙血（波末无伤判定）；赏金猎人3★：连续无宝箱波计数
     this._waveStartHp = this.lineHp;
     if (this.relic3('cm_bounty')) {
@@ -454,6 +497,7 @@ class Run {
     this.gold += Math.round(this._waveGold * (1 + this.relicNum('cm_vault') / 100));
     if (this.relic3('cm_vault') && this.lineHp >= this._waveStartHp - 0.001) {
       this.gold += Math.round(this._waveGold * 0.3);
+      this.relicFx('cm_vault', '无伤金币 +30%'); // v1.17 生效提示
     }
     // v1.16.78 生命回复：每波结束城墙回复 N% 生命；v1.16.96 3★：回复溢出转为护盾（上限10%最大血量）
     const regen = this.relicNum('cm_regen');
@@ -466,6 +510,7 @@ class Run {
       if (overflow > 0 && this.relic3('cm_regen')) {
         this.wallShield = Math.min(maxHp * 0.1, this.wallShield + overflow);
       }
+      this.relicFx('cm_regen', `城墙回复 ${regen}%`); // v1.17 生效提示
     }
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
