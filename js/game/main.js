@@ -537,14 +537,14 @@ class GameMain {
     // 波末全塔少量经验（打怪为主渠道，波末是补充；v1.8 统一入整体池）
     const owned = this.run.slotOrder.length;
     if (owned > 0) this.run.gainExp(CONFIG.EXP.waveBonus * owned);
-    // v1.16.77 波末金币只入「局内金币」（run.endWave 已累加 _waveGold），不再发放局外银币；
+    // v1.17 波末银币只入「局内银币」（run.endWave 已累加 _waveGold），不再发放局外金币；
     //   招财符加成移至战斗结束统一结算（finishRun）
     this.save.save();
     if (res.broken) {
       this.finishRun(false);   // v1.16.76 破防 → 局末结算（深度收益保底 30%）
       return;
     }
-    // v1.16.76 深度收益池：每波金币的一半入池 × 深度倍率；撤离拿池 100%，阵亡保底 30%
+    // v1.16.76 深度收益池：每波银币的一半入池 × 深度倍率；撤离拿池 100%，阵亡保底 30%
     const EV = CONFIG.EVAC;
     this.depthPool += res.waveGold * EV.poolShare * this.depthMult * (this.firstBonus || 1) * (this.field.goldMult || 1);
     // v1.16.78 战场被动触发提示（下一波生效）
@@ -583,9 +583,10 @@ class GameMain {
     const deepMult = (this.field && this.field.deepMult) || 1;
     const payout = Math.round(this.depthPool * (evacuated ? 1 : EV.deadRatio) * deepMult);
     this.meta.gold += payout;
-    // v1.16.77 战斗结束统一结算银币：局内金币（波末累加 + 击杀）按招财符加成一次性转为局外银币，之后清零
+    // v1.17 战斗结束统一结算金币：局内银币（波末累加 + 击杀）按深度池口径折算（poolShare=50%）
+    //   折算系数对齐 EV.poolShare，使「局内银币→局外金币」与深度结算 payout 数量级相当（招财符按星级 +20%）
     const b = this.meta.relicBonus();
-    const silver = Math.round(this.run.gold * (1 + 0.20 * b.gold));
+    const silver = Math.round(this.run.gold * EV.poolShare * (1 + 0.20 * b.gold));
     if (silver > 0) {
       this.meta.gold += silver;
       this.silverGained = silver;
@@ -608,11 +609,11 @@ class GameMain {
     const ks = this.combat && this.combat.kills ? Object.values(this.combat.kills).reduce((a, b) => a + b, 0) : 0;
     this.runSummary = {
       evacuated, wave: this.run.wave, payout, miles,
-      chestName: tier ? tier.name : null, chestGranted: ok1, chestExtra,
+      chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra,   // v1.17 chestKey：结算页宝箱档位图标
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       shards: this.runShardGained, depthMult: this.depthMult,
       shardDetail: this.runShardDetail,   // v1.17 本局碎片明细（圣遗物id→数量，结算页图标×数量展示）
-      silver: this.silverGained || 0,   // v1.16.77 局内金币结算的银币
+      silver: this.silverGained || 0,   // v1.17 局内银币按深度池口径折算的金币
       goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
       kills: ks,                        // v1.16.106 本局总击杀
       relics: this.battleRelics.slice(), // v1.16.106 本局获取圣遗物快照（结算页图标展示）
@@ -685,14 +686,14 @@ class GameMain {
     this.toast('重新开局 · 第 1 波', '#7ef0a3');
   }
 
-  /** v1.16.77 局内商店购买：扣局内金币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
+  /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
   buyStoreItem(idx) {
     const item = (CONFIG.STORE.items || [])[idx];
     if (!item) return;
     const bought = this.run.store[item.id] || 0;
     if (bought >= item.max) { this.toast('已达上限', '#9fb2c3'); return; }
     const cost = item.cost[bought];
-    if (this.run.gold < cost) { this.toast('金币不足', '#ff6b6b'); return; }
+    if (this.run.gold < cost) { this.toast('银币不足', '#ff6b6b'); return; }
     this.run.gold -= cost;
     this.run.store[item.id] = bought + 1;
     if (item.id === 'energy') {
@@ -715,7 +716,7 @@ class GameMain {
     this.save.save();
   }
 
-  /** 返回主界面（战斗结束/设置入口）：银币已由 finishRun 结算，局内金币不镜像（v1.16.77） */
+  /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（v1.17 币种分离） */
   goMenu() {
     this.state = 'menu';
     this.menuTab = 'battle';
@@ -780,7 +781,7 @@ class GameMain {
       this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
       this.save.save();
     }
-    /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀金币 */
+    /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀银币 */
     const field = this.field || CONFIG.FIELDS.ancient;
     if (field.dropAttr && field.dropAttr !== 'none') {
       const KD = CONFIG.KILL_DROP;
@@ -796,7 +797,7 @@ class GameMain {
           this.toast(`🧩 圣遗物碎片 +${n}`, '#a86bff');
         }
       }
-      // v1.17 击杀金币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场金币倍率
+      // v1.17 击杀银币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场银币倍率
       // 替代旧 1.06^w 波次通胀：收益成长改由怪物代际等级驱动（与血量曲线同源）
       const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0]))
         * KD.goldLevelMult(e.genLv)
@@ -880,14 +881,14 @@ class GameMain {
     return cands;
   }
 
-  /** v1.17 三选一重掷：局内金币付费（200/400/800/1600 指数增长，每窗口上限 4 次），重新抽 3 个候选 */
+  /** v1.17 三选一重掷：局内银币付费（200/400/800/1600 指数增长，每窗口上限 4 次），重新抽 3 个候选 */
   rerollRelicPick() {
     if (!this.relicPick) return false;
     const n = this.relicPick.rerolls || 0;
     const costs = CONFIG.RELIC_REROLL.costs;
     if (n >= costs.length) { this.toast('已达重掷上限', '#9fb2c3'); return false; }
     const cost = costs[n];
-    if (this.run.gold < cost) { this.toast(`金币不足（需 ${cost}）`, '#ff6b6b'); return false; }
+    if (this.run.gold < cost) { this.toast(`银币不足（需 ${cost}）`, '#ff6b6b'); return false; }
     const cands = this._rollRelicCandidates(!!this.relicPick.star3);
     if (!cands || !cands.length) { this.toast('暂无可用候选', '#9fb2c3'); return false; }
     this.run.gold -= cost;
@@ -1020,7 +1021,7 @@ class GameMain {
     }
     if (this.state === 'relicpick') {
       if (!this.relicPick.t) this.relicPick.t = Date.now(); // 弹出动画首帧
-      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // v1.17 修复：漏传金币导致重掷按钮恒显"金币不足"
+      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // v1.17 修复：漏传银币导致重掷按钮恒显"银币不足"
     }
     // v1.16.73 本局圣遗物详情弹层（战斗暂停）
     if (this.relicDetail) {
@@ -1354,7 +1355,6 @@ class GameMain {
           if (this.meta.gold < d.price) { this.toast('金币不足', '#ff6b6b'); return; }
           this.meta.gold -= d.price;
           this.meta.addRelic(d.relic);
-          this.run.gold = this.meta.gold;
           this.save.save();
           this.toast(`精选圣物 ${d.icon}${d.name} +1`, '#7ef0a3');
           return;
@@ -1389,7 +1389,6 @@ class GameMain {
           if (this.meta.diamond < 1) { this.toast('钻石不足（充值后续开放）', '#ff6b6b'); return; }
           this.meta.diamond -= 1;
           this.meta.gold += CONFIG.DIAMOND.goldPrice;
-          this.run.gold = this.meta.gold;
           this.save.save();
           this.toast(`钻石兑换 ${CONFIG.DIAMOND.goldPrice} 金币`, '#7ef0a3');
           return;
@@ -1400,7 +1399,6 @@ class GameMain {
         case 'relicUp': {
           const res = this.meta.upgradeRelic(it.data);
           if (res.ok) {
-            this.run.gold = this.meta.gold;
             this.save.save();
             this.toast(`圣物升级 Lv${res.level}`, '#7ef0a3');
           } else if (res.reason === 'relic') {
@@ -1619,7 +1617,7 @@ class GameMain {
         return true;
       }
       if (this.funcLayer.type === 'setting' && h.confirm && h.confirm.hit(p.x, p.y)) {
-        // v1.16.107 重新开始（不清档）：返回主界面重开本局，塔/银币/解锁进度全部保留
+        // v1.16.107 重新开始（不清档）：返回主界面重开本局，塔/金币/解锁进度全部保留
         this.funcLayer = null;
         this.goMenu();
         this.toast('已重新开始 · 存档保留', '#7ef0a3');
@@ -1733,7 +1731,7 @@ class GameMain {
       }
       return true;
     }
-    // 圣物宝箱三选一弹层：点候选 → 获取该圣物；点重掷 → 局内金币付费重抽
+    // 圣物宝箱三选一弹层：点候选 → 获取该圣物；点重掷 → 局内银币付费重抽
     if (this.state === 'relicpick') {
       if (this.relicPickHits.reroll && this.relicPickHits.reroll.hit(p.x, p.y)) { this.rerollRelicPick(); return true; }
       if (this.relicPick && this.relicPick.candidates) {

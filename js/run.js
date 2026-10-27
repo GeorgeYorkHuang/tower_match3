@@ -407,7 +407,7 @@ class Run {
     return { atk: this.store.atk || 0, spd: this.store.spd || 0 };
   }
 
-  /** v1.16.77 局内商店购买：扣局内金币并施加临时强化（失败返回 false） */
+  /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（失败返回 false） */
   buyStoreItem(id) {
     const item = (CONFIG.STORE.items || []).find((s) => s.id === id);
     if (!item) return false;
@@ -487,17 +487,17 @@ class Run {
   }
 
   /**
-   * 波末结算：金币 + 战斗 + 协同检测。
+   * 波末结算：银币 + 战斗 + 协同检测。
    * @param {boolean} [skipLeak] 真实战斗路径传 true：城墙血由「怪物攻城」实时扣减，
    *   不再按抽象漏怪模型重复扣（模拟路径不传，保持既有抽象口径）。
    * @returns {broken, leak, enemyHp, totalDps, waveGold, firstSynergyWave}
    */
   endWave(skipLeak) {
-    // v1.16.78 金库：每波结束金币 +N%（按星级）；v1.16.96 3★：本波城墙无伤时金币额外 +30%
+    // v1.16.78 金库：每波结束银币 +N%（按星级）；v1.16.96 3★：本波城墙无伤时银币额外 +30%
     this.gold += Math.round(this._waveGold * (1 + this.relicNum('cm_vault') / 100));
     if (this.relic3('cm_vault') && this.lineHp >= this._waveStartHp - 0.001) {
       this.gold += Math.round(this._waveGold * 0.3);
-      this.relicFx('cm_vault', '无伤金币 +30%'); // v1.17 生效提示
+      this.relicFx('cm_vault', '无伤银币 +30%'); // v1.17 生效提示
     }
     // v1.16.78 生命回复：每波结束城墙回复 N% 生命；v1.16.96 3★：回复溢出转为护盾（上限10%最大血量）
     const regen = this.relicNum('cm_regen');

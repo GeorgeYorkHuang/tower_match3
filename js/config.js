@@ -89,7 +89,7 @@ module.exports = {
   },
 
   /* ================= 局内商店（v1.16.77） =================
-   * 战斗阶段商店：局内金币购买本局临时强化，价格随购买次数递增；点开不暂停。
+   * 战斗阶段商店：局内银币购买本局临时强化，价格随购买次数递增；点开不暂停。
    */
   STORE: {
     items: [
@@ -225,13 +225,13 @@ module.exports = {
     bossShardBase: 4,                 // Boss 基础碎片
     bossShardBonusChance: 0.5,        // Boss 50% 概率额外 +2
     rarityWeight: { r: 0.60, sr: 0.32, ssr: 0.08 },  // 碎片稀有度权重
-    // v1.17 击杀金币（随代际等级成长）：单怪 = (5~10 浮动) × 等级系数 × 类型倍率 × 战场金币倍率
+    // v1.17 击杀银币（随代际等级成长）：单怪 = (5~10 浮动) × 等级系数 × 类型倍率 × 战场银币倍率
     // 等级系数 goldLevelMult(lv) = 1 + 0.125×(lv-1)：Lv1=1.0（5~10）→ Lv9=2.0（10~20）→ Lv10=2.125
     // 波50 mix=Lv9 60%+Lv10 40% → 平均系数 2.05 ≈ 波1 的 2 倍（用户目标）；替代旧 1.06^w 通胀
-    killGold: [5, 10],                // 普通击杀单怪金币区间（Lv1 基准）
-    eliteGoldMult: 3,                 // 精英击杀金币 ×3
-    bossGoldMult: 8,                  // Boss 击杀金币 ×8
-    /** 代际等级金币系数（Lv1 = 1.0，每级 +0.125） */
+    killGold: [5, 10],                // 普通击杀单怪银币区间（Lv1 基准）
+    eliteGoldMult: 3,                 // 精英击杀银币 ×3
+    bossGoldMult: 8,                  // Boss 击杀银币 ×8
+    /** 代际等级银币系数（Lv1 = 1.0，每级 +0.125） */
     goldLevelMult(lv) { return 1 + 0.125 * ((lv || 1) - 1); },
   },
   DEPTH_CHEST: {
@@ -252,7 +252,7 @@ module.exports = {
   /* v1.16.78 圣遗物星级效果与收益对齐 */
   STAR3_ENABLED: true,          // 3★ 质变行为灰度开关：false 时效果不生效（图鉴仍可查看文本），true 时接入 effects 挂点（v1.16.104 全 112 条接入后统一开启）
   RELIC_PICK_WEIGHT: { r: 0.50, sr: 0.38, ssr: 0.12 },   // 三选一稀有度权重（设计文档 2.2：蓝50/紫38/金12）
-  // v1.17 三选一重掷（局内金币）：每次窗口内重掷费用 200/400/800/1600 指数增长（×2），上限 4 次，跨窗口重置
+  // v1.17 三选一重掷（局内银币）：每次窗口内重掷费用 200/400/800/1600 指数增长（×2），上限 4 次，跨窗口重置
   RELIC_REROLL: { costs: [200, 400, 800, 1600] },
   // v1.17 圣遗物生效触发提示：同款圣遗物在 cooldown 秒内只飘字一次（防刷屏）
   RELIC_FX: { cooldown: 0.8 },
@@ -476,7 +476,7 @@ module.exports = {
 
   /* ================= 经济 / 囤积 / 离线 ================= */
   ECONOMY: {
-    goldPerWaveBase: 60, goldPerWaveGrowth: 1.08,   // 每波基础金币 = 60 × 1.08^(w-1)（全局，不绑塔）
+    goldPerWaveBase: 60, goldPerWaveGrowth: 1.08,   // 每波基础银币 = 60 × 1.08^(w-1)（全局，不绑塔）
     goldTargetCap: 100000,      // 30 分钟期末囤积上限断言
   },
   OFFLINE: {
@@ -501,7 +501,7 @@ module.exports = {
   RELIC: {
     // 圣物表：掉落权重 / 升级金币基础与成长 / 每级效果描述
     list: [
-      { id: 'gold',   name: '招财符',   icon: '💰', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `战斗结算银币 +${20 * lv}%` },
+      { id: 'gold',   name: '招财符',   icon: '💰', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `战斗结算金币 +${20 * lv}%` },
       { id: 'exp',    name: '经验珠',   icon: '✨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `击杀经验 +${20 * lv}%` },
       { id: 'speed',  name: '疾风戒',   icon: '💨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `全塔攻速 +${8 * lv}%` },
       { id: 'wall',   name: '磐石印',   icon: '🛡️', drop: 8,  costBase: 250, costGrowth: 1.6, desc: (lv) => `城墙血量 +${10 * lv}%` },
@@ -633,7 +633,7 @@ module.exports = {
     },
     common: [
       { id: 'cm_triple',    name: '三消之力', icon: '🧩', desc: '每次三消获得的经验提升30%', star2: '每次三消获得的经验提升45%', star3: '经验加成期间，连锁 ×2 以上时经验再 +50%' },
-      { id: 'cm_vault',     name: '金库',     icon: '🏦', desc: '每波结束获得的金币提升30%', star2: '每波结束获得的金币提升45%', star3: '每波结束时，若本波城墙未受到伤害，金币收益额外 +30%' },
+      { id: 'cm_vault',     name: '金库',     icon: '🏦', desc: '每波结束获得的银币提升30%', star2: '每波结束获得的银币提升45%', star3: '每波结束时，若本波城墙未受到伤害，银币收益额外 +30%' },
       { id: 'cm_wall',      name: '城墙加固', icon: '🏯', desc: '城墙血量提升20%', star2: '城墙血量提升30%', star3: '城墙每损失 10% 最大血量，全塔攻击 +1%（背水：最高 +10%）' },
       { id: 'cm_ammobox',   name: '弹药箱',   icon: '🎒', desc: '每次三消充能的能量数量提升5点', star2: '每次三消充能的能量数量提升10点', star3: '三消充能溢出时 50% 概率存入备用能量库（上限 20 点）' },
       { id: 'cm_charge',    name: '全局充能', icon: '⚙️', desc: '每次三消为全局技能充能的数量提升40%', star2: '每次三消为全局技能充能的数量提升60%', star3: '全局技能充能满时，溢出部分转为 10% 技能伤害加成' },

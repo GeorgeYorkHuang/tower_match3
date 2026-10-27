@@ -66,6 +66,12 @@ const IMG_SRC = {
   lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
   lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
   coin: 'assets/images/ui/coin.png', bullet: 'assets/images/bullet.png',
+  silver: 'assets/images/ui/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
+  chestWood: 'assets/images/ui/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
+  chestBronze: 'assets/images/ui/chest_bronze.png', // 青铜
+  chestSilver: 'assets/images/ui/chest_silver.png', // 白银
+  chestGold: 'assets/images/ui/chest_gold.png',     // 黄金
+  chestStar: 'assets/images/ui/chest_star.png',     // 星辉
   chestClosed: 'assets/images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
   chestQuarter: 'assets/images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
   chestHalf: 'assets/images/ui/chest_half.png',      // 半开帧（帧3）
@@ -261,15 +267,15 @@ class Renderer {
 
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
 
-  /** 状态条：金币 + 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
+  /** 状态条：银币（局内临时货币）+ 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
   status(ctx, s) {
     const goldIcon = 44;
-    // 局内金币（左下安全区：避开灵动岛与右上小程序胶囊；v1.16.77 局内金币跨波保留、局末结算银币）
-    if (!drawImg(ctx, IMG_SRC.coin, 14, 76, goldIcon, goldIcon)) {
-      fillRoundRect(ctx, 14, 76, goldIcon, goldIcon, 11, '#f7c948');
-      text(ctx, '¥', 36, 98, 22, '#7c5c00', 'center');
+    // v1.17 局内银币（左下安全区：避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
+    if (!drawImg(ctx, IMG_SRC.silver, 14, 76, goldIcon, goldIcon)) {
+      fillRoundRect(ctx, 14, 76, goldIcon, goldIcon, 11, '#c9d6e4');
+      text(ctx, '¥', 36, 98, 22, '#5b6b7c', 'center');
     }
-    text(ctx, fmtNum(s.gold), 70, 102, 26, '#f7c948');
+    text(ctx, fmtNum(s.gold), 70, 102, 26, '#c9d6e4');
     // 波次与倒计时（居中，同一行）
     text(ctx, `第 ${s.wave} 波`, 330, 94, 24, '#ffffff', 'center');
     if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
@@ -424,7 +430,9 @@ class Renderer {
     fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
     strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
     text(ctx, '🛒 局内商店', x + w / 2, y + 58, 34, '#ffffff', 'center');
-    text(ctx, `💰 局内金币 ${fmtNum(s.gold)}`, x + w / 2, y + 104, 24, '#f7c948', 'center');
+    // v1.17 局内商店消耗银币（局内临时货币）
+    if (!drawImg(ctx, IMG_SRC.silver, x + w / 2 - 170, y + 84, 34, 34)) text(ctx, '🪙', x + w / 2 - 170 + 17, y + 84 + 17, 26, '#c9d6e4', 'center');
+    text(ctx, `银币 ${fmtNum(s.gold)}`, x + w / 2 - 128, y + 108, 24, '#c9d6e4', 'left');
     const items = (CONFIG.STORE.items || []);
     const gw = 236, gh = 182, gx0 = x + 24, gy0 = y + 138, gGap = 40;
     this.shopItemRects = [];
@@ -441,8 +449,8 @@ class Renderer {
       text(ctx, it.icon, gx + 30, gy + 36, 24, '#ffffff', 'center');
       text(ctx, it.name, gx + 58, gy + 38, 22, '#ffffff', 'left');
       text(ctx, it.desc, gx + 26, gy + 80, 16, '#9fb2c3', 'left');
-      text(ctx, `💰 ${cost} · 已购 ${bought}/${it.max}`, gx + 26, gy + 116, 17, maxed ? '#5a6c80' : afford ? '#f7c948' : '#a05a3c', 'left');
-      text(ctx, maxed ? '已达上限' : (afford ? '点击购买' : '金币不足'), gx + 26, gy + 158, 17, maxed ? '#5a6c80' : afford ? '#7ef0a3' : '#ff6b6b', 'left');
+      text(ctx, `🪙 ${cost} · 已购 ${bought}/${it.max}`, gx + 26, gy + 116, 17, maxed ? '#5a6c80' : afford ? '#c9d6e4' : '#a05a3c', 'left');
+      text(ctx, maxed ? '已达上限' : (afford ? '点击购买' : '银币不足'), gx + 26, gy + 158, 17, maxed ? '#5a6c80' : afford ? '#7ef0a3' : '#ff6b6b', 'left');
     });
     // 关闭
     this.shopCloseRect = { x: x + w / 2 - 90, y: y + h - 76, w: 180, h: 54 };
@@ -2973,7 +2981,7 @@ class Renderer {
     strokeRoundRect(ctx, x, y, w, h, 16, '#4cd964', 2);
     text(ctx, '波次完成', x + w / 2, y + 64, 40, '#7ef0a3', 'center');
     text(ctx, `第 ${s.waveClear.wave} 波 · 防守成功`, x + w / 2, y + 130, 26, '#ffffff', 'center');
-    text(ctx, `金币 +${fmtNum(s.waveClear.waveGold)}`, x + w / 2, y + 188, 24, '#f7c948', 'center');
+    text(ctx, `银币 +${fmtNum(s.waveClear.waveGold)}`, x + w / 2, y + 188, 24, '#c9d6e4', 'center');
     if (s.waveClear.pending > 0) {
       text(ctx, `特效强化待选 ${s.waveClear.pending} 次`, x + w / 2, y + 232, 20, '#9fb2c3', 'center');
     } else {
@@ -2992,7 +3000,7 @@ class Renderer {
     fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
     if (su) {
       /* v1.16.117 结算重做：圣遗物=核心奖励。演出顺序：面板入场 → 圣遗物图标逐个弹出 →
-         碎片总额在奖励区正中弹跳出场 → 银币/里程碑/宝箱等次要收益最后淡入 → 按钮浮现 */
+         碎片总额在奖励区正中弹跳出场 → 金币/里程碑/宝箱等次要收益最后淡入 → 按钮浮现 */
       const win = su.evacuated;
       const W2 = 620, H2 = 760, X2 = (750 - W2) / 2, Y2 = (LOGIC_H - H2) / 2;
       const T = Math.max(0, s.goT || 0);
@@ -3077,7 +3085,7 @@ class Renderer {
       // —— 次要收益（v1.17：金币=coin 大图标×总量；宝箱=纯图标无文字；里程碑保留文字行）——
       ctx.strokeStyle = 'rgba(255,255,255,0.14)';
       ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 500); ctx.lineTo(X2 + W2 - 44, Y2 + 500); ctx.stroke();
-      // 金币：深度结算 + 局内折算，合并为 coin 大图标 × 总银币
+      // 金币：深度结算 + 局内银币折算，合并为 coin 大图标 × 总金币
       const totalSilver = (su.payout || 0) + (su.silver || 0);
       const cA = ph(shT + 320, 240);
       if (cA > 0 && totalSilver > 0) {
@@ -3089,13 +3097,14 @@ class Renderer {
         text(ctx, `×${fmtNum(totalSilver)}`, X2 + 64 + COIN + 20, gy, 34, '#f7c948', 'left');
         ctx.globalAlpha = 1;
       }
-      // 宝箱：纯图标（无数量、无文字描述），仅获得时显示
+      // 宝箱：v1.17 按档位图标（木/青铜/白银/黄金/星辉），纯图标（无数量、无文字描述），仅获得时显示
       if (su.chestGranted) {
         const bA = ph(shT + 320 + 90, 240);
         if (bA > 0) {
           ctx.globalAlpha = bA;
           const by = Y2 + 604, CH = 58;
-          if (!drawImg(ctx, IMG_SRC.chestClosed, X2 + 64, by - CH, CH, CH)) {
+          const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
+          if (!drawImg(ctx, tierImg, X2 + 64, by - CH, CH, CH)) {
             text(ctx, '📦', X2 + 64 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
           }
           ctx.globalAlpha = 1;
@@ -3123,7 +3132,7 @@ class Renderer {
     strokeRoundRect(ctx, x, y, w, h, 16, '#e74c3c', 3);
     text(ctx, '防线失守', x + w / 2, y + 70, 44, '#ff6b6b', 'center');
     text(ctx, `坚守到第 ${s.wave} 波`, x + w / 2, y + 140, 26, '#dfe6ee', 'center');
-    text(ctx, `金币 ${fmtNum(s.gold)} · 协同 ${s.synDoneCount}/2`, x + w / 2, y + 190, 22, '#9fb2c3', 'center');
+    text(ctx, `银币 ${fmtNum(s.gold)} · 协同 ${s.synDoneCount}/2`, x + w / 2, y + 190, 22, '#9fb2c3', 'center');
     // v1.16.45 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
     // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
     restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
@@ -3158,7 +3167,7 @@ class Renderer {
       hits.sound = button(ctx, x + 400, y + 148, 144, 56, sndOn ? '开' : '关', { bg: sndOn ? '#2b6d4f' : '#45505f', fontSize: 26 });
       // v1.16.107 重新开始（不清档）
       text(ctx, '重新开始将返回主界面重开一局：', 375, y + 240, 20, 'rgba(255,255,255,0.7)', 'center');
-      text(ctx, '塔等级 · 银币 · 解锁进度全部保留', 375, y + 272, 20, 'rgba(255,255,255,0.55)', 'center');
+      text(ctx, '塔等级 · 金币 · 解锁进度全部保留', 375, y + 272, 20, 'rgba(255,255,255,0.55)', 'center');
       hits.confirm = button(ctx, x + 120, y + 306, 400, 70, '重新开始', { bg: '#2b6d4f', fontSize: 28 });
     } else if (layer.type === 'help') {
       // v1.16.89 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
@@ -3169,8 +3178,8 @@ class Renderer {
         '4. 怪物到达城墙后开始攻城，城墙持续掉血',
         '5. 消灭一波全部怪物自动进入下一波；每 5 波有 Boss 镇守',
         '6. Boss 与精英怪掉落宝箱，点击开启获得圣遗物三选一',
-        '7. 战斗中点底部功能条「商店」用局内金币购买本局临时强化',
-        '8. 局内金币在战斗结束统一结算为银币（招财符可加成）',
+        '7. 战斗中点底部功能条「商店」用局内银币购买本局临时强化',
+        '8. 局内银币在战斗结束统一结算为金币（招财符可加成）',
         '9. 城墙血量归零即失败，注意防守',
       ];
       let hy = y + 90;
@@ -3402,10 +3411,11 @@ class Renderer {
     // v1.16.129 顶部安全区：灵动岛（居中 y≈22~96）+ 微信胶囊（右上 y≈100~164）下方才放内容
     //   标题 baseline 210（占 ~172~222，x 40~248 落在岛左侧空白带）；货币胶囊 y 172~224，整体左移避开 x>552 的胶囊列
     text(ctx, '消消防线', 40, 210, 52, '#ffffff', 'left');
-    // 银币（v1.16.77 局外货币改银币，与局内金币区分）
-    fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(201,214,228,0.12)');
-    strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#c9d6e4', 1.5);
-    text(ctx, `🪙 ${fmtNum(s.gold || 0)}`, 390, 206, 30, '#c9d6e4', 'center');
+    // v1.17 局外永久货币：金币（主界面顶栏，与局内银币区分）
+    fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(247,201,72,0.12)');
+    strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#f7c948', 1.5);
+    if (!drawImg(ctx, IMG_SRC.coin, 320, 182, 32, 32)) text(ctx, '🪙', 336, 198, 26, '#f7c948', 'center');
+    text(ctx, fmtNum(s.gold || 0), 396, 206, 30, '#f7c948', 'left');
     // 钻石（充值货币，占位）
     fillRoundRect(ctx, 496, 172, 154, 52, 26, 'rgba(124,168,255,0.12)');
     strokeRoundRect(ctx, 496, 172, 154, 52, 26, '#7ca8ff', 1.5);
@@ -3630,7 +3640,7 @@ class Renderer {
       push('dailyPick', { relic: p.relic, price: p.price, icon: def.icon, name: def.name }, 420, ry + 16, 110, 56);
       fillRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#2c3542');
       strokeRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#f7c948', 1);
-      text(ctx, `${p.price}🪙`, 475, ry + 50, 22, '#c9d6e4', 'center');
+      text(ctx, `${p.price}🪙`, 475, ry + 50, 22, '#f7c948', 'center');
       // 广告免费领（同一精选圣物）
       push('dailyAd', { relic: p.relic, price: 0, icon: def.icon, name: def.name }, 545, ry + 16, 140, 56);
       fillRoundRect(ctx, 545, ry + 16, 140, 56, 10, '#2c3542');
@@ -3656,7 +3666,7 @@ class Renderer {
     push('diamondGold', null, 395, ry, 300, 92);
     fillRoundRect(ctx, 395, ry, 300, 92, 12, '#1b2230');
     strokeRoundRect(ctx, 395, ry, 300, 92, 12, '#7ca8ff', 1);
-    text(ctx, `1💎 兑换 ${CONFIG.DIAMOND.goldPrice}🪙`, 545, ry + 46, 22, '#7ca8ff', 'center');
+    text(ctx, `1💎 兑换 ${CONFIG.DIAMOND.goldPrice} 🪙`, 545, ry + 46, 22, '#7ca8ff', 'center');
     ry += 110;
     push('recharge', null, 55, ry, 640, 92);
     fillRoundRect(ctx, 55, ry, 640, 92, 12, '#12171f');
@@ -3844,7 +3854,7 @@ class Renderer {
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
   /** v1.17.1 圣遗物详情卡重做：左上稀有度徽章 → 大图标(200px) → 胶囊进度条(与图标同宽,内显进度) → 名称
-   *   → 3★/2★/1★ 三行（星标圆=★★★/★★/★，当前星级高亮）→ 小号升级按钮(🪙银币) */
+   *   → 3★/2★/1★ 三行（星标圆=★★★/★★/★，当前星级高亮）→ 小号升级按钮(🪙 金币) */
   menuRelicInfo(ctx, s, push) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
@@ -3914,7 +3924,7 @@ class Renderer {
       const lines = this.wrapText(ctx, c.txt, rw - 108 - 20, 21).slice(0, 2);
       lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
     });
-    // ---- 升级按钮（小号 420×62：升到 N★ + 🪙 银币）----
+    // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
     const btnY = ry0 + 3 * (rh + rgap) + 24;
     if (!owned) {
       text(ctx, '战斗中获取碎片解锁圣遗物', 375, btnY + 31, 24, '#5a6c80', 'center');
@@ -3926,7 +3936,9 @@ class Renderer {
       strokeRoundRect(ctx, rx, btnY, rw, 62, 16, rc, 2.5);
       text(ctx, `升到 ${star + 1}★`, rx + rw / 2 - 66, btnY + 31, 24, '#ffd34d', 'center');
       const coinX = rx + rw / 2 + 46;
-      text(ctx, `🪙 ${fmtNum(cost.gold)}`, coinX, btnY + 31, 22, '#ffe9a8', 'center');
+      // v1.17 升星消耗金币（局外永久货币）
+      if (!drawImg(ctx, IMG_SRC.coin, coinX - 12, btnY + 19, 24, 24)) text(ctx, '🪙', coinX, btnY + 31, 20, '#ffe9a8', 'center');
+      text(ctx, fmtNum(cost.gold), coinX + 18, btnY + 31, 22, '#ffe9a8', 'left');
       if (cost.stone) text(ctx, `⭐ ${cost.stone}`, coinX + 120, btnY + 31, 20, '#a86bff', 'center');
     } else {
       text(ctx, '已达满级 3★', 375, btnY + 31, 28, '#f7c948', 'center');
@@ -4215,7 +4227,8 @@ class Renderer {
         text(ctx, 'MAX · 质变已激活', 560, ry + 40, 19, '#f7c948', 'center');
       } else {
         const c = CONFIG.STAR_UP.cost[star + 1];
-        text(ctx, `碎片 ${sh}/${c.shards} · ${c.gold}🪙`, 480, ry + 30, 18, upable ? '#7ef0a3' : '#8ea3b8', 'left');
+        if (!drawImg(ctx, IMG_SRC.coin, 458, ry + 20, 20, 20)) text(ctx, '🪙', 468, ry + 34, 18, '#f7c948', 'center');
+        text(ctx, `碎片 ${sh}/${c.shards} · ${c.gold}`, 486, ry + 30, 18, upable ? '#7ef0a3' : '#8ea3b8', 'left');
         text(ctx, `升 ${star + 1}★ ›`, 620, ry + 58, 18, upable ? '#a86bff' : '#5a6c80', 'center');
       }
       ry += 86;
@@ -4372,7 +4385,7 @@ class Renderer {
       text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, '#ffd34d', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
-    // v1.17 重掷按钮（局内金币付费 200/400/800/1600 指数增长，每窗口 4 次封顶；gold 为当前局内金币）
+    // v1.17 重掷按钮（局内银币付费 200/400/800/1600 指数增长，每窗口 4 次封顶；gold 为当前局内银币）
     const rn = pick.rerolls || 0;
     const rrCosts = CONFIG.RELIC_REROLL.costs;
     const maxReached = rn >= rrCosts.length;
@@ -4385,11 +4398,12 @@ class Renderer {
     fillRoundRect(ctx, rx, ry, rw, rh, 14, rbG);
     strokeRoundRect(ctx, rx, ry, rw, rh, 14, canPay ? '#ffd34d' : '#5a5448', 1.5);
     if (canPay) {
-      text(ctx, `🔄 重掷 · ${cost} 🪙`, 375, ry + rh / 2 + 2, 24, '#ffd34d', 'center');
+      if (!drawImg(ctx, IMG_SRC.silver, rx + 96, ry + 10, 24, 24)) text(ctx, '🪙', rx + 108, ry + 24, 18, '#c9d6e4', 'center');
+      text(ctx, `🔄 重掷 · ${cost}`, rx + 126, ry + rh / 2 + 2, 24, '#ffd34d', 'left');
     } else if (maxReached) {
       text(ctx, '🔄 已达重掷上限', 375, ry + rh / 2 + 2, 20, '#7a7468', 'center');
     } else {
-      text(ctx, `🔄 金币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
+      text(ctx, `🔄 银币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
     }
     onPick.reroll = { hit: (px, py) => px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
     // 底部提示
