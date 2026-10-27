@@ -1,0 +1,56 @@
+<title>《消消防线》怪物代际重构设计（已确认 v2）</title>
+<h1>一、设计目标</h1>
+<p>1. 取消怪物血量成长曲线：怪物血量不再随波次按公式膨胀，每个等级怪物是固定属性的独立个体。</p>
+<p>2. 用更换怪物种类实现难度曲线：每 5 波引入一个新等级怪物，新旧代按比例混合替换，替代原有 hpGrowth 公式成长。</p>
+<p>3. 后期曲线可直接修正：各等级怪物血量、攻击、移速、减伤均为显式配置项，后期调表即可，无需改公式。</p>
+<h1>二、代际类型循环</h1>
+<p>怪物按"普、快、重、普"顺序循环设计，每 5 波一个代际，Lv3 起每代存在 10 个波次轮换；Lv1、Lv2 为前两代特殊窗口，不参与稳定轮换。</p>
+<table>
+<colgroup><col width="70"/><col width="70"/><col width="110"/><col width="80"/><col width="70"/><col width="70"/><col width="70"/></colgroup>
+<thead><tr><th><p>代</p></th><th><p>类型</p></th><th><p>波次窗口</p></th><th><p>HP</p></th><th><p>攻击</p></th><th><p>移速</p></th><th><p>减伤</p></th></tr></thead>
+<tbody>
+<tr><td><p>Lv1</p></td><td><p>普通</p></td><td><p>1-4</p></td><td><p>250</p></td><td><p>8</p></td><td><p>1.5</p></td><td><p>0%</p></td></tr>
+<tr><td><p>Lv2</p></td><td><p>快速</p></td><td><p>3-10</p></td><td><p>150</p></td><td><p>4</p></td><td><p>2.7</p></td><td><p>0%</p></td></tr>
+<tr><td><p>Lv3</p></td><td><p>重坦</p></td><td><p>4-14</p></td><td><p>700</p></td><td><p>18</p></td><td><p>0.9</p></td><td><p>4%</p></td></tr>
+<tr><td><p>Lv4</p></td><td><p>普通</p></td><td><p>9-19</p></td><td><p>500</p></td><td><p>10</p></td><td><p>1.6</p></td><td><p>8%</p></td></tr>
+<tr><td><p>Lv5</p></td><td><p>快速</p></td><td><p>14-24</p></td><td><p>300</p></td><td><p>5</p></td><td><p>2.9</p></td><td><p>12%</p></td></tr>
+<tr><td><p>Lv6</p></td><td><p>重坦</p></td><td><p>19-29</p></td><td><p>1,400</p></td><td><p>22</p></td><td><p>1.0</p></td><td><p>16%</p></td></tr>
+<tr><td><p>Lv7</p></td><td><p>普通</p></td><td><p>24-34</p></td><td><p>1,000</p></td><td><p>14</p></td><td><p>1.7</p></td><td><p>20%</p></td></tr>
+<tr><td><p>Lv8</p></td><td><p>快速</p></td><td><p>29-39</p></td><td><p>600</p></td><td><p>7</p></td><td><p>3.1</p></td><td><p>24%</p></td></tr>
+</tbody>
+</table>
+<p>血量规律：普通线 250→500→1,000（每 2 代翻倍）；快速线 ×0.6、重坦线 ×2.8。攻击按类型基础（普 8 / 快 4 / 重 18）× 代际 +25%。移速按代独立设计（普通线 1.5→1.6→1.7，快速线 2.7→2.9→3.1，重坦线 0.9→1.0），不套统一模板。减伤每代 +4%。40 波后按同规律追加 Lv9+，属性可手调。</p>
+<h1>三、每波怪物占比表（波 1-40）</h1>
+<p>每波最多三代并存：新代进场 20%、旧代余 20% 收尾；主代在区间中段占 60%-80%，进入峰值后保持 1-2 波再下滑，末段 20% 残留至退场波。</p>
+<table>
+<colgroup><col width="40"/><col width="155"/><col width="40"/><col width="155"/><col width="40"/><col width="155"/><col width="40"/><col width="155"/></colgroup>
+<thead><tr><th><p>波</p></th><th><p>占比</p></th><th><p>波</p></th><th><p>占比</p></th><th><p>波</p></th><th><p>占比</p></th><th><p>波</p></th><th><p>占比</p></th></tr></thead>
+<tbody>
+<tr><td><p>1</p></td><td><p>Lv1 100%</p></td><td><p>11</p></td><td><p>Lv3 40% + Lv4 60%</p></td><td><p>21</p></td><td><p>Lv5 40% + Lv6 60%</p></td><td><p>31</p></td><td><p>Lv7 40% + Lv8 60%</p></td></tr>
+<tr><td><p>2</p></td><td><p>Lv1 100%</p></td><td><p>12</p></td><td><p>Lv3 20% + Lv4 80%</p></td><td><p>22</p></td><td><p>Lv5 20% + Lv6 80%</p></td><td><p>32</p></td><td><p>Lv7 20% + Lv8 80%</p></td></tr>
+<tr><td><p>3</p></td><td><p>Lv1 80% + Lv2 20%</p></td><td><p>13</p></td><td><p>Lv3 20% + Lv4 80%</p></td><td><p>23</p></td><td><p>Lv5 20% + Lv6 80%</p></td><td><p>33</p></td><td><p>Lv7 20% + Lv8 80%</p></td></tr>
+<tr><td><p>4</p></td><td><p>Lv1 40% + Lv2 40% + Lv3 20%</p></td><td><p>14</p></td><td><p>Lv3 20% + Lv4 60% + Lv5 20%</p></td><td><p>24</p></td><td><p>Lv5 20% + Lv6 60% + Lv7 20%</p></td><td><p>34</p></td><td><p>Lv7 20% + Lv8 60% + Lv9 20%</p></td></tr>
+<tr><td><p>5</p></td><td><p>Lv2 60% + Lv3 40%</p></td><td><p>15</p></td><td><p>Lv4 60% + Lv5 40%</p></td><td><p>25</p></td><td><p>Lv6 60% + Lv7 40%</p></td><td><p>35</p></td><td><p>Lv8 60% + Lv9 40%</p></td></tr>
+<tr><td><p>6</p></td><td><p>Lv2 40% + Lv3 60%</p></td><td><p>16</p></td><td><p>Lv4 40% + Lv5 60%</p></td><td><p>26</p></td><td><p>Lv6 40% + Lv7 60%</p></td><td><p>36</p></td><td><p>Lv8 40% + Lv9 60%</p></td></tr>
+<tr><td><p>7</p></td><td><p>Lv2 40% + Lv3 60%</p></td><td><p>17</p></td><td><p>Lv4 20% + Lv5 80%</p></td><td><p>27</p></td><td><p>Lv6 20% + Lv7 80%</p></td><td><p>37</p></td><td><p>Lv8 20% + Lv9 80%</p></td></tr>
+<tr><td><p>8</p></td><td><p>Lv2 40% + Lv3 60%</p></td><td><p>18</p></td><td><p>Lv4 20% + Lv5 80%</p></td><td><p>28</p></td><td><p>Lv6 20% + Lv7 80%</p></td><td><p>38</p></td><td><p>Lv8 20% + Lv9 80%</p></td></tr>
+<tr><td><p>9</p></td><td><p>Lv2 20% + Lv3 60% + Lv4 20%</p></td><td><p>19</p></td><td><p>Lv4 20% + Lv5 60% + Lv6 20%</p></td><td><p>29</p></td><td><p>Lv6 20% + Lv7 60% + Lv8 20%</p></td><td><p>39</p></td><td><p>Lv8 20% + Lv9 60% + Lv10 20%</p></td></tr>
+<tr><td><p>10</p></td><td><p>Lv2 20% + Lv3 40% + Lv4 40%</p></td><td><p>20</p></td><td><p>Lv4 20% + Lv5 40% + Lv6 40%</p></td><td><p>30</p></td><td><p>Lv6 20% + Lv7 40% + Lv8 40%</p></td><td><p>40</p></td><td><p>Lv9 60% + Lv10 40%</p></td></tr>
+</tbody>
+</table>
+<h1>四、代际替换机制示意</h1>
+<p>颜色按类型区分（蓝=普通、橙=快速、紫=重坦），深浅代表该代在本波占比：</p>
+<html5-block path="@./draft_944b5e9f_folder/mechanism.html"/>
+<h1>五、精英与 Boss 规则</h1>
+<p>1. 精英：每波固定 1 只，血量 = 当波主等级属性 ×4.0，攻击 ×5，自带 10% 减伤。</p>
+<p>2. Boss：每 5 波 1 只（波 5/10/15…），血量 = 当波主等级 ×8，攻击 ×11.25，自带 25% 减伤。</p>
+<p>3. 精英 / Boss 使用当波主等级（占比最高代）属性，掉落与现有结算逻辑一致。</p>
+<h1>六、与塔线性成长衔接</h1>
+<p>塔攻击同步改为线性成长：DPS = baseDps + perLv × (L-1)，perLv 火/炮 +10、毒/电/镖 +9、冰 +8。前 20 波击杀发数手感接近现状：波 5 火塔约 3.8 发、波 10 约 4.5 发、波 15 约 6.1 发、波 20 约 9.0 发；20 波后靠塔技能乘区支撑，若仍偏难只需下调等级表血量。</p>
+<h1>七、落地改动点</h1>
+<p>1. config.js ENEMY：删除 hpBase / hpGrowth / tiers，新增 levels[] 等级属性表（type / HP / atk / spd / armor）+ 每波占比驱动数据。</p>
+<p>2. wave.js：buildPlan 改为按当波占比表生成（主代 + 副代 + 残留代），删除 total × 1.45^w 公式；pushEnemy 取等级表属性。</p>
+<p>3. effects.js：塔 DPS 由 grow^(L-1) 改为线性；config.js TOWERS grow 字段替换为 perLv。</p>
+<p>4. 回归：全量 node --check + 现有测试 + 新增等级表校验。</p>
+<h1>八、后续扩展</h1>
+<p>40 波后按每 5 波追加 Lv9+，类型继续"普、快、重"循环，属性按既有斜率手调；后期如需调整难度曲线，直接修改对应等级血量即可，无需改公式或占比逻辑。</p>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>消消堡垒 · 主页整页重设计 V2（安全区 + 附着页签 + 新弹层）</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:"PingFang SC","Microsoft YaHei",sans-serif; background:#F4F4EF; color:#2C2C2A; padding:32px 24px 64px; }
+  .wrap { max-width:1320px; margin:0 auto; }
+  h1 { font-size:22px; font-weight:500; margin-bottom:6px; }
+  .sub { font-size:13px; color:#5F5E5A; margin-bottom:24px; line-height:1.7; }
+  h2 { font-size:16px; font-weight:500; margin:34px 0 12px; border-left:3px solid #A86BFF; padding-left:10px; }
+  .note { font-size:12px; color:#888780; margin:8px 0 14px; line-height:1.8; }
+  .row { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+  .pout { width:375px; overflow:hidden; border-radius:12px; border:0.5px solid rgba(0,0,0,0.25); flex:none; }
+  .page { width:750px; position:relative; background:#0A0E14; overflow:hidden; transform:scale(0.5); transform-origin:top left; font-family:inherit; }
+  .pout.h880 { height:880px; } .pout.h860 { height:860px; }
+  .rl { font-size:12px; color:#D85A30; display:inline-block; margin-top:6px; background:rgba(244,244,239,0.85); padding:1px 6px; border-radius:4px; }
+  /* ---- 安全区 mock ---- */
+  .island { position:absolute; top:22px; left:50%; transform:translateX(-50%); width:250px; height:74px; background:#000; border-radius:37px; z-index:20; }
+  .wxcap { position:absolute; top:100px; right:24px; width:174px; height:64px; border-radius:32px; background:rgba(20,26,36,0.55); border:1px solid rgba(255,255,255,0.30); z-index:20; display:flex; align-items:center; }
+  .wxcap .dots { flex:1; text-align:center; color:rgba(255,255,255,0.85); font-size:26px; letter-spacing:3px; line-height:1; }
+  .wxcap .sep { width:1px; height:32px; background:rgba(255,255,255,0.28); }
+  .wxcap .cls { flex:1; text-align:center; color:rgba(255,255,255,0.85); font-size:24px; line-height:1; }
+  .safeline { position:absolute; left:0; right:0; top:196px; border-top:1.5px dashed rgba(216,90,48,0.65); z-index:19; }
+  .safetag { position:absolute; left:24px; top:204px; font-size:14px; color:#E8734A; z-index:19; }
+  .homebar { position:absolute; left:50%; transform:translateX(-50%); bottom:12px; width:268px; height:9px; border-radius:5px; background:rgba(255,255,255,0.45); z-index:20; }
+  /* ---- 公共 ---- */
+  .tgrad { position:absolute; top:0; left:0; right:0; height:300px; }
+  .brand { position:absolute; left:40px; top:236px; font-size:40px; font-weight:500; color:#F2F5F8; letter-spacing:4px; }
+  .pill { position:absolute; top:238px; height:52px; border-radius:26px; display:flex; align-items:center; gap:9px; padding:0 20px; font-size:22px; font-variant-numeric:tabular-nums; }
+  .pill svg { width:22px; height:22px; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .pill.silver { background:rgba(201,214,228,0.10); border:1px solid rgba(201,214,228,0.35); color:#C9D6E4; } .pill.silver svg { stroke:#C9D6E4; }
+  .pill.gem { background:rgba(124,168,255,0.10); border:1px solid rgba(124,168,255,0.40); color:#7CA8FF; } .pill.gem svg { stroke:#7CA8FF; }
+  /* ---- 附着式底部页签 ---- */
+  .dock { position:absolute; left:0; right:0; bottom:0; height:128px; background:#0E131B; border-top:1px solid rgba(255,255,255,0.10); display:flex; padding-bottom:26px; }
+  .dock .d { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; font-size:15px; color:#8FA0B3; position:relative; }
+  .dock .d svg { width:24px; height:24px; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .dock .d.on { color:#fff; }
+  .dock .d.on::before { content:""; position:absolute; top:0; left:0; right:0; height:4px; }
+  .ico { display:inline-flex; }
+  /* ---- 页1 战场 ---- */
+  .scard { position:absolute; left:80px; top:470px; width:590px; height:392px; border-radius:22px; }
+  .scard .in { position:absolute; inset:0; border-radius:22px; overflow:hidden; background:#16202C; border:1.5px solid rgba(232,96,60,0.85); box-shadow:inset 0 1px 0 rgba(255,255,255,0.10); }
+  .scard .in::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:#E8603C; }
+  .sicon { position:absolute; left:0; right:0; top:22px; height:200px; display:flex; align-items:center; justify-content:center; font-size:64px; }
+  .stitle { position:absolute; left:0; right:0; top:240px; text-align:center; font-size:40px; font-weight:500; color:#F2F5F8; }
+  .ssub { position:absolute; left:0; right:0; top:300px; text-align:center; font-size:22px; color:#8FA0B3; }
+  .shint { position:absolute; left:0; right:0; bottom:12px; text-align:center; font-size:18px; color:#8FA0B3; }
+  .sarr { position:absolute; top:146px; width:76px; height:100px; filter:drop-shadow(0 3px 4px rgba(0,0,0,0.45)); }
+  .sarr.l { left:18px; } .sarr.r { right:18px; }
+  .ebtn { position:absolute; left:100px; top:930px; width:550px; height:80px; border-radius:22px; background:linear-gradient(#E8603C,#8C2F18); box-shadow:inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 0 rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; gap:12px; color:#fff; font-size:28px; font-weight:500; }
+  .ebtn svg { width:26px; height:26px; stroke:#fff; fill:none; stroke-width:1.5; stroke-linecap:round; }
+  .slots { position:absolute; left:40px; top:1100px; display:flex; gap:10px; }
+  .slot { width:160px; height:112px; border-radius:16px; background:#10151C; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .slot.empty { border-style:dashed; border-color:rgba(255,255,255,0.10); }
+  .slot svg { width:28px; height:28px; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .slot .lb { font-size:14px; color:#8FA0B3; font-variant-numeric:tabular-nums; }
+  /* ---- 圣遗物页 ---- */
+  .htitle { position:absolute; left:40px; top:340px; font-size:28px; font-weight:500; color:#F2F5F8; }
+  .hcount { position:absolute; right:40px; top:346px; font-size:22px; color:#8FA0B3; font-variant-numeric:tabular-nums; }
+  .hcount b { color:#F2C14E; font-weight:500; }
+  .hbar { position:absolute; left:40px; top:392px; width:670px; height:10px; border-radius:5px; background:rgba(255,255,255,0.08); overflow:hidden; }
+  .hbar i { display:block; height:10px; background:#A86BFF; border-radius:5px; position:relative; }
+  .hbar i::after { content:""; position:absolute; right:0; top:0; width:24px; height:10px; background:linear-gradient(90deg,#A86BFF,#F2C14E); }
+  .rgrid { position:absolute; left:0; top:438px; width:750px; height:1030px; overflow:hidden; }
+  .rcard { position:absolute; width:149px; height:212px; border-radius:12px; background:#1B2330; }
+  .rcard .ic2 { position:absolute; top:14px; left:13px; width:96px; height:96px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:36px; }
+  .rcard .nm { position:absolute; left:10px; right:10px; top:120px; text-align:center; font-size:20px; color:#F2F5F8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rcard .st { position:absolute; right:10px; top:8px; font-size:14px; }
+  .rcard .cap { position:absolute; left:12px; right:12px; bottom:14px; height:36px; border-radius:18px; background:#0B0F16; border:1px solid rgba(255,255,255,0.14); overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow:inset 0 2px 3px rgba(0,0,0,0.6); }
+  .rcard .cap .fill { position:absolute; left:0; top:0; bottom:0; border-radius:17px; background:linear-gradient(#8FB6FF,#5B86D6); box-shadow:inset 0 1.5px 0 rgba(255,255,255,0.45); }
+  .rcard .cap .ft { position:relative; font-size:16px; color:#F2F5F8; font-variant-numeric:tabular-nums; text-shadow:0 1px 2px rgba(0,0,0,0.7); }
+  .rcard .notch { position:absolute; left:0; top:0; width:0; height:0; border-top:12px solid #F2C14E; border-right:12px solid transparent; }
+  .rcard.lk { background:#10151C; }
+  .rcard.lk .ic2 { opacity:0.25; }
+  .rcard.lk .nm { color:#4B5966; }
+  .strack { position:absolute; right:10px; top:438px; width:4px; height:1030px; background:rgba(255,255,255,0.06); border-radius:2px; }
+  .strack i { position:absolute; left:0; top:160px; width:4px; height:400px; background:rgba(168,107,255,0.55); border-radius:2px; }
+  /* ---- 塔图鉴页 ---- */
+  .ctabs { position:absolute; left:24px; top:340px; width:702px; display:flex; }
+  .ctab { flex:1; height:84px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:15px; }
+  .ctab:first-child { border-radius:14px 0 0 0; } .ctab:last-child { border-radius:0 14px 0 0; }
+  .ctab + .ctab { border-left:1px solid rgba(0,0,0,0.25); }
+  .ctab svg { width:26px; height:26px; fill:none; stroke:#fff; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .ctab.on { color:#fff; }
+  .ctab.off { background:rgba(15,20,28,0.88); color:#8FA0B3; }
+  .cpanel { position:absolute; left:24px; top:424px; width:702px; height:200px; background:#1B2330; border:1.5px solid #FF6B6B; border-top:none; border-radius:0 0 14px 14px; }
+  .cpanel .tn { position:absolute; left:28px; top:20px; font-size:28px; font-weight:500; color:#F2F5F8; display:flex; align-items:center; gap:10px; }
+  .cpanel .tn i { width:12px; height:12px; border-radius:3px; background:#FF6B6B; display:inline-block; }
+  .ecap { position:absolute; right:28px; top:24px; height:40px; border-radius:20px; background:#0B0F16; border:1px solid rgba(244,208,63,0.55); box-shadow:inset 0 2px 3px rgba(0,0,0,0.55); display:flex; align-items:center; gap:7px; padding:0 16px; font-size:18px; color:#F4D03F; font-variant-numeric:tabular-nums; }
+  .ecap svg { width:18px; height:18px; fill:none; stroke:#F4D03F; stroke-width:1.5; stroke-linecap:round; }
+  .stat { position:absolute; left:28px; right:28px; height:8px; }
+  .stat .sn { position:absolute; left:0; top:-7px; font-size:18px; color:#8FA0B3; width:56px; }
+  .stat .sb { position:absolute; left:70px; right:150px; top:0; height:8px; border-radius:4px; background:rgba(255,255,255,0.10); }
+  .stat .sb i { display:block; height:8px; border-radius:4px; background:#FF6B6B; }
+  .stat .sv { position:absolute; right:0; top:-7px; font-size:18px; color:#F2F5F8; font-variant-numeric:tabular-nums; }
+  .poolt { position:absolute; left:24px; top:660px; font-size:22px; font-weight:500; color:#F2F5F8; }
+  .skcard { position:absolute; width:342px; height:200px; border-radius:14px; background:#1B2330; border:1px solid rgba(255,255,255,0.08); overflow:hidden; }
+  .skcard::before { content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:#FF6B6B; }
+  .skcard .sic { position:absolute; left:18px; top:16px; width:56px; height:56px; border-radius:12px; background:#0B0F16; border:1.5px solid #FF6B6B; display:flex; align-items:center; justify-content:center; font-size:28px; }
+  .skcard .snm { position:absolute; left:86px; top:20px; font-size:22px; font-weight:500; color:#F2F5F8; }
+  .skcard .ecap2 { position:absolute; right:14px; top:16px; height:32px; border-radius:16px; background:#0B0F16; border:1px solid rgba(244,208,63,0.5); box-shadow:inset 0 2px 3px rgba(0,0,0,0.5); display:flex; align-items:center; gap:5px; padding:0 12px; font-size:14px; color:#F4D03F; font-variant-numeric:tabular-nums; }
+  .skcard .ecap2 svg { width:14px; height:14px; fill:none; stroke:#F4D03F; stroke-width:1.5; stroke-linecap:round; }
+  .skcard .smeta { position:absolute; left:86px; top:52px; font-size:14px; color:#8FA0B3; }
+  .skcard .sdesc { position:absolute; left:18px; right:18px; top:88px; font-size:18px; line-height:26px; color:#8FA0B3; }
+  /* ---- 弹层通用 ---- */
+  .dstage .page { transform:scale(0.5); }
+  .dmask { position:absolute; inset:0; background:rgba(0,0,0,0.62); }
+  .dclose { position:absolute; right:24px; top:24px; width:44px; height:44px; border-radius:50%; background:#232C3A; display:flex; align-items:center; justify-content:center; z-index:5; }
+  .dclose svg { width:17px; height:17px; stroke:#F2F5F8; stroke-width:1.5; stroke-linecap:round; }
+  /* ---- 圣遗物详情卡（重设计） ---- */
+  .rcard2 { position:absolute; left:55px; top:210px; width:640px; height:1200px; border-radius:28px; background:#151B24; border:1.5px solid rgba(168,107,255,0.75); box-shadow:0 24px 70px rgba(0,0,0,0.65); overflow:hidden; }
+  .rcard2 .hero { position:absolute; left:0; right:0; top:0; height:400px; background:radial-gradient(circle at 50% 34%, rgba(168,107,255,0.35), rgba(168,107,255,0.06) 58%, rgba(0,0,0,0) 75%); }
+  .rcard2 .heroic { position:absolute; left:50%; transform:translateX(-50%); top:56px; width:196px; height:196px; border-radius:50%; background:#232C3A; border:3px solid #A86BFF; display:flex; align-items:center; justify-content:center; font-size:78px; box-shadow:0 10px 34px rgba(168,107,255,0.35), inset 0 2px 0 rgba(255,255,255,0.12); }
+  .rcard2 .rnm { position:absolute; left:0; right:0; top:284px; text-align:center; font-size:40px; font-weight:500; color:#F2F5F8; }
+  .rcard2 .rbdg { position:absolute; left:50%; transform:translateX(-50%); top:346px; font-size:18px; color:#A86BFF; border:1px solid rgba(168,107,255,0.55); border-radius:14px; padding:3px 16px; }
+  .srow { position:absolute; left:32px; right:32px; height:128px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.10); padding:16px 20px; }
+  .srow .sb2 { position:absolute; left:20px; top:20px; width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:500; }
+  .srow .stx { position:absolute; left:94px; right:20px; top:18px; font-size:18px; line-height:27px; color:#8FA0B3; }
+  .srow.on { background:rgba(242,193,78,0.08); border:2px solid #F2C14E; }
+  .srow.on .stx { color:#F5E3B0; }
+  .pcap { position:absolute; left:60px; right:60px; height:64px; border-radius:32px; background:#0B0F16; border:1px solid rgba(255,255,255,0.16); box-shadow:inset 0 3px 5px rgba(0,0,0,0.65); overflow:hidden; }
+  .pcap .pf { position:absolute; left:0; top:0; bottom:0; border-radius:31px; background:linear-gradient(#9FC2FF,#4E7BC8); box-shadow:inset 0 2px 0 rgba(255,255,255,0.5), inset 0 -3px 5px rgba(0,0,0,0.3), 0 2px 6px rgba(78,123,200,0.5); }
+  .pcap .pt { position:relative; display:flex; align-items:center; justify-content:center; height:64px; font-size:22px; color:#F2F5F8; font-variant-numeric:tabular-nums; text-shadow:0 1px 3px rgba(0,0,0,0.75); }
+  .upbtn { position:absolute; left:80px; right:80px; height:104px; border-radius:24px; background:linear-gradient(#F2C14E,#C48A1A); box-shadow:inset 0 2px 0 rgba(255,255,255,0.5), inset 0 -4px 6px rgba(0,0,0,0.22), 0 3px 0 rgba(0,0,0,0.35); display:flex; align-items:center; overflow:hidden; }
+  .upbtn .ul { flex:1.05; text-align:center; font-size:28px; font-weight:500; color:#221A05; }
+  .upbtn .udiv { width:1px; height:52px; background:rgba(34,26,5,0.30); }
+  .upbtn .ur { flex:1; display:flex; align-items:center; justify-content:center; gap:9px; font-size:26px; color:#221A05; font-variant-numeric:tabular-nums; }
+  .upbtn .ur svg { width:26px; height:26px; fill:none; stroke:#221A05; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  /* ---- 技能三选一弹层（重设计） ---- */
+  .skpanel { position:absolute; left:45px; top:70px; width:660px; height:1420px; border-radius:28px; background:#151B24; border:1.5px solid rgba(255,107,107,0.75); box-shadow:0 24px 70px rgba(0,0,0,0.65); overflow:hidden; }
+  .skpanel .rt { position:absolute; left:0; right:0; top:0; height:64px; background:linear-gradient(90deg,#FF6B6B,#C43D3D); color:#fff; font-size:22px; font-weight:500; display:flex; align-items:center; justify-content:center; gap:12px; letter-spacing:2px; }
+  .skpanel .rt i { font-style:normal; background:rgba(255,255,255,0.22); border-radius:12px; padding:2px 14px; font-size:18px; }
+  .skheroic { position:absolute; left:50%; transform:translateX(-50%); top:104px; width:150px; height:150px; border-radius:32px; background:#232C3A; border:3px solid #FF6B6B; display:flex; align-items:center; justify-content:center; font-size:64px; box-shadow:0 10px 30px rgba(255,107,107,0.3); }
+  .skpanel .kn { position:absolute; left:0; right:0; top:276px; text-align:center; font-size:40px; font-weight:500; color:#F2F5F8; }
+  .skpanel .kd { position:absolute; left:80px; right:80px; top:336px; text-align:center; font-size:18px; line-height:27px; color:#8FA0B3; }
+  .bcard { position:absolute; left:36px; width:588px; height:250px; border-radius:20px; background:#1B2330; border:2px solid rgba(255,255,255,0.10); overflow:hidden; }
+  .bcard.on { border-color:#FF6B6B; background:rgba(255,107,107,0.08); box-shadow:0 6px 22px rgba(255,107,107,0.22); }
+  .bcard .bic { position:absolute; left:22px; top:24px; width:92px; height:92px; border-radius:20px; background:#0B0F16; border:2px solid #FF6B6B; display:flex; align-items:center; justify-content:center; font-size:42px; }
+  .bcard .btag { position:absolute; left:22px; top:126px; width:92px; text-align:center; font-size:14px; color:#FF8A8A; }
+  .bcard .bnm { position:absolute; left:136px; top:28px; font-size:28px; font-weight:500; color:#F2F5F8; }
+  .bcard .bds { position:absolute; left:136px; top:72px; right:24px; font-size:18px; line-height:26px; color:#8FA0B3; }
+  .bcard .blv { position:absolute; left:136px; font-size:18px; line-height:30px; color:#8FA0B3; font-variant-numeric:tabular-nums; }
+  .bcard .blv b { color:#F2C14E; font-weight:400; font-size:14px; margin-right:8px; }
+  .bcard .pick { position:absolute; right:20px; top:24px; height:40px; border-radius:20px; padding:0 18px; display:flex; align-items:center; font-size:16px; }
+  .bcard.on .pick { background:#FF6B6B; color:#0A0E14; }
+  .bcard:not(.on) .pick { border:1px solid rgba(255,255,255,0.25); color:#8FA0B3; }
+  .skconfirm { position:absolute; left:80px; right:80px; height:96px; border-radius:24px; background:linear-gradient(#FF6B6B,#B03535); box-shadow:inset 0 2px 0 rgba(255,255,255,0.35), 0 3px 0 rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; gap:12px; color:#fff; font-size:28px; font-weight:500; }
+  /* ---- 字体规范 ---- */
+  .typo { display:flex; flex-direction:column; gap:10px; }
+  .trow { display:flex; align-items:baseline; gap:18px; background:#fff; border:0.5px solid rgba(0,0,0,0.12); border-radius:10px; padding:10px 16px; }
+  .trow .sz { width:60px; font-size:13px; color:#888780; flex:none; }
+  .trow .use { font-size:13px; color:#5F5E5A; flex:none; width:300px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>消消堡垒 · 主页整页重设计 V2</h1>
+  <div class="sub">750×1626 逻辑分辨率 1:1 布局，缩放 50% 展示 · V2 按反馈：① 顶部灵动岛 + 小程序胶囊安全区 ② 更名「消消堡垒」 ③ 附着式底部页签 ④⑤ 详情弹层全部重做 ⑥ 塔图鉴页签等宽 + 能耗胶囊 ⑦ 圣遗物胶囊进度条 ⑧ 战场切换箭头样式</div>
+
+  <h2>〇、顶部安全区示意（三页通用规则）</h2>
+  <div class="note">
+    规则：<b>y=196 以上不放任何可点元素与文字</b>（状态栏 ~88 + 灵动岛/胶囊区 ~108）。品牌标题与货币胶囊统一下移到 y≈236 起；右上角胶囊（"··" 与 "◎"）由系统绘制，UI 永不占用右上 200×64。三页的顶部主题色渐变相应加深加高（170→300），把下移后的标题区也压进氛围里。
+  </div>
+
+  <h2>一、三张主页</h2>
+  <div class="row">
+
+    <!-- ================ 页1 战场 ================ -->
+    <div>
+      <div class="pout h880">
+        <div class="page" style="height:1626px;">
+          <div class="island"></div>
+          <div class="wxcap"><span class="dots">•••</span><span class="sep"></span><span class="cls">⊙</span></div>
+          <div class="safeline"></div><div class="safetag">安全区界线 y=196</div>
+          <div class="tgrad" style="background:linear-gradient(rgba(58,26,32,0.9),rgba(13,17,23,0));"></div>
+          <div class="brand">消消堡垒</div>
+          <div class="pill silver" style="left:280px;"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>24,580</div>
+          <div class="pill gem" style="left:510px;"><svg viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z"/><path d="M5 12h14"/></svg>128</div>
+          <div class="scard">
+            <div class="in">
+              <div class="sicon">🌋</div>
+              <div class="stitle">熔岩矿场</div>
+              <div class="ssub">烈焰地带 · 深度奖励 ×1.8</div>
+              <div class="shint">点两侧箭头切换战场</div>
+            </div>
+            <svg class="sarr l" viewBox="0 0 76 100">
+              <defs><linearGradient id="tgl" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#41C9B3"/><stop offset="1" stop-color="#0F6E62"/></linearGradient></defs>
+              <path d="M72 8 L34 50 L72 92 L52 92 L14 50 L52 8 Z" fill="url(#tgl)" opacity="0.45"/>
+              <path d="M60 4 L20 50 L60 96 L44 96 L4 50 L44 4 Z" fill="url(#tgl)"/>
+            </svg>
+            <svg class="sarr r" viewBox="0 0 76 100">
+              <defs><linearGradient id="tgr" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#41C9B3"/><stop offset="1" stop-color="#0F6E62"/></linearGradient></defs>
+              <path d="M4 8 L42 50 L4 92 L24 92 L62 50 L24 8 Z" fill="url(#tgr)" opacity="0.45"/>
+              <path d="M16 4 L56 50 L16 96 L32 96 L72 50 L32 4 Z" fill="url(#tgr)"/>
+            </svg>
+          </div>
+          <div class="ebtn"><svg viewBox="0 0 24 24"><path d="M4 20L17 7M15 5l3 3M6 15l3 3"/></svg>进入战斗</div>
+          <div class="slots">
+            <div class="slot"><svg viewBox="0 0 24 24" style="stroke:#F2C14E;"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M4 12h16M12 12v3M6 9c0-3 2.5-5 6-5s6 2 6 5"/></svg><span class="lb">黄金宝箱 · 2h 后可开</span></div>
+            <div class="slot"><svg viewBox="0 0 24 24" style="stroke:#C9D6E4;"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M4 12h16M12 12v3M6 9c0-3 2.5-5 6-5s6 2 6 5"/></svg><span class="lb">白银宝箱 ×1</span></div>
+            <div class="slot empty"><svg viewBox="0 0 24 24" style="stroke:#4B5966;"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M4 12h16"/></svg><span class="lb">待结算 · 第 3 格</span></div>
+            <div class="slot empty"><svg viewBox="0 0 24 24" style="stroke:#4B5966;"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M4 12h16"/></svg><span class="lb">待结算 · 第 4 格</span></div>
+          </div>
+          <div class="dock">
+            <div class="d on" style="background:linear-gradient(#E8603C,#B8431F);"><svg viewBox="0 0 24 24"><path d="M4 20L17 7M15 5l3 3M6 15l3 3"/></svg>战场</div>
+            <div class="d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>商店</div>
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg>圣遗物</div>
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M12 5c-2-1.5-5-1.5-8 0v14c3-1.5 6-1.5 8 0 2-1.5 5-1.5 8 0V5c-3-1.5-6-1.5-8 0z"/><path d="M12 5v14"/></svg>图鉴</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <span class="rl">顶部：y&lt;196 禁放内容 · 右上让位系统胶囊</span><br>
+      <span class="rl">箭头：双层青绿渐变 V 形 76×100，带投影</span><br>
+      <span class="rl">页签：全宽附着 dock h128（含 26 底部安全区）</span>
+    </div>
+
+    <!-- ================ 页2 圣遗物 ================ -->
+    <div>
+      <div class="pout h880">
+        <div class="page" style="height:1626px;">
+          <div class="island"></div>
+          <div class="wxcap"><span class="dots">•••</span><span class="sep"></span><span class="cls">⊙</span></div>
+          <div class="tgrad" style="background:linear-gradient(rgba(41,26,61,0.9),rgba(13,17,23,0));"></div>
+          <div class="brand">消消堡垒</div>
+          <div class="pill silver" style="left:280px;"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>24,580</div>
+          <div class="pill gem" style="left:510px;"><svg viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z"/><path d="M5 12h14"/></svg>128</div>
+          <div class="htitle">圣遗物图鉴</div>
+          <div class="hcount"><b>128</b> / 168</div>
+          <div class="hbar"><i style="width:76%;"></i></div>
+          <div class="rgrid" id="rgrid"></div>
+          <div class="strack"><i></i></div>
+          <div class="dock">
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M4 20L17 7M15 5l3 3M6 15l3 3"/></svg>战场</div>
+            <div class="d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>商店</div>
+            <div class="d on" style="background:linear-gradient(#A86BFF,#6F3FC4);"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg>圣遗物</div>
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M12 5c-2-1.5-5-1.5-8 0v14c3-1.5 6-1.5 8 0 2-1.5 5-1.5 8 0V5c-3-1.5-6-1.5-8 0z"/><path d="M12 5v14"/></svg>图鉴</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <span class="rl">卡片 149×212 · 胶囊进度条 h36 文字 16 居中在胶囊内</span><br>
+      <span class="rl">胶囊立体感：内凹槽 + 填充内高光 + 底部暗缘</span>
+    </div>
+
+    <!-- ================ 页3 塔图鉴 ================ -->
+    <div>
+      <div class="pout h880">
+        <div class="page" style="height:1626px;">
+          <div class="island"></div>
+          <div class="wxcap"><span class="dots">•••</span><span class="sep"></span><span class="cls">⊙</span></div>
+          <div class="tgrad" style="background:linear-gradient(rgba(21,42,71,0.9),rgba(13,17,23,0));"></div>
+          <div class="brand">消消堡垒</div>
+          <div class="pill silver" style="left:280px;"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>24,580</div>
+          <div class="pill gem" style="left:510px;"><svg viewBox="0 0 24 24"><path d="M12 3l7 9-7 9-7-9z"/><path d="M5 12h14"/></svg>128</div>
+          <div class="ctabs">
+            <div class="ctab on" style="background:#FF6B6B;"><svg viewBox="0 0 24 24"><path d="M12 3c3 4-1 5 1 8a4 4 0 1 1-7 1c0-4 4-5 6-9z"/></svg>火塔</div>
+            <div class="ctab off"><svg viewBox="0 0 24 24" style="stroke:#5DADE2;"><path d="M12 3v18M5 6l14 12M19 6L5 18"/></svg>冰塔</div>
+            <div class="ctab off"><svg viewBox="0 0 24 24" style="stroke:#58D68D;"><path d="M12 4c3 5 5 7 5 10a5 5 0 1 1-10 0c0-3 2-5 5-10z"/></svg>毒塔</div>
+            <div class="ctab off"><svg viewBox="0 0 24 24" style="stroke:#F4D03F;"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>电塔</div>
+            <div class="ctab off"><svg viewBox="0 0 24 24" style="stroke:#AF7AC5;"><path d="M5 6c6 0 12 4 14 12-6-2-11-6-14-12z"/></svg>镖塔</div>
+            <div class="ctab off"><svg viewBox="0 0 24 24" style="stroke:#E67E22;"><circle cx="11" cy="13" r="6"/><path d="M16 8l4-4"/></svg>炮塔</div>
+          </div>
+          <div class="cpanel">
+            <div class="tn"><i></i>火塔</div>
+            <div class="ecap"><svg viewBox="0 0 24 24"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>耗能 0.5/发</div>
+            <div class="stat" style="top:84px;"><span class="sn">伤害</span><span class="sb"><i style="width:85%;"></i></span><span class="sv">12.5 /s</span></div>
+            <div class="stat" style="top:124px;"><span class="sn">攻速</span><span class="sb"><i style="width:70%;"></i></span><span class="sv">1.4 发/s</span></div>
+            <div class="stat" style="top:164px;"><span class="sn">射程</span><span class="sb"><i style="width:80%;"></i></span><span class="sv">620</span></div>
+          </div>
+          <div class="poolt">技能池 · 点击卡片查看三选一分支</div>
+          <div class="skcard" style="left:24px; top:712px;">
+            <div class="sic">🔥</div><div class="snm">烈焰风暴</div>
+            <div class="ecap2"><svg viewBox="0 0 24 24"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>3</div>
+            <div class="smeta">周期技</div>
+            <div class="sdesc">对全场敌人造成范围灼烧，持续 4 秒</div>
+          </div>
+          <div class="skcard" style="left:384px; top:712px;">
+            <div class="sic">☄️</div><div class="snm">火焰弹射</div>
+            <div class="ecap2"><svg viewBox="0 0 24 24"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>0</div>
+            <div class="smeta">命中触发</div>
+            <div class="sdesc">普攻命中后弹射至下一个目标</div>
+          </div>
+          <div class="skcard" style="left:24px; top:932px;">
+            <div class="sic">🕯️</div><div class="snm">余烬风暴</div>
+            <div class="ecap2"><svg viewBox="0 0 24 24"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>0</div>
+            <div class="smeta">持续伤害</div>
+            <div class="sdesc">灼烧的敌人死亡时引发小型爆炸</div>
+          </div>
+          <div class="skcard" style="left:384px; top:932px;">
+            <div class="sic">💪</div><div class="snm">力量符文</div>
+            <div class="ecap2"><svg viewBox="0 0 24 24"><path d="M13 3L6 13h5l-1 8 7-11h-5z"/></svg>0</div>
+            <div class="smeta">普攻强化</div>
+            <div class="sdesc">普攻伤害提升，最多叠加 4 层</div>
+          </div>
+          <div class="dock">
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M4 20L17 7M15 5l3 3M6 15l3 3"/></svg>战场</div>
+            <div class="d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>商店</div>
+            <div class="d"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg>圣遗物</div>
+            <div class="d on" style="background:linear-gradient(#4D8FD6,#2A5A90);"><svg viewBox="0 0 24 24"><path d="M12 5c-2-1.5-5-1.5-8 0v14c3-1.5 6-1.5 8 0 2-1.5 5-1.5 8 0V5c-3-1.5-6-1.5-8 0z"/><path d="M12 5v14"/></svg>图鉴</div>
+          </div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <span class="rl">页签 6 等宽：702/6=117 无缝拼接 · 竖线分隔</span><br>
+      <span class="rl">能耗：塔面板与技能卡均改为 ⚡ 胶囊</span><br>
+      <span class="rl">技能卡 342×200 · 删右下「详情」</span>
+    </div>
+  </div>
+
+  <h2>二、详情弹层（全部重设计，不参考旧版）</h2>
+  <div class="row">
+
+    <!-- ================ 圣遗物详情卡 ================ -->
+    <div>
+      <div class="pout h860">
+        <div class="page" style="height:1626px;">
+          <div class="dmask"></div>
+          <div class="rcard2">
+            <div class="dclose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+            <div class="hero"></div>
+            <div class="heroic">🔥</div>
+            <div class="rnm">焚天引信</div>
+            <div class="rbdg">SR · 已达 2★</div>
+            <div class="srow on" style="top:424px;">
+              <div class="sb2" style="background:rgba(242,193,78,0.16); color:#F2C14E;">★★</div>
+              <div class="stx">点燃概率提升至 30%，灼烧伤害提升至 35% 攻击。</div>
+            </div>
+            <div class="srow" style="top:568px;">
+              <div class="sb2" style="background:rgba(168,107,255,0.14); color:#A86BFF;">★★★</div>
+              <div class="stx">灼烧的敌人死亡时爆炸，对周围造成 1 次灼烧传播。</div>
+            </div>
+            <div class="srow" style="top:712px;">
+              <div class="sb2" style="background:rgba(124,214,166,0.12); color:#7CD6A6;">★</div>
+              <div class="stx">普攻有 15% 概率点燃目标，每秒造成 20% 攻击的灼烧伤害。</div>
+            </div>
+            <div class="pcap" style="top:886px;">
+              <div class="pf" style="width:64%;"></div>
+              <div class="pt">碎片 32 / 50</div>
+            </div>
+            <div class="upbtn" style="top:1006px;">
+              <div class="ul">升到 3★</div>
+              <div class="udiv"></div>
+              <div class="ur"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>1,200</div>
+            </div>
+          </div>
+          <div class="island"></div>
+          <div class="wxcap"><span class="dots">•••</span><span class="sep"></span><span class="cls">⊙</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <span class="rl">详情卡 640×1200 · 上 1/3（400px）= 图标区：径向氛围光 + 196 圆图标</span><br>
+      <span class="rl">三星介绍从下到上：1★(底)→2★(中)→3★(顶) · 当前级金框</span><br>
+      <span class="rl">进度胶囊 h64=文字22+上下各21 · 立体：内凹+填充高光+外投影</span><br>
+      <span class="rl">升级按钮：左「升到 3★」+ 分隔线 + 右银币图标 × 1,200</span>
+    </div>
+
+    <!-- ================ 技能三选一 ================ -->
+    <div>
+      <div class="pout h860">
+        <div class="page" style="height:1626px;">
+          <div class="dmask"></div>
+          <div class="skpanel">
+            <div class="dclose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+            <div class="rt">技 能 升 级 <i>三选一</i></div>
+            <div class="skheroic">🔥</div>
+            <div class="kn">烈焰风暴</div>
+            <div class="kd">基础：对全场敌人造成范围灼烧，持续 4 秒，每秒 60% 攻击力。施放消耗 3 点能量。当前分支：A · Lv2</div>
+            <div class="bcard on" style="top:452px;">
+              <div class="bic">🌪️</div>
+              <div class="btag">分支 A · 已选</div>
+              <div class="pick">✓ 已选</div>
+              <div class="bnm">范围强化</div>
+              <div class="bds">扩大灼烧范围，并延长持续时间</div>
+              <div class="blv" style="top:130px;"><b>Lv1→2</b>范围 +20%，持续 4 → 5 秒</div>
+              <div class="blv" style="top:160px;"><b>Lv2→3</b>灼烧每秒 60% → 80% 攻击力</div>
+              <div class="blv" style="top:190px;"><b>Lv3→4</b>施放后 3 秒内全塔攻速 +10%</div>
+            </div>
+            <div class="bcard" style="top:726px;">
+              <div class="bic">🧨</div>
+              <div class="btag">分支 B</div>
+              <div class="pick">可选</div>
+              <div class="bnm">引燃强化</div>
+              <div class="bds">灼烧可叠加层数，层数越高伤害越高</div>
+              <div class="blv" style="top:130px;"><b>Lv1→2</b>灼烧可叠加 2 层</div>
+              <div class="blv" style="top:160px;"><b>Lv2→3</b>每层额外 +15% 伤害</div>
+              <div class="blv" style="top:190px;"><b>Lv3→4</b>满层目标受普攻伤害 +20%</div>
+            </div>
+            <div class="bcard" style="top:1000px;">
+              <div class="bic">☄️</div>
+              <div class="btag">分支 C · 未解锁</div>
+              <div class="pick" style="opacity:0.55;">2★ 解锁</div>
+              <div class="bnm">连锁余烬</div>
+              <div class="bds">灼烧死亡传播，形成连锁爆炸</div>
+              <div class="blv" style="top:130px;"><b>Lv1→2</b>灼烧敌人死亡时小范围爆炸</div>
+              <div class="blv" style="top:160px;"><b>Lv2→3</b>爆炸附加 2 秒灼烧</div>
+              <div class="blv" style="top:190px;"><b>Lv3→4</b>连锁上限 3 → 5 次</div>
+            </div>
+            <div class="skconfirm" style="top:1290px;">确认选择分支 A</div>
+          </div>
+          <div class="island"></div>
+          <div class="wxcap"><span class="dots">•••</span><span class="sep"></span><span class="cls">⊙</span></div>
+          <div class="homebar"></div>
+        </div>
+      </div>
+      <span class="rl">顶部红丝带「技能升级 · 三选一」+ 150 大图标 + 40 号技能名</span><br>
+      <span class="rl">分支卡 588×250：大图标 + 徽标列（A/B/C）+ 右上状态章</span><br>
+      <span class="rl">底部确认按钮替代旧版散点布局，分支状态一眼可读</span>
+    </div>
+  </div>
+
+  <h2>三、V2 改动清单（对应 8 条反馈）</h2>
+  <div class="note">
+    ① <b>安全区</b>：y=196 以上为系统区（状态栏 + 灵动岛/胶囊），品牌标题、货币胶囊全部下移至 y≈236；右上角 200×64 永久让位给小程序「···/⊙」胶囊；底部保留 26px 家园条安全区。<br>
+    ② <b>更名</b>：「消消防线」→「消消堡垒」（备选：弹雨堡垒 / 消塔回响）。<br>
+    ③ <b>附着式页签</b>：四页签改为全宽通栏 dock（h128，含底部安全区），无浮动间距、无圆角悬浮卡；激活项以主题色整格填充 + 顶部 4px 指示条附着于底边。<br>
+    ④ <b>圣遗物详情卡</b>：640×1200 竖版卡片；上 1/3 图标区（径向光 + 196 图标 + 名称 40）；三星介绍自下而上 1★→3★，当前级金框；胶囊进度条 h64（文字 22 居中在胶囊内），立体感 = 深色内凹槽 + 填充顶部内高光 + 底部暗缘 + 外发光投影；底部升级按钮左侧「升到 3★」、右侧银币图标 + 数量，中缝分隔线。<br>
+    ⑤ <b>技能弹层</b>：顶部主题丝带「技能升级·三选一」，150px 大技能图标 + 40 号名称居中；三张分支卡带大图标、A/B/C 徽标列、右上状态章（已选 ✓ / 可选 / 2★ 解锁），底部通栏确认按钮。<br>
+    ⑥ <b>塔图鉴</b>：页签 6 等宽（702/6=117）无缝拼接、竖线分隔；技能卡删右下「详情」；能耗在塔面板与技能卡上均为 ⚡ 胶囊（深色内凹 + 金色描边）。<br>
+    ⑦ <b>圣遗物图鉴卡</b>：与详情卡同款胶囊进度条——文字 16 居中在胶囊内，胶囊 h36 = 文字 16 + 上下各 10；立体感同规格缩小。<br>
+    ⑧ <b>战场切换箭头</b>：双层青绿渐变 V 形箭头（参考你给的图），76×100，带黑色投影；左侧箭头朝左（上一个）、右侧箭头朝右（下一个），反向那版已修正。
+  </div>
+</div>
+<script>
+const R = [
+  ['焚天引信','sr',1,2,32,50,'🔥'],['寒霜之眼','sr',1,1,8,50,'❄️'],['毒沼孢子','r',1,3,0,0,'☠️'],
+  ['雷霆符文','ssr',1,1,12,80,'⚡'],['回旋刃核','r',1,2,18,50,'🌀'],['炮膛强化','r',1,1,5,50,'💥'],
+  ['烈焰弹射','sr',0,0,22,50,'☄️'],['余烬风暴','sr',0,0,9,50,'🕯️'],['冰晶护盾','r',1,1,31,50,'🛡️'],
+  ['腐蚀之种','r',0,0,14,50,'🌱'],['导电墨水','r',1,2,44,50,'🖋️'],['黄金齿轮','ssr',0,0,36,80,'⚙️'],
+  ['圣水悬壶','sr',1,3,0,0,'🏺'],['猎风者羽','r',1,1,2,50,'🪶'],['熔岩之心','ssr',0,0,51,80,'🪨'],
+  ['霜裔徽记','sr',0,0,3,50,'❄️'],['碧玉毒珠','r',0,0,0,50,'🟢'],['雷霆共鸣','ssr',1,2,60,80,'🌩️'],
+  ['荆棘王冠','sr',1,1,17,50,'👑'],['灰烬斗篷','r',0,0,28,50,'🧥'],['双生棱镜','ssr',0,0,0,80,'🔮'],
+  ['猎首短匕','sr',0,0,40,50,'🗡️'],['琥珀封印','r',1,2,49,50,'🟠'],['月影铃铛','sr',0,0,1,50,'🔔'],
+];
+const RC = { ssr:'#F2C14E', sr:'#A86BFF', r:'#5DADE2' };
+const g = document.getElementById('rgrid');
+R.forEach((d, i) => {
+  const [n, r, o, s, c, nd, e] = d;
+  const col = i % 4, row = (i / 4) | 0;
+  const el = document.createElement('div');
+  el.className = 'rcard' + (o ? '' : ' lk');
+  el.style.left = (53 + col * 163) + 'px';
+  el.style.top = (row * 226) + 'px';
+  el.style.border = o ? `1.5px solid ${RC[r]}` : `1px solid ${RC[r]}59`;
+  const stars = o ? '<span class="st" style="color:' + RC[r] + ';">' + '★'.repeat(s) + '</span>' : '';
+  const full = o && s >= 3;
+  const pct = full ? 100 : Math.round(c / nd * 100);
+  let capFill, capTxt;
+  if (!o) { capFill = 'linear-gradient(#5a6b80,#3d4c5e)'; capTxt = c + '/' + nd; }
+  else if (full) { capFill = 'linear-gradient(#F6D67C,#C48A1A)'; capTxt = 'MAX'; }
+  else if (c >= nd) { capFill = 'linear-gradient(#F6D67C,#C48A1A)'; capTxt = '可升星'; }
+  else { capFill = 'linear-gradient(#8FB6FF,#5B86D6)'; capTxt = c + '/' + nd; }
+  let mid = `<div class="ic2" style="background:${o ? RC[r] + '2E' : 'rgba(255,255,255,0.04)'};">${e}</div>${stars}
+    <div class="nm">${o ? n : '未解锁'}</div>
+    <div class="cap"><div class="fill" style="width:${pct}%;background:${capFill};"></div><div class="ft">${capTxt}</div></div>`;
+  if (o) mid += '<div class="notch" style="border-top-color:' + (full ? '#F2C14E' : RC[r]) + ';"></div>';
+  el.innerHTML = mid;
+  g.appendChild(el);
+});
+</script>
+</body>
+</html>

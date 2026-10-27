@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="use-iframe" content="true">
+<meta name="html-box-height-mode" content="auto">
+<meta name="description" content="怪物代际替换机制示意图：波1-40每波各代怪物占比网格，颜色按类型区分，深浅代表占比">
+<title>代际替换机制示意</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 12px; background: #fff; }
+  .wrap { max-width: 780px; }
+  h3 { font-size: 15px; margin: 0 0 10px; color: #1f2937; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: #4b5563; margin-bottom: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .grid { display: grid; grid-template-columns: 34px repeat(40, 1fr); gap: 1px; }
+  .grid .rowhead { font-size: 11px; color: #6b7280; display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; }
+  .grid .colhead { font-size: 10px; color: #9ca3af; text-align: center; display: flex; align-items: flex-end; justify-content: center; }
+  .grid .cell { height: 14px; border-radius: 2px; }
+  .note { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h3>代际替换机制（波 1-40 · 每波投放占比）</h3>
+  <div class="legend">
+    <span><i style="background:#3B82F6"></i>普通线</span>
+    <span><i style="background:#F59E0B"></i>快速线</span>
+    <span><i style="background:#8B5CF6"></i>重坦线</span>
+  </div>
+  <div class="grid" id="g"></div>
+  <div class="note">颜色深浅 = 该代在本波占比（深=80-100%，中=40-60%，浅=20%）。每代窗口：Lv1 波1-4、Lv2 波3-10、Lv3 波4-14、Lv4 波9-19、Lv5 波14-24、Lv6 波19-29、Lv7 波24-34、Lv8 波29-39，后续 Lv9+ 按每 5 波追加。</div>
+</div>
+<script>
+  // 每行: Lv1..Lv8 在波1-40 的占比(%)
+  const D = [
+    [100,100,100, 80, 40,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0, 20, 40, 60, 40, 40, 40, 20, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0, 20, 40, 60, 60, 60, 60, 40, 40, 20, 20, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0,  0,  0,  0,  0,  0, 20, 40, 60, 80, 80, 60, 60, 40, 20, 20, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 20, 40, 60, 80, 80, 60, 40, 40, 20, 20, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 20, 40, 60, 80, 80, 60, 60, 40, 20, 20, 20,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 20, 40, 60, 80, 80, 60, 60, 40, 20, 20, 20,  0,  0,  0,  0,  0,  0,  0],
+    [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 20, 40, 60, 80, 80, 60, 60, 40, 20, 20, 20,  0]
+  ];
+  const COL = [ '3B82F6', 'F59E0B', '8B5CF6', '3B82F6', 'F59E0B', '8B5CF6', '3B82F6', 'F59E0B' ];
+  const names = ['Lv1','Lv2','Lv3','Lv4','Lv5','Lv6','Lv7','Lv8'];
+  const g = document.getElementById('g');
+  // 列头（波次，5 步标注）
+  for (let w = 0; w <= 40; w++) {
+    const d = document.createElement('div');
+    if (w === 0) { d.className = 'rowhead'; d.textContent = '波'; }
+    else { d.className = 'colhead'; d.textContent = (w % 5 === 0) ? w : ''; }
+    g.appendChild(d);
+  }
+  for (let r = 0; r < 8; r++) {
+    const h = document.createElement('div');
+    h.className = 'rowhead'; h.textContent = names[r];
+    g.appendChild(h);
+    for (let w = 0; w < 40; w++) {
+      const c = document.createElement('div');
+      c.className = 'cell';
+      const p = D[r][w];
+      const alpha = p >= 100 ? 1 : p >= 60 ? 0.75 : p >= 40 ? 0.55 : p >= 20 ? 0.32 : 0;
+      c.style.background = 'rgba(' + parseInt(COL[r].slice(0,2),16) + ',' + parseInt(COL[r].slice(2,4),16) + ',' + parseInt(COL[r].slice(4,6),16) + ',' + alpha + ')';
+      g.appendChild(c);
+    }
+  }
+</script>
+</body>
+</html>

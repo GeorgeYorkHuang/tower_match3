@@ -995,7 +995,7 @@ class Renderer {
       : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
     const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#9b59b6' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
     const fallbackText = e.isBoss ? 'BOSS' : (isElite ? '精' : (e.type === 'runner' ? '快' : (e.type === 'tank' ? '盾' : '👾')));
-    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite) : false;
+    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
@@ -1020,17 +1020,28 @@ class Renderer {
     }
   }
 
-  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪/绘制异常返回 false
-   *  v1.16.126 每帧时长翻倍（整体放慢一倍）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
-  drawEnemyAnim(ctx, src, e, x, y, size, isElite) {
+  /** 按等级动画表裁剪绘制当前帧（横向帧循环）；图未就绪/绘制异常返回 false
+   *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
+   *  其余等级仍为 5 帧等时长；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
+  drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     try {
-      const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
-      const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
-      const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
-      const f = Math.floor((Date.now() + phase) / dur) % 5;
-      const fw = img.width / 5, fh = img.height;
+      const frameCount = imgLv === 1 ? 6 : 5;
+      let f;
+      if (imgLv === 1) {
+        // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
+        const DURS = [140, 160, 200, 310, 200, 220];
+        let t = (Date.now() + ((e.id || 0) * 53) % 1000) % DURS.reduce((a, b) => a + b, 0);
+        f = 0;
+        while (t >= DURS[f]) { t -= DURS[f]; f++; }
+      } else {
+        const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
+        const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
+        const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
+        f = Math.floor((Date.now() + phase) / dur) % 5;
+      }
+      const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
       return true;
     } catch (err) {
