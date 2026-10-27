@@ -60,6 +60,11 @@ const IMG_SRC = {
   boomerang: 'images/towers/boomerang.png', cannon: 'images/towers/cannon.png',
   enemy: 'images/enemies/normal.png', boss: 'images/enemies/boss.png',
   runner: 'images/enemies/runner.png', tank: 'images/enemies/tank.png',
+  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5）
+  lv1: 'images/enemies/lv1.png', lv2: 'images/enemies/lv2.png',
+  lv3: 'images/enemies/lv3.png', lv4: 'images/enemies/lv4.png',
+  lv5: 'images/enemies/lv5.png', lv6: 'images/enemies/lv6.png',
+  lv7: 'images/enemies/lv7.png', lv8: 'images/enemies/lv8.png',
   coin: 'images/ui/coin.png', bullet: 'images/bullet.png',
   chestClosed: 'images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
   chestQuarter: 'images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
@@ -980,12 +985,18 @@ class Renderer {
   }
 
   drawEnemyBody(ctx, e, x, y, size, isElite) {
-    // 敌人本体：贴图 / 回退几何 / 精英染色与专属标识
+    // v1.16.123 敌人本体：优先按代际等级播放 5 帧循环动画（lv1-8 sprite sheet），
+    // 超界等级（genLv>8）按类型映射到表内最新一代形象（normal→lv7 / runner→lv8 / tank→lv6）；
+    // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
+    const genLv = e.genLv || 1;
+    const imgLv = (genLv <= 8) ? genLv : ({ normal: 7, runner: 8, tank: 6 }[e.type] || 7);
+    const animSrc = IMG_SRC['lv' + imgLv];
     const src = e.isBoss ? IMG_SRC.boss
       : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
     const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#9b59b6' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
     const fallbackText = e.isBoss ? 'BOSS' : (isElite ? '精' : (e.type === 'runner' ? '快' : (e.type === 'tank' ? '盾' : '👾')));
-    if (!drawImg(ctx, src, x, y, size, size)) {
+    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite) : false;
+    if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
     } else if (isElite) {
@@ -1007,6 +1018,18 @@ class Renderer {
       ctx.moveTo(cx, y - 8); ctx.lineTo(cx + 5, y + 1); ctx.lineTo(cx - 5, y + 1);
       ctx.closePath(); ctx.fill();
     }
+  }
+
+  /** v1.16.123 按等级动画表裁剪绘制当前帧（横向 5 帧循环）；图未就绪返回 false */
+  drawEnemyAnim(ctx, src, e, x, y, size, isElite) {
+    const img = loadImg(src);
+    if (!(img && img.width > 0)) return false;
+    const FRAME_DUR = { runner: 80, normal: 120, tank: 150, elite: 100, boss: 130 }; // ms/帧，快怪循环更快
+    const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
+    const f = Math.floor(Date.now() / dur) % 5;
+    const fw = img.width / 5, fh = img.height;
+    ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
+    return true;
   }
 
   drawEnemyDebuffs(ctx, e, x, y, size) {
