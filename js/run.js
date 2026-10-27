@@ -470,7 +470,8 @@ class Run {
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
     const windMul = Math.pow(1.10, this.windStacks || 0);
-    const enemyHp = CONFIG.ENEMY.hpBase * Math.pow(CONFIG.ENEMY.hpGrowth, this.wave - 1) * curseMul;
+    // v1.17 代际重构：本波总血量由等级表生成（与 wave.buildPlan 同口径）
+    const enemyHp = CONFIG.ENEMY.waveTotalHp(this.wave, curseMul);
     const totalDps = this.effects.totalDps();
     const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);

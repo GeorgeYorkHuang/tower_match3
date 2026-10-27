@@ -16,7 +16,7 @@
  *   - 槽满可替换：抽到未激活技能且槽满 → 替换非目标特效（保留目标）
  *   - 待选可攒：pending 上限 pendingCap（跨波），波末逐次结算
  *   - 协同组：冰冻×电连锁、重炮×大火球；达成后 DPS ×(1+synergyBonus)
- *   - DPS = baseDps×grow^(L-1) × Π(1+bonusPerLv×ef.level) × 协同乘区
+ *   - DPS = (baseDps + perLv×(L-1)) × Π(1+bonusPerLv×ef.level) × 协同乘区（v1.17 线性化）
  */
 const CONFIG = require('./config.js');
 
@@ -31,7 +31,7 @@ class TowerBuild {
     const tcfg = CONFIG.TOWERS[key];
     this.color = tcfg.color;
     this.baseDps = tcfg.baseDps;
-    this.grow = tcfg.grow;
+    this.perLv = tcfg.perLv;               // v1.17 线性成长：DPS = baseDps + perLv×(L-1)
     // 特效池（全池 8 特效；poolP0=true 时退化为前 5）
     let names = (CONFIG.EFFECT_POOLS[key] || []).map((e) => e.name);
     if (CONFIG.EFFECT.poolP0) names = names.slice(0, CONFIG.EFFECT.p0PoolSize);
@@ -225,7 +225,7 @@ class TowerBuild {
   dps(synergyDone, baseLevel) {
     if (this.level === 0) return 0;
     const lv = (baseLevel && baseLevel > 0) ? baseLevel : this.level;
-    let d = this.baseDps * Math.pow(this.grow, lv - 1);
+    let d = this.baseDps + this.perLv * (lv - 1);   // v1.17 线性成长（替代原 grow 乘法）
     this.pool.forEach((ef) => {
       if (ef.level > 0) d *= (1 + CONFIG.EFFECT.bonusPerLv * ef.level);
     });
