@@ -3478,9 +3478,10 @@ class Renderer {
     const arR = 30;
     const arrow = (ax, dir) => {
       const ay = sy + sh / 2;   // 圆心：卡片上下高度的正中间
-      const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (dir === 'L' ? 0 : 2.1));
+      const isPrev = dir === '‹';   // v1.16.127 修正：左侧朝左=上一个，右侧朝右=下一个
+      const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (isPrev ? 0 : 2.1));
       // 命中区（含光晕）
-      push(dir === 'L' ? 'stagePrev' : 'stageNext', null, ax - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
+      push(isPrev ? 'stagePrev' : 'stageNext', null, ax - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
       // 呼吸光晕
       ctx.globalAlpha = glow;
       ctx.fillStyle = tint;
@@ -3504,7 +3505,8 @@ class Renderer {
       const d = Math.round(h / Math.tan(Math.PI * 150 / 360));   // 顶点深度 = h / tan75° ≈ 5
       ctx.save();
       ctx.translate(ax, ay);
-      if (dir === '‹') ctx.scale(-1, 1);   // 左箭头镜像
+      // 顶点在 -x 侧，默认朝左；右箭头（›）才镜像
+      if (!isPrev) ctx.scale(-1, 1);
       const tg = ctx.createLinearGradient(-d, 0, 6, 0);
       tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#dfe9e2');
       ctx.fillStyle = tg;
