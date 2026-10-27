@@ -1068,7 +1068,7 @@ class GameMain {
         level: t.level,          // v1.16.17 塔详情等级 = 塔自身等级（选择次数+1），不再显示整体总等级
         exp: run.exp,
         expNeed: run.expNeed(),
-        expRatio: run.expLevel > 0 ? Math.min(1, run.exp / run.expNeed()) : 0,
+        expRatio: Math.min(1, run.exp / run.expNeed()),   // v1.17 修复：0 级也显示进度（原 expLevel>0 条件导致首波三消经验条恒 0）
         dps: t.level > 0 ? eff.towerDps(key) : 0,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
@@ -1096,7 +1096,7 @@ class GameMain {
       hasBoss: this.wave.hasBoss,
       enemyHpRatio: this.wave.enemyTotalHp > 0 ? enemyHp / this.wave.enemyTotalHp : 0,
       exp: run.exp, expNeed: run.expNeed(), expLevel: run.expLevel,   // v1.8：出怪区整体经验条
-      expRatio: run.expLevel > 0 ? Math.min(1, run.exp / run.expNeed()) : 0,
+      expRatio: Math.min(1, run.exp / run.expNeed()),   // v1.17 修复：0 级也显示进度（出怪区整体经验条）
       battleRelics: this.battleRelics || [],   // v1.9：本局获得的圣物（经验条下方图标展示）
       shuffleAmmo: run.shuffleAmmo, refillAmmo: run.refillAmmo,  // v1.12.4 全局技能累计弹药（发）
       chargePerUse: CONFIG.GLOBAL_SKILL.chargePerUse,
