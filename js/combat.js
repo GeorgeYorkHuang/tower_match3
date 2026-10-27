@@ -1266,19 +1266,28 @@ class CombatSystem {
     }
   }
 
-  /** 选择攻击目标：默认射程内 y 最大（最靠城墙） */
+  /** 选择攻击目标（v1.16.130）：射程内直线距离最近的一个怪物（更智能：优先打靠近塔的威胁） */
   pickTarget(key) {
     const r = this.range(key);
-    const sy = this.towerMuzzle(key).y;
-    let best = null;
+    const mz = this.towerMuzzle(key);
+    let best = null, bestD = Infinity;
     this.enemies().forEach((e) => {
       if (e.hp <= 0) return;
-      const dist = Math.abs(sy - e.y);
-      if (dist > r) return;
-      if (!best) { best = e; return; }
-      if (e.y > best.y) best = e;
+      const d = Math.hypot(e.x - mz.x, e.y - mz.y);
+      if (d > r) return;
+      if (d < bestD) { bestD = d; best = e; }
     });
     return best;
+  }
+
+  /** v1.16.130 额外目标：主目标 Y 轴往上 40px 截面范围（水平带 [main.y-40, main.y]）内的随机敌人；带内无其他敌人时回退主目标 */
+  pickAltTarget(key, main) {
+    const r = this.range(key);
+    const mz = this.towerMuzzle(key);
+    const y0 = main.y - 40, y1 = main.y;
+    const cands = this.enemies().filter((e) => e.hp > 0 && e !== main && e.y >= y0 && e.y <= y1 && Math.hypot(e.x - mz.x, e.y - mz.y) <= r);
+    if (!cands.length) return main;
+    return cands[Math.floor(Math.random() * cands.length)];
   }
 
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
@@ -1336,8 +1345,16 @@ class CombatSystem {
     // 弹道（视觉）+ 命中（逻辑）
     // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
     const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target, fold: key === 'boomerang' && this.lv('boomerang', '折返增伤') > 0 };
-    if (key === 'fire' && this.lv('fire', '多重火球') > 0) {
-      // 多重火球：弹道由 hitFire 自行推送多枚（扇形分离），此处不再推普通弹道避免重叠
+    const fireMulti = key === 'fire' && this.lv('fire', '多重火球') > 0;
+    const iceMulti = key === 'ice' && this.lv('ice', '多重冰锥') > 0;
+    if (fireMulti) {
+      // v1.16.130 多重火球重做：一次普攻从塔口扇形飞出 n 枚火球——中心一枚锁定主目标，其余以目标方向为基准两侧扇形，
+      //   全部为真实可见弹道、命中才结算（不再"普攻先命中再从目标处散射"）
+      this._fireMultiShot(target, dmg);
+      g.playSfx('shot', 0.25);
+    } else if (iceMulti) {
+      // v1.16.130 多重冰锥重做：同火塔——一次普攻扇形 n 枚冰锥，中心锁定主目标
+      this._iceMultiShot(target, dmg);
       g.playSfx('shot', 0.25);
     } else {
       // v1.13.5：大火球激活 → 火球弹体 ×2（扩大一倍）
@@ -1360,7 +1377,8 @@ class CombatSystem {
     }
     if (key === 'boomerang') {
       // 回旋镖 v1.16 重做：弧线飞出再飞回，沿途扫过所有敌人；投出后标记等待接回（接镖机制保留）
-      // 多镖：每次多投 1 枚（单镖伤害 -15%/级；B 稳镖衰减减半）；风痕：镖路径留痕（C 卷痕减速）
+      // v1.16.130 多镖重做：每枚镖独立索敌——主镖锁定最近敌人（pickTarget），其余镖从主目标 Y 轴往上 40px
+      //   截面内随机选敌，各自飞向各自目标点（不再共享一个落点一排散开）
       this.bWait[key] = true;
       const multi = this.lv('boomerang', '多镖');
       const nextBoost = this._nextDmg[key] || 0;   // 接镖 C 续投：下镖伤害 +10%/级
@@ -1371,29 +1389,27 @@ class CombatSystem {
       const bDur = dur / flyBoost;
       const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
       const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
-      const aimY = Math.min(target.y + target.speed * slowMult * bDur * 0.53, wallY);
       const n = 1 + multi + this.relicVal('boo_multi');   // v1.16.114 镖群1★/2★：每次投掷镖数 +2/+3
       const decay = multi > 0 ? (0.12 * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? 0.5 : 1) : 0;
       const perDmg = dmg * (1 - decay) * (1 + nextBoost);
       const maxD = CONFIG.TOWERS.boomerang.range;
-      const spread = 0.07 * (1 + 0.30 * this.branchLv('boomerang', '多镖', 'C'));
-      // 移除通用视觉弹道（baseShot），按 n 枚重建（各带微偏角）
+      // v1.16.130 独立索敌：主镖 = 最近敌人，其余 = 主目标上方 40px 截面内随机敌人
+      const bladeTargets = [target];
+      for (let i = 1; i < n; i++) bladeTargets.push(this.pickAltTarget('boomerang', target));
+      // 移除通用视觉弹道（baseShot），按 n 枚重建（各镖独立目标、各自轨迹）
       const bidx = g.fx.indexOf(baseShot);
       if (bidx >= 0) g.fx.splice(bidx, 1);
       for (let i = 0; i < n; i++) {
-        const off = (n > 1) ? (i - (n - 1) / 2) * spread : 0;
-        const dx = target.x - sx, dy = aimY - sy;
+        const t_i = bladeTargets[i];
+        const aimY_i = Math.min(t_i.y + t_i.speed * slowMult * bDur * 0.53, wallY);
+        const dx = t_i.x - sx, dy = aimY_i - sy;
         const dist = Math.hypot(dx, dy) || 1;
         const k = Math.min(1, maxD / dist);
-        const ex0 = sx + dx * k, ey0 = sy + dy * k;
-        const cos = Math.cos(off), sin = Math.sin(off);
-        const rx = ex0 - sx, ry = ey0 - sy;
-        const ex = sx + rx * cos - ry * sin;
-        const ey = sy + rx * sin + ry * cos;
+        const ex = sx + dx * k, ey = sy + dy * k;
         this.shots.push({ key, dmg: perDmg, t: 0, dur: bDur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
         g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key, fold: this.lv('boomerang', '折返增伤') > 0 });
       }
-    } else {
+    } else if (!fireMulti && !iceMulti) {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
     }
     if (duel) {
@@ -1753,6 +1769,92 @@ class CombatSystem {
     this._fireAttackHit(e, dmg);     // 命中伤害段（灼烧判定/大火球/多重火球）
   }
 
+  /** v1.16.130 多重火球重做：一次普攻从塔口扇形飞出 n 枚火球——
+   *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
+   *   每枚命中走完整结算（灼烧/焰雨三连/大火球爆炸/多重火球 C 散射分裂）。
+   *   解决原"普攻先命中再从目标处散射"的割裂感 */
+  _fireMultiShot(e, dmg) {
+    const g = this.game;
+    const big = this.lv('fire', '大火球');
+    const mz = this.towerMuzzle('fire');
+    const fsx = mz.x, fsy = mz.y;
+    const n = 5 + this.branchLv('fire', '多重火球', 'A') + this.relicVal('fire_rain');   // v1.16.114 焰雨1★/2★：每次攻击火球数量 +2/+3
+    const perDmg = dmg * 0.44 * (1 + SKILL_NUM.fire['多重火球'].condense[this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
+    const dur = CONFIG.TOWERS.fire.shot.dur;
+    const tint = '#ff7043';
+    // 以主目标方向为基准旋转 off 角度 → 扇形轨迹终点（中心弹 off=0 即锁定主目标）
+    const aimOf = (tgt, off) => {
+      const dx = tgt.x - fsx, dy = tgt.y - fsy;
+      const cos = Math.cos(off), sin = Math.sin(off);
+      return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
+    };
+    const R = this.range('fire');                 // 射界半径（= 塔射程）
+    const hitR = 45;                              // 散射火球碰撞半径（弹体较大）
+    const cLv = this.branchLv('fire', '多重火球', 'C');
+    const strike = (o, d, ang) => {
+      this.damage(o, d, 'fire');
+      this._attackFireOnHit(o, d);   // v1.16.112 多重火球路径同样接入焰雨3★三连
+      this.tryAttackDebuff('fire', o, d);   // v1.16.53 多重火球散射命中属普攻强化：统一灼烧判定
+      this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
+      this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
+      this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
+      // 多重火球 C 散射（v1.16.42 档位式 3/4/5）：命中后分裂 3/4/5 个小火球，沿弹道方向 120° 均匀散射（每个 25% 攻击伤害 + 20% 点燃）
+      if (cLv > 0) {
+        const nSplit = SKILL_NUM.fire['多重火球'].scatterSplit[cLv];
+        for (let k = 0; k < nSplit; k++) {
+          const off = -Math.PI / 3 + (k / Math.max(1, nSplit - 1)) * (2 * Math.PI / 3);   // -60°~+60° 均匀
+          const da = off + (ang || 0);
+          const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
+          const mStrike = (m2) => {
+            this.damage(m2, dmg * 0.25, 'fire');
+            this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
+            this.tryAttackDebuff('fire', m2, dmg);   // v1.16.53 分裂小火球属普攻强化：统一灼烧判定（吃点燃技能加成）
+          };
+          this.shots.push({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
+          g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+        }
+      }
+      // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
+      if (big > 0) {
+        const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);   // v1.16.114 爆核1★/2★
+        const bgs = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
+        const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
+        this.enemies().forEach((o2) => {
+          if (o2 === o || o2.hp <= 0) return;
+          const d2 = Math.hypot(o2.x - o.x, o2.y - o.y);
+          if (d2 <= bgr) {
+            this.damage(o2, bgs, 'fire');
+            if (bgIgnite > 0 && Math.random() < bgIgnite) this.applyBurn(o2, dmg, 'fire');
+            // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
+            if (g.run.relic3('fire_nuke') && d2 > bgr * 0.5) {
+              o2.y = Math.max(50, o2.y - 40);
+              this.applyBurn(o2, dmg, 'fire');
+              this.fxParticle(o2.x, o2.y, '#ff9f43', 3, 24, 0.3, 100, 4);
+            }
+          }
+        });
+        this.fxRing(o.x, o.y, '#ff7043', bgr, 0.4, 4);
+        this.fxParticle(o.x, o.y, '#ffab40', 8, bgr * 0.8, 0.5, 140, 5);
+        this.fxFlash(o.x, o.y, '#ff9f43');
+      }
+    };
+    // 中心弹：锁定主目标（onHit 命中才结算；render aim:true 末端跟随）
+    const aim0 = aimOf(e, 0);
+    const baseAng = Math.atan2(aim0.ty - fsy, aim0.tx - fsx);
+    const strikeCenter = (o) => strike(o, perDmg, baseAng);
+    this.shots.push({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter });
+    g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 });
+    // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
+    const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
+    for (let i = 0; i < n - 1; i++) {
+      const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
+      const ap = aimOf(e, off);
+      const strikeSide = (o) => strike(o, perDmg, Math.atan2(ap.ty - fsy, ap.tx - fsx));
+      this.shots.push({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide });
+      g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
+    }
+  }
+
   /** v1.16.112 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
   _fireAttackHit(e, dmg) {
     const g = this.game;   // v1.16.114 修复：strike/大火球块依赖 g.fx/g.run，此前缺声明（学多重火球会 ReferenceError）
@@ -1761,92 +1863,10 @@ class CombatSystem {
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
     const mainMult = big > 0 ? 1.1 : 1;
-    // 多重火球：主目标 + 额外目标，每枚都是真实火球弹道（塔口扇形射出，命中才结算）
-    //         A 增发 3→4→5 枚 / B 凝火 +15%/枚 / C 分击不同目标+25%点燃
     const multi = this.lv('fire', '多重火球');
-    if (multi > 0) {
-      // 塔发射点（v1.16.37 统一 towerMuzzle）
-      const mz = this.towerMuzzle('fire');
-      const fsx = mz.x, fsy = mz.y;
-      const n = 5 + this.branchLv('fire', '多重火球', 'A') + this.relicVal('fire_rain');   // v1.16.114 焰雨1★/2★：每次攻击火球数量 +2/+3
-      const perDmg = dmg * 0.44 * (1 + SKILL_NUM.fire['多重火球'].condense[this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
-      const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
-      const dur = CONFIG.TOWERS.fire.shot.dur;
-      const tint = '#ff7043';
-      // v1.13.3：多枚火球扇形分离——aim 固定终点 + 弹体放大，确保视觉上清晰可见「多个火球」
-      const aimOf = (tgt, off) => {
-        const dx = tgt.x - fsx, dy = tgt.y - fsy;
-        const cos = Math.cos(off), sin = Math.sin(off);
-        return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
-      };
-      // 火塔射界半径与散射碰撞半径（v1.13.13：额外火球无目标散射弹道）
-      const R = this.range('fire');                 // 射界半径（= 塔射程）
-      const hitR = 45;                              // 散射火球碰撞半径（弹体较大）
-      // 命中结算（主目标直瞄与散射弹道共用）：本体伤害 + 大火球叠加爆炸 + 多重火球 C 散射分裂
-      const cLv = this.branchLv('fire', '多重火球', 'C');
-      const strike = (o, d, ang) => {
-        this.damage(o, d, 'fire');
-        this._attackFireOnHit(o, d);   // v1.16.112 多重火球路径同样接入焰雨3★三连
-        this.tryAttackDebuff('fire', o, d);   // v1.16.53 多重火球散射命中属普攻强化：统一灼烧判定
-        this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
-        this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
-        this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
-        // 多重火球 C 散射（v1.16.42 档位式 3/4/5）：命中后分裂 3/4/5 个小火球，沿弹道方向 120° 均匀散射（每个 25% 攻击伤害 + 20% 点燃）
-        if (cLv > 0) {
-          const nSplit = SKILL_NUM.fire['多重火球'].scatterSplit[cLv];
-          for (let k = 0; k < nSplit; k++) {
-            const off = -Math.PI / 3 + (k / Math.max(1, nSplit - 1)) * (2 * Math.PI / 3);   // -60°~+60° 均匀
-            const da = off + (ang || 0);
-            const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
-            const mStrike = (m2) => {
-              this.damage(m2, dmg * 0.25, 'fire');
-              this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
-              this.tryAttackDebuff('fire', m2, dmg);   // v1.16.53 分裂小火球属普攻强化：统一灼烧判定（吃点燃技能加成）
-            };
-            this.shots.push({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
-            g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
-          }
-        }
-        // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
-        if (big > 0) {
-          const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);   // v1.16.114 爆核1★/2★
-          const bgs = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
-          const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
-          this.enemies().forEach((o2) => {
-            if (o2 === o || o2.hp <= 0) return;
-            const d2 = Math.hypot(o2.x - o.x, o2.y - o.y);
-            if (d2 <= bgr) {
-              this.damage(o2, bgs, 'fire');
-              if (bgIgnite > 0 && Math.random() < bgIgnite) this.applyBurn(o2, dmg, 'fire');
-              // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
-              if (g.run.relic3('fire_nuke') && d2 > bgr * 0.5) {
-                o2.y = Math.max(50, o2.y - 40);
-                this.applyBurn(o2, dmg, 'fire');
-                this.fxParticle(o2.x, o2.y, '#ff9f43', 3, 24, 0.3, 100, 4);
-              }
-            }
-          });
-          this.fxRing(o.x, o.y, '#ff7043', bgr, 0.4, 4);
-          this.fxParticle(o.x, o.y, '#ffab40', 8, bgr * 0.8, 0.5, 140, 5);
-          this.fxFlash(o.x, o.y, '#ff9f43');
-        }
-      };
-      // 主目标：立即伤害（保持技能链/点燃时序）+ 一枚可见火球弹道（仍直瞄）+ 命中结算（散射/爆炸）
-      const aim0 = aimOf(e, 0);
-      this.damage(e, perDmg, 'fire');
-      strike(e, perDmg, Math.atan2(aim0.ty - fsy, aim0.tx - fsx));
-      g.fx.push(Object.assign({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 }, aim0));
-      // 额外火球：无目标散射——扇形范围内随机角度（基准垂直向上），垂直射界，沿途碰撞命中即止
-      const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
-      for (let i = 0; i < n - 1; i++) {
-        const off = (Math.random() * 2 - 1) * maxOff;   // 扇形范围内随机角度发射
-        const tx = fsx + Math.sin(off) * R;
-        const ty = fsy - Math.cos(off) * R;
-        const fball = { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx, ty };
-        this.shots.push({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx, ty, hitR, onHit: strike });
-        g.fx.push(fball);
-      }
-    } else {
+    // v1.16.130 多重火球发射已移至 attackOnce _fireMultiShot（一次普攻从塔口扇形飞出 n 枚，中心锁定主目标）；
+    //   此处仅保留单发路径（无多重火球技能时的普攻命中）
+    {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
       // v1.16.114 焰雨1★/2★（无多重火球时）：单发也追加 N 枚散射火球（完整命中结算：灼烧/大火球/C 分裂）
       const rainN = this.relicVal('fire_rain');
@@ -2171,6 +2191,75 @@ class CombatSystem {
 
 
   /* ============ 冰塔 ============ */
+
+  /** v1.16.130 多重冰锥重做：一次普攻从塔口扇形飞出 n 枚冰锥——
+   *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
+   *   C 增殖分支保留：10/14/18 枚超小型冰锥各自索敌独立飞行 */
+  _iceMultiShot(e, dmg) {
+    const g = this.game;
+    const mz = this.towerMuzzle('ice');
+    const msx = mz.x, msy = mz.y;
+    const aLv = this.branchLv('ice', '多重冰锥', 'A');
+    const bLv = this.branchLv('ice', '多重冰锥', 'B');
+    const cLv = this.branchLv('ice', '多重冰锥', 'C');
+    const dur = CONFIG.TOWERS.ice.shot.dur;
+    const R = this.range('ice');                 // 射界半径（= 塔射程）
+    if (cLv > 0) {
+      // C 增殖：超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
+      const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
+      const perDmg = dmg * 0.10 * (1 + 0.15 * bLv);
+      const hitR = 30;                             // 超小冰锥碰撞半径更小
+      const strike = (o, d) => {
+        this.damage(o, d, 'ice');
+        this.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
+        this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
+        this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
+        this.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
+      };
+      const targets = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('ice', o.x, o.y));
+      for (let i = 0; i < n; i++) {
+        const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
+        this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike });
+        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+      }
+      // 主目标也受一枚小冰锥伤害（增殖时无直瞄主目标概念，主目标被环形索敌覆盖）
+      this.damage(e, perDmg, 'ice');
+      this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
+      return;
+    }
+    const n = 3 + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
+    const perDmg = dmg * 0.55 * (1 + 0.15 * bLv);
+    const hitR = 45;                                     // 散射冰锥碰撞半径
+    const strike = (o, d) => {                           // 命中结算（中心直瞄与散射弹道共用）
+      this.damage(o, d, 'ice');
+      this.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
+      this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
+      this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
+      this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
+      this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
+    };
+    // 以主目标方向为基准旋转 off 角度 → 扇形轨迹终点（中心弹 off=0 即锁定主目标）
+    const aimOf = (tgt, off) => {
+      const dx = tgt.x - msx, dy = tgt.y - msy;
+      const cos = Math.cos(off), sin = Math.sin(off);
+      return { tx: msx + dx * cos - dy * sin, ty: msy + dx * sin + dy * cos };
+    };
+    // 中心弹：锁定主目标（onHit 命中才结算；render aim:true 末端跟随）
+    const aim0 = aimOf(e, 0);
+    const strikeCenter = (o) => strike(o, perDmg);
+    this.shots.push({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter });
+    g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
+    // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
+    const maxOff = (n - 2) * 0.08;
+    for (let i = 0; i < n - 1; i++) {
+      const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
+      const ap = aimOf(e, off);
+      const strikeSide = (o) => strike(o, perDmg);
+      this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide });
+      g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
+    }
+  }
+
   hitIce(e, dmg) {
     this.damage(e, dmg, 'ice');
     // v1.16.114 暴雪1★/2★（未学多重冰锥时）：单发追加 N 枚散射冰锥（命中结算：冰缓/冰冻/暴雪3★ 冰爆）
@@ -2217,67 +2306,8 @@ class CombatSystem {
         this.fxRing(e.x, e.y, '#d6f0ff', 100, 0.6, 4);
       }
     }
-    // 多重冰锥（v1.13.23 仿多重火球）：主目标直瞄 + 额外冰锥等角度扇形散射（无目标，射界消失或命中即止）
-    //         A 增锥 3→4→5 枚 / B 凝霜 +15%/枚 / C 增殖（v1.16.21）：10/14/18 枚超小型冰锥（1/3大小·每枚10%·各自索敌·20%冰缓）
-    const multi = this.lv('ice', '多重冰锥');
-    if (multi > 0) {
-      const g = this.game;
-      // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
-      const mz = this.towerMuzzle('ice');
-      const msx = mz.x, msy = mz.y;
-      const aLv = this.branchLv('ice', '多重冰锥', 'A');
-      const bLv = this.branchLv('ice', '多重冰锥', 'B');
-      const cLv = this.branchLv('ice', '多重冰锥', 'C');
-      const dur = CONFIG.TOWERS.ice.shot.dur;
-      const R = this.range('ice');                 // 射界半径（= 塔射程）
-      if (cLv > 0) {
-        // C 增殖：10/14/18 枚超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
-        const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
-        const perDmg = dmg * 0.10 * (1 + 0.15 * bLv);
-        const hitR = 30;                             // 超小冰锥碰撞半径更小
-        const strike = (o, d) => {
-          this.damage(o, d, 'ice');
-          this.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
-          this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
-          this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
-          this.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
-        };
-        const targets = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('ice', o.x, o.y));
-        for (let i = 0; i < n; i++) {
-          const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
-          this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike });
-          g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
-        }
-        // 主目标也受一枚小冰锥伤害（增殖时无直瞄主目标概念，主目标被环形索敌覆盖）
-        this.damage(e, perDmg, 'ice');
-        this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
-      } else {
-        const n = 3 + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
-        const perDmg = dmg * 0.55 * (1 + 0.15 * bLv);
-        const hitR = 45;                                     // 散射冰锥碰撞半径
-        const strike = (o, d) => {                           // 命中结算（主目标直瞄与散射弹道共用）
-          this.damage(o, d, 'ice');
-          this.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
-          this.iceHitFx(o, d);                 // v1.16.98 暴雪3★
-          this.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
-          this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
-          this.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
-        };
-        // 主目标：立即伤害 + 一枚可见直瞄冰锥弹道
-        this.damage(e, perDmg, 'ice');
-        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, tx: e.x, ty: e.y, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
-        // 额外冰锥：等角度扇形（均匀分布在 ±maxOff，主目标角度 0 两侧）
-        const maxOff = (n - 2) * 0.08;
-        for (let i = 0; i < n - 1; i++) {
-          const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
-          const tx = msx + Math.sin(off) * R;
-          const ty = msy - Math.cos(off) * R;
-          const icicle = { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx, ty };
-          this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx, ty, hitR, onHit: strike });
-          g.fx.push(icicle);
-        }
-      }
-    }
+    // v1.16.130 多重冰锥发射已移至 attackOnce _iceMultiShot（一次普攻从塔口扇形飞出 n 枚，中心锁定主目标）；
+    //   C 增殖分支保留在 _iceMultiShot（超小冰锥各自索敌独立飞行）
     // 碎冰（v1.13.24 原低温全塔改；v1.16.21 分支重做）：冰锥命中目标后碎裂成 3 枚小碎冰，飞行速度与原冰锥一致，
     //   沿弹道方向呈 60° 角散射（±30°），碎冰命中敌人即止（不穿透）
     //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害档位 +15%/30%/45%、C 冻结 命中 5%/10%/15% 几率冻结 2s
