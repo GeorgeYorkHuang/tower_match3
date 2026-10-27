@@ -3357,7 +3357,7 @@ class Renderer {
     // 银币（v1.16.77 局外货币改银币，与局内金币区分）
     fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(201,214,228,0.12)');
     strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#c9d6e4', 1.5);
-    text(ctx, `🪙 ${fmtNum(s.gold)}`, 390, 206, 30, '#c9d6e4', 'center');
+    text(ctx, `🪙 ${fmtNum(s.gold || 0)}`, 390, 206, 30, '#c9d6e4', 'center');
     // 钻石（充值货币，占位）
     fillRoundRect(ctx, 496, 172, 154, 52, 26, 'rgba(124,168,255,0.12)');
     strokeRoundRect(ctx, 496, 172, 154, 52, 26, '#7ca8ff', 1.5);
@@ -4436,6 +4436,7 @@ class Renderer {
 }
 
 function fmtNum(n) {
+  if (!isFinite(n)) return '0';                    // v1.16.128 防御：非数字（NaN/undefined/Infinity）一律显示 0
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'm';
   if (n >= 1e4) return (n / 1e4).toFixed(1) + 'w';
   return String(Math.floor(n));
