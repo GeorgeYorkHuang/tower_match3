@@ -89,6 +89,16 @@ class WaveDirector {
     this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
   }
 
+  /** v1.16.131 出怪 X 坐标：避开行动区两侧灌木贴图障碍。
+   *  背景图 assets/images/ui/action_area_edges.jpg 实测：左右边缘各一排灌木丛（左 0-72px / 右 678-750px，
+   *  含过渡带），取安全边距 75px → 出怪中心落在 [areaX+75, areaX+areaW-75] 内（含自身尺寸内缩） */
+  spawnX(size) {
+    const edge = 75;
+    const xMin = this.ly.areaX + edge;
+    const xMax = this.ly.areaX + this.ly.areaW - edge;
+    return xMin + size / 2 + Math.random() * Math.max(1, xMax - xMin - size);
+  }
+
   /** 敌人入列（id / 位置 / 血量 / 速度 / 类型 / 攻城攻击参数 / A1 状态字段）
    *  v1.17 代际重构：lv 为代际等级，攻击/减伤/移速/展示等级由 CONFIG.ENEMY.levelOf(lv) 取值；
    *  精英/Boss 在等级表基础上叠加自带 armor 与攻击倍率 */
@@ -101,7 +111,7 @@ class WaveDirector {
       + (type === 'elite' ? (CONFIG.ENEMY.eliteArmor || CONFIG.ENEMY.types.elite.armor || 0) : 0));
     const e = {
       id: this._eid++,
-      x: this.ly.areaX + size / 2 + Math.random() * (this.ly.areaW - size),
+      x: this.spawnX(size),
       y: entryY + 20 * offset,
       hp, maxHp: hp, isBoss, type: type || 'normal',
       genLv: lv || 1,                            // v1.17 代际等级（击杀金币/掉落按此取值）
