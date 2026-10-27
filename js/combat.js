@@ -201,6 +201,10 @@ class CombatSystem {
     // v1.16.78 攻速戒指（局内圣遗物）：全塔攻击间隔缩短 N%（按星级）
     const spdR = this.relicVal('cm_speed');
     if (spdR > 0) iv /= (1 + spdR / 100);
+    // v1.16.114 塔专属攻速圣遗物（1★/2★）：熔炉之息/寒髓/电光/速射/疾风回旋 按塔生效
+    const TOWER_ASPD = { fire: 'fire_forge', ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
+    const aspR = this.relicVal(TOWER_ASPD[key]);
+    if (aspR > 0) iv /= (1 + aspR / 100);
     // v1.16.77 局内商店·攻速强化：+15%/层（本局临时）
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
     if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
@@ -952,6 +956,8 @@ class CombatSystem {
     // 回旋镖·猎手标记 A 深镖（v1.16.42）：受标记的敌人受到伤害提升 8%/16%/24%（全来源）
     const mkA = this.branchLv('boomerang', '猎手标记', 'A');
     if (mkA > 0 && (e._mark || 0) > 0) v *= (1 + SKILL_NUM.boomerang['猎手标记'].deep[mkA]);
+    // v1.16.114 猎心1★/2★：被标记敌人受到的伤害提升 12%/15%（全来源，含普攻）
+    if (this.relicVal('boo_hunt') > 0 && (e._mark || 0) > 0) v *= (1 + this.relicVal('boo_hunt') / 100);
     // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
     const ovB = this.branchLv('electric', '过载', 'B');
     if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
@@ -1232,6 +1238,8 @@ class CombatSystem {
       const catchSkill = this.lv('boomerang', '接镖') > 0;
       if (this.bWait[key]) {
         this.bWait[key] = false;
+        // v1.16.114 疾接1★/2★：接镖后下一镖造成的伤害提升 15%/20%（叠加在接镖 C 续投之上）
+        this._nextDmg[key] = (this._nextDmg[key] || 0) + this.relicVal('boo_catch') / 100;
         // v1.16.102 疾接3★：接镖瞬间 0.3 秒无敌帧（对精英投射物有效，窗口由 run._wallInvT 承载）
         if (g.run.relic3('boo_catch')) g.run._wallInvT = 0.3;
         if (catchSkill) {
@@ -1308,7 +1316,7 @@ class CombatSystem {
     const dur = cfg.shot.dur;
     const dmg = this.shotDmg(key);
     // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
-    const duelProb = key === 'cannon' ? (0.25 + 0.15 * this.branchLv('cannon', '双管齐射', 'A')) : 0;
+    const duelProb = key === 'cannon' ? (0.25 + 0.15 * this.branchLv('cannon', '双管齐射', 'A') + this.relicVal('can_double') / 100) : 0;   // v1.16.114 双发1★/2★
     const duel = key === 'cannon' && this.lv('cannon', '双管齐射') > 0 && Math.random() < duelProb;
     // 电·充能：攻击次数累计
     const chargeLv = this.lv('electric', '充能');
@@ -1359,12 +1367,12 @@ class CombatSystem {
       this._nextDmg[key] = 0;
       // 怪物只沿 +y 走向城墙（main.moveEnemy），预测位移 = speed × 减速系数 × 到达弧顶时间（dur×0.53）
       // v1.16.5 接镖 A 疾飞：镖飞行速度 +20%/级 → 飞行时长缩短、命中与接回更快
-      const flyBoost = 1 + 0.20 * this.branchLv('boomerang', '接镖', 'A');
+      const flyBoost = 1 + 0.20 * this.branchLv('boomerang', '接镖', 'A') + this.relicVal('boo_spin') / 100;   // v1.16.114 回旋1★/2★：镖速 +20%/30%
       const bDur = dur / flyBoost;
       const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
       const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
       const aimY = Math.min(target.y + target.speed * slowMult * bDur * 0.53, wallY);
-      const n = 1 + multi;
+      const n = 1 + multi + this.relicVal('boo_multi');   // v1.16.114 镖群1★/2★：每次投掷镖数 +2/+3
       const decay = multi > 0 ? (0.12 * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? 0.5 : 1) : 0;
       const perDmg = dmg * (1 - decay) * (1 + nextBoost);
       const maxD = CONFIG.TOWERS.boomerang.range;
@@ -1500,6 +1508,7 @@ class CombatSystem {
       const ignite = this.lv('fire', '点燃');
       let burnProb = 0.20;
       if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
+      burnProb += this.relicVal('fire_fuel') / 100;   // v1.16.114 薪柴1★/2★：普攻灼烧概率 +20%/30%
       // v1.16.96 薪柴3★：灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害（失败部分累积，上限 +50%）
       if (this.game.run.relic3('fire_fuel') && burnProb >= 0.8) {
         if (Math.random() < 0.8) this.applyBurn(o, dmg, 'fire');
@@ -1508,12 +1517,12 @@ class CombatSystem {
     } else if (key === 'ice') {
       // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
       const frost = this.lv('ice', '寒霜');
-      const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0);
+      const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0) + this.relicVal('ice_extreme') / 100;   // v1.16.114 极寒1★/2★
       // v1.16.99 极寒3★：冰缓概率触顶（≥80%）时，多余判定转为 0.3 秒冻结
       const ext = this.game.run.relic3('ice_extreme') && probSlow >= 0.8;
       const slowOK = ext ? Math.random() < 0.8 : Math.random() < probSlow;
       if (slowOK) {
-        const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')];
+        const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')] + this.relicVal('ice_spike') / 100;   // v1.16.114 霜刺1★/2★
         const ttl = 3 + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
         this.applySlow(o, mult, ttl);
         this.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
@@ -1539,7 +1548,7 @@ class CombatSystem {
       const pA = this.branchLv('electric', '麻痹', 'A');
       const pB = this.branchLv('electric', '麻痹', 'B');
       const pC = this.branchLv('electric', '麻痹', 'C');
-      const pProb = Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA);
+      const pProb = Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA + this.relicVal('elec_strong') / 100);   // v1.16.114 强麻1★/2★
       // v1.16.101 强麻3★：麻痹概率触顶（≥80%）时，多余判定转为麻痹时长 +0.5 秒
       const strong = this.game.run.relic3('elec_strong') && pProb >= 0.8;
       if (strong ? Math.random() < 0.8 : Math.random() < pProb) {
@@ -1578,6 +1587,7 @@ class CombatSystem {
       let prob = 0.20;
       const toxic = this.lv('poison', '剧毒');
       if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
+      prob += this.relicVal('poison_fang') / 100;   // v1.16.114 毒牙1★/2★
       // v1.16.100 毒牙3★：中毒概率触顶（≥80%）时，多余判定转为 +1 层毒
       if (this.game.run.relic3('poison_fang') && prob >= 0.8) {
         if (Math.random() < 0.8) {
@@ -1594,7 +1604,7 @@ class CombatSystem {
     } else if (key === 'boomerang') {
       // 流血（v1.16.21）：基础 20%；学放血 +25%（20→45）+ A 刺骨 +15%/级（45→90%）
       const bleedLv = this.lv('boomerang', '放血');
-      const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0);
+      const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0) + this.relicVal('boo_bleed') / 100;   // v1.16.114 放血刃1★/2★
       // v1.16.102 放血刃3★：流血概率触顶（≥80%）时，多余判定转为流血时长 +1 秒
       const bleedTip = this.game.run.relic3('boo_bleed') && bleedChance >= 0.8;
       if (bleedTip ? Math.random() < 0.8 : Math.random() < bleedChance) {
@@ -1670,10 +1680,20 @@ class CombatSystem {
     if (run.relic3('fire_rain')) {
       if (run._fireTripleNext) {
         run._fireTripleNext = false;
+        // v1.16.114 三连重构：命中 3 次后追加 3 次完整普攻——发射 3 条真实火球弹道（扇形直瞄），
+        //   命中走完整结算（灼烧判定/大火球爆炸/多重火球 C 分裂），即三连在大火球、多重火球下也会多次触发其攻击效果
+        const mz = this.towerMuzzle('fire');
+        const R = this.range('fire');
+        const durF = CONFIG.TOWERS.fire.shot.dur;
+        const dx = e.x - mz.x, dy = e.y - mz.y;
         for (let k = 0; k < 3; k++) {
-          this.damage(e, dmg, 'fire');
-          this.fxFlash(e.x, e.y, '#ff9f43', 0.22);
-          this.fxParticle(e.x, e.y - 8, '#ffd24a', 4, 40, 0.35, 130, 4);
+          const off = (k - 1) * 0.10;
+          const cos = Math.cos(off), sin = Math.sin(off);
+          const tx = mz.x + dx * cos - dy * sin;
+          const ty = mz.y + dx * sin + dy * cos;
+          const st = (o) => this._fireImpact(o, dmg, off);
+          this.shots.push({ key: 'fire', scatter: true, dmg, t: 0, dur: durF, sx: mz.x, sy: mz.y, tx, ty, hitR: 45, onHit: st });
+          g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: durF, key: 'fire', aim: true, scale: 1.15, tx, ty });
         }
         this.fxRing(e.x, e.y, '#ff9f43', 60, 0.5, 4);
         if (g.fx) g.fx.push({ type: 'floatText', text: '焰雨·三连！', x: e.x, y: e.y - 46, t: 0, dur: 0.9, size: 22, color: '#ffd24a' });   // v1.16.113 触发确认飘字
@@ -1735,6 +1755,7 @@ class CombatSystem {
 
   /** v1.16.112 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
   _fireAttackHit(e, dmg) {
+    const g = this.game;   // v1.16.114 修复：strike/大火球块依赖 g.fx/g.run，此前缺声明（学多重火球会 ReferenceError）
     // 普攻灼烧（v1.16.21→v1.16.53 统一判定）：基础 20%；学「点燃」+25%（A 炽焰每级 +15%）；强化攻击同吃此加成
     this.tryAttackDebuff('fire', e, dmg);
     // 大火球：主目标 120%
@@ -1747,7 +1768,7 @@ class CombatSystem {
       // 塔发射点（v1.16.37 统一 towerMuzzle）
       const mz = this.towerMuzzle('fire');
       const fsx = mz.x, fsy = mz.y;
-      const n = 5 + this.branchLv('fire', '多重火球', 'A');          // v1.16.21 基础 5 枚（主 + 4 散射，+2 普通火球）；A 每级 +1
+      const n = 5 + this.branchLv('fire', '多重火球', 'A') + this.relicVal('fire_rain');   // v1.16.114 焰雨1★/2★：每次攻击火球数量 +2/+3
       const perDmg = dmg * 0.44 * (1 + SKILL_NUM.fire['多重火球'].condense[this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
       const igniteProb = this.branchLv('fire', '多重火球', 'C') > 0 ? 0.25 : 0;
       const dur = CONFIG.TOWERS.fire.shot.dur;
@@ -1788,7 +1809,7 @@ class CombatSystem {
         }
         // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
         if (big > 0) {
-          const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A'));
+          const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);   // v1.16.114 爆核1★/2★
           const bgs = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
           const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
           this.enemies().forEach((o2) => {
@@ -1827,32 +1848,81 @@ class CombatSystem {
       }
     } else {
       this.damage(e, dmg * mainMult, 'fire');                        // 单发（无多重火球时）
+      // v1.16.114 焰雨1★/2★（无多重火球时）：单发也追加 N 枚散射火球（完整命中结算：灼烧/大火球/C 分裂）
+      const rainN = this.relicVal('fire_rain');
+      if (rainN > 0) {
+        const mz0 = this.towerMuzzle('fire');
+        const R0 = this.range('fire');
+        const rr = this.shotDmg('fire');
+        const hitR0 = 45;
+        for (let i = 0; i < rainN; i++) {
+          const off0 = (Math.random() * 2 - 1) * 0.20;
+          const tx0 = mz0.x + Math.sin(off0) * R0, ty0 = mz0.y - Math.cos(off0) * R0;
+          const st0 = (o) => this._fireImpact(o, rr, off0);
+          this.shots.push({ key: 'fire', scatter: true, dmg: rr, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz0.x, sy: mz0.y, tx: tx0, ty: ty0, hitR: hitR0, onHit: st0 });
+          g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz0.x, y: mz0.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx: tx0, ty: ty0 });
+        }
+      }
     }
     // 大火球：爆炸范围溅射（扩大 +30%/级、强化 +20%/级、引燃 50%/75%/100% 概率点燃）
     // v1.16.21：多重火球叠加时每枚火球命中处已各自爆炸（见 strike）；此块仅处理未学多重火球的单发大火球
-    if (big > 0 && multi <= 0) {
-      const r = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A'));
-      const splDmg = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
-      const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
-      this.enemies().forEach((o) => {
-        if (o === e || o.hp <= 0) return;
-        const d2 = Math.hypot(o.x - e.x, o.y - e.y);
-        if (d2 <= r) {
-          this.damage(o, splDmg, 'fire');
-          if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
-          // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
-          if (g.run.relic3('fire_nuke') && d2 > r * 0.5) {
-            o.y = Math.max(50, o.y - 40);
-            this.applyBurn(o, dmg, 'fire');
-            this.fxParticle(o.x, o.y, '#ff9f43', 3, 24, 0.3, 100, 4);
-          }
+    if (big > 0 && multi <= 0) this._fireSingleBlast(e, dmg);
+  }
+
+  /** v1.16.114 单发大火球爆炸（普攻单发 / 焰雨追加火球共用；含爆核1★/2★ 半径扩大与 3★ 边缘击退点燃） */
+  _fireSingleBlast(e, dmg) {
+    const r0 = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);
+    const splDmg = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
+    const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
+    this.enemies().forEach((o) => {
+      if (o === e || o.hp <= 0) return;
+      const d2 = Math.hypot(o.x - e.x, o.y - e.y);
+      if (d2 <= r0) {
+        this.damage(o, splDmg, 'fire');
+        if (igniteProb > 0 && Math.random() < igniteProb) this.applyBurn(o, dmg, 'fire');
+        // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
+        if (this.game.run.relic3('fire_nuke') && d2 > r0 * 0.5) {
+          o.y = Math.max(50, o.y - 40);
+          this.applyBurn(o, dmg, 'fire');
+          this.fxParticle(o.x, o.y, '#ff9f43', 3, 24, 0.3, 100, 4);
         }
-      });
-      // 大火球视觉：大爆炸环 + 火焰粒子
-      this.fxRing(e.x, e.y, '#ff7043', r, 0.4, 4);
-      this.fxParticle(e.x, e.y, '#ffab40', 10, r, 0.5, 160, 6);
-      this.fxFlash(e.x, e.y, '#ff9f43');
+      }
+    });
+    // 大火球视觉：大爆炸环 + 火焰粒子
+    this.fxRing(e.x, e.y, '#ff7043', r0, 0.4, 4);
+    this.fxParticle(e.x, e.y, '#ffab40', 10, r0, 0.5, 160, 6);
+    this.fxFlash(e.x, e.y, '#ff9f43');
+  }
+
+  /** v1.16.114 火球命中统一结算（焰雨三连 / 焰雨1★2★ 追加火球共用）：
+   *  伤害 + 统一灼烧判定 + 多重火球 C 散射分裂 + 大火球爆炸——即三连在多重火球/大火球下多次触发其攻击效果 */
+  _fireImpact(o, d, ang) {
+    const g = this.game;
+    this.damage(o, d, 'fire');
+    this.tryAttackDebuff('fire', o, d);
+    this.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
+    this.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
+    this.fxFlash(o.x, o.y, '#ffd24a', 0.2);
+    // 多重火球 C 散射分裂（档位式 3/4/5，每个 25% 伤害 + 统一灼烧判定）
+    const cLv = this.branchLv('fire', '多重火球', 'C');
+    if (this.lv('fire', '多重火球') > 0 && cLv > 0) {
+      const nSplit = SKILL_NUM.fire['多重火球'].scatterSplit[cLv];
+      const R = this.range('fire');
+      for (let k = 0; k < nSplit; k++) {
+        const off = -Math.PI / 3 + (k / Math.max(1, nSplit - 1)) * (2 * Math.PI / 3);
+        const da = off + (ang || 0);
+        const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
+        const mStrike = (m2) => {
+          this.damage(m2, d * 0.25, 'fire');
+          this.tryAttackDebuff('fire', m2, d);
+          this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
+        };
+        this.shots.push({ key: 'fire', scatter: true, dmg: d * 0.25, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
+        g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+      }
     }
+    // 大火球爆炸（含爆核1★/2★ 半径扩大）
+    if (this.lv('fire', '大火球') > 0) this._fireSingleBlast(o, d);
   }
 
   applyBurn(e, dmg, src) {
@@ -2103,6 +2173,26 @@ class CombatSystem {
   /* ============ 冰塔 ============ */
   hitIce(e, dmg) {
     this.damage(e, dmg, 'ice');
+    // v1.16.114 暴雪1★/2★（未学多重冰锥时）：单发追加 N 枚散射冰锥（命中结算：冰缓/冰冻/暴雪3★ 冰爆）
+    const blzN = this.relicVal('ice_blizzard');
+    if (blzN > 0) {
+      const mzI = this.towerMuzzle('ice');
+      const RI = this.range('ice');
+      const durI = CONFIG.TOWERS.ice.shot.dur;
+      for (let i = 0; i < blzN; i++) {
+        const offI = blzN > 1 ? (i / (blzN - 1) - 0.5) * 0.24 : 0;
+        const txI = mzI.x + Math.sin(offI) * RI;
+        const tyI = mzI.y - Math.cos(offI) * RI;
+        const stI = (o) => {
+          this.damage(o, dmg, 'ice');
+          this.tryAttackDebuff('ice', o, dmg);
+          this.iceHitFx(o, dmg);
+          this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
+        };
+        this.shots.push({ key: 'ice', scatter: true, dmg, t: 0, dur: durI, sx: mzI.x, sy: mzI.y, tx: txI, ty: tyI, hitR: 45, onHit: stI });
+        this.game.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: mzI.x, y: mzI.y, t: 0, dur: durI, key: 'ice', aim: true, scale: 1.15, tx: txI, ty: tyI });
+      }
+    }
     // v1.13.27 普攻命中打击特效：冰锥撞击爆冰晶（白屑 + 蓝屑 + 小环 + 微闪）
     this.fxParticle(e.x, e.y, '#eaf6ff', 6, 44, 0.30, 130, 5);
     this.fxParticle(e.x, e.y, '#a9d6f5', 4, 62, 0.35, 90, 4);
@@ -2142,7 +2232,7 @@ class CombatSystem {
       const R = this.range('ice');                 // 射界半径（= 塔射程）
       if (cLv > 0) {
         // C 增殖：10/14/18 枚超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
-        const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv;
+        const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
         const perDmg = dmg * 0.10 * (1 + 0.15 * bLv);
         const hitR = 30;                             // 超小冰锥碰撞半径更小
         const strike = (o, d) => {
@@ -2162,7 +2252,7 @@ class CombatSystem {
         this.damage(e, perDmg, 'ice');
         this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
       } else {
-        const n = 3 + aLv;                                  // 基础 3 枚 = 主 + 2 散射（v1.16.20 修正为 3+分支级）
+        const n = 3 + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
         const perDmg = dmg * 0.55 * (1 + 0.15 * bLv);
         const hitR = 45;                                     // 散射冰锥碰撞半径
         const strike = (o, d) => {                           // 命中结算（主目标直瞄与散射弹道共用）
@@ -2247,7 +2337,7 @@ class CombatSystem {
       const aLv = this.branchLv('ice', '冰穿刺', 'A');
       const bLv = this.branchLv('ice', '冰穿刺', 'B');
       const cLv = this.branchLv('ice', '冰穿刺', 'C');
-      const pierceN = 1 + aLv;   // 基础 1 名 + A 每级 1 → 1/2/3/4
+      const pierceN = 1 + aLv + this.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
       // 穿透目标：沿弹道方向位于目标身后（远离塔侧）的敌人，按投影距离排序
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e
           && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > 20)
@@ -2491,10 +2581,11 @@ class CombatSystem {
     if (over > 0) {
       if (e.paralyzed > 0) {
         if (!e.overload) e.overload = { n: 0, ttl: 2 };
-        e.overload.n = Math.min(3, e.overload.n + 1);
+        const ovCap = 3 + this.relicVal('elec_overload');   // v1.16.114 过载1★/2★：充能层数上限 +2/+3
+        e.overload.n = Math.min(ovCap, e.overload.n + 1);
         e.overload.ttl = 2;
-        // v1.16.101 过载3★：满层过载时标记下一发普攻必为双倍伤害
-        if (this.game.run.relic3('elec_overload') && e.overload.n >= 3) e._ovDbl = true;
+        // v1.16.101 过载3★：满层过载时标记下一发普攻必为双倍伤害（满层=当前上限）
+        if (this.game.run.relic3('elec_overload') && e.overload.n >= ovCap) e._ovDbl = true;
         // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
         if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
           e.overload._burst = true;
@@ -2554,7 +2645,8 @@ class CombatSystem {
     const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
       const super3 = this.game.run.relic3('elec_super');   // v1.16.101 超导3★：全部连锁类衰减归零 + 目标数 +1
-      const extra = (2 + 1 * chainA + (super3 ? 1 : 0)) + (this.game.run.relic3('elec_light') && (this.tower('electric')._chargeLayers || 0) > 0 ? 1 : 0);   // 电光3★：攻速加成期间连锁数量 +1
+      const extra = (2 + 1 * chainA + (super3 ? 1 : 0)) + this.relicVal('elec_arc')   // v1.16.114 电弧1★/2★：攻击连锁 +2/+3
+        + (this.game.run.relic3('elec_light') && (this.tower('electric')._chargeLayers || 0) > 0 ? 1 : 0);   // 电光3★：攻速加成期间连锁数量 +1
       let decay = 0.30 * (1 - 0.2 * chainB);   // 基础衰减 30% - B 稳流每级 20%
       decay = super3 ? 0 : Math.max(0.10, decay);
       // v1.16.101 传导3★：连锁衰减降为 0 时，每跳额外 +5% 伤害
@@ -2877,6 +2969,7 @@ class CombatSystem {
     // 普攻溅射（v1.16.12）：基础 100px 范围、40% 溅射伤害（v1.16.22 由 10% 上调）；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
     let r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    if (heavy > 0) r *= (1 + this.relicVal('can_heavy') / 100);   // v1.16.114 重爆1★/2★：爆炸范围 +30%/45%
     if (overheat) r *= 1.3;   // 过热弹爆炸半径 +30%
     const splDmg = dmg * 0.40 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
     // 协同（爆炸类 +50%）在 explode() 内按 SYNERGIES[1] 统一结算（v1.16.20 修正越界索引）
@@ -2884,7 +2977,7 @@ class CombatSystem {
     const shock = this.lv('cannon', '震击');
     let knock = 0, slowAfter = 0;
     if (shock > 0 && Math.random() < 0.40 + 0.20 * this.branchLv('cannon', '震击', 'B')) {
-      knock = 60 * (1 + 0.4 * this.branchLv('cannon', '震击', 'A'));
+      knock = 60 * (1 + 0.4 * this.branchLv('cannon', '震击', 'A')) * (1 + this.relicVal('can_knock') / 100);   // v1.16.114 震烈1★/2★
       slowAfter = 0.5 + 0.5 * this.branchLv('cannon', '震击', 'C');   // C1=1s / C2=1.5s / C3=2s
     }
     this.damage(e, dmg, 'cannon');
@@ -2900,7 +2993,7 @@ class CombatSystem {
     if (pierce > 0) {
       // v1.16.103 穿透3★：弹片贯穿改为贯穿路径上所有敌人（无人数上限），每多贯穿 1 名伤害 -10%（下限 40%）
       const pierceAll = g.run.relic3('can_pierce');
-      const n = pierceAll ? Infinity : 2 + this.branchLv('cannon', '贯穿弹', 'A');
+      const n = pierceAll ? Infinity : 2 + this.branchLv('cannon', '贯穿弹', 'A') + this.relicVal('can_pierce');   // v1.16.114 穿透1★/2★
       const pDmg0 = dmg * 0.7 * (1 + 0.20 * this.branchLv('cannon', '贯穿弹', 'B'));
       const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 60 && Math.abs(o.x - e.x) < 85)
         .sort((a, b) => b.y - a.y);
@@ -3139,6 +3232,10 @@ class CombatSystem {
 
   /* ============ 公共：状态 / 几何 / 通用 ============ */
   applySlow(e, mult, ttl) {
+    // v1.16.114 冰川1★/2★：所有减速效果的幅度提升 15%/20%
+    mult *= (1 + this.relicVal('ice_glacier') / 100);
+    // v1.16.114 凝霜1★/2★：减速持续时间延长 1/1.5 秒（与凝霜3★ 同口径）
+    ttl += this.relicVal('ice_condense');
     // v1.16.98 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
     if (this.game.run.relic3('ice_glacier')) {
       const n = ((e.slow && e.slow.ttl > 0) ? 1 : 0) + (e.frozen > 0 ? 1 : 0) + ((e._vineT || 0) > 0 ? 1 : 0);
@@ -3153,7 +3250,7 @@ class CombatSystem {
 
   /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
   freezeE(e, dur) {
-    const d = (e.isBoss ? dur * 0.6 : dur);
+    const d = (e.isBoss ? dur * 0.6 : dur) + this.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
     const prev = e.frozen || 0;
     e.frozen = Math.max(prev, d);
     // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
@@ -3212,8 +3309,11 @@ class CombatSystem {
         if (g.run.relic3('can_knock')) this.applySlow(o, 1, 0.3);
       }
       if (slowAfter > 0) this.applySlow(o, 0.3, slowAfter);   // slowAfter = 减速秒数（震击 C：1/1.5/2）
-      // v1.16.103 燃烧弹3★：炮弹爆炸 100% 引燃敌人
-      if (key === 'cannon' && g.run.relic3('can_incend')) this.applyBurn(o, dmg);
+      // v1.16.114 燃烧弹1★/2★：炮弹爆炸 N% 概率点燃敌人；3★ 100% 引燃
+      if (key === 'cannon') {
+        const incN = this.relicVal('can_incend');
+        if ((incN > 0 && Math.random() < incN / 100) || g.run.relic3('can_incend')) this.applyBurn(o, dmg);
+      }
     });
     // v1.16.103 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
     if (g.run.relic3('can_war')) g.run._warAtk = Math.min(30, (g.run._warAtk || 0) + 1);
