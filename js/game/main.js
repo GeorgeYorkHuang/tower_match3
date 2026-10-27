@@ -783,8 +783,12 @@ class GameMain {
           this.toast(`🧩 圣遗物碎片 +${n}`, '#a86bff');
         }
       }
-      // 小额击杀金币（即时入局内金币，随波次温和通胀 ×1.06；v1.16.77 统一战斗结束结算银币）
-      const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0])) * Math.pow(1.06, this.run.wave - 1) * (field.goldMult || 1));
+      // v1.17 击杀金币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场金币倍率
+      // 替代旧 1.06^w 波次通胀：收益成长改由怪物代际等级驱动（与血量曲线同源）
+      const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0]))
+        * KD.goldLevelMult(e.genLv)
+        * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
+        * (field.goldMult || 1));
       this.run.gold += kg;
     }
   }
@@ -799,18 +803,36 @@ class GameMain {
   /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
    *   v1.16.78 过滤已解锁 + 稀有度权重三选一（蓝50/紫38/金12，按设计文档 2.2） */
   spawnRelicPick(mode) {
-    const RR = CONFIG.RELIC_RUN;
-    // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
-    // v1.16.104 测试战场 3★ 模式：池 = 已拥有（starOf≥1）圣遗物，候选 desc 用 star3 文案
     const star3Mode = mode === 'star3';
+    const cands = this._rollRelicCandidates(star3Mode);
+    if (star3Mode && (!cands || !cands.length)) {
+      this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return;
+    }
+    if (!star3Mode && (!cands || !cands.length)) {
+      this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
+      // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
+      this.meta.addShard(CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r'), 1);
+      this.save.save();
+      this._chestBusy = false;
+      return;
+    }
+    this.pendingRelicPicks.push({ candidates: cands, ...(star3Mode ? { star3: true } : {}) });
+    this._chestBusy = false; // v1.16.74 动画完成解锁战斗输入
+  }
+
+  /** v1.17 抽 3 个候选（三选一 / 重掷共用）：star3 模式取已拥有池 star3 文案，普通模式取未解锁池按稀有度权重 */
+  _rollRelicCandidates(star3Mode) {
+    const RR = CONFIG.RELIC_RUN;
+    const star3 = !!star3Mode;
+    // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
     const ownedKeys = this.run.slotOrder || [];
     const meta = this.meta;
     const isUnlocked = (id) => meta.starOf(id) >= 1;   // v1.16.78 已解锁（图鉴/碎片达阈值）不再出现在三选一
     let pool = [];
-    if (star3Mode) {
+    if (star3) {
       ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: k }); }); });
       RR.common.forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: 'common' }); });
-      if (!pool.length) { this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return; }
+      if (!pool.length) return null;
       // 3★ 模式：候选 = 已拥有池中随机 3 张（不重复），desc 取 star3
       const cands3 = [];
       const used3 = new Set();
@@ -821,20 +843,11 @@ class GameMain {
         used3.add(pick.def.id);
         cands3.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.star3 || pick.def.desc, run: true, tint: pick.tint });
       }
-      this.pendingRelicPicks.push({ candidates: cands3, star3: true });
-      this._chestBusy = false;
-      return;
+      return cands3;
     }
     ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: k }); }); });
     RR.common.forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: 'common' }); });
-    if (!pool.length) {
-      this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
-      // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
-      this.meta.addShard(CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r'), 1);
-      this.save.save();
-      this._chestBusy = false;
-      return;
-    }
+    if (!pool.length) return null;
     // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
     const W = CONFIG.RELIC_PICK_WEIGHT;
     const pickRar = () => { const r = Math.random(); return r < W.r ? 'r' : r < W.r + W.sr ? 'sr' : 'ssr'; };
@@ -849,8 +862,25 @@ class GameMain {
       used.add(pick.def.id);
       cands.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.desc, run: true, tint: pick.tint });
     }
-    this.pendingRelicPicks.push({ candidates: cands });
-    this._chestBusy = false; // v1.16.74 动画完成解锁战斗输入
+    return cands;
+  }
+
+  /** v1.17 三选一重掷：局内金币付费（200/400/800/1600 指数增长，每窗口上限 4 次），重新抽 3 个候选 */
+  rerollRelicPick() {
+    if (!this.relicPick) return false;
+    const n = this.relicPick.rerolls || 0;
+    const costs = CONFIG.RELIC_REROLL.costs;
+    if (n >= costs.length) { this.toast('已达重掷上限', '#9fb2c3'); return false; }
+    const cost = costs[n];
+    if (this.run.gold < cost) { this.toast(`金币不足（需 ${cost}）`, '#ff6b6b'); return false; }
+    const cands = this._rollRelicCandidates(!!this.relicPick.star3);
+    if (!cands || !cands.length) { this.toast('暂无可用候选', '#9fb2c3'); return false; }
+    this.run.gold -= cost;
+    this.relicPick.rerolls = n + 1;
+    this.relicPick.candidates = cands;
+    this.relicPickHits = []; // 命中区随候选刷新
+    this.toast(`已重掷 · 消耗 ${cost} 🪙`, '#f7c948');
+    return true;
   }
 
   /* ---------- 三消联动：圣物经验加成补差 + 塔额外攻击（多消不同特效） ---------- */
@@ -947,7 +977,7 @@ class GameMain {
       if (this.state === 'relicpick') {
         // v1.16.109 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
         if (!this.relicPick.t) this.relicPick.t = Date.now();
-        this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t);
+        this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
       }
       return;
     }
@@ -1681,8 +1711,9 @@ class GameMain {
       }
       return true;
     }
-    // 圣物宝箱三选一弹层：点候选 → 获取该圣物
+    // 圣物宝箱三选一弹层：点候选 → 获取该圣物；点重掷 → 局内金币付费重抽
     if (this.state === 'relicpick') {
+      if (this.relicPickHits.reroll && this.relicPickHits.reroll.hit(p.x, p.y)) { this.rerollRelicPick(); return true; }
       if (this.relicPick && this.relicPick.candidates) {
         for (let i = 0; i < this.relicPick.candidates.length; i++) {
           if (this.relicPickHits[i] && this.relicPickHits[i].hit(p.x, p.y)) {

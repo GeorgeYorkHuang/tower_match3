@@ -4177,7 +4177,7 @@ class Renderer {
 
   /** 战斗内圣物宝箱三选一弹层（精英掉落 · 暂停战斗）：3 个候选卡片，点选获取 */
   /** v1.16.74 圣物三选一：华丽金色主题 + 弹出动画（scale 0.62→1 渐入，300ms） */
-  relicPickLayer(ctx, pick, onPick, elapsed) {
+  relicPickLayer(ctx, pick, onPick, elapsed, gold) {
     if (!pick || !pick.candidates) return;
     // v1.16.74 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
     const pe = Math.min(1, (elapsed || 0) / 500);
@@ -4190,7 +4190,7 @@ class Renderer {
     ctx.scale(sc, sc);
     ctx.translate(-375, -560);
 
-    const w = 640, h = 500; // v1.16.73 纵向扩容 420→500，描述三行防出框
+    const w = 640, h = 540; // v1.16.73 纵向扩容 420→500；v1.17 +40 容纳重掷按钮，描述三行防出框
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
     // 全屏遮罩：中心暖光、四角压暗（比纯黑更有"显现"感）
     const mask = ctx.createRadialGradient(375, 560, 60, 375, 560, 900);
@@ -4289,8 +4289,28 @@ class Renderer {
       text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, '#ffd34d', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
+    // v1.17 重掷按钮（局内金币付费 200/400/800/1600 指数增长，每窗口 4 次封顶；gold 为当前局内金币）
+    const rn = pick.rerolls || 0;
+    const rrCosts = CONFIG.RELIC_REROLL.costs;
+    const maxReached = rn >= rrCosts.length;
+    const cost = maxReached ? 0 : rrCosts[rn];
+    const canPay = !maxReached && (gold || 0) >= cost;
+    const ry = y + h - 96, rw = 300, rh = 44, rx = (750 - rw) / 2;
+    const rbG = ctx.createLinearGradient(0, ry, 0, ry + rh);
+    rbG.addColorStop(0, canPay ? '#4a3a18' : '#332c22');
+    rbG.addColorStop(1, canPay ? '#33250f' : '#241f18');
+    fillRoundRect(ctx, rx, ry, rw, rh, 14, rbG);
+    strokeRoundRect(ctx, rx, ry, rw, rh, 14, canPay ? '#ffd34d' : '#5a5448', 1.5);
+    if (canPay) {
+      text(ctx, `🔄 重掷 · ${cost} 🪙`, 375, ry + rh / 2 + 2, 24, '#ffd34d', 'center');
+    } else if (maxReached) {
+      text(ctx, '🔄 已达重掷上限', 375, ry + rh / 2 + 2, 20, '#7a7468', 'center');
+    } else {
+      text(ctx, `🔄 金币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
+    }
+    onPick.reroll = { hit: (px, py) => px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
     // 底部提示
-    text(ctx, '✦ 选择后立即生效 · 本局结束失效 ✦', 375, y + h - 26, 17, '#8a7a4a', 'center');
+    text(ctx, '✦ 选择后立即生效 · 本局结束失效 ✦', 375, y + h - 24, 17, '#8a7a4a', 'center');
     ctx.restore();
   }
 

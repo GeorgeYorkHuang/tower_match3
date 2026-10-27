@@ -104,6 +104,7 @@ class WaveDirector {
       x: this.ly.areaX + size / 2 + Math.random() * (this.ly.areaW - size),
       y: entryY + 20 * offset,
       hp, maxHp: hp, isBoss, type: type || 'normal',
+      genLv: lv || 1,                            // v1.17 代际等级（击杀金币/掉落按此取值）
       tier: (lv || 1) + (type === 'elite' ? 2 : type === 'tank' ? 1 : isBoss ? 4 : 0), // 展示等级 = 代际等级 + 类型档
       armor,
       speed: speed * (lcfg.spd / 1.5) * (isBoss ? 0.8 : 1), // 移速按等级表设计值归一化（Lv1 普通 = 基准 1.0）
