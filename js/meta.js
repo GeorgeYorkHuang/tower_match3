@@ -47,6 +47,7 @@ class Meta {
     this.dailyFirst = null;        // 每日首战加成 { date, counts: { field: n } }
     this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default);   // v5.2 三消技能局外三槽配置
+    this.globalSkills = { slots: ['shuffle', 'refill', null] };   // v5.3 全局技能槽（预留；技能池 v5.3 拍板后开放）
   }
 
   /* ---------- 塔图鉴（v1.16.75） ---------- */
@@ -267,6 +268,7 @@ class Meta {
       totalDiamondSpent: this.totalDiamondSpent,
       /* v5.2 三消技能局外三槽配置（四连技/高连技/连消技） */
       matchSkills: this.matchSkills,
+      globalSkills: this.globalSkills,
     };
   }
   static fromJSON(d) {
@@ -293,6 +295,7 @@ class Meta {
     m.totalDiamondSpent = d.totalDiamondSpent || 0;
     // v5.2 三消技能三槽配置（旧档无字段 → 默认 cross/rainbow/attack）
     m.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, d.matchSkills || {});
+    m.globalSkills = { slots: ['shuffle', 'refill', null], ...(d.globalSkills || {}) };
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
     m.soundOn = d.soundOn !== false;   // v1.16.107 声音开关（旧档默认开）

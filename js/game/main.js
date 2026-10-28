@@ -1186,6 +1186,8 @@ class GameMain {
       daily,
       dailyPrice: CONFIG.DAILY.price,
       panel: this.menuPanel,
+      matchSkills: this.meta.matchSkills,   // v5.3 三消技能配置（主页配置行展示 / 面板修改）
+      globalSkills: this.meta.globalSkills, // v5.3 全局技能槽（预留）
       relicScroll: this.relicScroll || 0,   // v1.16.82 圣遗物页滚动位置
       relicDexPage: this.relicDexPage,   // v1.16.78 圣物图鉴分页（主页与图鉴面板共用）
       /* v1.16.76 激励系统状态 */
@@ -1283,6 +1285,15 @@ class GameMain {
           }
           return;
         }
+        // v5.3 三消技能配置面板：点选技能槽即保存
+        if (ptype === 'matchCfg' && it.key === 'mSkill' && it.hit(p.x, p.y)) {
+          const slot = it.data.slot;
+          this.meta.matchSkills[slot] = it.data.id;
+          this.save.save();
+          const nm = (CONFIG.MATCH_SKILL[slot].find((d) => d.id === it.data.id) || {}).name || it.data.id;
+          this.toast(`已配置 · ${nm}`, '#a86bff');
+          return;
+        }
       }
       return; // 面板打开时忽略底层按钮
     }
@@ -1296,6 +1307,14 @@ class GameMain {
         case 'relicInfo':
           // v1.16.78 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
           this.menuPanel = { type: 'relicInfo', id: it.data };
+          return;
+        case 'matchCfg':
+          // v5.3 主页三消技能配置行 → 三消技能配置面板
+          this.menuPanel = { type: 'matchCfg' };
+          return;
+        case 'globalCfg':
+          // v5.3 主页全局技能配置行 → 全局技能配置面板
+          this.menuPanel = { type: 'globalCfg' };
           return;
         case 'relicPage': {
           // v1.16.78 圣物图鉴：翻页

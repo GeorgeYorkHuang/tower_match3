@@ -3580,6 +3580,8 @@ class Renderer {
       else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // v1.16.76 调试工具（仅 DEBUG 构建）
       else if (s.panel.type === 'codexSkill') this.codexSkillPanel(ctx, s, push); // v1.16.78 技能分支面板
       else if (s.panel.type === 'chestOpen') this.menuChestOpen(ctx, s, push);   // v1.17.9d 开箱弹窗（收益一次弹出）
+      else if (s.panel.type === 'matchCfg') this.menuMatchCfg(ctx, s, push);     // v5.3 三消技能配置面板
+      else if (s.panel.type === 'globalCfg') this.menuGlobalCfg(ctx, s, push);   // v5.3 全局技能配置面板
     }
     // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
     if (s.debug) {
@@ -3690,8 +3692,11 @@ class Renderer {
     };
     arrow(sx - 38, '‹');
     arrow(sx + sw + 38, '›');
-    // 进入战斗：屏幕 2/3 处（1626×2/3 ≈ 1084）
-    const ey = 850, eh = 80;
+    // v5.3 技能配置两行（战斗卡片下方）：行1 三消技能（四连/高连/连消 3 槽）· 行2 全局技能（槽位），点击整行打开配置面板
+    this._menuSkillRow(ctx, s, push, '三消技能', s.matchSkills, 80, 806, 590, 44);
+    this._menuSkillRow(ctx, s, push, '全局技能', s.globalSkills, 80, 860, 590, 44);
+    // 进入战斗（配置行下方）
+    const ey = 942, eh = 78;
     push('enter', null, 75, ey, 600, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, tint); bgrad.addColorStop(1, tintDark);
@@ -3701,33 +3706,6 @@ class Renderer {
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
-    // v1.16.76 深度宝箱槽位（4 格）：局末按最深波次发放，时间开启 / 钻石速开
-    const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
-    const slots = s.deepChests || [];
-    for (let i = 0; i < 4; i++) {
-      const bx = 40 + i * 170, by = 1050, bw = 160, bh = 140;
-      push('deepChest', i, bx, by, bw, bh);
-      const ch = slots[i];
-      fillRoundRect(ctx, bx, by, bw, bh, 16, ch ? '#1d2330' : '#141a22');
-      strokeRoundRect(ctx, bx, by, bw, bh, 16, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      fillRoundRect(ctx, bx + 10, by + 8, bw - 20, 14, 7, ctx.fillStyle);
-      if (!ch) {
-        text(ctx, '📦', bx + bw / 2, by + 52, 36, '#3a4654', 'center');
-        text(ctx, '空槽位', bx + bw / 2, by + 92, 20, '#3a4654', 'center');
-        text(ctx, '局末按深度获得', bx + bw / 2, by + 122, 15, '#2c3644', 'center');
-      } else {
-        text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, by + 48, 32, '#ffffff', 'center');
-        text(ctx, ch.name, bx + bw / 2, by + 82, 19, TIER_COLOR[ch.tier] || '#d89e63', 'center');
-        if (ch.ready) {
-          text(ctx, '✅ 点击开启', bx + bw / 2, by + 114, 19, '#7ef0a3', 'center');
-        } else {
-          const rm = ch.remainMin;
-          const rt = rm >= 60 ? `${Math.floor(rm / 60)}时${rm % 60}分` : `${rm}分`;
-          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 114, 18, '#9fb2c3', 'center');
-        }
-      }
-    }
   }
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
@@ -3968,9 +3946,35 @@ class Renderer {
   menuRelic(ctx, s, push) {
     const list = this._relicRunList();
     const unlocked = list.filter((d) => this._relicUnlocked(s, d.id)).length;
-    // 顶部固定区：标题 + 解锁进度条（v1.16.84 移除宝箱按钮与滑动提示）
-    text(ctx, '圣遗物图鉴', 55, 290, 32, '#ffffff', 'left');
-    const px0 = 250, pw = 460, py = 278;
+    // v5.3 深度宝箱槽位（4 格）：从主页移至圣遗物图鉴顶部（解锁进度与卡片整体下移）
+    const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
+    const slots = s.deepChests || [];
+    for (let i = 0; i < 4; i++) {
+      const bx = 40 + i * 170, by = 262, bw = 160, bh = 128;
+      push('deepChest', i, bx, by, bw, bh);
+      const ch = slots[i];
+      fillRoundRect(ctx, bx, by, bw, bh, 14, ch ? '#1d2330' : '#141a22');
+      strokeRoundRect(ctx, bx, by, bw, bh, 14, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      fillRoundRect(ctx, bx + 10, by + 6, bw - 20, 12, 6, ctx.fillStyle);
+      if (!ch) {
+        text(ctx, '📦', bx + bw / 2, by + 48, 30, '#3a4654', 'center');
+        text(ctx, '空槽位', bx + bw / 2, by + 84, 18, '#3a4654', 'center');
+        text(ctx, '局末按深度获得', bx + bw / 2, by + 110, 14, '#2c3644', 'center');
+      } else {
+        text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, by + 44, 28, '#ffffff', 'center');
+        text(ctx, ch.name, bx + bw / 2, by + 74, 17, TIER_COLOR[ch.tier] || '#d89e63', 'center');
+        if (ch.ready) text(ctx, '✅ 点击开启', bx + bw / 2, by + 102, 17, '#7ef0a3', 'center');
+        else {
+          const rm = ch.remainMin;
+          const rt = rm >= 60 ? `${Math.floor(rm / 60)}时${rm % 60}分` : `${rm}分`;
+          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 102, 16, '#9fb2c3', 'center');
+        }
+      }
+    }
+    // 顶部固定区：标题 + 解锁进度条（v5.3 随宝箱上移整体下移 154px）
+    text(ctx, '圣遗物图鉴', 55, 448, 32, '#ffffff', 'left');
+    const px0 = 250, pw = 460, py = 434;
     fillRoundRect(ctx, px0, py, pw, 24, 12, 'rgba(255,255,255,0.08)');
     const ratio = list.length ? unlocked / list.length : 0;
     if (ratio > 0) {
@@ -3981,7 +3985,7 @@ class Renderer {
     strokeRoundRect(ctx, px0, py, pw, 24, 12, '#a86bff', 1.2);
     text(ctx, `${unlocked} / ${list.length}`, px0 + pw / 2, py + 13, 20, '#ffffff', 'center');
     // 滚动视口
-    const vy0 = 330, vy1 = 1492;
+    const vy0 = 484, vy1 = 1492;
     const PER_ROW = 4, cw = 149, ch = 210, gx = 14, gy = 14;
     const rows = Math.ceil(list.length / PER_ROW);
     const contentH = rows * (ch + gy);
@@ -4054,6 +4058,92 @@ class Renderer {
     this._menuPanelShell(ctx, s, push, '圣物图鉴', 1020);
     text(ctx, '战斗中获得 · 碎片达阈值自动解锁 · 点卡查看星级效果', 375, 268, 20, '#8ea3b8', 'center');
     this._menuRelicGrid(ctx, s, push, 'relicPage', false);
+  }
+
+  /** v5.3 主页技能配置行：左标签胶囊 + 3 槽位展示（三消=四连/高连/连消技能名；全局=槽位技能/空槽），整行可点击打开配置面板 */
+  _menuSkillRow(ctx, s, push, label, cfg, x, y, w, h) {
+    const isMatch = label === '三消技能';
+    const tagCol = isMatch ? '#a86bff' : '#f7c948';
+    fillRoundRect(ctx, x, y, 88, h, 10, 'rgba(255,255,255,0.07)');
+    strokeRoundRect(ctx, x, y, 88, h, 10, tagCol, 1.4);
+    text(ctx, label, x + 44, y + h / 2 + 1, 19, '#ffffff', 'center');
+    const slots = isMatch
+      ? [
+          { k: '四连技', v: (cfg && cfg.match4 === 'random') ? { name: '随机抽取', color: '#a86bff' } : CONFIG.MATCH_SKILL.match4.find((d) => d.id === (cfg && cfg.match4)) || CONFIG.MATCH_SKILL.match4[0] },
+          { k: '高连技', v: CONFIG.MATCH_SKILL.match5.find((d) => d.id === (cfg && cfg.match5)) || CONFIG.MATCH_SKILL.match5[0] },
+          { k: '连消技', v: CONFIG.MATCH_SKILL.chain.find((d) => d.id === (cfg && cfg.chain)) || CONFIG.MATCH_SKILL.chain[0] },
+        ]
+      : [
+          { k: '技能1', v: { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color } },
+          { k: '技能2', v: { name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color } },
+          { k: '技能3', v: null },
+        ];
+    const sx0 = x + 88 + 10, sw = (w - 88 - 10 - 12) / 3;
+    slots.forEach((sl, i) => {
+      const bx = sx0 + i * (sw + 6);
+      fillRoundRect(ctx, bx, y, sw, h, 10, sl.v ? '#1d2530' : '#151a22');
+      strokeRoundRect(ctx, bx, y, sw, h, 10, sl.v ? (sl.v.color || tagCol) : '#232b36', sl.v ? 1.3 : 1);
+      text(ctx, `${sl.v ? sl.v.name : '未配置'}`, bx + sw / 2, y + 18, 15, sl.v ? '#ffffff' : '#5b6b7c', 'center');
+      text(ctx, sl.k, bx + sw / 2, y + h - 10, 12, sl.v ? '#8ea3b8' : '#4a5a6e', 'center');
+    });
+    push(isMatch ? 'matchCfg' : 'globalCfg', null, x, y, w, h);
+  }
+
+  /** v5.3 三消技能配置面板：三行（四连技 5 款 / 高连技 4 款 / 连消技 2 款），点选即保存 */
+  menuMatchCfg(ctx, s, push) {
+    const oy = this._menuPanelShell(ctx, s, push, '三消技能配置', 860);
+    const groups = [
+      { slot: 'match4', title: '四连技', items: CONFIG.MATCH_SKILL.match4, tint: '#a86bff' },
+      { slot: 'match5', title: '高连技', items: CONFIG.MATCH_SKILL.match5, tint: '#f7c948' },
+      { slot: 'chain', title: '连消技', items: CONFIG.MATCH_SKILL.chain, tint: '#7ef0a3' },
+    ];
+    let yy = oy + 84;
+    text(ctx, '四消 / 五消 / 连锁消除 3 槽配置 · 点选即保存（局内立即生效）', 375, yy, 17, '#8ea3b8', 'center');
+    yy += 36;
+    groups.forEach((g) => {
+      const cur = (s.matchSkills && s.matchSkills[g.slot]) || CONFIG.MATCH_SKILL.default[g.slot];
+      const chh = 92;
+      text(ctx, `${g.title} · 当前：${(g.items.find((d) => d.id === cur) || {}).name || (cur === 'random' ? '随机抽取' : '')}`, 375, yy, 18, g.tint, 'center');
+      yy += 32;
+      const n = g.items.length;
+      const cw = Math.floor((640 - (n - 1) * 10) / n);
+      g.items.forEach((it, ii) => {
+        const cx = 55 + ii * (cw + 10);
+        const sel = it.id === cur;
+        push('mSkill', { slot: g.slot, id: it.id }, cx, yy, cw, chh);
+        fillRoundRect(ctx, cx, yy, cw, chh, 12, sel ? 'rgba(167,107,255,0.14)' : 'rgba(255,255,255,0.05)');
+        strokeRoundRect(ctx, cx, yy, cw, chh, 12, sel ? '#f7c948' : '#2b3648', sel ? 2.2 : 1);
+        text(ctx, (it.mark || '') + ' ' + it.name, cx + cw / 2, yy + 30, 17, sel ? '#ffffff' : '#c9d6e4', 'center');
+        text(ctx, sel ? '✓ 已配置' : '点击配置', cx + cw / 2, yy + 56, 14, sel ? '#7ef0a3' : '#5b6b7c', 'center');
+        const desc = it.desc.length > 13 ? it.desc.slice(0, 13) + '…' : it.desc;
+        text(ctx, desc, cx + cw / 2, yy + 80, 12, '#8ea3b8', 'center');
+      });
+      yy += chh + 34;
+    });
+  }
+
+  /** v5.3 全局技能配置面板：当前展示已装 2 款（洗牌/补给）+ 第 3 槽预留；技能池 v5.3（14 款）拍板后开放 */
+  menuGlobalCfg(ctx, s, push) {
+    const oy = this._menuPanelShell(ctx, s, push, '全局技能配置', 640);
+    text(ctx, '全局充能 → 施放全局技能（当前已装 2 款，第 3 槽预留）', 375, oy + 88, 18, '#f7c948', 'center');
+    const slots = [
+      { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
+      { name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
+      null,
+    ];
+    slots.forEach((sl, i) => {
+      const bx = 75 + i * 200, by = oy + 112, bw = 180, bh = 100;
+      fillRoundRect(ctx, bx, by, bw, bh, 14, sl ? '#1d2530' : '#151a22');
+      strokeRoundRect(ctx, bx, by, bw, bh, 14, sl ? sl.color : '#232b36', sl ? 1.5 : 1);
+      if (sl) {
+        text(ctx, `${sl.icon} ${sl.name}`, bx + bw / 2, by + 46, 22, '#ffffff', 'center');
+        text(ctx, '已装备', bx + bw / 2, by + 76, 16, sl.color, 'center');
+      } else {
+        text(ctx, '空槽位', bx + bw / 2, by + 50, 20, '#5b6b7c', 'center');
+        text(ctx, '技能池拍板后开放', bx + bw / 2, by + 78, 14, '#4a5a6e', 'center');
+      }
+    });
+    text(ctx, '全局技能池 v5.3 · 14 款（输出4 / 防御3 / 控制3 / 三消联动3 / 收益1）确认后开放可选', 375, oy + 262, 17, '#8ea3b8', 'center');
   }
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
