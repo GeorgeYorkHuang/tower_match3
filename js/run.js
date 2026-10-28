@@ -43,7 +43,13 @@ class Run {
     opts = opts || {};
     this.rng = opts.rng || Math.random;
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
+    this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, opts.matchSkills || {});  // v5.2 三消技能配置槽
     this.board = new Board({ difficulty: this.difficulty });
+    // v5.2 特殊方块挂钩：四连技 id / 高连技面板操作（board.resolve 播种段调用）
+    this.board.hooks = {
+      onMatch4: () => this.matchSkills.match4,
+      onMatch5: () => this.matchSkills.match5,
+    };
     this.board.init();
     this.effects = new EffectManager({ rng: this.rng });
     this.effects.run = this;      // v1.8：整体经验池（v1.16.55 塔 DPS 不再随整体等级成长）
@@ -425,24 +431,80 @@ class Run {
     return true;
   }
 
-  /** 真实路径：棋盘交换 → 按连锁步逐组结算（每步单独成组，供逐级连锁动画逐级 toast） */
+  /** 真实路径：棋盘交换 → 按连锁步逐组结算（每步单独成组，供逐级连锁动画逐级 toast）＋ v5.2 连消技 */
   trySwap(r1, c1, r2, c2) {
     const ret = this.board.trySwap(r1, c1, r2, c2);
     if (!ret.ok) return { ok: false };
     // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
     this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
     const settled = [], settledByStep = [];
-    ret.resolved.stepList.forEach((st) => {
+    const chainStart = CONFIG.MATCH_SKILL.chainStart;
+    ret.resolved.stepList.forEach((st, si) => {
       const stepSettled = [];
+      const isChain = (si + 1) >= chainStart;   // 连续第 4 组起算连锁
       st.matches.forEach((m) => {
         // 组色已在 resolve 清空前记录，避免连锁后棋盘移动取错色
         if (m.color) stepSettled.push(this.applyMatch(m.color, m.shape, m.size));
       });
+      // v5.2 连消技：第 4 组起，连锁 3 消 → 连锁攻击（生成塔子弹）/ 连锁技能（随机释放周期技）
+      if (isChain && this.combatRef) {
+        this._chainBonus(st, si + 1);
+      }
+      // v5.2 combo 弹字：连锁位置弹出 combo ×N（增强互动感）
+      if (isChain && st.clearedCells && st.clearedCells.length && this.fxTarget) {
+        const [cr, cc] = st.clearedCells[0];
+        const L = CONFIG.LAYOUT.boardCell;
+        this.fxTarget.push({
+          type: 'floatText',
+          text: `Combo ×${si + 1}`,
+          x: (750 - L.cols * L.size) / 2 + cc * L.size + L.size / 2,
+          y: (this.boardY || 1089) + cr * L.size + L.size / 2,
+          t: 0, dur: 1.1, size: 30, color: '#f7c948',
+        });
+      }
       settled.push(...stepSettled);
       settledByStep.push(stepSettled);
     });
     this._triple3 = false;
     return { ok: true, matches: ret.resolved.matches, steps: ret.resolved.steps, settled, settledByStep, stepList: ret.resolved.stepList };
+  }
+
+  /** v5.2 连消技触发（第 4 组起）：连锁 3 消 → 对应塔子弹 / 周期技；颜色塔未激活 → 充能全局技能 */
+  _chainBonus(st, comboN) {
+    const chain = this.matchSkills.chain;
+    if (chain !== 'attack' && chain !== 'skill') return;
+    const three = st.matches.filter((m) => !m.rainbow && m.shape === '3' && m.color);
+    if (!three.length) return;
+    const L = CONFIG.LAYOUT.boardCell;
+    for (const m of three) {
+      const tk = CONFIG.COLORS[m.color] ? CONFIG.COLORS[m.color].tower : null;
+      if (!tk) continue;
+      const t = this.effects.tower(tk);
+      if (t.level > 0) {
+        // 连锁 3 消：在消除格位置生成对应塔子弹（每格一枚，独立寻敌分散）/ 释放周期技
+        if (chain === 'attack') {
+          for (const [gr, gc] of m.cells) {
+            this.combatRef.spawnChainShots({
+              key: tk,
+              x: (750 - L.cols * L.size) / 2 + gc * L.size + L.size / 2,
+              y: (this.boardY || 1089) + gr * L.size + L.size / 2,
+              color: m.color,
+            });
+          }
+        } else {
+          const ok = this.combatRef.castPeriodicNow(tk);
+          if (!ok) {
+            // 未配置周期技：补 5 能量
+            t.energy = Math.min(t.energy + CONFIG.MATCH_SKILL.chainEnergy, this.armoryEnergyMax());
+          }
+        }
+      } else {
+        // 颜色塔未激活 → 充能全局技能（均分两个全局技能）
+        const half = Math.floor(CONFIG.MATCH_SKILL.chainEnergy / 2);
+        this._chargeAmmo('shuffle', half);
+        this._chargeAmmo('refill', CONFIG.MATCH_SKILL.chainEnergy - half);
+      }
+    }
   }
 
   /** 升级发放目标：累计升级次数最少的已拥有塔（均衡轮转，跨波记忆；避免单塔长期不升级） */

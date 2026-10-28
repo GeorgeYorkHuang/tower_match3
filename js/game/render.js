@@ -899,12 +899,13 @@ class Renderer {
             if (!anim.cleared.has(r + ',' + c)) continue;
             const color = g0[r][c];
             if (!color) continue;
+            const cBase = (typeof color === 'object') ? (color.c || null) : color;   // v5.2 特殊块
             const x = boardX + c * cell + 2, y = boardY + r * cell + 2;
             const sz = (cell - 4) * (1 - fade * 0.35);
             const inset = (cell - 4 - sz) / 2;
             ctx.globalAlpha = 1 - fade;
-            if (!drawImg(ctx, BOARD_IMG[color], x + inset, y + inset, sz, sz)) {
-              fillRoundRect(ctx, x + inset, y + inset, sz, sz, 8, COLOR_FILL[color] || '#333');
+            if (!drawImg(ctx, BOARD_IMG[cBase], x + inset, y + inset, sz, sz)) {
+              fillRoundRect(ctx, x + inset, y + inset, sz, sz, 8, COLOR_FILL[cBase] || '#333');
             }
             ctx.globalAlpha = 1;
           }
@@ -947,13 +948,32 @@ class Renderer {
     }
   }
 
-  /** 单格绘制（方块图片优先，回退色块+底部暗条；含选中框） */
+  /** 单格绘制（方块图片优先，回退色块+底部暗条；含选中框；v5.2 特殊块叠加类型符号） */
   drawCell(ctx, x, y, cell, color, r, c, selected) {
     const size = cell - 4;
-    if (!drawImg(ctx, BOARD_IMG[color], x, y, size, size)) {
-      fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[color] || '#333');
+    const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
+    const base = isObj ? (color.c || null) : color;
+    if (!drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
+      fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.fillRect(x, y + size - 6, size, 6);
+    }
+    if (isObj) {
+      // 特殊块符号（十字爆/分裂爆/乱数/行爆/列爆/彩虹），次级分裂雷符号缩小
+      const SYM = { row: '─', col: '│', cross: '✚', split: '✸', rand: '✦', rainbow: '◈' };
+      const sym = SYM[color.s] || '◆';
+      const sz2 = Math.round(size * (color.sub ? 0.4 : 0.52));
+      ctx.font = 'bold ' + sz2 + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeText(sym, x + size / 2, y + size / 2);
+      ctx.fillStyle = (color.s === 'rainbow' || !color.c) ? '#ffffff' : (COLOR_FILL[color.c] || '#fff');
+      ctx.fillText(sym, x + size / 2, y + size / 2);
+      if (color.sub) {   // 次级分裂雷：左上小三角标记
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + 3); ctx.lineTo(x + 13, y + 3); ctx.lineTo(x + 3, y + 13);
+        ctx.closePath(); ctx.fillStyle = '#ffd24a'; ctx.fill();
+      }
     }
     if (selected && selected[0] === r && selected[1] === c) {
       strokeRoundRect(ctx, x - 2, y - 2, size + 4, size + 4, 10, '#ffffff', 4);

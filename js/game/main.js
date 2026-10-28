@@ -92,9 +92,11 @@ class GameMain {
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle) {
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
+    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills });  // v5.2 三消技能局外三槽配置
     this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
+    this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
+    this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点棋盘 y
     this.save.apply(this.saveData);
     this.waveTime = 0;
     this.enemies = [];
@@ -152,9 +154,11 @@ class GameMain {
   /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14.1） */
   enterTestField() {
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default });
+    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills });  // v5.2 三消技能配置槽
     this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
+    this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
+    this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
     this.waveTime = 0;

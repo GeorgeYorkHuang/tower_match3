@@ -277,6 +277,59 @@ class CombatSystem {
     return t && t.energy <= 0 ? CONFIG.GLOBAL_SKILL.weakPeriod : 1;
   }
 
+  /* ---------- v5.2 三消连消技 ---------- */
+
+  /** 周期技能 timer 映射：连锁技能随机释放（tick 内 timer 到点即施放） */
+  static PERIODIC_TIMERS() {
+    return {
+      fire: { '火柱': 'firePillar', '烈焰墙': 'fireWall', '火雨': 'fireRain' },
+      ice: { '冰花': 'iceFlower', '冬珠': 'frostOrb', '冰墙': 'iceWall' },
+      electric: { '极光电击': 'arc', '雷暴': 'storm' },                 // 活电=命中触发，非周期施放
+      poison: { '毒池': 'pool', '毒棒': 'stick', '毒藤': 'vine' },      // 瘴气=驻场被动
+      cannon: { '炮火支援': 'support', '地雷阵': 'mine', '炮台': 'turret' },
+      boomerang: { '风暴镖': 'storm', '弹力镖': 'ringN' },               // 风痕=命中触发
+    };
+  }
+
+  /** 连锁技能：随机释放对应塔一个已激活周期技能（不受周期影响）。
+   *  将对应 timer 置为超阈值 → 下一帧 tick 立即施放一次；无已激活周期技返回 false（run 侧补能量）。 */
+  castPeriodicNow(key) {
+    const map = CombatSystem.PERIODIC_TIMERS()[key];
+    if (!map) return false;
+    const names = Object.keys(map).filter((n) => this.lv(key, n) > 0);
+    if (!names.length) return false;
+    const name = names[Math.floor(Math.random() * names.length)];
+    this.timers[map[name]] = (this.timers[map[name]] || 0) + 1e9;   // 下一帧 tick 立即施放
+    // 施放确认飘字（金色，棋盘联动反馈）
+    if (this.game && this.game.run && this.game.run.fxTarget) {
+      this.game.run.fxTarget.push({ type: 'floatText', text: name, x: 375, y: 300, t: 0, dur: 0.9, size: 18, color: '#f7c948' });
+    }
+    return true;
+  }
+
+  /** 连锁攻击：在消除格位置（x,y）生成对应塔子弹，寻敌=最近（首枚）+ 主目标上方 40px 截面随机（其余），
+   *  攻击力不受塔能量影响（剔除弱化态）。 */
+  spawnChainShots(ent) {
+    const g = this.game;
+    const { key, x, y } = ent;
+    const main = this.pickTarget(key);
+    if (!main) return;
+    let dmg = this.shotDmg(key);
+    const t = this.tower(key);
+    if (t && t.energy <= 0) dmg /= CONFIG.GLOBAL_SKILL.weakDmg;   // 去弱化：不受能量影响
+    const cfg = CONFIG.TOWERS[key];
+    const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
+    const dur = cfg.shot.dur;
+    // 每枚独立寻敌：主目标上方 40px 截面带内随机敌人（带内无其他敌人则回退主目标），避免所有子弹打向同一个敌人
+    const target = this.pickAltTarget(key, main);
+    this.shots.push({ key, target, dmg, t: 0, dur, sx: x, sy: y });
+    g.fx.push({ type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur, key });
+    g.playSfx('shot', 0.25);
+    // 消除格迸发小闪光（连消触发反馈）
+    this.fxFlash(x, y, tint);
+  }
+
+
   /** v1.16.77 周期技能施放扣能量：能量 >= 成本时扣除并全额施放；不足则弱化施放（不扣，伤害 ×0.5） */
   castEnergy(key, name) {
     const t = this.tower(key);
