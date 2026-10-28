@@ -3,6 +3,7 @@
  * 状态机：fighting（波内消除+战斗）→ 波末结算 → picking（三选一）→ 下一波 / gameover
  */
 const CONFIG = require('../config.js');
+const GlobalSkills = require('../global-skills.js');
 const { Run } = require('../run.js');
 const { Renderer, layout } = require('./render.js');
 const { CombatSystem } = require('../combat.js');
@@ -92,7 +93,7 @@ class GameMain {
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle) {
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills });  // v5.2 三消技能局外三槽配置
+    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能局外三槽配置
     this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
@@ -157,7 +158,7 @@ class GameMain {
   /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14.1） */
   enterTestField() {
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills });  // v5.2 三消技能配置槽
+    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
     this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
@@ -453,6 +454,7 @@ class GameMain {
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
+    GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
     if (this.run.slotOrder.length === 0) {
       this.enemies.forEach((e) => this.moveEnemy(e, dt));
@@ -515,6 +517,7 @@ class GameMain {
         // 毒·瘴气 C：瘴内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）；v1.16.78 减伤护符：城墙受伤 -N%（按星级）
         const guard = this.run.relicNum('cm_guard');
         const atkDmg = e.attack * (e._miasmaAtkMult || 1) * (guard > 0 ? (1 - guard / 100) : 1);
+        if (this.run.gsState && this.run.gsState.reflect > 0) this.combat.damage(e, atkDmg * 0.6, 'global');
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {
           // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻击间隔 +0.5s·持续2s）
@@ -923,7 +926,9 @@ class GameMain {
         * KD.goldLevelMult(e.genLv)
         * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
         * (field.goldMult || 1));
-      this.run.gold += kg;
+      const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? 2 : 1);
+      this.run.gold += earned;
+      if (earned > kg) this.fx.push({type:'floatText',text:'+'+earned,x:e.x,y:e.y,t:0,dur:0.8,size:20,color:'#ffe17c'});
     }
   }
 
@@ -1238,6 +1243,7 @@ class GameMain {
       exp: run.exp, expNeed: run.expNeed(), expLevel: run.expLevel,   // v1.8：出怪区整体经验条
       expRatio: Math.min(1, run.exp / run.expNeed()),   // v1.17 修复：0 级也显示进度（出怪区整体经验条）
       battleRelics: this.battleRelics || [],   // v1.9：本局获得的圣物（经验条下方图标展示）
+      globalSlots: run.globalSlots, globalShield: (run.gsState && run.gsState.shield) || 0,
       shuffleAmmo: run.shuffleAmmo, refillAmmo: run.refillAmmo,  // v1.12.4 全局技能累计弹药（发）
       chargePerUse: CONFIG.GLOBAL_SKILL.chargePerUse,
       runSpeed: this.runSpeed,   // v1.16.13 主战斗倍速（底部功能栏右下角按钮显示）
@@ -1411,7 +1417,7 @@ class GameMain {
           const id = it.data.id;
           if (!id) return;
           const def = (slot === 'global')
-            ? (id === 'shuffle' ? CONFIG.GLOBAL_SKILL.shuffleSkill : CONFIG.GLOBAL_SKILL.refillSkill)
+            ? (GlobalSkills.get(id) || {})
             : (CONFIG.MATCH_SKILL[slot].find((d) => d.id === id) || {});
           const nm = def.name || id;
           if (!this.meta.skillUnlocked(slot, id)) {
@@ -1423,13 +1429,21 @@ class GameMain {
             this.save.save();
             this.toast(`购买解锁 · ${nm}`, '#7ef0a3');
           }
-          if (slot === 'global') return;   // 全局技能当前固定 2 款，无槽位写入
+          if (slot === 'global') {
+            const index = Number(this.menuPanel.index || 0);
+            const slots = GlobalSkills.slots(this.meta.globalSkills);
+            const other = 1 - index;
+            if (slots[other] === id) { slots[other] = slots[index]; }
+            slots[index] = id; this.meta.globalSkills = { slots };
+            this.save.save(); this.toast('已配置 · '+nm, '#f4cb79'); return;
+          }
           this.meta.matchSkills[slot] = id;
           this.save.save();
           this.toast(`已配置 · ${nm}`, '#a86bff');
           return;
         }
       }
+      for (const hit of this.menuHits) { if (hit.key === 'globalPage' && hit.hit(p.x,p.y)) { this.menuPanel.page = hit.data; return; } }
       return; // 面板打开时忽略底层按钮
     }
     for (const it of this.menuHits) {
@@ -1445,11 +1459,11 @@ class GameMain {
           return;
         case 'matchCfg':
           // v5.3 主页三消技能配置行 → 三消技能配置面板
-          this.menuPanel = { type: 'matchCfg' };
+          this.menuPanel = { type: 'matchCfg', slot: it.data && it.data.slot || 'match4' };
           return;
         case 'globalCfg':
           // v5.3 主页全局技能配置行 → 全局技能配置面板
-          this.menuPanel = { type: 'globalCfg' };
+          this.menuPanel = { type: 'globalCfg', index: it.data && it.data.index || 0, page: 0 };
           return;
         case 'relicPage': {
           // v1.16.78 圣物图鉴：翻页

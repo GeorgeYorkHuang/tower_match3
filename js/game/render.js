@@ -3,6 +3,7 @@
  * 分区：状态条 72 / 行动区 700×970（入口带 68、城墙 24）/ 塔位区 122 / 棋盘区 462
  */
 const CONFIG = require('../config.js');
+const GlobalSkills = require('../global-skills.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text, progressBar, button } = require('./ui.js');
 
 const L = CONFIG.LAYOUT;
@@ -363,7 +364,7 @@ class Renderer {
     // 塔位区（v1.17.11 即城墙，先画背景）
     this.towerRow(ctx, s);
     // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
-    this.wall(ctx, s.lineHp, s.lineMaxHp);
+    this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
     // 棋盘
     this.board(ctx, s.grid, s.selected, s.anim);
     // 底部功能键区（棋盘下方）
@@ -371,7 +372,7 @@ class Renderer {
     // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
   }
 
-  wall(ctx, hp, maxHp, barY) {
+  wall(ctx, hp, maxHp, barY, shield) {
     // v1.17.11 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
     // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
     const barH = 14;
@@ -384,6 +385,10 @@ class Renderer {
     if (ratio > 0) {
       const barCol = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff5252';
       fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, 5, barCol);
+    }
+    if (shield > 0) {
+      fillRoundRect(ctx,AREA_X,by-8,AREA_W*Math.min(1,shield/1200),5,2,'#86caff');
+      text(ctx,'护盾 '+Math.ceil(shield),AREA_X+AREA_W-5,by-18,16,'#a6e8ff','right');
     }
     // 血量数字（血条内居中）
     text(ctx, `${Math.max(0, Math.ceil(hp))}`, AREA_X + AREA_W / 2, by + barH / 2 + 1, 15, '#ffffff', 'center');
@@ -827,9 +832,10 @@ class Renderer {
       const perUse = Math.max(1, s.chargePerUse || 30);
       const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
       const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
+      this._equippedGlobalSlots = s.globalSlots || ['shuffle','refill'];
       this.globalBtns = [
-        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', x0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
-        this._globalBtn(ctx, 'refill', '🔋', '补给', x0 + (slotCount + 1) * (slotSize + slotGap), this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
+        this._globalBtn(ctx, 'shuffle', '', (GlobalSkills.get((s.globalSlots||['shuffle','refill'])[0])||{}).name||'洗牌', x0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
+        this._globalBtn(ctx, 'refill', '', (GlobalSkills.get((s.globalSlots||['shuffle','refill'])[1])||{}).name||'补给', x0 + (slotCount + 1) * (slotSize + slotGap), this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
       ];
     } else {
       this.globalBtns = [];
@@ -854,7 +860,8 @@ class Renderer {
     ctx.lineWidth = ready ? 2.5 : 1.5;
     roundRect(ctx, bx, by, bw, bh, 8);
     ctx.stroke();
-    text(ctx, icon, bx + bw / 2, by + 30, 30, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
+    const skillId=(this._equippedGlobalSlots||['shuffle','refill'])[key==='shuffle'?0:1];
+    this._skillIcon(ctx,skillId,bx+bw/2,by+29,36,(GlobalSkills.get(skillId)||{}).color||tint);
     text(ctx, name, bx + bw / 2, by + 52, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
     // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
     const segW = 24, segH = 12, segGap = 8;
@@ -966,32 +973,54 @@ class Renderer {
   drawCell(ctx, x, y, cell, color, r, c, selected) {
     const size = cell - 4;
     const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
-    const base = isObj ? (color.c || null) : color;
+    const base = isObj ? (color.s === 'rainbow' ? null : (color.c || color.tint || null)) : color;
     if (!drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.fillRect(x, y + size - 6, size, 6);
     }
     if (isObj) {
-      // 特殊块符号（十字爆/分裂爆/乱数/行爆/列爆/彩虹），次级分裂雷符号缩小
-      const SYM = { row: '─', col: '│', cross: '+', split: '✕', rand: '◆', rainbow: '◎' };   // 全字体兼容几何符号
-      const sym = SYM[color.s] || '◆';
-      const sz2 = Math.round(size * (color.sub ? 0.4 : 0.52));
-      ctx.font = 'bold ' + sz2 + 'px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-      ctx.strokeText(sym, x + size / 2, y + size / 2);
-      ctx.fillStyle = (color.s === 'rainbow' || !color.c) ? '#ffffff' : (COLOR_FILL[color.c] || '#fff');
-      ctx.fillText(sym, x + size / 2, y + size / 2);
-      if (color.sub) {   // 次级分裂雷：左上小三角标记
-        ctx.beginPath();
-        ctx.moveTo(x + 3, y + 3); ctx.lineTo(x + 13, y + 3); ctx.lineTo(x + 3, y + 13);
-        ctx.closePath(); ctx.fillStyle = '#ffd24a'; ctx.fill();
-      }
+      this._specialBlockMark(ctx, x, y, size, color);
     }
+
     if (selected && selected[0] === r && selected[1] === c) {
       strokeRoundRect(ctx, x - 2, y - 2, size + 4, size + 4, 10, '#ffffff', 4);
     }
+  }
+
+  /** Special pieces share a dark medallion and bright border; shape encodes function independently of hue. */
+  _specialBlockMark(ctx, x, y, size, piece) {
+    ctx.save(); ctx.translate(x + size / 2, y + size / 2); ctx.scale(size / 56, size / 56);
+    strokeRoundRect(ctx,-26,-26,52,52,9,'#172035',4);
+    strokeRoundRect(ctx,-24,-24,48,48,8,piece.s==='rainbow'?'#ffe8a5':'#ffffff',2);
+    fillRoundRect(ctx,-20,-20,40,40,10,'rgba(9,18,35,0.87)');
+    const glyphColor = piece.s === 'rainbow' ? '#ffffff' : ({ red: '#ff6578', blue: '#69caff', green: '#74ed9c', yellow: '#ffe36a', purple: '#c69aff', orange: '#ffad58' })[piece.c || piece.tint] || '#ffffff';
+    ctx.strokeStyle=glyphColor; ctx.fillStyle=glyphColor; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.lineJoin='round';
+    const line=(a,b,c,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke();};
+    const dot=(a,b,r)=>{ctx.beginPath();ctx.arc(a,b,r,0,Math.PI*2);ctx.fill();};
+    const arrow=(vertical)=>{
+      ctx.save(); if(vertical)ctx.rotate(Math.PI/2);
+      line(-15,0,15,0);line(-15,0,-9,-6);line(-15,0,-9,6);line(15,0,9,-6);line(15,0,9,6);ctx.restore();
+    };
+    if(piece.s==='row') { arrow(false);line(-10,-12,10,-12);line(-10,12,10,12); }
+    else if(piece.s==='col') { arrow(true);line(-12,-10,-12,10);line(12,-10,12,10); }
+    else if(piece.s==='cross') { arrow(false);arrow(true);dot(0,0,4); }
+    else if(piece.s==='split') {
+      dot(0,0,piece.sub?5:6);
+      [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*12,dy*12);dot(dx*15,dy*15,piece.sub?2:3.5);}));
+    } else if(piece.s==='rand') {
+      ctx.save();ctx.rotate(Math.PI/4);strokeRoundRect(ctx,-13,-13,26,26,4,glyphColor,2);ctx.restore();
+      [[-7,-7],[7,-7],[0,0],[-7,7],[7,7]].forEach(([a,b])=>dot(a,b,2.6));
+    } else if(piece.s==='rainbow') {
+      const colors=['#ff6174','#ffad54','#ffe36a','#7ee4a1','#78c8ff','#c09aff'];
+      colors.forEach((col,i)=>{ctx.strokeStyle=col;ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,15,i*Math.PI/3+0.04,(i+1)*Math.PI/3-0.04);ctx.stroke();});
+      ctx.fillStyle=glyphColor;ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(3,-3);ctx.lineTo(9,0);ctx.lineTo(3,3);ctx.lineTo(0,9);ctx.lineTo(-3,3);ctx.lineTo(-9,0);ctx.lineTo(-3,-3);ctx.closePath();ctx.fill();
+    }
+    // Keep the piece's source hue visible even when the center emblem covers its artwork.
+    const hue=piece.s === 'rainbow' ? null : COLOR_FILL[piece.c || piece.tint];
+    if(hue){ctx.fillStyle=hue;ctx.strokeStyle='#ffffff';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(18,18,5,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    if(piece.sub){ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.moveTo(-25,-25);ctx.lineTo(-12,-25);ctx.lineTo(-25,-12);ctx.closePath();ctx.fill();}
+    ctx.restore();
   }
 
   /** 计算最终格子 (r,c) 在下落动画中的来源行：继承格返回旧行，新落格返回 -1 */
@@ -3973,8 +4002,8 @@ class Renderer {
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
     // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 3 卡（洗牌/补给/空槽）
-    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 80, 958, 590, 104, true);
-    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 80, 1072, 590, 104, false);
+    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
+    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
 
@@ -4390,41 +4419,72 @@ class Renderer {
 
   /** v5.3 主页技能配置行：左标签胶囊 + 3 槽位展示（三消=四连/高连/连消技能名；全局=槽位技能/空槽），整行可点击打开配置面板 */
   /** v5.3c 主页技能卡片行：左标签胶囊 + 3 张技能卡（图标 + 技能名 + 状态），点击卡片打开配置面板 */
+  // Shared canvas-native emblems: distinct silhouettes without additional asset loading.
+  _skillIcon(ctx, id, x, y, size, color) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(size / 64, size / 64);
+    const grad = ctx.createLinearGradient(-30, -30, 30, 30);
+    grad.addColorStop(0, color); grad.addColorStop(1, '#17253e');
+    fillRoundRect(ctx, -30, -30, 60, 60, 15, grad);
+    strokeRoundRect(ctx, -30, -30, 60, 60, 15, '#a9c7e8', 1);
+    ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    const line = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
+    const dot = (dx,dy,r) => { ctx.beginPath(); ctx.arc(dx,dy,r,0,Math.PI*2); ctx.fill(); };
+    if (id === 'row' || id === 'col' || id === 'cross') {
+      if (id !== 'col') { line(-19,0,19,0); line(-19,0,-11,-7); line(19,0,11,7); }
+      if (id !== 'row') { line(0,-19,0,19); line(0,-19,7,-11); line(0,19,-7,11); }
+    } else if (id === 'rainbow') {
+      ['#ff7d87','#ffd166','#82e6a2','#79caff','#ca9aff'].forEach((c,i)=>{ ctx.strokeStyle=c; ctx.beginPath(); ctx.arc(0,10,22-i*4,Math.PI,0); ctx.stroke(); });
+    } else if (id === 'scan') {
+      ctx.beginPath(); ctx.arc(0,0,19,0,Math.PI*2); ctx.stroke(); line(-23,0,23,0); line(0,-23,0,23); dot(0,0,4);
+    } else if (id === 'split') {
+      dot(0,0,6); [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*17,dy*17);dot(dx*19,dy*19,4);}));
+    } else if (id === 'seed') {
+      line(0,20,0,-6); ctx.beginPath(); ctx.ellipse(-8,-3,7,13,-0.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(9,-11,7,13,0.8,0,Math.PI*2); ctx.fill();
+    } else if (id === 'recolor') {
+      ctx.beginPath(); ctx.moveTo(0,-22); ctx.bezierCurveTo(-30,9,-14,24,0,21); ctx.bezierCurveTo(23,20,21,4,0,-22); ctx.fill();
+    } else if (id === 'attack') {
+      [-12,0,12].forEach(yy=>{line(-18,yy,17,yy);line(17,yy,9,yy-5);});
+    } else if (id === 'skill') {
+      ctx.beginPath(); ctx.moveTo(5,-23); ctx.lineTo(-13,3); ctx.lineTo(0,3); ctx.lineTo(-5,23); ctx.lineTo(16,-5); ctx.lineTo(3,-5); ctx.closePath(); ctx.fill();
+    } else if (id === 'refill') {
+      strokeRoundRect(ctx,-15,-19,30,40,5,'#ffffff',3); line(-6,-23,6,-23); line(-8,0,8,0); line(0,-8,0,8);
+    } else if (id === 'shuffle') {
+      line(-20,-13,18,13); line(-20,13,18,-13); line(18,-13,8,-14); line(18,-13,17,-3); line(18,13,8,14); line(18,13,17,3);
+    } else if (GlobalSkills.get(id)) {
+      const glyphs={forge:'⚔',haste:'»',volley:'⋙',resonance:'✧',barrier:'⬡',heal:'+',reflect:'↶',freeze:'❄',tide:'≋',pull:'◎',chainstorm:'ϟ',twins:'Ⅱ',charge:'↟',gold:'$'};
+      // Geometric category silhouettes plus distinct central marks.
+      const def=GlobalSkills.get(id), n=3+(def.glyph%5);
+      ctx.beginPath();for(let i=0;i<n;i++){const a=-Math.PI/2+i*Math.PI*2/n;const px=Math.cos(a)*24,py=Math.sin(a)*24;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();ctx.globalAlpha=0.35;ctx.stroke();ctx.globalAlpha=1;
+      text(ctx,glyphs[id]||'✧',0,1,32,'#ffffff','center');
+    } else {
+      [[-12,-12],[12,-12],[0,0],[-12,12],[12,12]].forEach(([dx,dy])=>dot(dx,dy,4));
+    }
+    ctx.restore();
+  }
+
   _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) {
-    const tagCol = isMatch ? '#a86bff' : '#f7c948';
-    fillRoundRect(ctx, x, y, 88, h, 14, 'rgba(255,255,255,0.07)');
-    strokeRoundRect(ctx, x, y, 88, h, 14, tagCol, 1.4);
-    text(ctx, label, x + 44, y + h / 2 + 1, 20, '#ffffff', 'center');
-    const slots = isMatch
-      ? [
-          { k: '四连技', v: (cfg && cfg.match4 === 'random') ? { name: '随机抽取', mark: '✱', color: '#a86bff' } : CONFIG.MATCH_SKILL.match4.find((d) => d.id === (cfg && cfg.match4)) || CONFIG.MATCH_SKILL.match4[0] },
-          { k: '高连技', v: CONFIG.MATCH_SKILL.match5.find((d) => d.id === (cfg && cfg.match5)) || CONFIG.MATCH_SKILL.match5[0] },
-          { k: '连消技', v: CONFIG.MATCH_SKILL.chain.find((d) => d.id === (cfg && cfg.chain)) || CONFIG.MATCH_SKILL.chain[0] },
-        ]
-      : [
-          { k: '洗牌', v: { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, mark: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color } },
-          { k: '补给', v: { name: CONFIG.GLOBAL_SKILL.refillSkill.name, mark: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color } },
-          { k: '空槽', v: null },
-        ];
-    const sx0 = x + 88 + 10, sw = (w - 88 - 10 - 12) / 3;
-    slots.forEach((sl, i) => {
-      const bx = sx0 + i * (sw + 6);
-      const sel = !!sl.v;
-      fillRoundRect(ctx, bx, y, sw, h, 14, sel ? '#1d2530' : '#151a22');
-      strokeRoundRect(ctx, bx, y, sw, h, 14, sel ? (sl.v.color || tagCol) : '#232b36', sel ? 1.6 : 1);
-      // 技能图标（圆形底 + mark）
-      const icx = bx + sw / 2, icy = y + 32;
-      ctx.beginPath(); ctx.arc(icx, icy, 24, 0, Math.PI * 2);
-      ctx.fillStyle = sel ? (sl.v.color || tagCol) : '#1f2733'; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1;
-      if (sel) text(ctx, sl.v.mark || sl.v.icon || '', icx, icy + 2, 26, sl.v.color || tagCol, 'center');
-      else text(ctx, '＋', icx, icy + 2, 26, '#5b6b7c', 'center');
-      // 技能名 + 槽位标签
-      text(ctx, sl.v ? (sl.v.name || '') : '未配置', bx + sw / 2, y + 66, 15, sel ? '#ffffff' : '#5b6b7c', 'center');
-      text(ctx, sl.k, bx + sw / 2, y + h - 12, 12, sel ? '#8ea3b8' : '#4a5a6e', 'center');
-      push(isMatch ? 'matchCfg' : 'globalCfg', { slot: i }, bx, y, sw, h);
+    const tint = isMatch ? '#b896ff' : '#f4cb79';
+
+    const keys = isMatch ? ['match4','match5','chain'] : GlobalSkills.slots(cfg);
+    const labels = ['四连技能','高连技能','连消技能'];
+    const gap=18, ch=Math.min(h,200), cw=ch*3/4;
+    const left=x+90;
+    const labelStep=28, labelTop=y+(ch-(label.length-1)*labelStep)/2;
+    Array.from(label).forEach((letter,i)=>text(ctx,letter,x+30,labelTop+i*labelStep,23,tint,'center'));
+    keys.forEach((key,i)=>{
+      const id=isMatch?((cfg&&cfg[key])||CONFIG.MATCH_SKILL.default[key]):key;
+      const def=isMatch?(CONFIG.MATCH_SKILL[key].find(d=>d.id===id)||{id:'random',name:'随机抽取'}):GlobalSkills.get(id);
+      const bx=left+i*(cw+gap), color=def.color||tint;
+      text(ctx,isMatch?labels[i]:'全局槽位 '+(i+1),bx+cw/2,y-17,19,'#b4c6df','center');
+      const grad=ctx.createLinearGradient(bx,y,bx+cw,y+ch);grad.addColorStop(0,'#27374e');grad.addColorStop(1,'#101b2c');
+      fillRoundRect(ctx,bx,y,cw,ch,20,grad);strokeRoundRect(ctx,bx,y,cw,ch,20,color,1.8);
+      fillRoundRect(ctx,bx+12,y+12,cw-24,4,2,color);
+      this._skillIcon(ctx,id,bx+cw/2,y+64,72,color);
+      text(ctx,def.name,bx+cw/2,y+124,21,'#f0f5ff','center');
+      text(ctx,isMatch?'三消触发':def.category,bx+cw/2,y+153,15,color,'center');
+      text(ctx,'点击更换  ›',bx+cw/2,y+ch-21,16,'#8fa6c2','center');
+      push(isMatch?'matchCfg':'globalCfg',isMatch?{slot:key}:{index:i},bx,y,cw,ch);
     });
-    // 行点击兜底（标签胶囊区）
-    push(isMatch ? 'matchCfg' : 'globalCfg', null, x, y, 88, h);
   }
 
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */
@@ -4436,68 +4496,43 @@ class Renderer {
   }
 
   /** v5.3c 三消技能配置面板：三行（四连 5 / 高连 4 / 连消 2），已解锁点选配置，未解锁点卡购买 */
-  menuMatchCfg(ctx, s, push) {
-    const oy = this._menuPanelShell(ctx, s, push, '三消技能配置', 900);
-    text(ctx, '四消 / 五消 / 连锁消除 3 槽配置 · 点选即保存（未解锁点击购买）', 375, oy + 84, 17, '#8ea3b8', 'center');
-    let yy = oy + 120;
-    const groups = [
-      { slot: 'match4', title: '四连技', items: CONFIG.MATCH_SKILL.match4, tint: '#a86bff' },
-      { slot: 'match5', title: '高连技', items: CONFIG.MATCH_SKILL.match5, tint: '#f7c948' },
-      { slot: 'chain', title: '连消技', items: CONFIG.MATCH_SKILL.chain, tint: '#7ef0a3' },
-    ];
-    groups.forEach((g) => {
-      const cur = (s.matchSkills && s.matchSkills[g.slot]) || CONFIG.MATCH_SKILL.default[g.slot];
-      const chh = 100;
-      text(ctx, `${g.title} · 当前：${(g.items.find((d) => d.id === cur) || {}).name || (cur === 'random' ? '随机抽取' : '')}`, 375, yy, 18, g.tint, 'center');
-      yy += 30;
-      const n = g.items.length;
-      const cw = Math.floor((640 - (n - 1) * 10) / n);
-      g.items.forEach((it, ii) => {
-        const cx = 55 + ii * (cw + 10);
-        const sel = it.id === cur;
-        const owned = this._skillOwned(s, g.slot, it.id);
-        push('mSkill', { slot: g.slot, id: it.id }, cx, yy, cw, chh);
-        fillRoundRect(ctx, cx, yy, cw, chh, 12, sel ? 'rgba(167,107,255,0.16)' : 'rgba(255,255,255,0.05)');
-        strokeRoundRect(ctx, cx, yy, cw, chh, 12, sel ? '#f7c948' : (owned ? '#3a6ea5' : '#6b4a2a'), sel ? 2.2 : (owned ? 1.2 : 1));
-        text(ctx, (it.mark || '') + ' ' + it.name, cx + cw / 2, yy + 34, 17, sel ? '#ffffff' : (owned ? '#c9d6e4' : '#b58a5a'), 'center');
-        if (owned) {
-          text(ctx, sel ? '✓ 已配置' : '点击配置', cx + cw / 2, yy + 60, 14, sel ? '#7ef0a3' : '#5b6b7c', 'center');
-          const desc = it.desc.length > 13 ? it.desc.slice(0, 13) + '…' : it.desc;
-          text(ctx, desc, cx + cw / 2, yy + 86, 12, '#8ea3b8', 'center');
-        } else {
-          text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price[g.slot]}`, cx + cw / 2, yy + 60, 15, '#ffb84d', 'center');
-          text(ctx, '点击购买', cx + cw / 2, yy + 86, 13, '#8f6a45', 'center');
-        }
-      });
-      yy += chh + 32;
+  _skillChoiceCards(ctx, s, push, title, slot, items, current, tint) {
+    const oy = this._menuPanelShell(ctx,s,push,title,1060);
+    text(ctx,'仅显示当前槽位可用技能 · 点击卡片配置',375,oy+84,18,'#9cacc2','center');
+    const gap=18, cw=291, ch=252;
+    items.forEach((it,i)=>{
+      const x=75+(i%2)*(cw+gap), y=oy+120+Math.floor(i/2)*(ch+16);
+      const owned=this._skillOwned(s,slot,it.id), selected=it.id===current;
+      fillRoundRect(ctx,x,y,cw,ch,18,selected?'#26344a':'#141f30');
+      strokeRoundRect(ctx,x,y,cw,ch,18,selected?'#f4cb79':(owned?tint:'#685640'),selected?2.5:1.2);
+      this._skillIcon(ctx,it.id,x+cw/2,y+46,60,it.color||tint);
+      text(ctx,it.name,x+cw/2,y+94,23,'#f1f5ff','center');
+      this.wrapText(ctx,it.desc||'',cw-36,18).forEach((ln,j)=>text(ctx,ln,x+18,y+126+j*24,18,'#adbed3','left'));
+      fillRoundRect(ctx,x+14,y+ch-42,cw-28,29,10,selected?'#665432':'#223249');
+      const status=selected?(owned?'✓ 已配置':'当前槽位 · 待解锁'):(owned?'点击配置':'解锁 · '+CONFIG.SKILL_UNLOCK.price[slot]+' 金币');
+      text(ctx,status,x+cw/2,y+ch-27,16,selected?'#ffe0a0':'#b9cee7','center');
+      push('mSkill',{slot,id:it.id},x,y,cw,ch);
     });
   }
 
-  /** v5.3c 全局技能配置面板：洗牌默认解锁；补给未解锁可点购买；第 3 槽预留 */
+  menuMatchCfg(ctx, s, push) {
+    const slot=(s.panel && s.panel.slot)||'match4';
+    const names={match4:'四连技',match5:'高连技',chain:'连消技'};
+    if (!CONFIG.MATCH_SKILL[slot] || !names[slot]) return;
+    const items=CONFIG.MATCH_SKILL[slot].slice();
+    if(slot==='match4') items.unshift({id:'random',name:'随机抽取',desc:'每次触发四消时，从五种四连技能中随机抽取一种。'});
+    this._skillChoiceCards(ctx,s,push,names[slot]+' · 技能选择',slot,items,(s.matchSkills&&s.matchSkills[slot])||CONFIG.MATCH_SKILL.default[slot],'#b896ff');
+  }
+
   menuGlobalCfg(ctx, s, push) {
-    const oy = this._menuPanelShell(ctx, s, push, '全局技能配置', 640);
-    text(ctx, '全局充能 → 施放全局技能（当前已装 2 款，第 3 槽预留）', 375, oy + 88, 18, '#f7c948', 'center');
-    const defs = [
-      { id: 'shuffle', name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
-      { id: 'refill', name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
-      null,
-    ];
-    defs.forEach((sl, i) => {
-      const bx = 75 + i * 200, by = oy + 112, bw = 180, bh = 100;
-      const owned = sl ? this._skillOwned(s, 'global', sl.id) : false;
-      push('mSkill', { slot: 'global', id: sl ? sl.id : '' }, bx, by, bw, bh);
-      fillRoundRect(ctx, bx, by, bw, bh, 14, sl ? '#1d2530' : '#151a22');
-      strokeRoundRect(ctx, bx, by, bw, bh, 14, sl ? (owned ? sl.color : '#6b4a2a') : '#232b36', sl ? 1.5 : 1);
-      if (sl) {
-        text(ctx, `${sl.icon} ${sl.name}`, bx + bw / 2, by + 46, 22, owned ? '#ffffff' : '#b58a5a', 'center');
-        if (owned) text(ctx, '已装备', bx + bw / 2, by + 76, 16, sl.color, 'center');
-        else text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price.global} 点击购买`, bx + bw / 2, by + 76, 15, '#ffb84d', 'center');
-      } else {
-        text(ctx, '空槽位', bx + bw / 2, by + 50, 20, '#5b6b7c', 'center');
-        text(ctx, '技能池拍板后开放', bx + bw / 2, by + 78, 14, '#4a5a6e', 'center');
-      }
-    });
-    text(ctx, '全局技能池 v5.3 · 14 款（输出4 / 防御3 / 控制3 / 三消联动3 / 收益1）确认后开放可选', 375, oy + 262, 17, '#8ea3b8', 'center');
+    const index=Number(s.panel.index||0), slots=GlobalSkills.slots(s.globalSkills);
+    const page=Math.max(0,Math.min(2,s.panel.page||0));
+    const items=GlobalSkills.POOL.slice(page*6,page*6+6);
+    this._skillChoiceCards(ctx,s,push,'全局槽位 '+(index+1)+' · 技能选择','global',items,slots[index],'#f4cb79');
+    text(ctx,'装备与另一槽相同的技能时，自动交换两个槽位',375,1197,16,'#9cacc2','center');
+    if(page>0){button(ctx,80,1150,130,36,'‹ 上一页');push('globalPage',page-1,80,1150,130,36);}
+    text(ctx,(page+1)+' / 3',375,1168,20,'#f4cb79','center');
+    if(page<2){button(ctx,540,1150,130,36,'下一页 ›');push('globalPage',page+1,540,1150,130,36);}
   }
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */

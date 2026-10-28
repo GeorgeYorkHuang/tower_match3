@@ -14,6 +14,7 @@
  *   - trySwap(r1,c1,r2,c2)：真实路径（棋盘交换 → 按匹配组逐组结算，含连锁）
  */
 const CONFIG = require('./config.js');
+const GlobalSkills = require('./global-skills.js');
 const Board = require('./board.js');
 const { EffectManager } = require('./effects.js');
 
@@ -42,6 +43,8 @@ class Run {
   constructor(opts) {
     opts = opts || {};
     this.rng = opts.rng || Math.random;
+    this.globalSlots = GlobalSkills.slots(opts.globalSkills);
+    this.gsState = {};
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, opts.matchSkills || {});  // v5.2 三消技能配置槽
     this.board = new Board({ difficulty: this.difficulty });
@@ -49,6 +52,7 @@ class Run {
     this.board.hooks = {
       onMatch4: () => this.matchSkills.match4,
       onMatch5: () => this.matchSkills.match5,
+      extraMatch4: () => { if (this.gsState.twins) { this.gsState.twins=false; return true; } return false; },
     };
     this.board.init();
     this.effects = new EffectManager({ rng: this.rng });
@@ -151,6 +155,7 @@ class Run {
     // v1.16.102 疾接3★：接镖瞬间 0.3 秒无敌帧（对精英投射物有效），窗口内城墙完全免伤
     if ((this._wallInvT || 0) > 0) return 0;
     let dmg = d;
+    if (this.gsState && this.gsState.shieldWave === this.wave && this.gsState.shield > 0) { const absorbed=Math.min(dmg,this.gsState.shield); this.gsState.shield-=absorbed; dmg-=absorbed; }
     // v1.16.98 冰墙裂变3★：城墙受击伤害累计（冰盾生效期间由 combat 转冰塔能量）
     this._wallDmgAcc = (this._wallDmgAcc || 0) + dmg;
     const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
@@ -406,7 +411,7 @@ class Run {
   spendAmmo(which) {
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
-    if (which === 'shuffle' && this.freeShuffle > 0) {
+    if ((this.globalSlots || ['shuffle','refill'])[which === 'shuffle' ? 0 : 1] === 'shuffle' && this.freeShuffle > 0) {
       this.freeShuffle -= 1;
       return true;
     }
@@ -440,7 +445,14 @@ class Run {
     // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
     this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
     const settled = [], settledByStep = [];
-    const chainStart = CONFIG.MATCH_SKILL.chainStart;
+    const chainStart = this.gsState.chainstorm ? 2 : CONFIG.MATCH_SKILL.chainStart;
+    this.gsState.chainstorm = false;
+    if (this.gsState.charge) {
+      const colors = ret.resolved.matches.map(m=>m.color);
+      const ordered = [...new Set(colors.map(c=>CONFIG.COLORS[c] && CONFIG.COLORS[c].tower).concat(this.slotOrder))].filter(k=>this.slotOrder.includes(k)).slice(0,2);
+      ordered.forEach(k=>{const t=this.effects.tower(k);t.energy=Math.min(this.armoryEnergyMax(),t.energy+10);});
+      this.gsState.charge=false;
+    }
     ret.resolved.stepList.forEach((st, si) => {
       const stepSettled = [];
       const isChain = (si + 1) >= chainStart;   // 连续第 4 组起算连锁
@@ -532,6 +544,7 @@ class Run {
   /** 进入下一波（模拟/UI 统一入口） */
   startWave() {
     this.wave += 1;
+    if (this.gsState) { this.gsState.shield=0; this.gsState.shieldWave=this.wave; }
     // v1.16.78 战场被动触发：霜风每 windEvery 波风场增速 +1 层；深渊每 curseEvery 波诅咒 +1 层
     const f = this.fieldCfg;
     if (f) {
@@ -605,6 +618,7 @@ class Run {
 
   /** run 间重置：特效构筑/待选/整体经验清空（金币由 session 保留——见 simulateSession） */
   resetRunBuild() {
+    this.gsState = {};
     Object.keys(this.effects.towers).forEach((k) => this.effects.tower(k).resetRunBuild());
     this.wave = 0; this.lineHp = CONFIG.LINE.hp; this.broken = false;
     this.clearedWaves = 0;   // v1.17.22 全歼波数同局清零

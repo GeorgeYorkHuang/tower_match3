@@ -17,6 +17,7 @@
  * 运行环境：微信小游戏（CommonJS），纯逻辑无渲染；视觉仍由 game.fx 表现。
  */
 const CONFIG = require('./config.js');
+const GlobalSkills = require('./global-skills.js');
 
 /* =====================================================================
  * SKILL_NUM —— 技能行为数值表（重构 v1.16.43）
@@ -214,7 +215,7 @@ class CombatSystem {
     if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
-    return Math.max(0.15, iv);
+    return Math.max(0.15, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? 1.4 : 1));
   }
 
   /** 塔当前射程（射程/技能叠加） */
@@ -252,7 +253,7 @@ class CombatSystem {
   shotDmg(key, isSkill) {
     const dps = this.game.run.effects.towerDps(key);
     const iv = CONFIG.TOWERS[key].atkInterval;
-    let dmg = dps * iv;
+    let dmg = dps * iv * (this.game.run.gsState && this.game.run.gsState.forge > 0 ? 1.25 : 1);
     // v1.16.77 局内商店·攻击强化：+20%/层（本局临时）
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { atk: 0 };
     if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
@@ -1383,7 +1384,15 @@ class CombatSystem {
     const sx = mz.x, sy = mz.y;
     const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
     const dur = cfg.shot.dur;
-    const dmg = this.shotDmg(key);
+    let dmg = this.shotDmg(key);
+    const volley = g.run.gsState && g.run.gsState.volley;
+    if (volley && volley[key]) {
+      delete volley[key]; dmg *= 0.5;
+      for (let i=1;i<=2;i++) {
+        this.shots.push({key,target,dmg,t:-i*0.12,dur,sx,sy});
+        g.fx.push({type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*0.12,key});
+      }
+    }
     // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
     const duelProb = key === 'cannon' ? (0.25 + 0.15 * this.branchLv('cannon', '双管齐射', 'A') + this.relicVal('can_double') / 100) : 0;   // v1.16.114 双发1★/2★
     const duel = key === 'cannon' && this.lv('cannon', '双管齐射') > 0 && Math.random() < duelProb;
@@ -3451,6 +3460,9 @@ class CombatSystem {
     const g = this.game;
     if (!g.run.spendAmmo(which)) return false;
     const GS = CONFIG.GLOBAL_SKILL;
+    const index = which === 'shuffle' ? 0 : 1;
+    which = (g.run.globalSlots || ['shuffle','refill'])[index];
+    if (which !== 'shuffle' && which !== 'refill') return GlobalSkills.cast(this,which);
     if (which === 'shuffle') {
       // 全局洗牌：打乱当前三消棋盘所有方块（重新生成，无初始三消）
       const b = g.run.board;

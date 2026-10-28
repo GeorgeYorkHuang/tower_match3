@@ -359,6 +359,10 @@ Board.prototype.resolve = function resolve() {
         if (sid && CONFIG.MATCH_SKILL.match4.some((s) => s.id === sid)) {
           toClear[kept[0]][kept[1]] = false;
           plants.push({ r: kept[0], c: kept[1], v: this._makeSpecial(m.color, sid, false) });
+          if (this.hooks.extraMatch4 && this.hooks.extraMatch4()) {
+            const second=m.cells.find(([rr,cc])=>rr!==kept[0]||cc!==kept[1]);
+            if(second){toClear[second[0]][second[1]]=false;plants.push({r:second[0],c:second[1],v:this._makeSpecial(m.color,sid,false)});}
+          }
         }
       } else if (shape !== '3' && this.hooks.onMatch5) {
         const op = this.hooks.onMatch5(m.cells, m.color, shape, steps - 1);
