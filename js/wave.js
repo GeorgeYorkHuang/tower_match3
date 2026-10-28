@@ -27,6 +27,8 @@ class WaveDirector {
     if (!keepEnemies) g.enemies = [];   // v1.17.3 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // v1.16.78 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
+    // v1.17.5 本波参考时长 = 投放时长(数量×0.45) + 10s（仅用于状态条倒计时展示；实际结束=清场或投完+10s）
+    this.waveDur = this.plan.length * this.interval + 10;
     g.state = 'fighting';
     g.selected = null;
     g.swapped = false;
@@ -42,7 +44,8 @@ class WaveDirector {
   buildPlan() {
     const w = this.game.run.wave;
     const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // v1.16.78 深渊诅咒被动
-    let count = (6 + 3 * w) * 2; // v1.8：每波敌人数量翻倍（单只血量=等级表值，不再按 count 均分总血量）
+    // v1.17.5 数量增长：基数 6，每波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
+    let count = 6 + (w - 1) + Math.floor(w / 5) * 5;
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
     const eliteCount = CONFIG.ENEMY.elitePerWave || 1;          // 每波固定精英
     const mix = CONFIG.ENEMY.levelMix(w);                       // 代际权重数组（主代 + 副代 + 残留代）
@@ -50,6 +53,7 @@ class WaveDirector {
     this.plan = [];
     this.timer = 0;
     this._eid = 0;
+    this.planDoneAt = null;   // v1.17.5 投放完成时刻（game.waveTime），null=未放完
     const bossN = hasBoss ? 1 : 0;
     const normalCount = count - bossN - eliteCount;
     for (let i = 0; i < normalCount; i++) {
@@ -63,9 +67,8 @@ class WaveDirector {
     if (hasBoss) {
       this.plan.push({ lv: mainLv, type: 'boss', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.bossHpMult * curseMult, offset: 0.5 + Math.random() * 0.3, isBoss: true }); // Boss 最后出场
     }
-    // v1.17.4 投放 30s 内完成（WAVE_DUR×0.75）：移除 0.35s 下限——原下限在 13 波起使投放总时长突破 30s
-    //   （第 60 波需 129.5s），与 40s 波超时严重冲突；新公式各波恰好 30s 放完，高波次按密度自然加密
-    this.interval = (WAVE_DUR * 0.75) / this.plan.length;
+    // v1.17.5 固定投放间隔 0.45s：出怪时长 = 数量×0.45，随波次自然增长（不再是固定 30s/40s）
+    this.interval = 0.45;
     this.hasBoss = hasBoss;
     this.enemyTotalHp = CONFIG.ENEMY.waveTotalHp(w, curseMult); // 与 run.endWave 结算口径一致
   }
@@ -80,7 +83,7 @@ class WaveDirector {
     }
   }
 
-  /** 按投放计划放出一只敌人 */
+  /** 按投放计划放出一只敌人；放完最后一只时记录投放完成时刻（game.waveTime） */
   spawnOne() {
     if (!this.plan.length) return;
     const it = this.plan.shift();
@@ -88,6 +91,7 @@ class WaveDirector {
     const wallY = this.ly.wallY;
     const speed = (wallY - entryY) / WAVE_DUR;
     this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
+    if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // v1.17.5 投放完成时间戳
   }
 
   /** v1.16.131 出怪 X 坐标：避开行动区两侧灌木贴图障碍。

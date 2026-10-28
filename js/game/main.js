@@ -224,7 +224,7 @@ class GameMain {
     return {
       state: this.state,
       lineHp: run.lineHp, lineMaxHp: run.lineMaxHp,
-      wave: run.wave, waveTime: this.waveTime, waveDuration: WAVE_DUR,
+      wave: run.wave, waveTime: this.waveTime, waveDuration: (this.wave && this.wave.waveDur) || WAVE_DUR,
       towers: slots,
       allTowers,
       enemyCount: this.enemies.length,
@@ -404,10 +404,15 @@ class GameMain {
       this.stepEnemies(bdt);
       // v1.12.1 失败立即结算：城墙血量归零 → 直接进入失败界面（不再等当前波打完）
       if (this.run.broken) { this.waveEnd(); return; }
-      // v1.17.2 波次完成标准 = 打完本波全部敌人（含未出场），或波时到达 40s 硬上限（未清完也强制出下一波）
-      if (this.waveTime >= CONFIG.WAVE.seconds || (!this.enemies.length && !this.wave.plan.length && this.waveTime > 3)) {
-        // v1.17.3 超时且场上仍有残怪 → 标记叠加波：结算本波但不清场，下一波继续出（前后两波共存）
-        this._overlapWave = !(!this.enemies.length && !this.wave.plan.length);
+      // v1.17.5 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 10s（场上残怪保留，叠加波继续打）
+      //   （不再固定 40s 超时；波时长随出怪数量自然增长）
+      const allDead = !this.enemies.length && !this.wave.plan.length;
+      const spawnedAll = !this.wave.plan.length && this.wave.planDoneAt !== null;
+      if (allDead) {
+        this._overlapWave = false;
+        this.waveEnd();
+      } else if (spawnedAll && this.waveTime - this.wave.planDoneAt >= 10) {
+        this._overlapWave = this.enemies.length > 0;   // v1.17.3 叠加波：保留场上残怪，下一波继续出
         this.waveEnd();
       }
       return;
@@ -1103,7 +1108,7 @@ class GameMain {
       gold: run.gold,
       wave: run.wave,
       waveTime: this.waveTime,
-      waveDuration: WAVE_DUR,
+      waveDuration: (this.wave && this.wave.waveDur) || WAVE_DUR,
       state: this.state,
       stage: this.menuStage,   // v1.16.82 战斗态也需要战场标识（行动区主题背景切换）
       anim: this.anim,
