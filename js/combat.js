@@ -1309,12 +1309,12 @@ class CombatSystem {
       if (key === 'boomerang') this.bWait[key] = false;
       return;
     }
-    // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补）
+    // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补；v1.17.10 按塔实际能耗回补）
     const regain = key === 'boomerang' && this.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < SKILL_NUM.boomerang['接镖'].catchRegain;
-    if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + CONFIG.GLOBAL_SKILL.perAttack, g.run.armoryEnergyMax());
+    if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + g.run.attackCost(ammoT), g.run.armoryEnergyMax());
     // v1.16.102 疾风回旋3★：攻速加成期间接镖 15% 概率不耗能量（攻速加成存在 = 实际攻击间隔 < 基础间隔）
     if (ammoT && key === 'boomerang' && g.run.relic3('boo_speed') && this.interval(key) < CONFIG.TOWERS[key].atkInterval && Math.random() < 0.15) {
-      ammoT.energy = Math.min(ammoT.energy + CONFIG.GLOBAL_SKILL.perAttack, g.run.armoryEnergyMax());
+      ammoT.energy = Math.min(ammoT.energy + g.run.attackCost(ammoT), g.run.armoryEnergyMax());
     }
     const cfg = CONFIG.TOWERS[key];
     const ly = this.ly();

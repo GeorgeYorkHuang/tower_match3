@@ -167,9 +167,14 @@ class Run {
     return Math.max(0, Math.min(10, pct));
   }
 
-  /** v1.16.96 弹药箱3★：普攻能量不足时从备用能量库借用（一次借足 0.5 发） */
+  /** v1.16.96 弹药箱3★：普攻能量不足时从备用能量库借用（一次借足 1 发所需能量）。
+   *  v1.17.10 攻击能耗按塔平衡：每发耗能 = 各塔 attackCost（攻速×DPS 定价，效率基准 60 伤/能），缺省回退 0.5 */
+  attackCost(t) {
+    const c = t && t.key && CONFIG.TOWERS[t.key];
+    return (c && c.attackCost) || CONFIG.GLOBAL_SKILL.perAttack;
+  }
   spendAttackEnergy(t) {
-    const need = CONFIG.GLOBAL_SKILL.perAttack;
+    const need = this.attackCost(t);
     if (t.energy < need && this.energyBank > 0) {
       const take = Math.min(this.energyBank, need - t.energy);
       this.energyBank -= take;

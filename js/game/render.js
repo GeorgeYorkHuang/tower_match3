@@ -4196,8 +4196,8 @@ class Renderer {
       strokeRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.35)', 1);
       text(ctx, c.txt, valX, rowY, 18, '#e8f0f8', 'left');
     });
-    // v1.16.110 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡
-    const enV = GS.perAttack || 0.5;
+    // v1.16.110 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡；v1.17.10 按塔攻速×DPS 定价（attackCost）
+    const enV = (CONFIG.TOWERS[k] && CONFIG.TOWERS[k].attackCost) || GS.perAttack || 0.5;
     const ecW = 190, ecH = 40, ecX = dx + dw - 30 - ecW, ecY = dy + 20;
     fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
     strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);

@@ -132,12 +132,12 @@ module.exports = {
    * v1.17 塔成长线性化（已确认 v1）：DPS = baseDps + perLv×(L-1)，替代原 grow 乘法
    */
   TOWERS: {
-    fire:      { color: 'red',    baseDps: 32, perLv: 10, range: 830, atkInterval: 0.9,  shot: { kind: 'line',  dur: 1.0  } }, // 火球弹道（直线慢速）；v1.13.18 平衡：纯输出塔上调
-    ice:       { color: 'blue',   baseDps: 20, perLv: 8,  range: 760, atkInterval: 1.1,  shot: { kind: 'line',  dur: 1.0  } }, // 冰锥弹道
-    poison:    { color: 'green',  baseDps: 25, perLv: 9,  range: 800, atkInterval: 1.0,  shot: { kind: 'line',  dur: 1.0  } }, // 毒液弹道
-    electric:  { color: 'yellow', baseDps: 23, perLv: 9,  range: 700, atkInterval: 1.0,  shot: { kind: 'bolt',  dur: 0.5  } }, // 闪电折线；v1.13.18 平衡：控制型塔下调纯伤、上调成长
-    boomerang: { color: 'purple', baseDps: 22, perLv: 9,  range: 880, atkInterval: 1.3,  shot: { kind: 'arc',   dur: 2.4  } }, // 回旋弧线（v1.7 慢一倍 + 接镖再投）
-    cannon:    { color: 'orange', baseDps: 38, perLv: 10, range: 930, atkInterval: 1.8,  shot: { kind: 'mortar', dur: 1.5  } }, // 抛物线炮弹
+    fire:      { color: 'red',    baseDps: 32, perLv: 10, range: 830, atkInterval: 0.9,  attackCost: 0.5, shot: { kind: 'line',  dur: 1.0  } }, // 火球弹道（直线慢速）；v1.13.18 平衡：纯输出塔上调
+    ice:       { color: 'blue',   baseDps: 20, perLv: 8,  range: 760, atkInterval: 1.1,  attackCost: 0.4, shot: { kind: 'line',  dur: 1.0  } }, // 冰锥弹道
+    poison:    { color: 'green',  baseDps: 25, perLv: 9,  range: 800, atkInterval: 1.0,  attackCost: 0.4, shot: { kind: 'line',  dur: 1.0  } }, // 毒液弹道
+    electric:  { color: 'yellow', baseDps: 23, perLv: 9,  range: 700, atkInterval: 1.0,  attackCost: 0.4, shot: { kind: 'bolt',  dur: 0.5  } }, // 闪电折线；v1.13.18 平衡：控制型塔下调纯伤、上调成长
+    boomerang: { color: 'purple', baseDps: 22, perLv: 9,  range: 880, atkInterval: 1.3,  attackCost: 0.5, shot: { kind: 'arc',   dur: 2.4  } }, // 回旋弧线（v1.7 慢一倍 + 接镖再投）
+    cannon:    { color: 'orange', baseDps: 38, perLv: 10, range: 930, atkInterval: 1.8,  attackCost: 1.1, shot: { kind: 'mortar', dur: 1.5  } }, // 抛物线炮弹
   },
 
   /* ================= 特效池完整表（每塔 8 特效 × 3 分支，v1.11 重构） =================
