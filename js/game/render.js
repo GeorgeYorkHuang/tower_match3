@@ -3517,8 +3517,9 @@ class Renderer {
     if (IMG_SRC.diamond) drawImg(ctx, IMG_SRC.diamond, 18 + mw + 12 + 12, mcy + 10, 32, 32);
     else text(ctx, '💎', 18 + mw + 12 + 28, mcy + 26, 26, '#7ca8ff', 'center');
     text(ctx, dTxt, 18 + mw + 12 + 52, mcy + 27, 28, '#7ca8ff', 'left');
-    // v1.17.10 游戏名：先不要立体效果（单层金色渐变、保留轻微弧线），位于战场卡（sy=400）正上方
-    drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
+    // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
+    // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
+    if (s.tab === 'battle') drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
