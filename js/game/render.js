@@ -2531,8 +2531,8 @@ class Renderer {
 
   fxFireWall(ctx, f) {
       // 火焰墙（v1.16.21 烈焰墙）：长条可穿越火墙（长 w·宽 h·持续 6s）
-      // v1.17.17：墙体主体改为 4 帧贴图（12fps 循环·加法混合），代码层保留地面红晕与上升火花；
-      //           贴图未加载完成时回退 v1.16.21 程序化绘制（_fxFireWallProc），不出现空墙。
+      // v1.17.17/18：墙体主体改为 4 帧透明贴图（12fps 循环），source-over 主体 + 45% lighter 辉光；
+      //           代码层保留地面红晕与上升火花；贴图未加载完成时回退 v1.16.21 程序化绘制，不出现空墙。
       const p = Math.min(1, f.t / f.dur);
       const cx = f.x, cy = f.y, w = f.w || 100, h = f.h || 30, seed = f.seed || 0;
       const fade = p < 0.1 ? p / 0.1 : (p > 0.85 ? (1 - p) / 0.15 : 1);
@@ -2542,17 +2542,23 @@ class Renderer {
       ctx.beginPath(); ctx.ellipse(cx, cy + h / 2, w * 0.55, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
       // 4 帧贴图：12fps 循环，按 seed 错相（同屏多面火墙不同步）；底边贴地面线，宽=墙宽，高按 512:160
+      // v1.17.18：透明底帧，主体 source-over 保住卡通描边与暗红底色（加法会发白），
+      //           再叠一遍 45% lighter 做辉光——暗色战场有熔光感，亮草地也不冲淡
       const FW_N = 4, FW_FPS = 12, FW_AR = 160 / 512;
       for (let i = 1; i <= FW_N; i++) loadImg(IMG_SRC['firewall' + i]);   // 首帧一次性拉起 4 张
       const fi = (Math.floor(f.t * FW_FPS + seed * 1.7) % FW_N + FW_N) % FW_N + 1;
       const FW = Math.max(24, w);
       const FH = Math.round(FW * FW_AR);
       const bx = cx - FW / 2, by = cy + h / 2 - FH;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';   // 全特效唯一混合方式（加法），黑底即透明
       ctx.globalAlpha = fade;
       const drawn = drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
-      ctx.restore();   // 恢复混合模式/透明度（由 save 前的状态决定，不硬写 source-over）
+      if (drawn) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = fade * 0.45;
+        drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
+        ctx.restore();
+      }
       if (!drawn) this._fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade);
       // 上升火花（代码层粒子，与贴图层叠加：贴图给形，粒子给活）
       for (let i = 0; i < 5; i++) {

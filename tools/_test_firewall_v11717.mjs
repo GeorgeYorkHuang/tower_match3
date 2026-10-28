@@ -1,5 +1,5 @@
 // v1.17.17 回归：火墙 4 帧贴图接入
-//  ① 贴图可用时：12fps 循环取帧、加法混合(lighter)、尺寸 180x56、底边贴地面线
+//  ① 贴图可用时：12fps 循环取帧、主体 source-over + 45% lighter 辉光叠加、尺寸 180x56、底边贴地面线
 //  ② 贴图缺失时：回退程序化绘制，不崩、不出现空墙
 //  ③ 4 张帧资源均已登记在 IMG_SRC
 import { createRequire } from 'module';
@@ -93,7 +93,10 @@ drawnImages.length = 0; compSeq.length = 0;
 let crashed = false;
 try { R.fxFireWall(ctx2d, { ...wall, t: 1 }); } catch (e) { crashed = true; console.error('回退异常:', e.message); }
 if (crashed) process.exit(1);
-if (!compSeq.includes('lighter')) { console.error('FAIL: 回退路径未设置过 lighter（不应残留混合状态）', compSeq); }
+if (compSeq.includes('lighter')) { console.error('FAIL: 回退路径不应出现 lighter 辉光叠加（v1.17.18 辉光仅在有贴图时叠加）', compSeq); process.exit(1); }
+if (drawnImages.some((d) => d.src && d.src.includes('anim_firewall'))) {
+  console.error('FAIL: 贴图缺失时仍绘制了贴图'); process.exit(1);
+}
 if (drawnImages.filter((d) => d.src === '__fillRect__').length < 3) {
   console.error('FAIL: 贴图缺失时未回退程序化火焰条', drawnImages); process.exit(1);
 }
