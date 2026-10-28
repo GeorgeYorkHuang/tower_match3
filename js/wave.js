@@ -27,9 +27,9 @@ class WaveDirector {
     if (!keepEnemies) g.enemies = [];   // v1.17.3 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // v1.16.78 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
-    // v1.17.8 本波参考时长 ≈ 投放时长(数量/平均每批×0.5) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
+    // v1.17.9 本波参考时长 ≈ 投放时长(数量/平均每批 × 平均间隔1.5s) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
     const avgBatch = (1 + Math.max(1, Math.ceil(g.run.wave / 5))) / 2;
-    this.waveDur = Math.max(4, Math.round((this.plan.length / avgBatch) * this.interval) + 3);
+    this.waveDur = Math.max(4, Math.round((this.plan.length / avgBatch) * 1.5) + 3);
     g.state = 'fighting';
     g.selected = null;
     g.swapped = false;
@@ -68,19 +68,20 @@ class WaveDirector {
     if (hasBoss) {
       this.plan.push({ lv: mainLv, type: 'boss', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.bossHpMult * curseMult, offset: 0.5 + Math.random() * 0.3, isBoss: true }); // Boss 最后出场
     }
-    // v1.17.8 投放节奏：间隔 0.5s，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多，投放总时长反而更短）
-    this.interval = 0.5;
+    // v1.17.9 投放节奏：每 1~2s（随机）投放一批，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多）
+    this.interval = 1 + Math.random();   // 首批间隔也随机 1~2s
     this.hasBoss = hasBoss;
     this.enemyTotalHp = CONFIG.ENEMY.waveTotalHp(w, curseMult); // 与 run.endWave 结算口径一致
   }
 
-  /** 每帧推进投放：到间隔放出一批（本批数量随机 1~⌈w/5⌉ 只） */
+  /** 每帧推进投放：每批间隔随机 1~2s，每批数量随机 1~⌈w/5⌉ 只 */
   tick(dt) {
     if (!this.plan.length) return;
     this.timer += dt;
     const maxBatch = Math.max(1, Math.ceil(this.game.run.wave / 5)); // v1.17.8 单批上限随波次
-    while (this.timer >= this.interval && this.plan.length) {
-      this.timer -= this.interval;
+    if (this.timer >= this.interval && this.plan.length) {
+      this.timer = 0;
+      this.interval = 1 + Math.random();   // v1.17.9 下一批间隔随机 1~2s
       const n = 1 + Math.floor(Math.random() * maxBatch); // 本批投放只数：1~maxBatch 随机
       for (let i = 0; i < n && this.plan.length; i++) this.spawnOne();
     }
