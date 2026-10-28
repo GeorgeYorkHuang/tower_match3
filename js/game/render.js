@@ -960,7 +960,7 @@ class Renderer {
     }
     if (isObj) {
       // 特殊块符号（十字爆/分裂爆/乱数/行爆/列爆/彩虹），次级分裂雷符号缩小
-      const SYM = { row: '─', col: '│', cross: '✚', split: '✸', rand: '✦', rainbow: '◈' };
+      const SYM = { row: '─', col: '│', cross: '+', split: '✕', rand: '◆', rainbow: '◎' };   // 全字体兼容几何符号
       const sym = SYM[color.s] || '◆';
       const sz2 = Math.round(size * (color.sub ? 0.4 : 0.52));
       ctx.font = 'bold ' + sz2 + 'px sans-serif';
