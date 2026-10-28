@@ -22,8 +22,8 @@ module.exports = {
     towerRow:       { h: 122  },          // 塔位区（紧贴城墙下方）
     towerSlot:      { size: 100, gap: 28, count: 4 }, // 槽 100×100，间距 28，整体 484 居中
     towerIcon:      { size: 98, badge: 16, expBar: { w: 98, h: 6 } }, // 图标近占满槽位
-    boardArea:      { w: 750, h: 360 },   // 棋盘区（6 格 ×60 = 360，素材近原尺寸）
-    boardCell:      { size: 60, cols: 12, rows: 6, marginX: 15, marginBottom: 6 }, // 72 格
+    boardArea:      { w: 750, h: 420 },   // 棋盘区（7 格 ×60 = 420，v1.17.11 塔位区即城墙后棋盘上移扩展）
+    boardCell:      { size: 60, cols: 11, rows: 7, marginX: 15, marginBottom: 6 }, // 77 格（v1.17.11 6×12 → 7×11）
     funcBar:        { h: 102, keySize: 88 }, // 底部功能键区（三消棋盘下方）
     enemy:          { normal: 72, runner: 60, tank: 96, boss: 128, elite: 92 }, // 怪物显示尺寸（按类型，v1.5 放大一倍）
     pickLayer:      { w: 640, h: 660 },   // 三选一弹层（v1.7：横向三卡，上图标/中介绍/下描述）

@@ -283,7 +283,7 @@ class GameMain {
   spawnTestEnemies(type, count) {
     const ly = this.renderer.ly;
     const entryY = ly.areaY + ly.entryH;
-    const wallY = ly.wallY;
+    const wallY = this.state === 'testfield' ? 1042 : ly.wallY;   // v1.17.11 测试战场塔位行保持 1042，正式战场塔位区即城墙（967）
     const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
     // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
     const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
@@ -469,7 +469,7 @@ class GameMain {
   /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
    *  v1.16.43 修复：无塔（槽位未解锁）时怪物到城墙也应攻城掉血——此前被「无塔不战斗」提前 return 跳过，城墙完全不扣血 */
   siegeEnemies(dt) {
-    const wallLine = this.ly.wallY - 10; // 城墙攻击范围（城墙顶）
+    const wallLine = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10; // 攻城线（v1.17.11 正式=塔位区顶 967-10；测试战场保持 1042-10）
     let wallHits = 0;
     for (const e of this.enemies) {
       if (e.y < wallLine) continue;
@@ -520,7 +520,8 @@ class GameMain {
    *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
   moveEnemy(e, dt) {
     if (e.frozen > 0) return;
-    if (e.y >= this.ly.wallY - 10) return;
+    const lineY = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10;   // v1.17.11 攻城线（塔位区即城墙）
+    if (e.y >= lineY) return;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
     if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
     // v1.16.100 缓毒3★：中毒减速与冰缓/麻痹叠加时，总减速上限 +15%（移动再减 15%）

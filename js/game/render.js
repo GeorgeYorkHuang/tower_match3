@@ -201,14 +201,14 @@ const STATUS_H = 140;                       // 状态条区高（v1.16.72 扩展
 const AREA_X = L.actionArea.x;              // 25
 const AREA_Y = STATUS_H;                    // 140（行动区整体下移，顶部留给金币/波次/协同）
 const AREA_W = L.actionArea.w;              // 700
-const AREA_H = L.actionArea.h - 68;         // 902（压缩行动区高度 68，保持 WALL_Y=967 与下方布局不变）
+const AREA_H = L.actionArea.h - 68 - L.wall.h;  // 827（v1.17.11 城墙并入塔位区：行动区高度减城墙 75，塔位区整体上移，下方空间让给棋盘）
 const ENTRY_H = L.entryBand.h;              // 68
-const WALL_H = L.wall.h;                    // 75（主体60 + 血条区10 + 底空隙5）
+const WALL_H = L.wall.h;                    // 75（城墙视觉已并入塔位区，此值仅作行动区压缩口径保留）
 const WALL_BAR_H = 10;                      // 城墙血条区高度（10px，含血量数字）
 const WALL_BAR_OFF = 5;                     // 血条区离城墙底部偏移
-const WALL_Y = AREA_Y + AREA_H - WALL_H;    // 城墙顶 y（967）
-const TOWER_ROW_Y = WALL_Y + WALL_H;        // 塔位区顶 y（1042 不变）
-const BOARD_Y = TOWER_ROW_Y + L.towerRow.h; // 棋盘区顶 y
+const WALL_Y = AREA_Y + AREA_H;             // 967 防线 y = 塔位区顶（v1.17.11 城墙已并入塔位区，怪物到达此线即攻城）
+const TOWER_ROW_Y = WALL_Y;                 // 塔位区顶 y（967，塔位区即城墙）
+const BOARD_Y = TOWER_ROW_Y + L.towerRow.h; // 棋盘区顶 y（1089）
 
 function layout() {
   return {
@@ -223,7 +223,7 @@ function layout() {
     slotSize: L.towerSlot.size,
     slotGap: L.towerSlot.gap,
     slotCount: L.towerSlot.count,
-    slotY: TOWER_ROW_Y + (L.towerRow.h - L.towerSlot.size) / 2,
+    slotY: TOWER_ROW_Y + 5,                        // v1.17.11 塔槽上移（972），塔位区底部 14px 留给防线血条
   };
 }
 
@@ -346,10 +346,10 @@ class Renderer {
     }
     // 敌群血条（入口带下方细条）
     progressBar(ctx, AREA_X + 12, AREA_Y + ENTRY_H - 8, AREA_W - 24, 6, s.enemyHpRatio, '#ff6b6b', 'rgba(255,255,255,0.15)');
-    // 城墙（防线）
-    this.wall(ctx, s.lineHp, s.lineMaxHp);
-    // 塔位区
+    // 塔位区（v1.17.11 即城墙，先画背景）
     this.towerRow(ctx, s);
+    // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
+    this.wall(ctx, s.lineHp, s.lineMaxHp);
     // 棋盘
     this.board(ctx, s.grid, s.selected, s.anim);
     // 底部功能键区（棋盘下方）
@@ -357,31 +357,22 @@ class Renderer {
     // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
   }
 
-  wall(ctx, hp, maxHp) {
-    // 城墙主体 60px + 血条区 10px（城墙底部）+ 底部空隙 5px；血量数字居中于墙体（砖面）；素材满宽绘制
-    const bodyH = WALL_H - WALL_BAR_H - WALL_BAR_OFF;
-    if (!drawImg(ctx, IMG_SRC.wall, 0, WALL_Y, 750, bodyH)) {
-      fillRoundRect(ctx, AREA_X, WALL_Y, AREA_W, bodyH, 6, '#3d4553');
-      // 城齿
-      ctx.fillStyle = '#525d6e';
-      for (let x = AREA_X; x < AREA_X + AREA_W; x += L.wall.crenel * 3) {
-        ctx.fillRect(x, WALL_Y, L.wall.crenel, 6);
-      }
+  wall(ctx, hp, maxHp, barY) {
+    // v1.17.11 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
+    // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
+    const barH = 14;
+    const by = barY !== undefined ? barY : (TOWER_ROW_Y + L.towerRow.h - barH);
+    const ratio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
+    // 槽（深棕阴影底 + 淡描边）
+    fillRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, '#241a12');
+    strokeRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, 'rgba(255,255,255,0.18)', 1);
+    // 血量填充（分级变色）
+    if (ratio > 0) {
+      const barCol = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff5252';
+      fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, 5, barCol);
     }
-    // 血条区背景（与墙体阴影同色）：城墙主体下方到城墙底
-    const shadowCol = '#241a12'; // 墙体阴影/血条区背景统一深棕色
-    ctx.fillStyle = shadowCol;
-    ctx.fillRect(AREA_X, WALL_Y + bodyH, AREA_W, WALL_H - bodyH);
-    // 血量数字：居中于城墙墙体（砖面），大号
-    text(ctx, `${Math.max(0, Math.ceil(hp))}`, AREA_X + AREA_W / 2, WALL_Y + bodyH / 2 + 8, 24, '#ffffff', 'center');
-    // 城墙血条（10px 高，血条区=城墙底部）：阴影色槽 + 边框 + 血量分级变色
-    const barY = WALL_Y + WALL_H - WALL_BAR_H - WALL_BAR_OFF + 0.5;
-    const barH = WALL_BAR_H - 1;
-    const ratio = Math.max(0, Math.min(1, hp / maxHp));
-    const barCol = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff5252';
-    fillRoundRect(ctx, AREA_X + 6, barY, AREA_W - 12, barH, 3, shadowCol);
-    strokeRoundRect(ctx, AREA_X + 6, barY, AREA_W - 12, barH, 3, 'rgba(255,255,255,0.3)', 1);
-    if (ratio > 0) fillRoundRect(ctx, AREA_X + 7.5, barY + 0.5, (AREA_W - 15) * ratio, barH - 1, 2.5, barCol);
+    // 血量数字（血条内居中）
+    text(ctx, `${Math.max(0, Math.ceil(hp))}`, AREA_X + AREA_W / 2, by + barH / 2 + 1, 15, '#ffffff', 'center');
   }
 
   /** 底部功能键区（三消棋盘下方）：设置 / 帮助（v1.16.30 移除加速键；v1.16.77 移除塔图鉴弹层与商店占位弹层，图鉴移入主界面 codex 页签） */
@@ -3355,18 +3346,18 @@ class Renderer {
     strokeRoundRect(ctx, 405, AREA_Y + 14, 140, 40, 10, '#ffb347', 1.5);
     text(ctx, '✦ 3★ 圣遗物', 475, AREA_Y + 40, 15, '#ffb347', 'center');
     text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
-    // 城墙（测试战场恒满）
-    this.wall(ctx, s.lineHp, s.lineMaxHp);
+    // 防线血条（测试战场恒满；v1.17.11 血条改画在塔位行上方 1039，塔槽 1053 起不受遮挡）
+    this.wall(ctx, s.lineHp, s.lineMaxHp, 1039);
     // 敌人与特效（位于战场区，不被控制条覆盖）；地面持续效果（毒池/毒棒）画在敌人下层
     if (combat) this.groundFx(ctx, combat);
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
     // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）
     const cur = (s.towers || [])[0] || null;
-    if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
-      fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
+    if (!drawImg(ctx, IMG_SRC.towerRow, 0, 1042, 750, L.towerRow.h)) {   // v1.17.11 测试战场塔位行保持原 y1042（正式战场已上移至 967 即城墙）
+      fillRoundRect(ctx, AREA_X, 1042, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
     }
-    text(ctx, '出战塔', 65, TOWER_ROW_Y + 16, 14, 'rgba(255,255,255,0.4)', 'center');
+    text(ctx, '出战塔', 65, 1042 + 16, 14, 'rgba(255,255,255,0.4)', 'center');
     if (cur) {
       push('tf_slot', cur.key, 15, 1053, 100, 100);
       const ix = 15 + (100 - L.towerIcon.size) / 2;
@@ -3386,7 +3377,7 @@ class Renderer {
       text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 3, 1053 + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
     }
     // 6 塔切换钮
-    text(ctx, '更换', 158, TOWER_ROW_Y + 16, 14, 'rgba(255,255,255,0.4)', 'left');
+    text(ctx, '更换', 158, 1042 + 16, 14, 'rgba(255,255,255,0.4)', 'left');
     (s.allTowers || []).forEach((tw, i) => {
       const bx = 185 + i * 66;
       const active = cur && tw.key === cur.key;
@@ -3397,7 +3388,7 @@ class Renderer {
       text(ctx, tw.name, bx + 28, 1053 + 50, 12, active ? '#f7c948' : 'rgba(255,255,255,0.6)', 'center');
     });
     // 底部控制区
-    const cY = TOWER_ROW_Y + L.towerRow.h;
+    const cY = 1042 + L.towerRow.h;   // v1.17.11 测试战场塔位行基准 1042
     fillRoundRect(ctx, AREA_X, cY, AREA_W, LOGIC_H - cY - 16, 12, 'rgba(255,255,255,0.04)');
     text(ctx, `— 刷怪测试 · ${cur ? '出战塔：' + cur.name : ''} —`, 375, cY + 30, 20, '#9fb2c3', 'center');
     const btnW = 208, btnH = 64, btnGap = 16, bX = 44;
