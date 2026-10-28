@@ -3065,7 +3065,7 @@ class Renderer {
         const g1 = 8;
         const bCellW = (brW - g1 * 2) / 3;
         const bH = 34;
-        const selIdx = { a: 0, b: 1, c: 2 }[ef.branch] ?? 0;
+        const selIdx = { A: 0, B: 1, C: 2 }[ef.branch] ?? 0;
         brNames.forEach((bn, bi) => {
           const bx = cx + 8 + bi * (bCellW + g1);
           const bSize = bi === selIdx ? 18 : 16;
@@ -3117,7 +3117,7 @@ class Renderer {
         const g1 = 8;
         const bCellW = (brW - g1 * 2) / 3;
         const bH = 34;
-        const selIdx = { a: 0, b: 1, c: 2 }[ef.branch] ?? 0;
+        const selIdx = { A: 0, B: 1, C: 2 }[ef.branch] ?? 0;
         brNames.forEach((bn, bi) => {
           const bx = cx + 8 + bi * (bCellW + g1);
           const bSize = bi === selIdx ? 18 : 16;
