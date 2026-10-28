@@ -269,42 +269,42 @@ class Renderer {
 
   /** 状态条：银币（局内临时货币）+ 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
   status(ctx, s) {
-    const goldIcon = 44;
-    // v1.17 局内银币（左下安全区：避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
-    if (!drawImg(ctx, IMG_SRC.silver, 14, 76, goldIcon, goldIcon)) {
-      fillRoundRect(ctx, 14, 76, goldIcon, goldIcon, 11, '#c9d6e4');
-      text(ctx, '¥', 36, 98, 22, '#5b6b7c', 'center');
+    const goldIcon = 40;
+    // v1.17.2 局内银币（左下安全区 18,70：整体避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
+    if (!drawImg(ctx, IMG_SRC.silver, 18, 70, goldIcon, goldIcon)) {
+      fillRoundRect(ctx, 18, 70, goldIcon, goldIcon, 10, '#c9d6e4');
+      text(ctx, '¥', 38, 90, 20, '#5b6b7c', 'center');
     }
-    text(ctx, fmtNum(s.gold), 70, 102, 26, '#c9d6e4');
-    // 波次与倒计时（居中，同一行）
-    text(ctx, `第 ${s.wave} 波`, 330, 94, 24, '#ffffff', 'center');
+    text(ctx, fmtNum(s.gold), 72, 94, 26, '#c9d6e4');
+    // 波次与倒计时（居中偏左，同一行；倒计时左移至 440 距右上胶囊更远）
+    text(ctx, `第 ${s.wave} 波`, 320, 94, 24, '#ffffff', 'center');
     if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
-      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 468, 94, 20, '#b8c2cc', 'center');
+      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 438, 94, 20, '#b8c2cc', 'center');
     }
     // 协同状态（右，下移避开右上微信小程序按钮）
     const syn = s.synergies;
     const label = syn[0] && syn[0].done ? '协同✓' : '协同';
     text(ctx, label, 690, 114, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
-    // v1.16.73 本局圣遗物行：前 10 个图标 + 总数（点击区域 relicBarHit 供 main.js 弹详情）
+    // v1.17.2 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
-      const rx = 130, ry = 116, rIcon = 24, rGap = 30, rMax = 10;
+      const rx = 128, ry = 118, rIcon = 22, rGap = 28, rMax = 10;
       const shown = rels.slice(0, rMax);
       shown.forEach((rc, i) => {
         const icx = rx + i * rGap + rIcon / 2;
-        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 13, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 12, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
         ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
         const rSrc = relicIconSrc(rc.id);
         if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
-          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 14, '#ffffff', 'center');
+          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 13, '#ffffff', 'center');
         }
         if (rc.star3) {   // v1.16.113 3★ 质变角标
-          fillRoundRect(ctx, icx + 8, ry - 3, 18, 13, 6, '#ffb347');
-          text(ctx, '★3', icx + 17, ry + 10, 10, '#5c3800', 'center');
+          fillRoundRect(ctx, icx + 8, ry - 3, 17, 12, 6, '#ffb347');
+          text(ctx, '★3', icx + 16, ry + 9, 9, '#5c3800', 'center');
         }
       });
-      text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 16, 'rgba(255,255,255,0.55)', 'left');
+      text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.55)', 'left');
       this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: rIcon + 16 }; // 圣遗物行点击区
     } else {
       this.relicBarHit = null;
@@ -331,18 +331,18 @@ class Renderer {
       if (bossBlink) text(ctx, '⚠', AREA_X + AREA_W - 132, AREA_Y + ENTRY_H / 2, 26, '#ff6b6b', 'right');
       text(ctx, 'BOSS', AREA_X + AREA_W - 100, AREA_Y + ENTRY_H / 2, 22, bossBlink ? '#ff6b6b' : '#b3403a', 'right');
     }
-    // v1.8 整体经验条：出怪区最上方横条 + 右侧等级圆
+    // v1.8 整体经验条：出怪区最上方横条 + 右侧等级圆（v1.17.2 等级圆内嵌条右端，整条左移，规避右上小程序胶囊）
     if (s.expLevel !== undefined) {
-      const exX = AREA_X + 190, exY = AREA_Y + 14, exW = AREA_W - 300, exH = 16;
+      const exX = AREA_X + 160, exY = AREA_Y + 14, exW = AREA_W - 360, exH = 16;
       text(ctx, '整体经验', exX, exY - 6, 18, 'rgba(255,255,255,0.45)', 'left');
       progressBar(ctx, exX, exY, exW, exH, s.expRatio || 0, '#f7c948', 'rgba(0,0,0,0.4)');
       text(ctx, `${Math.floor(s.exp)}/${Math.ceil(s.expNeed)}`, exX + exW / 2, exY + exH + 6, 16, 'rgba(255,255,255,0.5)', 'center');
-      // 右侧等级圆
-      const rcx = exX + exW + 46, rcy = exY + exH / 2, rr = 25;
+      // 右侧等级圆（内嵌于条右端，圆心不再越出行动区右侧）
+      const rcx = exX + exW - 24, rcy = exY + exH / 2, rr = 22;
       ctx.beginPath(); ctx.arc(rcx, rcy, rr, 0, Math.PI * 2);
       ctx.fillStyle = '#f7c948'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.stroke();
-      text(ctx, `${s.expLevel}`, rcx, rcy + 2, 30, '#5c4a00', 'center');
+      text(ctx, `${s.expLevel}`, rcx, rcy + 2, 26, '#5c4a00', 'center');
     }
     // 敌群血条（入口带下方细条）
     progressBar(ctx, AREA_X + 12, AREA_Y + ENTRY_H - 8, AREA_W - 24, 6, s.enemyHpRatio, '#ff6b6b', 'rgba(255,255,255,0.15)');
@@ -2748,6 +2748,27 @@ class Renderer {
       for (let i = 0; i < s.length; i += max) arr.push(s.slice(i, i + max));
       return arr.length ? arr : [''];
     };
+    // v1.17.2 面板顶部「三选一」候选名行：三个候选名并排，系统推荐项（group.target）高亮金色胶囊，其余两个普通显示
+    {
+      const rowY = y + 8, rowH = 28;
+      const selIdx = group.candidates.findIndex((ef) => ef.type !== 'branch' && ef.name === group.target);
+      const names = group.candidates.map((ef) => ef.name);
+      const cells = names.map((nm) => ({ nm, nW: txtW(nm, 20) + 34 }));
+      const totalW = cells.reduce((acc, c) => acc + c.nW, 0);
+      let nx = (750 - totalW) / 2;
+      cells.forEach((c, i) => {
+        if (i === selIdx) {
+          fillRoundRect(ctx, nx, rowY, c.nW, rowH, 14, 'rgba(247,201,72,0.22)');
+          strokeRoundRect(ctx, nx, rowY, c.nW, rowH, 14, '#f7c948', 1.5);
+          text(ctx, c.nm, nx + c.nW / 2, rowY + rowH / 2 + 1, 20, '#f7c948', 'center');
+        } else {
+          text(ctx, c.nm, nx + c.nW / 2, rowY + rowH / 2 + 1, 20, 'rgba(255,255,255,0.45)', 'center');
+        }
+        nx += c.nW;
+      });
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x + 24, rowY + rowH + 6, w - 48, 1);
+    }
     group.candidates.forEach((ef, i) => {
       // v1.11 两级候选：技能卡（未激活，选中=激活）与分支卡（已激活技能分支，选中=分支 Lv+1）
       const isBranch = ef.type === 'branch';
@@ -2758,7 +2779,6 @@ class Renderer {
       const isNewBranch = isBranch && (ef.branchLv || 0) === 0;
       const isUpgrade = isBranch && !isNewBranch;
       const targetLv = isBranch ? (ef.branchLv + 1) : 1;   // 选择后达到的等级
-      // v1.16.7 卡片入场：错峰上浮 + 淡入 + 轻微放大（0.05s + i*0.09s 依次浮现）
       const cd = 0.05 + i * 0.09;
       const ck = Math.min(1, Math.max(0, (inT - cd) / 0.22));
       const cOff = (1 - ck) * 34;
@@ -2777,7 +2797,7 @@ class Renderer {
       //（fromKey/fromName/fromTint 沿用上方已有定义；tName 等可能含「炮塔（P1）」后缀）
       const tagSize = 31;
       const srcTxt = String(fromName || '').replace(/（[^）]*）|\([^)]*\)/g, '');
-      const srcX = cx, srcY = topY - 58, srcW = cardW, srcH = 48;
+      const srcX = cx, srcY = topY - 46, srcW = cardW, srcH = 44;   // v1.17.2 标签下移（topY-46），与顶部候选名行错开
       const srcGrad = ctx.createLinearGradient(0, srcY, 0, srcY + srcH);
       srcGrad.addColorStop(0, lighten(fromTint, 1.25));
       srcGrad.addColorStop(1, '#1c2634');
@@ -2891,6 +2911,21 @@ class Renderer {
       // v1.16.27：技能图标 = 美术图片（88px；垂直居中，水平右移 4px 中和 Lv 角标/素材残余左偏），缺失回退 emoji
       const skImg = drawImg(ctx, skillIconSrc(ef.fromTower, ef.name), iconCx - 40, iconCy - 44, 88, 88);
       if (!skImg) text(ctx, defOf(ef.name, ef.fromTower).icon || (ef.name[0] || '?'), iconCx + 4, iconCy + 6, 52, '#ffffff', 'center');
+      // v1.17.2 图标下方三菱形 = 「三选一」标识（金色小菱形横排，随卡呼吸微动）
+      const d0 = iconCx - 12, dY = iconCy + ir + 9;
+      ctx.save();
+      ctx.globalAlpha = cAlpha * (0.8 + 0.2 * breathe);
+      for (let k = 0; k < 3; k++) {
+        const dx = d0 + k * 12;
+        ctx.save();
+        ctx.translate(dx, dY);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#f7c948';
+        ctx.fillRect(-4.5, -4.5, 9, 9);
+        ctx.restore();
+      }
+      ctx.restore();
+      ctx.globalAlpha = cAlpha;
       // 等级角标（v1.16.93 三态：新技能=NEW 黄底 / 新分支=黄底 Lv0 / 升级=暗底当前等级）
       const badgeBg = isUpgrade ? '#2c3542' : '#f7c948';
       fillRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, badgeBg);
@@ -2953,11 +2988,11 @@ class Renderer {
       lines.forEach((ln, li) => {
         text(ctx, ln, cx + cardW / 2, panelY + 22 + li * 30, 21, '#c7d1dc', 'center');
       });
-      // 按钮文案（v1.16.92 三态）：新技能=确认技能 / 新分支=确认分支 / 升级=确认升级（分支卡均金色）
+      // 按钮文案（v1.17.2 两态）：新技能=学习技能 / 分支（新分支+升级）=确认分支
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
       const btnCol = upgrading ? '#f7c948' : fromTint;
       const btnDark = upgrading ? '#d99e16' : '#243e57';
-      const btnTxt = isSkill ? '确认技能' : (isNewBranch ? '确认分支' : '确认升级');
+      const btnTxt = isSkill ? '学习技能' : '确认分支';
       fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
       const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
       btnGrad.addColorStop(0, lighten(btnCol, 1.25));

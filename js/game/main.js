@@ -404,8 +404,8 @@ class GameMain {
       this.stepEnemies(bdt);
       // v1.12.1 失败立即结算：城墙血量归零 → 直接进入失败界面（不再等当前波打完）
       if (this.run.broken) { this.waveEnd(); return; }
-      // 波次完成标准 = 打完本波全部敌人（含未出场）；不再按波次时长提前结束
-      if (!this.enemies.length && !this.wave.plan.length && this.waveTime > 3) {
+      // v1.17.2 波次完成标准 = 打完本波全部敌人（含未出场），或波时到达 40s 硬上限（未清完也强制出下一波）
+      if (this.waveTime >= CONFIG.WAVE.seconds || (!this.enemies.length && !this.wave.plan.length && this.waveTime > 3)) {
         this.waveEnd();
       }
       return;
