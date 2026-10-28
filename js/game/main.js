@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.17.21';       // v1.17.21 结算页全屏三段式骨架（舞台+绶带标题+深度轨迹条+点击跳过），战利品区暂留旧图标阵列 // v1.17.20 碎片局末结算 + 手动解锁
+const GAME_VERSION = 'v1.17.22';       // v1.17.22 结算页 3 大卡+账单四态+里程碑条+碎片数字滚动；通关数改「全歼波数」口径（一波怪全部死亡且投放完毕才算，按 waveNo 逐波统计，修「到达即计数」+叠加波多波同场问题）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -119,6 +119,8 @@ class GameMain {
     this.runShardGained = 0;     // 本局击杀获得碎片数（局内掉落总数，结算时由 settleRunShards 折算入账）
     this.runShardDetail = {};    // v1.17 本局碎片明细（圣遗物id→数量，只记账不入账；v1.17.20 局末统一结算）
     this.runUnlocked = [];       // v1.17.20 本局因「三选一选中」直接解锁的圣遗物 id（结算页可提示）
+    this._waveAlive = {};        // v1.17.22 各波存活怪计数（全歼统计，见 _tallyWaveDeaths）
+    this._waveCleared = {};      // v1.17.22 已记全歼的波次集合（防重复计数）
     this.animClock = 0;          // v1.17 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
     // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
@@ -469,7 +471,27 @@ class GameMain {
     // 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（v1.16.43 抽出独立方法，无塔时同样执行）
     this.siegeEnemies(dt);
     // 死亡清场（combat.update 已结算死亡技能，此处统一移除尸体）
+    // v1.17.22 全歼波数统计：先归集本帧死亡，再移除尸体
+    const dying = this.enemies.filter((e) => e.hp <= 0);
+    if (dying.length) this._tallyWaveDeaths(dying);
     this.enemies = this.enemies.filter((e) => e.hp > 0);
+  }
+
+  /** v1.17.22 全歼波数：一波的怪「全部死亡且投放完毕」才算完全击败（通关数口径）。
+   *  叠加波下场上同时存在多波怪，按 e.waveNo 逐波归零；waveNo < 当前波 → 该波已停止投放，
+   *  等于当前波时需 plan 已空（否则后续还有投放，等最后一只死亡时再计）。 */
+  _tallyWaveDeaths(dead) {
+    this._waveAlive = this._waveAlive || {};
+    this._waveCleared = this._waveCleared || {};
+    dead.forEach((e) => {
+      const wn = e.waveNo || 0;
+      if (!wn || this._waveCleared[wn]) return;
+      if (this._waveAlive[wn]) this._waveAlive[wn] -= 1;
+      if (this._waveAlive[wn] <= 0 && (wn < this.run.wave || !this.wave.plan.length)) {
+        this._waveCleared[wn] = true;
+        this.run.clearedWaves += 1;
+      }
+    });
   }
 
   /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
@@ -627,6 +649,7 @@ class GameMain {
     const ss = this.settleRunShards(evacuated ? 1 : CONFIG.SHARD_SETTLE.deadRatio);
     this.runSummary = {
       evacuated, wave: this.run.wave, payout, miles,
+      cleared: this.run.clearedWaves || 0,   // v1.17.22 全歼波数（通关数口径：一波怪全部死亡才算，非「到达第几波」）
       chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra,   // v1.17 chestKey：结算页宝箱档位图标
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       // v1.17.20 碎片三件套：raw=掉落总张数 / kept=折算后保留 / lost=损失（失败态展示"损失 N"）
@@ -634,6 +657,7 @@ class GameMain {
       shardDetail: ss.finalDetail,      // 折算后明细（结算页按此绘制图标×数量）
       shardsRaw: ss.raw, shardsLost: ss.lost,
       unlockedThisRun: this.runUnlocked.slice(),   // 本局三选一选中即解锁的圣遗物（失败不回退）
+      relicCards: this._buildRelicCards(ss.finalDetail),   // v1.17.22 结算大卡数据（稀有度→碎片数降序）
       silver: this.silverGained || 0,   // v1.17 局内银币按深度池口径折算的金币
       goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
       kills: ks,                        // v1.16.106 本局总击杀
@@ -653,6 +677,17 @@ class GameMain {
    * @param {number} ratio 1 = 全额（撤离）；0.3 = 失守 / 中途退出
    * @returns {{finalDetail: Object, raw: number, kept: number, lost: number}}
    */
+  /** v1.17.22 结算大卡数据：本局圣遗物 → [{id, rarity, star, shards}]，按 稀有度(ssr>sr>r) → 碎片数 降序；名字由渲染层按 id 取 */
+  _buildRelicCards(detail) {
+    const W = { ssr: 0, sr: 1, r: 2 };
+    return (this.battleRelics || []).map((r) => ({
+      id: r.id,
+      rarity: CONFIG.relicRarity(r.id),
+      star: this.meta.starOf(r.id) || 0,
+      shards: (detail && detail[r.id]) || 0,
+    })).sort((a, c) => (W[a.rarity] - W[c.rarity]) || (c.shards - a.shards));
+  }
+
   settleRunShards(ratio) {
     const detail = this.runShardDetail || {};
     const pool = [];
@@ -1501,7 +1536,7 @@ class GameMain {
           }
           this.save.save();
           const names = res.gains.map((g) => {
-            const dd = CONFIG.RELIC.list.find((r) => r.id === g.id) || {};
+            const dd = CONFIG.relicRunDef(g.id) || { id: g.id, name: g.id, icon: '' };
             return `${dd.icon || ''}${dd.name || g.id}×${g.n}`;
           }).join(' ');
           this.toast(`宝箱开启：${names}`, '#f7c948');

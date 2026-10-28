@@ -57,6 +57,7 @@ class Run {
     this.expLevel = 0;            // 整体等级（经验条/等级圆显示；升级发放三选一——v1.16.55 不再影响塔 DPS）
     this._upCount = {};           // 各塔累计升级次数（均衡轮转，跨波记忆）
     this.wave = 0;
+    this.clearedWaves = 0;        // v1.17.22 全歼波数：一波的怪全部死亡（且投放完毕）才算完全击败；叠加波下按 waveNo 逐波归零统计
     this.lineHp = CONFIG.LINE.hp;
     this.gold = 0;
     this.broken = false;
@@ -605,6 +606,7 @@ class Run {
   resetRunBuild() {
     Object.keys(this.effects.towers).forEach((k) => this.effects.tower(k).resetRunBuild());
     this.wave = 0; this.lineHp = CONFIG.LINE.hp; this.broken = false;
+    this.clearedWaves = 0;   // v1.17.22 全歼波数同局清零
     this.pendingPeak = 0; this.picks = 0; this.firstSynergyWave = null;
     this._directDone = 0;
     this.slotOrder = [];

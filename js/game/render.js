@@ -3190,11 +3190,12 @@ class Renderer {
       text(ctx, win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
       ctx.restore();
     }
-    // meta 行（基线 312，26px 淡入）
+    // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（v1.17.22），旧摘要回退 wave
     const mp = this._goPh(T, TL.meta, 200);
     if (mp > 0) {
       ctx.globalAlpha = mp;
-      text(ctx, '抵达第 ' + su.wave + ' 波 · 深度倍率 ×' + (su.depthMult || 1).toFixed(2) + ' · 总击杀 ' + (su.kills || 0), 375, 312, 26, '#dfe6ee', 'center');
+      const cleared = (su.cleared != null) ? su.cleared : su.wave;
+      text(ctx, '全歼 ' + cleared + ' 波 · 深度倍率 ×' + (su.depthMult || 1).toFixed(2) + ' · 总击杀 ' + (su.kills || 0), 375, 312, 26, '#dfe6ee', 'center');
       ctx.globalAlpha = 1;
     }
   }
@@ -3205,7 +3206,7 @@ class Renderer {
     const TR = CONFIG.GO.TRAIL, TL = CONFIG.GO.TL;
     const base = this._goPh(T, TL.trail, 200);
     if (base <= 0) return;
-    const wave = su.wave || 0;
+    const wave = (su.cleared != null) ? su.cleared : su.wave;   // v1.17.22 轨迹/终点按全歼波数（通关数口径）
     const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / TR.waveMax));
     ctx.globalAlpha = base;
     // 底线（未走段灰）
@@ -3251,10 +3252,19 @@ class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** 战利品区（528–1120）：v1.17.21 暂留旧图标阵列（圣遗物弹入 + 碎片胶囊 + 金币/宝箱/里程碑文字），v1.17.22 整体替换 */
-  _goLootLegacy(ctx, su, T) {
+  /** v1.17.22 通用图标：贴图优先，缺图回退紫底圆 + 名首字（项目 v1.16.135 起无 emoji） */
+  _goIcon(ctx, id, x, y, size) {
+    const src = id ? relicIconSrc(id) : null;
+    if (src && drawImg(ctx, src, x, y, size, size)) return;
+    ctx.beginPath(); ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
+    const def = id && CONFIG.relicRunDef ? CONFIG.relicRunDef(id) : null;
+    text(ctx, def ? def.name.charAt(0) : '✦', x + size / 2, y + size / 2 + 2, size * 0.44, '#d9c2ff', 'center');
+  }
+
+  /** 战利品区（528–934）：标题 + 圣遗物大卡（220×340，最多 3 张居中，超出折叠） */
+  _goLoot(ctx, su, T) {
     const TL = CONFIG.GO.TL;
-    // 标题 + 两侧引线
     const tp = this._goPh(T, TL.lootTitle, 200);
     if (tp > 0) {
       ctx.globalAlpha = tp;
@@ -3264,108 +3274,129 @@ class Renderer {
       ctx.beginPath(); ctx.moveTo(482, 528); ctx.lineTo(680, 528); ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    // 圣遗物图标阵列（旧样式：64px 圆底，两行封顶 10 枚，逐个弹入）
-    const rel = su.relics || [];
-    const D = 64, per = 5, gap = 18;
-    const x0 = 375 - (per * D + (per - 1) * gap) / 2;
-    if (!rel.length) {
+    const cards = su.relicCards
+      || (su.relics || []).map((r) => ({ id: r && r.id, rarity: 'r', star: 0, shards: (su.shardDetail || {})[r && r.id] || 0 }));
+    const total = cards.length;
+    if (!total) {
       const ep = this._goPh(T, TL.card0, 260);
       if (ep > 0) {
         ctx.globalAlpha = ep;
-        text(ctx, '本局未获得圣遗物', 375, 640, 22, '#6b7a8c', 'center');
+        text(ctx, '本局未获得圣遗物', 375, 730, 22, '#6b7a8c', 'center');
         ctx.globalAlpha = 1;
       }
-    } else {
-      rel.slice(0, 10).forEach((r, i) => {
-        const cx = x0 + (i % per) * (D + gap), cy = 576 + Math.floor(i / per) * (D + 16);
-        const pe = this._goPh(T, TL.card0 + i * 90, 260);
-        if (pe <= 0) return;
-        const sc = Math.min(1.08, this._goEob(pe));
-        ctx.globalAlpha = Math.min(1, pe * 1.8);
-        ctx.beginPath(); ctx.arc(cx + D / 2, cy + D / 2, (D / 2) * sc, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(168,107,255,0.18)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(168,107,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
-        // v1.16.135 贴图替代 emoji；缺图回退 = 紫底圆 + 圣遗物名首字
-        const src = r && r.id ? relicIconSrc(r.id) : null;
-        if (src && drawImg(ctx, src, cx + 4, cy + 4, D - 8, D - 8)) {
-          // 贴图成功
-        } else {
-          const def = r && r.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(r.id) : null;
-          text(ctx, def ? def.name.charAt(0) : '✦', cx + D / 2, cy + D / 2 + 2, 30 * Math.min(1, sc), '#d9c2ff', 'center');
-        }
-        ctx.globalAlpha = 1;
-      });
+      return;
     }
-    // 碎片胶囊（折算后明细 su.shardDetail；无碎片不展示）
-    const shT = TL.shardNum;
-    const sp = this._goPh(T, shT, 320);
-    if (sp > 0) {
-      const sc2 = Math.min(1.06, this._goEob(sp));
+    const show = cards.slice(0, 3);
+    const CW = 220, CH = 340, GAP = 14, CY = 560;
+    const x0 = (750 - (show.length * CW + (show.length - 1) * GAP)) / 2;   // 1/2/3 张自动居中
+    show.forEach((c, i) => {
+      const pe = this._goPh(T, TL.card0 + i * TL.cardGap, 280);
+      if (pe <= 0) return;
+      const sc = Math.min(1.06, this._goEob(pe));
       ctx.save();
-      ctx.globalAlpha = Math.min(1, sp * 1.5);
-      ctx.translate(375, 812); ctx.scale(sc2, sc2);
-      const detail = su.shardDetail || {};
-      const entries = Object.keys(detail).map((id) => ({ id, n: detail[id] })).filter((x) => x.n > 0);
-      if (entries.length) {
-        const ICON = 48, GAP = 118;
-        const show = entries.slice(0, 3);
-        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
-        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-        const px0 = -((show.length * GAP - GAP + ICON) / 2);
-        show.forEach((en, i) => {
-          const ix = px0 + i * GAP;
-          const src = relicIconSrc(en.id);
-          if (!drawImg(ctx, src, ix, -34, ICON, ICON)) {
-            ctx.beginPath(); ctx.arc(ix + ICON / 2, -34 + ICON / 2, ICON / 2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
-            const def = CONFIG.relicRunDef ? CONFIG.relicRunDef(en.id) : null;
-            text(ctx, def ? def.name.charAt(0) : '✦', ix + ICON / 2, -34 + ICON / 2 + 2, 28, '#d9c2ff', 'center');
-          }
-          text(ctx, '×' + en.n, ix + ICON + 6, -6, 26, '#c9a6ff', 'left');
-        });
-        if (entries.length > 3) text(ctx, '+' + (entries.length - 3), px0 + 3 * GAP, -6, 22, '#a86bff', 'left');
-      } else if ((su.shards || 0) > 0) {
-        // 兜底：有总数但明细缺失（老数据）→ 通用碎片字形
-        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
-        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-        text(ctx, '✦ ×' + (su.shards || 0), 0, 2, 36, '#c9a6ff', 'center');
-      }
+      ctx.globalAlpha = Math.min(1, pe * 1.8);
+      const cx = x0 + i * (CW + GAP) + CW / 2, cy = CY + CH / 2;
+      ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
+      const X = x0 + i * (CW + GAP);
+      const rc = CONFIG.GO.RARITY[c.rarity] || CONFIG.GO.RARITY.r;
+      fillRoundRect(ctx, X, CY, CW, CH, 16, '#20262f');
+      strokeRoundRect(ctx, X, CY, CW, CH, 16, rc, c.rarity === 'ssr' ? 2.5 : 1.5);
+      // 图标 72（584–656）
+      this._goIcon(ctx, c.id, X + (CW - 72) / 2, 584, 72);
+      // 名字：≤5 字 26px，更长 20px，超 8 字截断（220 宽卡防溢出）
+      const def = c.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(c.id) : null;
+      let name = def ? def.name : '?';
+      if (name.length > 8) name = name.slice(0, 7) + '…';
+      text(ctx, name, X + CW / 2, 690, name.length > 5 ? 20 : 26, '#eef3f8', 'center');
+      // 稀有度胶囊（702–732）：'SSR · 2★'，star 0 只显稀有度
+      const rl = { r: 'R', sr: 'SR', ssr: 'SSR' }[c.rarity] || 'R';
+      const cap = c.star > 0 ? rl + ' · ' + c.star + '★' : rl;
+      fillRoundRect(ctx, X + (CW - 116) / 2, 702, 116, 30, 15, 'rgba(0,0,0,0.35)');
+      text(ctx, cap, X + CW / 2, 717, 20, rc, 'center');
+      // 碎片条（772–814）：紫底胶囊 + 图标 28 + ×N（数字 0→n 滚动 300ms）
+      const roll = Math.floor((c.shards || 0) * this._goPh(T, TL.shardNum, 300));
+      fillRoundRect(ctx, X + 10, 772, CW - 20, 42, 21, 'rgba(168,107,255,0.16)');
+      strokeRoundRect(ctx, X + 10, 772, CW - 20, 42, 21, 'rgba(168,107,255,0.7)', 1.5);
+      this._goIcon(ctx, c.id, X + 24, 779, 28);
+      text(ctx, '×' + roll, X + CW / 2 + 16, 793, 26, '#c9a6ff', 'center');
       ctx.restore();
+    });
+    // 折叠提示（基线 934）
+    if (total > 3) {
+      const fp = this._goPh(T, TL.card0 + 3 * TL.cardGap, 220);
+      if (fp > 0) {
+        ctx.globalAlpha = fp;
+        text(ctx, '本局共 ' + total + ' 件', 375, 934, 22, '#8ea3b8', 'center');
+        ctx.globalAlpha = 1;
+      }
     }
-    // 金币 + 宝箱（同一行，图标左文字右；金币 = 深度结算 + 银币折算合并）
+  }
+
+  /** 账单区（960–1070）：左卡金币 / 右卡宝箱四态（340×110 gap30） */
+  _goBills(ctx, su, T) {
+    const TL = CONFIG.GO.TL;
+    const card = (x, p, draw) => {
+      if (p <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, p * 1.5);
+      const dx = x + (p < 1 ? -30 * (1 - p) : 0);   // 自左滑入
+      fillRoundRect(ctx, dx, 960, 340, 110, 16, '#20262f');
+      strokeRoundRect(ctx, dx, 960, 340, 110, 16, 'rgba(255,255,255,0.12)', 1.5);
+      draw(dx);
+      ctx.restore();
+    };
+    // 左卡：金币（深度结算 + 银币折算合并）
     const totalSilver = (su.payout || 0) + (su.silver || 0);
-    const cA = this._goPh(T, TL.billL, 240);
-    if (cA > 0 && totalSilver > 0) {
-      ctx.globalAlpha = cA;
-      const gy = 946, COIN = 58;
-      if (!drawImg(ctx, IMG_SRC.coin, 218, gy - COIN, COIN, COIN)) {
-        text(ctx, '✦', 218 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
+    card(40, this._goPh(T, TL.billL, 240), (dx) => {
+      const COIN = 56;
+      if (!drawImg(ctx, IMG_SRC.coin, dx + 36, 960 + 27, COIN, COIN)) {
+        text(ctx, '✦', dx + 36 + COIN / 2, 960 + 27 + COIN / 2, 42, '#f7c948', 'center');
       }
-      text(ctx, '×' + fmtNum(totalSilver), 218 + COIN + 20, gy - COIN / 2, 34, '#f7c948', 'left');
-      ctx.globalAlpha = 1;
-    }
-    if (su.chestGranted) {
-      const bA = this._goPh(T, TL.billR, 240);
-      if (bA > 0) {
-        ctx.globalAlpha = bA;
-        const by = 946, CH = 58;
+      text(ctx, '×' + fmtNum(totalSilver), dx + 116, 960 + 46, 34, '#f7c948', 'left');
+      text(ctx, '本局金币', dx + 116, 960 + 84, 20, '#8ea3b8', 'left');
+    });
+    // 右卡：宝箱四态（v1.17.20 起 grantDeepChest 满槽返 false，「已存入」不能假话）
+    card(390, this._goPh(T, TL.billR, 240), (dx) => {
+      const CH2 = 56, iy = 960 + 27;
+      if (su.chestSkipped) {
+        text(ctx, '本局无宝箱', dx + 170, 960 + 48, 26, '#6b7a8c', 'center');
+        text(ctx, '前三波阵亡 · 无深度宝箱', dx + 170, 960 + 84, 18, '#4a5a6e', 'center');
+        return;
+      }
+      if (su.chestGranted) {
         const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
-        if (!drawImg(ctx, tierImg, 462, by - CH, CH, CH)) {
-          text(ctx, '✦', 462 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
+        if (!drawImg(ctx, tierImg, dx + 36, iy, CH2, CH2)) {
+          text(ctx, '✦', dx + 36 + CH2 / 2, iy + CH2 / 2, 42, '#d89e63', 'center');
         }
-        ctx.globalAlpha = 1;
+        if (su.chestExtra) {
+          text(ctx, '已入库 · 加发' + su.chestExtra, dx + 116, 960 + 48, 24, '#ffd34d', 'left');
+        } else {
+          text(ctx, '已存入仓库', dx + 116, 960 + 48, 26, '#dfe6ee', 'left');
+        }
+        text(ctx, su.chestName || '', dx + 116, 960 + 84, 18, '#8ea3b8', 'left');
+      } else if (su.chestName) {
+        // 有档位但未入库 → 仓库 4 槽已满
+        text(ctx, '仓库已满 · 未领取', dx + 170, 960 + 48, 24, '#ff8a8a', 'center');
+        text(ctx, '开启仓库宝箱后再战', dx + 170, 960 + 84, 18, '#8a6a6a', 'center');
+      } else {
+        text(ctx, '—', dx + 170, 960 + 60, 26, '#4a5a6e', 'center');
       }
-    }
-    // 里程碑文字行（v1.17.22 换虚线条）
-    if (su.miles && su.miles.length) {
-      const mA = this._goPh(T, TL.mile, 220);
-      if (mA > 0) {
-        ctx.globalAlpha = mA;
-        text(ctx, '里程碑首达', 375, 1052, 20, '#9fb2c3', 'center');
-        text(ctx, su.miles.join(' / '), 375, 1088, 24, '#a86bff', 'center');
-        ctx.globalAlpha = 1;
-      }
-    }
+    });
+  }
+
+  /** 里程碑条（1094–1146，h52 虚线胶囊）：首达列表 / 空态 */
+  _goMile(ctx, su, T) {
+    const p = this._goPh(T, CONFIG.GO.TL.mile, 220);
+    if (p <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = p;
+    fillRoundRect(ctx, 40, 1094, 670, 52, 26, 'rgba(0,0,0,0.3)');
+    ctx.setLineDash([8, 6]);
+    strokeRoundRect(ctx, 40, 1094, 670, 52, 26, 'rgba(168,107,255,0.55)', 1.5);
+    ctx.setLineDash([]);
+    const miles = su.miles || [];
+    text(ctx, miles.length ? '里程碑首达 ' + miles.join(' / ') : '本局无新里程碑', 375, 1120, 22, miles.length ? '#c9b8ff' : '#5a6b80', 'center');
+    ctx.restore();
   }
 
   /** 底部按钮（1172–1268，320×96 gap30）：浮现前命中区已注册——首点跳过演出，再点命中按钮 */
@@ -3387,7 +3418,9 @@ class Renderer {
       this._goStage(ctx, T, win);
       this._goHead(ctx, su, T, win);
       this._goTrail(ctx, su, T, win);
-      this._goLootLegacy(ctx, su, T);
+      this._goLoot(ctx, su, T);
+      this._goBills(ctx, su, T);
+      this._goMile(ctx, su, T);
       this._goBtns(ctx, T, win, restart);
       return;
     }
@@ -3879,7 +3912,7 @@ class Renderer {
     const cw = 200, ch = 200, gap = 12;
     picks.slice(0, 3).forEach((p, i) => {
       const cx = 55 + i * (cw + gap);
-      const def = CONFIG.RELIC.list.find((r) => r.id === p.relic) || {};
+      const def = CONFIG.relicRunDef(p.relic) || { id: p.relic, name: p.relic, icon: '📿' };
       const rar = p.rar || CONFIG.relicRarity(p.relic);
       const rc = CONFIG.GO.RARITY[rar] || '#4aa3ff';
       fillRoundRect(ctx, cx, 252, cw, ch, 16, '#161d28');

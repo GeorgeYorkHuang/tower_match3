@@ -132,6 +132,10 @@ class WaveDirector {
       attackT: 0,
     };
     const en = initEnemyState(e);
+    en.waveNo = this.game.run.wave;   // v1.17.22 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零
+    const ga = this.game;
+    ga._waveAlive = ga._waveAlive || {};
+    ga._waveAlive[en.waveNo] = (ga._waveAlive[en.waveNo] || 0) + 1;
     // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；v1.16.96 3★：其后 60 码内 2 名敌人各冻 2 秒
     if (!this._freezeDone) {
       const frz = this.game.run.relicNum('cm_freeze');
