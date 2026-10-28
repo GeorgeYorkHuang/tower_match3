@@ -111,19 +111,31 @@ class TowerBuild {
         }
       } else {
         // v1.13.5 分支锁定：技能任一分支升级后，其余两个分支移出抽卡池（后续只升级已选分支）
-        // 尚无分支升级 → 出 1 张卡（取等级最低未满分支）供玩家选定路线
+        // v1.17.9c 分支三选一：尚无分支升级 → A/B/C 三分支各出一张卡，由三选一真正决定方向（不再恒为 A）
         const raised = BRANCH_KEYS.filter((br) => ef.branches[br] > 0);
-        const canUp = raised.length ? raised : BRANCH_KEYS;
-        const br = canUp.find((b) => ef.branches[b] < CONFIG.EFFECT.maxLevel);
-        if (br !== undefined) {
-          const brk = br.toLowerCase();
-          cands.push({
-            name: ef.name, icon: cfg.icon, color: cfg.color,
-            // v1.16.47：三选一短描述优先（ap/bp/cp 为三档数组，按分支当前等级取升级后档），缺失回退详细分支文案
-            desc: tierText(cfg[brk + 'p'], ef.branches[br]) || cfg[brk] || cfg.desc || '',
-            type: 'branch', branch: br, branchLv: ef.branches[br],
-            fromTower: this.key, level: ef.level,
-          });
+        if (raised.length) {
+          // 已定路线：只出锁定分支的升级卡
+          const br = raised.find((b) => ef.branches[b] < CONFIG.EFFECT.maxLevel);
+          if (br !== undefined) {
+            const brk = br.toLowerCase();
+            cands.push({
+              name: ef.name, icon: cfg.icon, color: cfg.color,
+              desc: tierText(cfg[brk + 'p'], ef.branches[br]) || cfg[brk] || cfg.desc || '',
+              type: 'branch', branch: br, branchLv: ef.branches[br],
+              fromTower: this.key, level: ef.level,
+            });
+          }
+        } else {
+          // 未定路线：A/B/C 全量供给（每分支一张），三选一选中的即确认方向
+          for (const br of BRANCH_KEYS) {
+            const brk = br.toLowerCase();
+            cands.push({
+              name: ef.name, icon: cfg.icon, color: cfg.color,
+              desc: tierText(cfg[brk + 'p'], 0) || cfg[brk] || cfg.desc || '',
+              type: 'branch', branch: br, branchLv: 0,
+              fromTower: this.key, level: ef.level,
+            });
+          }
         }
       }
     });
@@ -142,8 +154,9 @@ class TowerBuild {
     const isTgtSkill = (e) => e.type === 'skill' && e.name === target;
     const isTgtBranch = (e) => e.type === 'branch' && e.name === target;
     const tgtSkill = eligible.find(isTgtSkill);
-    // 目标分支：等级最低的未满分支优先（自动路径均衡升级，避免死磕 A 分支）
-    const tgtBranch = eligible.filter(isTgtBranch).sort((a, b) => a.branchLv - b.branchLv)[0] || null;
+    // 目标分支：三分支候选中随机取一张（v1.17.9c 分支三选一展开后均匀随机，避免模拟路径死磕 A）
+    const tgtBranchList = eligible.filter(isTgtBranch);
+    const tgtBranch = tgtBranchList.length ? tgtBranchList[Math.floor(this.rng() * tgtBranchList.length)] : null;
     const tgtCand = tgtSkill || tgtBranch;   // 目标候选：未激活→技能卡；已激活→未满分支卡
 
     // 首选保底：本 run 首次三选一候选必含标志特效（技能卡，未激活时）

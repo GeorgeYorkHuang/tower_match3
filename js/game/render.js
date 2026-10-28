@@ -1087,14 +1087,7 @@ class Renderer {
   }
 
   drawDebuffFrozen(ctx, e, x, y, size) {
-    // 冻结：蓝描边框 + 冰晶外壳（v1.13.26）
-    // A1 状态可视化：仅冰冻保留描边框（蓝框）；减速/麻痹改用专属特效，不再画框
-    if (e.frozen > 0) {
-      ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9;
-      ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
-      ctx.globalAlpha = 1;
-    }
-    // v1.13.26 冰冻持续特效：冰晶外壳（半透明冰壳 + 冰刺 + 白色呼吸高光），冻结期间常驻
+    // 冻结：冰晶外壳（v1.13.26）；v1.17.9c 不再绘制蓝色描边框（debuff 不高亮模型边框），仅保留冰壳特效
     if (e.frozen > 0) {
       const cx = x + size / 2, cy = y + size / 2;
       const br = 1 + 0.08 * Math.sin(Date.now() / 220);
@@ -1221,11 +1214,7 @@ class Renderer {
             }
             ctx.globalAlpha = 1;
           }
-          // 火焰描边（闪烁，叠层越多越旺）
-          const flick = 0.6 + 0.4 * Math.sin(Date.now() / 110 + e.x * 0.05);
-          ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2 + 0.5 * Math.min(2, fireI); ctx.globalAlpha = 0.7 * flick + 0.15 * Math.min(2, fireI);
-          ctx.strokeRect(x - 3, y - 3, size + 6, size + 6);
-          ctx.globalAlpha = 1;
+          // v1.17.9c 不再绘制灼烧火焰描边框（debuff 不高亮模型边框），仅保留火焰贴图/回退火苗特效
         } else if (d.type === 'poison') {
           // v1.16.2 中毒层数标识：敌人身上按叠层层数画毒泡（最多 5 个，层数越高泡越大越亮）+ 头顶层数数字
           const stack = d.stack || 1;
@@ -3042,7 +3031,8 @@ class Renderer {
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
       const btnCol = upgrading ? '#f7c948' : fromTint;
       const btnDark = upgrading ? '#d99e16' : '#243e57';
-      const btnTxt = isSkill ? '学习技能' : '确认分支';
+      // v1.17.9c 三态按钮文案：学习技能（新技能）/ 选择分支（新分支 Lv0→1）/ 确认升级（分支升级）
+      const btnTxt = isSkill ? '学习技能' : (isNewBranch ? '选择分支' : '确认升级');
       fillRoundRect(ctx, btnX + 2, btnY + 4, btnW, btnH, 14, 'rgba(0,0,0,0.30)');
       const btnGrad = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
       btnGrad.addColorStop(0, lighten(btnCol, 1.25));

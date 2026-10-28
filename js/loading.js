@@ -112,7 +112,8 @@ function loadAssets() {
       draw();
     },
     onProgressUpdate: (res) => {
-      if (res && typeof res.progress === 'number') { curProgress = res.progress; draw(); }
+      // v1.17.9c 非负钳制：个别环境 progress 可能返回负值/非数，避免加载页显示负数
+      if (res && typeof res.progress === 'number') { curProgress = Math.max(0, Math.min(100, res.progress)); draw(); }
     },
   };
   let task = null;
