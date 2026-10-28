@@ -3491,62 +3491,57 @@ class Renderer {
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
-    // v1.17.9d 顶部布局：货币胶囊移左上角（y 与微信右上胶囊平行），游戏名移至战场卡正上方
-    //   金币（完整显示 3 位一逗号）+ 钻石并排左上；右侧留给微信胶囊（x>552）与灵动岛（居中）
-    const mcy = 110, mch = 52;
-    const coinTxt = fmtFull(s.gold || 0);
-    const coinW = 64 + txtW(coinTxt, 28) + 12;
-    fillRoundRect(ctx, 18, mcy, coinW, mch, 26, 'rgba(247,201,72,0.12)');
-    strokeRoundRect(ctx, 18, mcy, coinW, mch, 26, '#f7c948', 1.5);
-    if (!drawImg(ctx, IMG_SRC.coin, 30, mcy + 10, 32, 32)) text(ctx, '🪙', 46, mcy + 26, 26, '#f7c948', 'center');
+    // v1.17.10 顶部布局：货币胶囊固定宽度（两枚等宽，图标居左，默认容 6 位数字 + 预留尾字母位）
+    //   金币/钻石 ≥1,000,000 时显示 1,000k；宽度不随数字变化；右侧留给微信胶囊与灵动岛
+    const mcy = 110, mch = 52, mw = 180;
+    const coinTxt = fmtK(s.gold || 0);
+    fillRoundRect(ctx, 18, mcy, mw, mch, 26, 'rgba(247,201,72,0.12)');
+    strokeRoundRect(ctx, 18, mcy, mw, mch, 26, '#f7c948', 1.5);
+    if (IMG_SRC.coin) drawImg(ctx, IMG_SRC.coin, 30, mcy + 10, 32, 32);
+    else text(ctx, '🪙', 46, mcy + 26, 26, '#f7c948', 'center');
     text(ctx, coinTxt, 70, mcy + 27, 28, '#f7c948', 'left');
-    const dW = 120;
-    fillRoundRect(ctx, 18 + coinW + 12, mcy, dW, mch, 26, 'rgba(124,168,255,0.12)');
-    strokeRoundRect(ctx, 18 + coinW + 12, mcy, dW, mch, 26, '#7ca8ff', 1.5);
-    text(ctx, `💎 ${fmtFull(s.diamond)}`, 18 + coinW + 12 + dW / 2, mcy + 27, 28, '#7ca8ff', 'center');
-    // v1.17.9d 游戏名：3D 立体 + 轻微弧线，位于战场卡（sy=400）正上方，4 字总宽 ≈ 战场卡宽 2/3
-    drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200);
+    const dTxt = fmtK(s.diamond);
+    fillRoundRect(ctx, 18 + mw + 12, mcy, mw, mch, 26, 'rgba(124,168,255,0.12)');
+    strokeRoundRect(ctx, 18 + mw + 12, mcy, mw, mch, 26, '#7ca8ff', 1.5);
+    if (IMG_SRC.diamond) drawImg(ctx, IMG_SRC.diamond, 18 + mw + 12 + 12, mcy + 10, 32, 32);
+    else text(ctx, '💎', 18 + mw + 12 + 28, mcy + 26, 26, '#7ca8ff', 'center');
+    text(ctx, dTxt, 18 + mw + 12 + 52, mcy + 27, 28, '#7ca8ff', 'left');
+    // v1.17.10 游戏名：先不要立体效果（单层金色渐变、保留轻微弧线），位于战场卡（sy=400）正上方
+    drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
     else if (s.tab === 'codex') this.menuCodex(ctx, s, push);
     else this.menuRelic(ctx, s, push);
-    // v1.16.75 底部大分页标签（4 个）：激活页签与页面"融为一体"——
-    // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
+    // v1.17.10 底部大分页标签：只显示当前激活页签（其余三个分页不显示；如需恢复导航入口改回全量渲染）
     const tabY = 1504, tabH = 100, tabW = 163, tabGap = 12, x0 = 31;
     const tabs = MENU_TABS;
-    // 激活页签向上光束（页面↔页签的视觉连接）
-    const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
-    ag.addColorStop(0, 'rgba(0,0,0,0)');
-    ag.addColorStop(1, theme.main + '55');
-    ctx.fillStyle = ag; ctx.fillRect(x0, tabY - 70, tabW * 4 + tabGap * 3, 70);
     tabs.forEach(([key, icon, label], i) => {
+      if (key !== s.tab) return;                   // v1.17.10 其余三个分页不显示
       const tx = x0 + i * (tabW + tabGap);
+      // 激活页签向上光束（页面↔页签的视觉连接）
+      const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
+      ag.addColorStop(0, 'rgba(0,0,0,0)');
+      ag.addColorStop(1, theme.main + '55');
+      ctx.fillStyle = ag; ctx.fillRect(tx, tabY - 70, tabW, 70);
       push('tab', key, tx, tabY, tabW, tabH);
-      const active = s.tab === key;
       const th = MENU_TAB_THEME[key];
-      if (active) {
-        // 同页主题色渐变（上亮下稍暗）+ 仅上圆角，与屏幕底边贴合
-        const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
-        tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
-        ctx.beginPath();
-        ctx.moveTo(tx, tabY + tabH);
-        ctx.lineTo(tx, tabY + 16);
-        ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
-        ctx.lineTo(tx + tabW - 16, tabY);
-        ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
-        ctx.lineTo(tx + tabW, tabY + tabH);
-        ctx.closePath();
-        ctx.fillStyle = tg; ctx.fill();
-        // 顶部亮条
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, ctx.fillStyle);
-        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
-      } else {
-        fillRoundRect(ctx, tx, tabY, tabW, tabH, 16, 'rgba(20,26,36,0.92)');
-        strokeRoundRect(ctx, tx, tabY, tabW, tabH, 16, '#2b3648', 1);
-        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + tabH / 2, 26, '#8ea3b8', 'center');
-      }
+      // 同页主题色渐变（上亮下稍暗）+ 仅上圆角，与屏幕底边贴合
+      const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
+      tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
+      ctx.beginPath();
+      ctx.moveTo(tx, tabY + tabH);
+      ctx.lineTo(tx, tabY + 16);
+      ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
+      ctx.lineTo(tx + tabW - 16, tabY);
+      ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
+      ctx.lineTo(tx + tabW, tabY + tabH);
+      ctx.closePath();
+      ctx.fillStyle = tg; ctx.fill();
+      // 顶部亮条
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, ctx.fillStyle);
+      text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
     });
     // 子面板
     if (s.panel) {
@@ -4690,19 +4685,30 @@ function fmtFull(n) {
   return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/** v1.17.10 主界面货币（固定胶囊宽口径）：≤999,999 完整千分位；≥1,000,000 显示 1,000k（k 占预留尾位） */
+function fmtK(n) {
+  if (!isFinite(n)) return '0';
+  const v = Math.floor(n);
+  if (v >= 1e6) return String(Math.floor(v / 1000)).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + 'k';
+  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 /**
- * v1.17.9d 主界面游戏名：3D 立体字 + 轻微弧线。
- * 沿大半径圆弧排布（两端下沉、逐字沿切线旋转）；三层偏移（深底→中底→金色渐变主层）+ 顶部高光。
+ * v1.17.9d 主界面游戏名：金色渐变 + 轻微弧线（可选手动立体）。
+ * 沿大半径圆弧排布（两端下沉、逐字沿切线旋转）；stereo=true 时三层偏移（深底→中底→金色渐变主层）+ 顶部高光；
+ * stereo=false（v1.17.10）为单层金色渐变，无立体阴影，仅保留弧线排版。
  * @param {number} size 字号（字宽≈size）
  * @param {number} archR 弧半径（越大越平缓；如 1200 → 端部下沉 ~7px、端字旋转 ~6°）
+ * @param {boolean} [stereo=true] 是否带立体效果
  */
-function drawArchedTitle(ctx, text, cx, baseY, size, archR) {
+function drawArchedTitle(ctx, text, cx, baseY, size, archR, stereo) {
   const chars = [...text];
   const n = chars.length;
   const step = size * 0.96;
   const totalW = step * (n - 1);
   const R = archR || 1200;
   const halfAng = totalW / 2 / R;
+  const st = stereo !== false;
   chars.forEach((ch, i) => {
     const ang = (i / (n - 1) - 0.5) * halfAng * 2;   // -halfAng..halfAng
     const x = cx + Math.sin(ang) * R;
@@ -4712,17 +4718,22 @@ function drawArchedTitle(ctx, text, cx, baseY, size, archR) {
     ctx.rotate(ang);
     ctx.font = `bold ${size}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    // 3D 三层：深色底层（偏移 4px）→ 暗金中层（偏移 2px）→ 金色渐变主层 + 顶部受光
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillText(ch, 4, 5);
-    ctx.fillStyle = 'rgba(120,80,20,0.9)';
-    ctx.fillText(ch, 2, 2.5);
+    // 立体（仅 stereo=true）：深色底层（偏移 4px）→ 暗金中层（偏移 2px）
+    if (st) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillText(ch, 4, 5);
+      ctx.fillStyle = 'rgba(120,80,20,0.9)';
+      ctx.fillText(ch, 2, 2.5);
+    }
     const grad = ctx.createLinearGradient(0, -size / 2, 0, size / 2);
     grad.addColorStop(0, '#fff3c4'); grad.addColorStop(0.45, '#f7c948'); grad.addColorStop(1, '#d99e16');
     ctx.fillStyle = grad;
     ctx.fillText(ch, 0, 0);
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(ch, 0, -size * 0.12);
+    // 顶部受光（仅 stereo=true）
+    if (st) {
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText(ch, 0, -size * 0.12);
+    }
     ctx.restore();
   });
 }
