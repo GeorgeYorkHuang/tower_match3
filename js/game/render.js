@@ -790,10 +790,8 @@ class Renderer {
         }
         // 等级（v1.17.10 不再显示右上角数字徽章，改槽底小字，避免遮挡塔图标）
         text(ctx, `Lv${tw.level}`, x + slotSize / 2, slotY + slotSize - 10, 13, 'rgba(255,255,255,0.75)', 'center');
-        // 可点详情小圆标 ⓘ（点击塔图标查看攻击/攻击间隔/技能等级）
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.beginPath(); ctx.arc(x + 17, slotY + 17, 11, 0, Math.PI * 2); ctx.fill();
-        text(ctx, 'i', x + 17, slotY + 21, 14, '#1a1a1a', 'center');
+        // v1.17.14：移除左上角 ⓘ 圆标与弹药条顶部数字——俯视塔占满槽位后两者都压住主体，
+        //   且整槽本身可点（slotAt），圆标无需保留；弹药量改由柱条高度 + 颜色表达。
         // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
         const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
         const bx = x + slotSize - 9;              // 槽内右侧竖条
@@ -803,7 +801,6 @@ class Renderer {
         ctx.fillRect(bx, by0, 7, bh);
         ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
         ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
-        text(ctx, `${tw.ammo || 0}`, bx + 3, slotY + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
         // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
       }
       x += slotSize + slotGap;

@@ -33,7 +33,8 @@ const hasEmoji = (arr) => arr.filter((s) => {
 game.state = 'menu'; game.menuTab = 'battle';
 texts.length = 0;
 game.renderer.menuLayer(ctx2d, game.menuState ? game.menuState() : {}, {});
-if (!texts.includes('深窟远征')) {
+// v1.17.14：标题可能被逐字绘制（'深','窟','远','征'），拼接后断言
+if (!texts.join('').replace(/\s/g, '').includes('深窟远征')) {
   console.error('FAIL: 主菜单标题未改为「深窟远征」:', texts.slice(0, 20).join('|'));
   process.exit(1);
 }
@@ -93,5 +94,16 @@ texts.length = 0;
 game.renderer.funcLayer(ctx2d, game.funcLayer, {}, game.funcLayerHits);
 if (!texts.includes('开')) { console.error('FAIL: 再点一次未变回「开」'); process.exit(1); }
 console.log('④ 设置音乐开关文案 开↔关 联动 OK');
+
+// ---- ⑤ v1.17.14 塔槽减负：无左上角 ⓘ 圆标、无弹药条顶部数字 ----
+game.state = 'battle';
+texts.length = 0;
+game.renderer.towerRow(ctx2d, { towers: [
+  { key: 'fire', level: 3, ammo: 12, ammoMax: 20 },
+  { key: 'ice', level: 2, ammo: 0, ammoMax: 20 },
+] }, 2, false);
+if (texts.includes('i')) { console.error('FAIL: 塔槽仍绘制左上角 ⓘ 圆标:', texts.join('|')); process.exit(1); }
+if (texts.includes('12')) { console.error('FAIL: 弹药条顶部数字未隐藏:', texts.join('|')); process.exit(1); }
+console.log('⑤ 塔槽无 ⓘ 圆标 / 无弹药数字 OK');
 
 console.log('PASS');
