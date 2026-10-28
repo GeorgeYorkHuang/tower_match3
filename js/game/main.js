@@ -406,6 +406,8 @@ class GameMain {
       if (this.run.broken) { this.waveEnd(); return; }
       // v1.17.2 波次完成标准 = 打完本波全部敌人（含未出场），或波时到达 40s 硬上限（未清完也强制出下一波）
       if (this.waveTime >= CONFIG.WAVE.seconds || (!this.enemies.length && !this.wave.plan.length && this.waveTime > 3)) {
+        // v1.17.3 超时且场上仍有残怪 → 标记叠加波：结算本波但不清场，下一波继续出（前后两波共存）
+        this._overlapWave = !(!this.enemies.length && !this.wave.plan.length);
         this.waveEnd();
       }
       return;
@@ -634,7 +636,10 @@ class GameMain {
   /** v1.16.73 自动进入下一波 + 2s 透明提示；每 5 波弹 4s Boss 闪烁警告（均不暂停进度） */
   startNextWave() {
     this.state = 'fighting';
-    this.wave.start(); // run.wave += 1
+    // v1.17.3 叠加波（40s 超时残留怪）：保留场上剩余敌人，新一波继续投放
+    const keep = !!this._overlapWave;
+    this._overlapWave = false;
+    this.wave.start(keep); // run.wave += 1
     const w = this.run.wave || 1; // v1.16.124 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
     this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;

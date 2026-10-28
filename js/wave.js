@@ -19,12 +19,12 @@ class WaveDirector {
     this.enemyTotalHp = 0;
   }
 
-  /** 开始新一波：结算 run、清场、生成投放计划、切战斗状态 */
-  start() {
+  /** 开始新一波：结算 run、清场（叠加波 keepEnemies=true 时保留场上剩余敌人）、生成投放计划、切战斗状态 */
+  start(keepEnemies) {
     const g = this.game;
     g.run.startWave();
     g.waveTime = 0;
-    g.enemies = [];
+    if (!keepEnemies) g.enemies = [];   // v1.17.3 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // v1.16.78 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
     g.state = 'fighting';
