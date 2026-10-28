@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.17.20';       // v1.17.20 碎片局末结算（局内记账→局末入账，失守按30%折算 floor 张数随机保留）+ 碎片改手动解锁（消耗蓝2/紫4/金8，取消达阈值自动解锁）+ 图鉴「可解锁」态 // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.17.21';       // v1.17.21 结算页全屏三段式骨架（舞台+绶带标题+深度轨迹条+点击跳过），战利品区暂留旧图标阵列 // v1.17.20 碎片局末结算 + 手动解锁
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -640,6 +640,7 @@ class GameMain {
       relics: this.battleRelics.slice(), // v1.16.106 本局获取圣遗物快照（结算页图标展示）
     };
     this.gameoverAt = Date.now();   // v1.16.117 结算动画时间基准（圣遗物逐个弹出 → 收益最后弹出）
+    this.gameoverSkip = false;      // v1.17.21 每局结算重置跳过标记（点击任意处置 true 直达演出终点）
     this.state = 'gameover';
     this.sfx.stopBgm();
   }
@@ -1107,7 +1108,7 @@ class GameMain {
     if (this.relicDetail) {
       this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
     }
-    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary, goT: this.gameoverAt ? Date.now() - this.gameoverAt : 0 }, st), this.restartBtn);
+    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary, goT: this.gameoverSkip ? 99999 : (this.gameoverAt ? Date.now() - this.gameoverAt : 0) }, st), this.restartBtn);
     // v1.16.76 撤离决策层（战斗暂停）
     if (this.state === 'evacuation') {
       this.evacHits = {};
@@ -1860,6 +1861,8 @@ class GameMain {
       return true;
     }
     if (this.state === 'gameover') {
+      // v1.17.21 点击任意处跳过演出：首点置 skip（goT 直达 99999），本次点击吞掉，按钮从第二次点击开始生效
+      if (!this.gameoverSkip) { this.gameoverSkip = true; return true; }
       // v1.16.135 兼容两种注册形态：hit 可以是函数（v1.17 汇总分支）或 {hit:fn} 对象（兜底分支）。
       //   此前汇总分支 toMenu=hit 函数，这里却调用 .toMenu.hit() → TypeError → 「返回主界面」点击无响应
       const rb = this.restartBtn || {};

@@ -260,6 +260,23 @@ module.exports = {
   SHARD_SETTLE: {
     deadRatio: 0.30,         // 失守 / 中途退出：10→3、9→2、8→2、4→1、3→0
   },
+  /* v1.17.21 结算页（全屏三段式 750×1334）布局与时间轴常量，render.gameOver / _goStage / _goTrail 使用
+   * 布局坐标表见 docs/战斗结算重设计-修改计划.md「四、结算页布局」 */
+  GO: {
+    THEME: {
+      win:  { accent: '#f7c948', soft: 'rgba(247,201,72,0.20)', dim: 'rgba(247,201,72,0.16)', btn: '#2b6d4f' },
+      lose: { accent: '#ff6b6b', soft: 'rgba(231,76,60,0.20)', dim: 'rgba(231,76,60,0.16)', btn: '#3a6ea5' },
+    },
+    RARITY: { r: '#4aa3ff', sr: '#a86bff', ssr: '#f7c948' },   // v1.17.22 大卡边框/胶囊用，先登记
+    TRAIL: { x0: 70, x1: 680, lineY: 404, waveMax: 50, nodeR: 10, endR: 14, flagH: 34, labelGap: 34 },
+    // 时间轴关键帧（ms），与计划文档「六、动画时间轴」一致
+    TL: {
+      stage: 0, ribbon: 120, title: 140, meta: 260,
+      trail: 340, trailGrow: 380, node0: 520, nodeGap: 60, endPin: 760,
+      lootTitle: 900, card0: 980, cardGap: 140, shardNum: 1400,
+      billL: 1760, billR: 1840, mile: 1960, btn: 2160,
+    },
+  },
   MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
   KILL_DROP: {
     eliteShardChance: 0.25,           // 精英掉碎片概率

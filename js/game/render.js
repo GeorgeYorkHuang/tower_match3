@@ -3118,151 +3118,282 @@ class Renderer {
       s.waveClear.pending > 0 ? '开始强化 →' : '下一波 →', { bg: '#27ae60', fontSize: 26 });
   }
 
-  /** 结算面板（破防） */
-  gameOver(ctx, s, restart) {
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  /* ---------- v1.17.21 结算页（全屏三段式骨架）----------
+   * 设计稿：docs/深窟远征-战斗结算重设计示意图.html；布局/时间轴常量：CONFIG.GO
+   * 本批：舞台 + 绶带/标题/meta + 深度轨迹 + 按钮 + 点击跳过（goT=99999 直达终点）；
+   *       战利品区暂留旧图标阵列（v1.17.22 换 3 大卡 + 账单 + 里程碑条） */
+
+  /** 演出进度：t0 起始 ms / dur 时长，返回 0~1 */
+  _goPh(T, t0, dur) { return Math.max(0, Math.min(1, (T - t0) / (dur || 260))); }
+
+  /** easeOutBack：入场回弹（与旧 eob 一致） */
+  _goEob(p) { p = Math.max(0, Math.min(1, p)); return 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2); }
+
+  /** 矢量小旗（撤离点/里程碑标记）：旗杆 + 三角旗面，锚点 = 旗杆底 (x, yBase)；v1.17.22 还会有 _drawMedal/_drawShardGem */
+  _drawFlag(ctx, x, yBase, h, color, alpha) {
+    ctx.save();
+    if (alpha != null) ctx.globalAlpha *= alpha;
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yBase - h); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, yBase - h);
+    ctx.lineTo(x + h * 0.62, yBase - h * 0.78);
+    ctx.lineTo(x, yBase - h * 0.54);
+    ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+    ctx.restore();
+  }
+
+  /** 背景：全屏压暗 + 顶部主题色舞台渐变（win 金 / lose 红），200ms 淡入 */
+  _goStage(ctx, T, win) {
+    const a = Math.max(0, Math.min(1, T / 200));
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.74 * a).toFixed(3) + ')';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    const su = s.summary;   // v1.16.76 局末结算摘要（撤离点系统）
-    const w = 560, h = 500, x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
-    fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
-    if (su) {
-      /* v1.16.117 结算重做：圣遗物=核心奖励。演出顺序：面板入场 → 圣遗物图标逐个弹出 →
-         碎片总额在奖励区正中弹跳出场 → 金币/里程碑/宝箱等次要收益最后淡入 → 按钮浮现 */
-      const win = su.evacuated;
-      const W2 = 620, H2 = 760, X2 = (750 - W2) / 2, Y2 = (LOGIC_H - H2) / 2;
-      const T = Math.max(0, s.goT || 0);
-      const eob = (t) => { const p = Math.max(0, Math.min(1, t)); return 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2); };
-      const ph = (t0, dur) => Math.max(0, Math.min(1, (T - t0) / (dur || 260)));
-      const pin = ph(0, 200);
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, pin * 1.6);
-      fillRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#2a2620' : '#2b2020');
-      strokeRoundRect(ctx, X2, Y2, W2, H2, 18, win ? '#f7c948' : '#e74c3c', 3);
-      // 顶部主题渐变带
-      const tg = ctx.createLinearGradient(0, Y2, 0, Y2 + 150);
-      tg.addColorStop(0, win ? 'rgba(247,201,72,0.20)' : 'rgba(231,76,60,0.20)');
-      tg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = tg; ctx.fillRect(X2, Y2, W2, 150);
-      text(ctx, win ? '撤离成功' : '防线失守', 375, Y2 + 68, 44, win ? '#ffd34d' : '#ff6b6b', 'center');
-      text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)} · 总击杀 ${su.kills || 0}`, 375, Y2 + 118, 22, '#dfe6ee', 'center');
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 146); ctx.lineTo(X2 + W2 - 44, Y2 + 146); ctx.stroke();
-      // —— 核心区：本局圣遗物（图标逐个弹出，64px，两行封顶 10 枚）——
-      text(ctx, '— 圣遗物收获 —', 375, Y2 + 186, 26, '#a86bff', 'center');
-      const rel = su.relics || [];
-      const D = 64, per = 5, gap = 18;
-      const x0 = 375 - (per * D + (per - 1) * gap) / 2;
-      if (!rel.length) {
-        text(ctx, '本局未获得圣遗物', 375, Y2 + 285, 20, '#6b7a8c', 'center');
-      } else {
-        rel.slice(0, 10).forEach((r, i) => {
-          const cx = x0 + (i % per) * (D + gap), cy = Y2 + 218 + Math.floor(i / per) * (D + 16);
-          const pe = ph(250 + i * 160, 260);
-          if (pe <= 0) return;
-          const sc = Math.min(1.08, eob(pe));
-          ctx.globalAlpha = Math.min(1, pe * 1.8);
-          ctx.beginPath(); ctx.arc(cx + D / 2, cy + D / 2, (D / 2) * sc, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(168,107,255,0.18)'; ctx.fill();
-          ctx.strokeStyle = 'rgba(168,107,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
-          // v1.16.135 圣遗物图案（贴图）替代 emoji；缺图回退 = 紫底圆 + 圣遗物名首字
-          const src = r && r.id ? relicIconSrc(r.id) : null;
-          if (src && drawImg(ctx, src, cx + 4, cy + 4, D - 8, D - 8)) {
-            // 贴图成功
-          } else {
-            const def = r && r.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(r.id) : null;
-            text(ctx, def ? def.name.charAt(0) : '✦', cx + D / 2, cy + D / 2 + 2, 30 * Math.min(1, sc), '#d9c2ff', 'center');
-          }
-          ctx.globalAlpha = 1;
-        });
-        if (rel.length > 10) text(ctx, `+${rel.length - 10}`, X2 + W2 - 44, Y2 + 348, 22, '#a86bff', 'right');
-      }
-      // —— 碎片收益：对应圣遗物碎片图标 × 数量（v1.17 替代 🧩 通用 emoji + 总数；无碎片不展示）——
-      const shT = 250 + Math.min(rel.length, 10) * 160 + 120;
-      const sp = ph(shT, 320);
-      if (sp > 0) {
-        const sc2 = Math.min(1.06, eob(sp));
-        ctx.save();
-        ctx.globalAlpha = Math.min(1, sp * 1.5);
-        ctx.translate(375, Y2 + 430);
-        ctx.scale(sc2, sc2);
-        const detail = su.shardDetail || {};
-        const entries = Object.keys(detail).map((id) => ({ id, n: detail[id] })).filter((x) => x.n > 0);
-        if (entries.length) {
-          // 每组：图标 48px + ×数量；胶囊内最多 3 组，超出右下角 +k
-          const ICON = 48, GAP = 118;
-          const show = entries.slice(0, 3);
-          fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
-          strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-          const x0 = -((show.length * GAP - GAP + ICON) / 2);
-          show.forEach((en, i) => {
-            const ix = x0 + i * GAP;
-            const src = relicIconSrc(en.id);
-            if (!drawImg(ctx, src, ix, -34, ICON, ICON)) {
-              // v1.16.135 图标缺失回退：紫底圆 + 圣遗物名首字（不再用 emoji）
-              ctx.beginPath(); ctx.arc(ix + ICON / 2, -34 + ICON / 2, ICON / 2, 0, Math.PI * 2);
-              ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
-              const def = CONFIG.relicRunDef ? CONFIG.relicRunDef(en.id) : null;
-              text(ctx, def ? def.name.charAt(0) : '✦', ix + ICON / 2, -34 + ICON / 2 + 2, 28, '#d9c2ff', 'center');
-            }
-            text(ctx, `×${en.n}`, ix + ICON + 6, -6, 26, '#c9a6ff', 'left');
-          });
-          if (entries.length > 3) text(ctx, `+${entries.length - 3}`, x0 + 3 * GAP, -6, 22, '#a86bff', 'left');
-        } else if ((su.shards || 0) > 0) {
-          // 兜底：有碎片总数但明细缺失（异常/老数据）→ 通用碎片字形 + 数量（v1.16.135 去 emoji）
-          fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
-          strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-          text(ctx, `✦ ×${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
-        }
-        ctx.restore();
-      }
+    if (a <= 0) return;
+    const th = win ? CONFIG.GO.THEME.win : CONFIG.GO.THEME.lose;
+    const g = ctx.createLinearGradient(0, 0, 0, 560);
+    g.addColorStop(0, th.dim);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = a;
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 750, 560);
+    ctx.globalAlpha = 1;
+  }
+
+  /** 顶部（118–320）：英文绶带逐字排布（canvas 无 letter-spacing）+ 主标题回弹 + meta 淡入 */
+  _goHead(ctx, su, T, win) {
+    const th = win ? CONFIG.GO.THEME.win : CONFIG.GO.THEME.lose;
+    const TL = CONFIG.GO.TL;
+    // 绶带 118–162：h44/r14 胶囊，自上滑入；英文逐字距 8（中文标题不用字距）
+    const rp = this._goPh(T, TL.ribbon, 320);
+    if (rp > 0) {
+      const str = win ? 'EVACUATION SUCCESS' : 'DEFENSE FAILED';
+      ctx.font = 'bold 20px sans-serif';
+      let total = 0; const ws = [];
+      for (const ch of str) { const w = ctx.measureText(ch).width; ws.push(w); total += w + 8; }
+      total -= 8;
+      const rw = total + 56, ry = 118 - (1 - rp) * 26;
+      ctx.globalAlpha = Math.min(1, rp * 1.5);
+      fillRoundRect(ctx, 375 - rw / 2, ry, rw, 44, 14, 'rgba(0,0,0,0.35)');
+      strokeRoundRect(ctx, 375 - rw / 2, ry, rw, 44, 14, th.accent, 1.5);
+      let cx = 375 - total / 2;
+      ctx.fillStyle = th.accent; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      str.split('').forEach((ch, i) => { ctx.fillText(ch, cx, ry + 23); cx += ws[i] + 8; });
       ctx.globalAlpha = 1;
-      // —— 次要收益（v1.17：金币=coin 大图标×总量；宝箱=纯图标无文字；里程碑保留文字行）——
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-      ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 500); ctx.lineTo(X2 + W2 - 44, Y2 + 500); ctx.stroke();
-      // 金币：深度结算 + 局内银币折算，合并为 coin 大图标 × 总金币
-      const totalSilver = (su.payout || 0) + (su.silver || 0);
-      const cA = ph(shT + 320, 240);
-      if (cA > 0 && totalSilver > 0) {
-        ctx.globalAlpha = cA;
-        const gy = Y2 + 536, COIN = 58;
-        if (!drawImg(ctx, IMG_SRC.coin, X2 + 64, gy - COIN, COIN, COIN)) {
-          text(ctx, '✦', X2 + 64 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
-        }
-        text(ctx, `×${fmtNum(totalSilver)}`, X2 + 64 + COIN + 20, gy, 34, '#f7c948', 'left');
+    }
+    // 主标题（基线 250，88px，scale 回弹）
+    const tp = this._goPh(T, TL.title, 320);
+    if (tp > 0) {
+      const sc = Math.min(1.12, this._goEob(tp));
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, tp * 1.6);
+      ctx.translate(375, 250); ctx.scale(sc, sc);
+      text(ctx, win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
+      ctx.restore();
+    }
+    // meta 行（基线 312，26px 淡入）
+    const mp = this._goPh(T, TL.meta, 200);
+    if (mp > 0) {
+      ctx.globalAlpha = mp;
+      text(ctx, '抵达第 ' + su.wave + ' 波 · 深度倍率 ×' + (su.depthMult || 1).toFixed(2) + ' · 总击杀 ' + (su.kills || 0), 375, 312, 26, '#dfe6ee', 'center');
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /** 深度轨迹条（362–456）：底线 + 已走段生长 + 里程碑节点（兼撤离旗标）+ 终点金点
+   *  x(wave) = 70 + clamp(wave,0,50)/50 × 610；波次 >50 钳制在 x1，标签显示真实波次 */
+  _goTrail(ctx, su, T, win) {
+    const TR = CONFIG.GO.TRAIL, TL = CONFIG.GO.TL;
+    const base = this._goPh(T, TL.trail, 200);
+    if (base <= 0) return;
+    const wave = su.wave || 0;
+    const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / TR.waveMax));
+    ctx.globalAlpha = base;
+    // 底线（未走段灰）
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(TR.x0, TR.lineY); ctx.lineTo(TR.x1, TR.lineY); ctx.stroke();
+    // 已走段生长（win 紫 / lose 红）
+    const grow = this._goPh(T, TL.trail, TL.trailGrow);
+    if (grow > 0) {
+      ctx.strokeStyle = win ? '#a86bff' : '#e74c3c';
+      ctx.beginPath(); ctx.moveTo(TR.x0, TR.lineY);
+      ctx.lineTo(Math.max(TR.x0 + 1, fx(wave) * grow + TR.x0 * (1 - grow)), TR.lineY); ctx.stroke();
+    }
+    // 里程碑节点（10/20/30/40/50，位置与撤离点重合）：m≤wave 实心紫+旗，否则空心灰
+    CONFIG.MILESTONES.forEach((m, i) => {
+      const np = this._goPh(T, TL.node0 + i * TL.nodeGap, 180);
+      if (np <= 0) return;
+      const nx = fx(m), hitM = m <= wave;
+      ctx.globalAlpha = base * np;
+      ctx.beginPath(); ctx.arc(nx, TR.lineY, TR.nodeR, 0, Math.PI * 2);
+      if (hitM) {
+        ctx.fillStyle = '#a86bff'; ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2; ctx.stroke();
+        this._drawFlag(ctx, nx, TR.lineY - TR.nodeR - 4, TR.flagH, '#a86bff', np);
+      } else {
+        ctx.fillStyle = '#1b2129'; ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2; ctx.stroke();
+      }
+      text(ctx, m + '波', nx, TR.lineY + 34, 20, hitM ? '#c9b8ff' : '#5a6b80', 'center');
+    });
+    // 终点金点（win）/红点（lose）+ 标签：默认线下第二行；与最近已过节点太近时再错一行
+    // （设计稿「上移」会撞 30 波节点的旗面，改为向下错行——见计划文档风险表）
+    const ep = this._goPh(T, TL.endPin, 260);
+    if (ep > 0) {
+      const ex = fx(wave);
+      const sc = Math.min(1.15, this._goEob(ep));
+      ctx.globalAlpha = base * Math.min(1, ep * 1.5);
+      ctx.beginPath(); ctx.arc(ex, TR.lineY, TR.endR * sc, 0, Math.PI * 2);
+      ctx.fillStyle = win ? '#f7c948' : '#e74c3c'; ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+      const near = CONFIG.MILESTONES.some((m) => m <= wave && Math.abs(fx(m) - ex) < TR.labelGap);
+      text(ctx, wave + '波 · ' + (win ? '撤离' : '失守'), ex, TR.lineY + (near ? 88 : 60), 22, win ? '#ffd34d' : '#ff8a8a', 'center');
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** 战利品区（528–1120）：v1.17.21 暂留旧图标阵列（圣遗物弹入 + 碎片胶囊 + 金币/宝箱/里程碑文字），v1.17.22 整体替换 */
+  _goLootLegacy(ctx, su, T) {
+    const TL = CONFIG.GO.TL;
+    // 标题 + 两侧引线
+    const tp = this._goPh(T, TL.lootTitle, 200);
+    if (tp > 0) {
+      ctx.globalAlpha = tp;
+      text(ctx, '— 圣遗物收获 —', 375, 528, 22, '#a86bff', 'center');
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(70, 528); ctx.lineTo(268, 528); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(482, 528); ctx.lineTo(680, 528); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    // 圣遗物图标阵列（旧样式：64px 圆底，两行封顶 10 枚，逐个弹入）
+    const rel = su.relics || [];
+    const D = 64, per = 5, gap = 18;
+    const x0 = 375 - (per * D + (per - 1) * gap) / 2;
+    if (!rel.length) {
+      const ep = this._goPh(T, TL.card0, 260);
+      if (ep > 0) {
+        ctx.globalAlpha = ep;
+        text(ctx, '本局未获得圣遗物', 375, 640, 22, '#6b7a8c', 'center');
         ctx.globalAlpha = 1;
       }
-      // 宝箱：v1.17 按档位图标（木/青铜/白银/黄金/星辉），纯图标（无数量、无文字描述），仅获得时显示
-      if (su.chestGranted) {
-        const bA = ph(shT + 320 + 90, 240);
-        if (bA > 0) {
-          ctx.globalAlpha = bA;
-          const by = Y2 + 604, CH = 58;
-          const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
-          if (!drawImg(ctx, tierImg, X2 + 64, by - CH, CH, CH)) {
-            text(ctx, '✦', X2 + 64 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
+    } else {
+      rel.slice(0, 10).forEach((r, i) => {
+        const cx = x0 + (i % per) * (D + gap), cy = 576 + Math.floor(i / per) * (D + 16);
+        const pe = this._goPh(T, TL.card0 + i * 90, 260);
+        if (pe <= 0) return;
+        const sc = Math.min(1.08, this._goEob(pe));
+        ctx.globalAlpha = Math.min(1, pe * 1.8);
+        ctx.beginPath(); ctx.arc(cx + D / 2, cy + D / 2, (D / 2) * sc, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(168,107,255,0.18)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(168,107,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
+        // v1.16.135 贴图替代 emoji；缺图回退 = 紫底圆 + 圣遗物名首字
+        const src = r && r.id ? relicIconSrc(r.id) : null;
+        if (src && drawImg(ctx, src, cx + 4, cy + 4, D - 8, D - 8)) {
+          // 贴图成功
+        } else {
+          const def = r && r.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(r.id) : null;
+          text(ctx, def ? def.name.charAt(0) : '✦', cx + D / 2, cy + D / 2 + 2, 30 * Math.min(1, sc), '#d9c2ff', 'center');
+        }
+        ctx.globalAlpha = 1;
+      });
+    }
+    // 碎片胶囊（折算后明细 su.shardDetail；无碎片不展示）
+    const shT = TL.shardNum;
+    const sp = this._goPh(T, shT, 320);
+    if (sp > 0) {
+      const sc2 = Math.min(1.06, this._goEob(sp));
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, sp * 1.5);
+      ctx.translate(375, 812); ctx.scale(sc2, sc2);
+      const detail = su.shardDetail || {};
+      const entries = Object.keys(detail).map((id) => ({ id, n: detail[id] })).filter((x) => x.n > 0);
+      if (entries.length) {
+        const ICON = 48, GAP = 118;
+        const show = entries.slice(0, 3);
+        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
+        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
+        const px0 = -((show.length * GAP - GAP + ICON) / 2);
+        show.forEach((en, i) => {
+          const ix = px0 + i * GAP;
+          const src = relicIconSrc(en.id);
+          if (!drawImg(ctx, src, ix, -34, ICON, ICON)) {
+            ctx.beginPath(); ctx.arc(ix + ICON / 2, -34 + ICON / 2, ICON / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
+            const def = CONFIG.relicRunDef ? CONFIG.relicRunDef(en.id) : null;
+            text(ctx, def ? def.name.charAt(0) : '✦', ix + ICON / 2, -34 + ICON / 2 + 2, 28, '#d9c2ff', 'center');
           }
-          ctx.globalAlpha = 1;
-        }
+          text(ctx, '×' + en.n, ix + ICON + 6, -6, 26, '#c9a6ff', 'left');
+        });
+        if (entries.length > 3) text(ctx, '+' + (entries.length - 3), px0 + 3 * GAP, -6, 22, '#a86bff', 'left');
+      } else if ((su.shards || 0) > 0) {
+        // 兜底：有总数但明细缺失（老数据）→ 通用碎片字形
+        fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
+        strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
+        text(ctx, '✦ ×' + (su.shards || 0), 0, 2, 36, '#c9a6ff', 'center');
       }
-      // 里程碑：保留原文字行
-      if (su.miles && su.miles.length) {
-        const mA = ph(shT + 320 + 90, 240);
-        if (mA > 0) {
-          ctx.globalAlpha = mA;
-          text(ctx, '里程碑首达', X2 + 48, Y2 + 640, 18, '#9fb2c3', 'left');
-          text(ctx, su.miles.join(' / '), X2 + W2 - 48, Y2 + 640, 20, '#a86bff', 'right');
-          ctx.globalAlpha = 1;
-        }
-      }
-      // 按钮（收益全部弹出后浮现；命中区始终注册）
-      const bA = ph(shT + 700, 260);
-      ctx.globalAlpha = bA > 0 ? bA : 0;
-      restart.hit = button(ctx, X2 + 36, Y2 + 680, 262, 64, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 30 }).hit;
-      restart.toMenu = button(ctx, X2 + 322, Y2 + 680, 262, 64, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
-      ctx.globalAlpha = 1;
       ctx.restore();
+    }
+    // 金币 + 宝箱（同一行，图标左文字右；金币 = 深度结算 + 银币折算合并）
+    const totalSilver = (su.payout || 0) + (su.silver || 0);
+    const cA = this._goPh(T, TL.billL, 240);
+    if (cA > 0 && totalSilver > 0) {
+      ctx.globalAlpha = cA;
+      const gy = 946, COIN = 58;
+      if (!drawImg(ctx, IMG_SRC.coin, 218, gy - COIN, COIN, COIN)) {
+        text(ctx, '✦', 218 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
+      }
+      text(ctx, '×' + fmtNum(totalSilver), 218 + COIN + 20, gy - COIN / 2, 34, '#f7c948', 'left');
+      ctx.globalAlpha = 1;
+    }
+    if (su.chestGranted) {
+      const bA = this._goPh(T, TL.billR, 240);
+      if (bA > 0) {
+        ctx.globalAlpha = bA;
+        const by = 946, CH = 58;
+        const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
+        if (!drawImg(ctx, tierImg, 462, by - CH, CH, CH)) {
+          text(ctx, '✦', 462 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    // 里程碑文字行（v1.17.22 换虚线条）
+    if (su.miles && su.miles.length) {
+      const mA = this._goPh(T, TL.mile, 220);
+      if (mA > 0) {
+        ctx.globalAlpha = mA;
+        text(ctx, '里程碑首达', 375, 1052, 20, '#9fb2c3', 'center');
+        text(ctx, su.miles.join(' / '), 375, 1088, 24, '#a86bff', 'center');
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  /** 底部按钮（1172–1268，320×96 gap30）：浮现前命中区已注册——首点跳过演出，再点命中按钮 */
+  _goBtns(ctx, T, win, restart) {
+    const TL = CONFIG.GO.TL;
+    const bA = this._goPh(T, TL.btn, 240);
+    ctx.globalAlpha = bA > 0 ? bA : 0;
+    restart.hit = button(ctx, 40, 1172, 320, 96, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 34 }).hit;
+    restart.toMenu = button(ctx, 390, 1172, 320, 96, '返回主界面', { bg: '#45505f', fontSize: 30 }).hit;
+    ctx.globalAlpha = 1;
+  }
+
+  /** 结算页（v1.17.21 全屏三段式）：舞台 → 头部 → 深度轨迹 → 战利品 → 按钮 */
+  gameOver(ctx, s, restart) {
+    const su = s.summary;   // v1.16.76 局末结算摘要（撤离点系统）
+    if (su) {
+      const win = !!su.evacuated;
+      const T = Math.max(0, s.goT || 0);   // main.js：gameoverSkip 时传 99999 直达演出终点
+      this._goStage(ctx, T, win);
+      this._goHead(ctx, su, T, win);
+      this._goTrail(ctx, su, T, win);
+      this._goLootLegacy(ctx, su, T);
+      this._goBtns(ctx, T, win, restart);
       return;
     }
+    // 兜底分支（无 summary，理论不可达）：沿用旧 560×500 面板
+    const w = 560, h = 500, x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
+    fillRoundRect(ctx, x, y, w, h, 16, '#232a34');
     strokeRoundRect(ctx, x, y, w, h, 16, '#e74c3c', 3);
     text(ctx, '防线失守', x + w / 2, y + 70, 44, '#ff6b6b', 'center');
     text(ctx, `坚守到第 ${s.wave} 波`, x + w / 2, y + 140, 26, '#dfe6ee', 'center');

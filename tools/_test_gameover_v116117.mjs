@@ -35,12 +35,14 @@ const su = {
 const btn = {};
 const draw = (goT) => { texts.length = 0; game.renderer.gameOver(ctx2d, { summary: su, goT }, btn); };
 
-// ---- 动画分镜：T=300 时仅首个圣遗物已弹出（贴图缺省回退 ✦），碎片/金币未出现 ----
+// ---- 动画分镜（v1.17.21 新时间轴）：T=300 仅头部（绶带/标题/meta），轨迹/战利品/收益均未出现 ----
 draw(300);
 const j300 = texts.join('|');
-if (!j300.includes('✦')) { console.error('FAIL: 首个圣遗物（回退字形）未弹出'); process.exit(1); }
-if (j300.includes('×32') || j300.includes('里程碑首达')) { console.error('FAIL: 收益不应早于圣遗物出现'); process.exit(1); }
-console.log('T=300ms 分镜 OK：圣遗物逐个弹出，收益未出现');
+if (!j300.includes('撤离成功')) { console.error('FAIL: 头部主标题未在 300ms 出现'); process.exit(1); }
+if (j300.includes('✦') || j300.includes('×32') || j300.includes('里程碑首达') || j300.includes('20波')) {
+  console.error('FAIL: 战利品/收益/轨迹不应早于 T=900/1400/1960/520ms 出现'); process.exit(1);
+}
+console.log('T=300ms 分镜 OK：头部已出，轨迹/战利品/收益未出现');
 
 // ---- 动画结束后：全部元素在位，且零 emoji ----
 draw(99999);

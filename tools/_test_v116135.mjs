@@ -61,15 +61,19 @@ if (typeof btn.hit !== 'function' || typeof btn.toMenu !== 'function') {
 }
 console.log('② 结算页零 emoji（圣遗物/碎片/金币/宝箱全部图标化）OK');
 
-// ---- ③ 汇总分支「返回主界面」点击生效（回归：toMenu 为函数，旧代码调 .hit 抛 TypeError）----
+// ---- ③ 汇总分支「返回主界面」点击生效（回归：toMenu 为函数，旧代码调 .hit 抛 TypeError）
+// v1.17.21：首点任意处 = 跳过演出（吞掉），按钮从第二次点击生效；新按钮位 390..710 × 1172..1268
 game.state = 'gameover';
-game.dispatchTouch({ x: 518, y: 1145 });   // toMenu 按钮中心 (X2+322+131, Y2+680+32)
+game.dispatchTouch({ x: 518, y: 1145 });   // 第一击：跳过（旧坐标点不再命中按钮）
+if (game.gameoverSkip !== true) { console.error('FAIL: 首点未置 gameoverSkip'); process.exit(1); }
+game.dispatchTouch({ x: 550, y: 1220 });   // 第二击：toMenu 按钮中心
 if (game.state !== 'menu') { console.error(`FAIL: 返回主界面未生效 state=${game.state}`); process.exit(1); }
-console.log('③ 结算页「返回主界面」点击 → 主菜单 OK');
+console.log('③ 结算页「返回主界面」点击 → 主菜单 OK（首点跳过 + 二击命中）');
 
-// ---- ③b 兜底分支（无 summary）toMenu 同样生效 ----
-game.state = 'gameover'; game.runSummary = null; game.restartBtn = {};
+// ---- ③b 兜底分支（无 summary）toMenu 同样生效（同样先跳过再点）----
+game.state = 'gameover'; game.runSummary = null; game.restartBtn = {}; game.gameoverSkip = false;
 game.renderer.gameOver(ctx2d, { wave: 5, gold: 100, synDoneCount: 1, goT: 99999 }, game.restartBtn);
+game.dispatchTouch({ x: 100, y: 100 });   // 第一击：跳过
 game.dispatchTouch({ x: 280, y: (1626 - 500) / 2 + 350 + 36 });
 if (game.state !== 'menu') { console.error(`FAIL: 兜底分支返回主界面未生效 state=${game.state}`); process.exit(1); }
 console.log('③b 兜底分支「返回主界面」OK');
