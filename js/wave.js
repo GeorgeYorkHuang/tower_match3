@@ -63,8 +63,9 @@ class WaveDirector {
     if (hasBoss) {
       this.plan.push({ lv: mainLv, type: 'boss', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.bossHpMult * curseMult, offset: 0.5 + Math.random() * 0.3, isBoss: true }); // Boss 最后出场
     }
-    // 前 75% 波时长内放完，避免同屏堆叠
-    this.interval = Math.max(0.35, (WAVE_DUR * 0.75) / this.plan.length);
+    // v1.17.4 投放 30s 内完成（WAVE_DUR×0.75）：移除 0.35s 下限——原下限在 13 波起使投放总时长突破 30s
+    //   （第 60 波需 129.5s），与 40s 波超时严重冲突；新公式各波恰好 30s 放完，高波次按密度自然加密
+    this.interval = (WAVE_DUR * 0.75) / this.plan.length;
     this.hasBoss = hasBoss;
     this.enemyTotalHp = CONFIG.ENEMY.waveTotalHp(w, curseMult); // 与 run.endWave 结算口径一致
   }
