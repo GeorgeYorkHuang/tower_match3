@@ -3087,36 +3087,56 @@ class Renderer {
             text(ctx, bn, bx + bCellW / 2, tY + bH / 2 + 1, bSize, 'rgba(255,255,255,0.55)', 'center');
           }
         });
-      } else {
-        const tagTxt = isSkill ? '新技能' : `Lv${ef.branchLv} → Lv${ef.branchLv + 1}`;
+      } else if (isSkill) {
+        // 学习技能：单胶囊「新技能」（保持原样）
+        const tagTxt = '新技能';
         let tSizeA = tSize;
         let tW = txtW(tagTxt, tSizeA) + 34;
         while (tW > cardW - 20 && tSizeA > 16) { tSizeA -= 1; tW = txtW(tagTxt, tSizeA) + 34; }
         ctx.font = `bold ${tSizeA}px sans-serif`;
         const tX = cx + cardW / 2 - tW / 2;
         fillRoundRect(ctx, tX + 2, tY + 3, tW, 38, 19, 'rgba(0,0,0,0.32)');
-        if (upgrading) {
-          const tGrad = ctx.createLinearGradient(0, tY, 0, tY + 38);
-          tGrad.addColorStop(0, lighten('#f7c948', 1.2));
-          tGrad.addColorStop(1, '#d99e16');
-          ctx.globalAlpha = cAlpha * tagGlow;
-          fillRoundRect(ctx, tX - 3, tY - 3, tW + 6, 44, 22, '#f7c948');
-          ctx.globalAlpha = cAlpha;
-          fillRoundRect(ctx, tX, tY, tW, 38, 19, tGrad);
-          strokeRoundRect(ctx, tX, tY, tW, 38, 19, '#ffedb0', 2);
-        } else {
-          const sGrad = ctx.createLinearGradient(0, tY, 0, tY + 38);
-          sGrad.addColorStop(0, lighten(fromTint, 1.25));
-          sGrad.addColorStop(1, '#243e57');
-          ctx.globalAlpha = cAlpha * tagGlow;
-          fillRoundRect(ctx, tX - 3, tY - 3, tW + 6, 44, 22, fromTint);
-          ctx.globalAlpha = cAlpha;
-          fillRoundRect(ctx, tX, tY, tW, 38, 19, sGrad);
-          strokeRoundRect(ctx, tX, tY, tW, 38, 19, 'rgba(255,255,255,0.55)', 1.5);
-        }
+        const sGrad = ctx.createLinearGradient(0, tY, 0, tY + 38);
+        sGrad.addColorStop(0, lighten(fromTint, 1.25));
+        sGrad.addColorStop(1, '#243e57');
+        ctx.globalAlpha = cAlpha * tagGlow;
+        fillRoundRect(ctx, tX - 3, tY - 3, tW + 6, 44, 22, fromTint);
+        ctx.globalAlpha = cAlpha;
+        fillRoundRect(ctx, tX, tY, tW, 38, 19, sGrad);
+        strokeRoundRect(ctx, tX, tY, tW, 38, 19, 'rgba(255,255,255,0.55)', 1.5);
         ctx.fillStyle = 'rgba(255,255,255,0.22)';
         fillRoundRect(ctx, tX + 5, tY + 3, tW - 10, 10, 5, ctx.fillStyle);
-        text(ctx, tagTxt, cx + cardW / 2, tY + 21, tSizeA, upgrading ? '#5c4a00' : '#ffffff', 'center');
+        text(ctx, tagTxt, cx + cardW / 2, tY + 21, tSizeA, '#ffffff', 'center');
+      } else {
+        // 分支升级（v5.4）：三胶囊并排，金色高亮本次升级的分支方向（与确认分支一致），
+        //   让玩家明确看到升级的是哪个分支（原单胶囊「LvX → LvY」不显示分支方向）
+        const skillCfg = defOf(ef.name, ef.fromTower);
+        const brKeys = ['a', 'b', 'c'];
+        const brNames = brKeys.map((k) => this.branchName(skillCfg, k));
+        const brW = cardW - 16;
+        const g1 = 8;
+        const bCellW = (brW - g1 * 2) / 3;
+        const bH = 34;
+        const selIdx = { a: 0, b: 1, c: 2 }[ef.branch] ?? 0;
+        brNames.forEach((bn, bi) => {
+          const bx = cx + 8 + bi * (bCellW + g1);
+          const bSize = bi === selIdx ? 18 : 16;
+          if (bi === selIdx) {
+            const tGrad = ctx.createLinearGradient(0, tY, 0, tY + bH);
+            tGrad.addColorStop(0, lighten('#f7c948', 1.2));
+            tGrad.addColorStop(1, '#d99e16');
+            ctx.globalAlpha = cAlpha * tagGlow;
+            fillRoundRect(ctx, bx - 2, tY - 2, bCellW + 4, bH + 4, 19, '#f7c948');
+            ctx.globalAlpha = cAlpha;
+            fillRoundRect(ctx, bx, tY, bCellW, bH, 17, tGrad);
+            strokeRoundRect(ctx, bx, tY, bCellW, bH, 17, '#ffedb0', 2);
+            text(ctx, bn, bx + bCellW / 2, tY + bH / 2 + 1, bSize, '#5c4a00', 'center');
+          } else {
+            fillRoundRect(ctx, bx + 2, tY + 2, bCellW - 4, bH - 4, 15, 'rgba(0,0,0,0.35)');
+            strokeRoundRect(ctx, bx + 2, tY + 2, bCellW - 4, bH - 4, 15, 'rgba(255,255,255,0.25)', 1);
+            text(ctx, bn, bx + bCellW / 2, tY + bH / 2 + 1, bSize, 'rgba(255,255,255,0.55)', 'center');
+          }
+        });
       }
       // 技能名（金色大字 + 轻微阴影）
       text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');

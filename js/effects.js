@@ -110,12 +110,13 @@ class TowerBuild {
           });
         }
       } else {
-        // v1.13.5 分支锁定：技能任一分支升级后，其余两个分支移出抽卡池（后续只升级已选分支）
         // v1.17.9c 分支三选一：尚无分支升级 → A/B/C 三分支各出一张卡，由三选一真正决定方向（不再恒为 A）
-        const raised = BRANCH_KEYS.filter((br) => ef.branches[br] > 0);
-        if (raised.length) {
-          // 已定路线：只出锁定分支的升级卡
-          const br = raised.find((b) => ef.branches[b] < CONFIG.EFFECT.maxLevel);
+        // v5.4 分支解锁：已激活技能从所有未满分支中随机一个方向出卡（已定分支与未选分支均等机会）。
+        //   原 v1.13.5「分支锁定」导致技能一旦选过 A 后 B/C 分支卡永不出现，三选一界面清一色 A 分支升级卡；
+        //   解锁后三选一始终可能出现 B/C 分支，界面分支多样，玩家既可延续专精也可扩展其他分支。
+        const unmaxed = BRANCH_KEYS.filter((br) => ef.branches[br] < CONFIG.EFFECT.maxLevel);
+        if (unmaxed.length) {
+          const br = unmaxed[Math.floor(Math.random() * unmaxed.length)];
           if (br !== undefined) {
             const brk = br.toLowerCase();
             cands.push({
@@ -209,9 +210,11 @@ class TowerBuild {
       host.picked.add(poolEf.name);   // 分支升级 = 三选一获取（详情展示）
       res.leveled = true;
     } else {
-      // 技能卡：激活（防御：若已激活则按分支 A 升级）
+      // 技能卡：激活（防御：若已激活则随机未满分支升级，v1.17.10e 不再固定 A）
       if (host._activated(poolEf)) {
-        poolEf.branches.A = Math.min(poolEf.branches.A + 1, CONFIG.EFFECT.maxLevel);
+        const brs = BRANCH_KEYS.filter((b) => poolEf.branches[b] < CONFIG.EFFECT.maxLevel);
+        const br = brs.length ? brs[Math.floor(Math.random() * brs.length)] : 'A';
+        poolEf.branches[br] = Math.min(poolEf.branches[br] + 1, CONFIG.EFFECT.maxLevel);
         host.picked.add(poolEf.name);
         res.leveled = true;
       } else if (host.activeNames.length >= CONFIG.EFFECT.activeSlots) {
