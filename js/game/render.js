@@ -86,6 +86,15 @@ const IMG_SRC = {
   firewall2: 'assets/images/fx/firewall/anim_firewall_02.png',
   firewall3: 'assets/images/fx/firewall/anim_firewall_03.png',
   firewall4: 'assets/images/fx/firewall/anim_firewall_04.png',
+  // v1.17.25 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
+  firepillar1: 'assets/images/fx/firepillar/anim_firepillar_01.png',
+  firepillar2: 'assets/images/fx/firepillar/anim_firepillar_02.png',
+  firepillar3: 'assets/images/fx/firepillar/anim_firepillar_03.png',
+  firepillar4: 'assets/images/fx/firepillar/anim_firepillar_04.png',
+  firepillar5: 'assets/images/fx/firepillar/anim_firepillar_05.png',
+  firepillar6: 'assets/images/fx/firepillar/anim_firepillar_06.png',
+  firepillar7: 'assets/images/fx/firepillar/anim_firepillar_07.png',
+  firepillar8: 'assets/images/fx/firepillar/anim_firepillar_08.png',
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -2458,10 +2467,57 @@ class Renderer {
   }
 
   fxPillar(ctx, f) {
-      // 火柱帧动画（v1.13.9）：地上火圈标记(0~25%) → 冲天圆柱火柱(25~70%) → 白热冲击(70~82%) → 余烬消散
-      // dur 2.4s（v1.13.9 放慢一倍）；伤害在地面圈画完后由 combat 延迟结算，动画与伤害一致
-      const p = Math.min(1, f.t / f.dur);
+      // 火柱帧动画（v1.17.25）：8 帧透明贴图时间轴——圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬
+      // 帧边界压代码三阶段分界（0.60/1.68/1.97s），伤害结算 pillarWaves.t=0.6 与 F3 立柱同帧，时间常数零改动
+      // 贴图未加载完成时回退 _fxPillarProc 程序化绘制，不出现空技能
+      const t = Math.min(f.t, f.dur), dur = f.dur;
       const cx = f.x, cy = f.y, R = f.r || 120, seed = f.seed || 0;
+      // 判定提示细环（0~0.6s 由 0 扩到 R，之后短暂渐隐；仅 1.5px 细线不填充，精确标伤害范围）
+      if (t < 1.0) {
+        const k = Math.min(1, t / 0.6);
+        const fade = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+        ctx.globalAlpha = 0.35 * fade;
+        ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, 10 + k * (R - 10), 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      // 8 帧时间轴（秒）——与 docs/深窟远征-火柱技能帧动画设计稿.md §4 一致
+      const TL = [0, 0.18, 0.60, 0.78, 1.08, 1.36, 1.68, 1.97, dur];
+      let fi = 8;
+      for (let i = 0; i < 8; i++) { if (t < TL[i + 1]) { fi = i + 1; break; } }
+      for (let i = 1; i <= 8; i++) loadImg(IMG_SRC['firepillar' + i]);   // 首绘一次性拉起 8 张
+      // 显示：宽 = 2R×1.10（R=120→264px，正好还原旧柱高 330），高 = 宽×1.25（512×640 比例）
+      // 锚定：贴图内火圈椭圆中心约在 0.74H 处，对齐落点 (cx, cy)；燎原分支放大 R 时圈柱同比放大
+      const FP_AR = 640 / 512, FP_ANCHOR = 0.74;
+      const W = Math.max(24, R * 2.2), H = W * FP_AR;
+      const bx = cx - W / 2, by = cy - H * FP_ANCHOR;
+      const drawn = drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
+      if (drawn) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.45;
+        drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
+        ctx.restore();
+        // 上升火星（代码层粒子，0.6s 起与柱体伴生）
+        if (t > 0.6) {
+          const k = (t - 0.6) / (dur - 0.6);
+          for (let i = 0; i < 6; i++) {
+            const s = ((i * 6173 + seed * 9) % 89) / 89;
+            const sx = cx + (s - 0.5) * W * 0.14;
+            const sy = cy - (0.1 + s * 0.75) * H * 0.5 - Math.sin(t * 22 + i + seed) * 8;
+            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
+            ctx.globalAlpha = (1 - k) * (0.4 + s * 0.4);
+            ctx.beginPath(); ctx.arc(sx, sy, 2 + s * 3, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+        return;
+      }
+      this._fxPillarProc(ctx, cx, cy, R, seed, t / dur);
+  }
+
+  /* v1.17.25 程序化火柱回退（原 v1.13.9 四阶段绘制，贴图未就绪时使用） */
+  _fxPillarProc(ctx, cx, cy, R, seed, p) {
       if (p < 0.25) {
         // 帧 1 地上画圈：双环火圈扩张 + 圈上火苗 + 地面红晕（圈=伤害范围，半径与 explode 一致）
         const k = p / 0.25;
