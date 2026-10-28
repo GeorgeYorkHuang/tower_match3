@@ -15,8 +15,10 @@
 ## 源码目录介绍
 
 ```
-├── audio                                      // 音频资源
-├── images                                     // 图片资源
+├── assets                                     // ★ 素材分包（所有素材只放这里，见下节）
+│   ├── game.js                                //   分包入口（空实现，微信要求 root 下有入口文件）
+│   ├── audio                                  //   音频：bgm / bullet / boom
+│   └── images                                 //   图片：towers / enemies / ui / relic / fx / anims …
 ├── js
 │   ├── config.js                              // 数值/布局/塔/特效配置
 │   ├── board.js                               // 三消棋盘（匹配/消除/下落/连锁）
@@ -33,6 +35,24 @@
 ├── project.config.json                        // 项目配置
 └── project.private.config.json                // 项目个人配置
 ```
+
+## 资源与分包约定（新增素材前必读）
+
+本项目采用**分包上传机制**：`assets/` 是唯一的功能分包（`game.json → subpackages`），素材一律放分包，主包只放代码与配置。
+
+| 项 | 规则 |
+|---|---|
+| 图片 / 音频 / 动画帧 | 全部放 `assets/` 下，代码里写 `assets/images/...`、`assets/audio/...` |
+| 禁止 | 在根目录新建 `images/`、`audio/` 等素材目录（会直接进主包） |
+| 分包加载 | `js/loading.js` 启动时 `wx.loadSubpackage('assets')`，带进度条与失败重试；加载成功后才 `new Game()`，故所有素材引用都发生在分包就绪之后 |
+| 主包上限 | 4 MB（当前 0.80 MB，全是 js） |
+| 普通分包 | **单个不限大小**（官方规则），仅受总包限制 |
+| 总包上限 | 30 MB（当前 5.35 MB） |
+| 上传前自检 | `python tools/_check_pack.py` —— 模拟打包，报主包/分包体积与残留文件 |
+| 忽略规则 | `game.json`（后台上传用）与 `project.config.json`（工具本地编译用）的 `packOptions.ignore` **必须两边同步**，否则工具显示体积与后台上传结果不一致 |
+
+> 已排除出包：`tools art docs .workbuddy .creative-design`、工具临时目录（`_doc_draft` / `doc-fetch-resources` / `draft_*`）、根目录文档与测试脚本。
+> 新增一类「不该上传」的目录时，同时改 `game.json` 与 `project.config.json` 两处 ignore。
 
 ## 开发设计未完成清单（每次开发前请先核对本清单）
 

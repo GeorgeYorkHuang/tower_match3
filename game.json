@@ -1,15 +1,73 @@
 {
   "deviceOrientation": "portrait",
   "subpackages": [
-    { "name": "assets", "root": "assets" }
+    {
+      "name": "assets",
+      "root": "assets"
+    }
   ],
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "tools" },
-      { "type": "folder", "value": "art" },
-      { "type": "folder", "value": "docs" },
-      { "type": "regexp", "value": "^assets/images/ui/wall_old.*\\.jpg$" },
-      { "type": "regexp", "value": "^assets/images/ui/(action_area\\.jpg|action_area_plain\\.jpg|battle_bg\\.jpg|board_bg\\.jpg|board_bg_dark_2\\.jpg|tower_row\\.jpg|tower_row_dark_old_blue\\.jpg)$" }
+      {
+        "type": "folder",
+        "value": "tools"
+      },
+      {
+        "type": "folder",
+        "value": "art"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "regexp",
+        "value": "^assets/images/ui/wall_old.*\\.jpg$"
+      },
+      {
+        "type": "regexp",
+        "value": "^assets/images/ui/(action_area\\.jpg|action_area_plain\\.jpg|battle_bg\\.jpg|board_bg\\.jpg|board_bg_dark_2\\.jpg|tower_row\\.jpg|tower_row_dark_old_blue\\.jpg)$"
+      },
+      {
+        "type": "folder",
+        "value": ".workbuddy"
+      },
+      {
+        "type": "folder",
+        "value": ".creative-design"
+      },
+      {
+        "type": "folder",
+        "value": "_doc_draft"
+      },
+      {
+        "type": "folder",
+        "value": "doc-fetch-resources"
+      },
+      {
+        "type": "folder",
+        "value": "draft_944b5e9f_folder"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
+      },
+      {
+        "type": "file",
+        "value": "消消防线-动画与特效规格.md"
+      },
+      {
+        "type": "file",
+        "value": "fetch_stderr.txt"
+      },
+      {
+        "type": "file",
+        "value": "fetch_stdout.txt"
+      },
+      {
+        "type": "regexp",
+        "value": "^_test_.*\\.cjs$"
+      }
     ]
   }
 }

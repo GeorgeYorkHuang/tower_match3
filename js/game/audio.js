@@ -3,7 +3,11 @@
  * 微信小游戏 InnerAudioContext 封装：防抖播放（shot/boom）+ 循环 BGM + 统一音量
  * 由 main.js 的 SfxManager 实例持有；combat.js 通过 g.playSfx(kind, minGap) 调用
  */
-const AUDIO = { bgm: 'audio/bgm.mp3', shot: 'audio/bullet.mp3', boom: 'audio/boom.mp3' };
+// v1.17.21 素材统一进分包：audio 从主包迁至 assets 分包（assets/audio/）。
+// 时序依赖：SfxManager 由 Game 构造函数创建，而 Game 在 wx.loadSubpackage('assets')
+// success 之后才 new（见 js/loading.js），故此处引用分包内音频文件时分包必已加载完成。
+// 后续新增音效一律放 assets/audio/，不要再在根目录建 audio/。
+const AUDIO = { bgm: 'assets/audio/bgm.mp3', shot: 'assets/audio/bullet.mp3', boom: 'assets/audio/boom.mp3' };
 
 function createAudio(src, loop, vol) {
   if (typeof wx === 'undefined' || !wx.createInnerAudioContext) return null;

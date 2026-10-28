@@ -49,42 +49,66 @@
   "simulatorPluginLibVersion": {},
   "packOptions": {
     "ignore": [
-      { "type": "folder", "value": "tools" },
-      { "type": "folder", "value": ".workbuddy" },
-      { "type": "file", "value": "images/ui/chest.png" },
-      { "type": "file", "value": "images/ui/chest_closed_raw.png" },
-      { "type": "file", "value": "images/ui/chest_open_raw.png" },
-      { "type": "file", "value": "images/ui/chest_quarter_raw.png" },
-      { "type": "file", "value": "images/ui/chest_fast_raw.png" },
-      { "type": "folder", "value": "images/anims/debuff_bleed" },
-      { "type": "folder", "value": "images/anims/debuff_burn" },
-      { "type": "folder", "value": "images/anims/debuff_frost" },
-      { "type": "folder", "value": "images/anims/debuff_poison" },
-      { "type": "folder", "value": "images/anims/debuff_shock" },
-      { "type": "folder", "value": "images/anims/anim_explosion" },
-      { "type": "folder", "value": "images/anims/anim_fallstrike" },
-      { "type": "folder", "value": "images/anims/anim_spark" },
-      { "type": "file", "value": "images/anims/debuff_bleed_base.png" },
-      { "type": "file", "value": "images/anims/debuff_burn_base.png" },
-      { "type": "file", "value": "images/anims/debuff_frost_base.png" },
-      { "type": "file", "value": "images/anims/debuff_poison_base.png" },
-      { "type": "file", "value": "images/anims/debuff_shock_base.png" },
-      { "type": "file", "value": "images/ui/action_area.jpg" },
-      { "type": "file", "value": "images/ui/action_area_plain.jpg" },
-      { "type": "file", "value": "images/ui/battle_bg.jpg" },
-      { "type": "file", "value": "images/ui/board_bg.jpg" },
-      { "type": "file", "value": "images/ui/board_bg_dark_2.jpg" },
-      { "type": "file", "value": "images/ui/tower_row.jpg" },
-      { "type": "file", "value": "images/ui/tower_row_dark_old_blue.jpg" },
-      { "type": "file", "value": "images/ui/wall_old.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_10_14.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_60b.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_65.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_75.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_75b.jpg" },
-      { "type": "file", "value": "images/ui/wall_old_80deg.jpg" },
-      { "type": "file", "value": "消消防线-动效与特效规格.md" },
-      { "type": "file", "value": "SKILLS.md" }
+      {
+        "type": "folder",
+        "value": "tools"
+      },
+      {
+        "type": "folder",
+        "value": "art"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "regexp",
+        "value": "^assets/images/ui/wall_old.*\\.jpg$"
+      },
+      {
+        "type": "regexp",
+        "value": "^assets/images/ui/(action_area\\.jpg|action_area_plain\\.jpg|battle_bg\\.jpg|board_bg\\.jpg|board_bg_dark_2\\.jpg|tower_row\\.jpg|tower_row_dark_old_blue\\.jpg)$"
+      },
+      {
+        "type": "folder",
+        "value": ".workbuddy"
+      },
+      {
+        "type": "folder",
+        "value": ".creative-design"
+      },
+      {
+        "type": "folder",
+        "value": "_doc_draft"
+      },
+      {
+        "type": "folder",
+        "value": "doc-fetch-resources"
+      },
+      {
+        "type": "folder",
+        "value": "draft_944b5e9f_folder"
+      },
+      {
+        "type": "file",
+        "value": "README.md"
+      },
+      {
+        "type": "file",
+        "value": "消消防线-动画与特效规格.md"
+      },
+      {
+        "type": "file",
+        "value": "fetch_stderr.txt"
+      },
+      {
+        "type": "file",
+        "value": "fetch_stdout.txt"
+      },
+      {
+        "type": "regexp",
+        "value": "^_test_.*\\.cjs$"
+      }
     ],
     "include": []
   },
