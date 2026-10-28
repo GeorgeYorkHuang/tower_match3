@@ -48,6 +48,8 @@ class Meta {
     this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default);   // v5.2 三消技能局外三槽配置
     this.globalSkills = { slots: ['shuffle', 'refill', null] };   // v5.3 全局技能槽（预留；技能池 v5.3 拍板后开放）
+    this.skillUnlocks = {};        // v5.3c 技能解锁 { slot: [id...] }（默认集免费，其余商店金币购买）
+    this.shopDaily = null;         // v5.3c 商店圣物宝箱每日限购 { date, chests: { bronze: n, gold: n } }
   }
 
   /* ---------- 塔图鉴（v1.16.75） ---------- */
@@ -215,18 +217,67 @@ class Meta {
     return list[list.length - 1].id;
   }
 
-  /* ---------- 每日精选（0 点刷新，圣物卡） ---------- */
+  /* ---------- 每日碎片精选（v5.3c 0 点刷新，碎片奖励） ---------- */
   ensureDailyPicks(nowMs) {
     const date = todayStr(nowMs);
     if (this.dailyPicks && this.dailyPicks.date === date) return this.dailyPicks;
     const picks = [];
+    const rars = ['r', 'sr', 'ssr'];
     while (picks.length < CONFIG.DAILY.perDay) {
-      const id = this.randomRelicId();
-      if (picks.some((p) => p.relic === id)) continue;
-      picks.push({ relic: id, price: CONFIG.DAILY.price });
+      const rar = rars[Math.floor(Math.random() * 3)];
+      const id = CONFIG.randomShardCardId(rar);
+      if (!id || picks.some((p) => p.relic === id)) continue;
+      picks.push({ relic: id, rar, shards: CONFIG.DAILY.shards[rar], price: CONFIG.DAILY.price[rar] });
     }
     this.dailyPicks = { date, picks };
     return this.dailyPicks;
+  }
+
+  /* ---------- 技能解锁（v5.3c） ---------- */
+  skillUnlocked(slot, id) {
+    const un = this.skillUnlocks[slot];
+    if (un && un.length) return un.includes(id);
+    const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
+    return defs.includes(id);
+  }
+  /** 解锁技能：金币购买；成功返回 { ok:true }，失败 { ok:false, reason:'gold'|'owned' } */
+  unlockSkill(slot, id) {
+    const price = CONFIG.SKILL_UNLOCK.price[slot];
+    if (this.skillUnlocked(slot, id)) return { ok: false, reason: 'owned' };
+    if (this.gold < price) return { ok: false, reason: 'gold' };
+    this.gold -= price;
+    if (!this.skillUnlocks[slot]) this.skillUnlocks[slot] = (CONFIG.SKILL_UNLOCK.defaults[slot] || []).slice();
+    this.skillUnlocks[slot].push(id);
+    return { ok: true };
+  }
+
+  /* ---------- 商店圣物宝箱（v5.3c 每日限购） ---------- */
+  shopChestLeft(key) {
+    const def = CONFIG.SHOP_CHEST[key];
+    if (!def) return 0;
+    if (!this.shopDaily || this.shopDaily.date !== todayStr(Date.now())) return def.daily;
+    return Math.max(0, def.daily - (this.shopDaily.chests[key] || 0));
+  }
+  /** 购买圣物宝箱：返回 { ok, reason|gains }；gains = [{ id, n }] 聚合碎片 */
+  buyShopChest(key) {
+    const def = CONFIG.SHOP_CHEST[key];
+    if (this.shopChestLeft(key) <= 0) return { ok: false, reason: 'limit' };
+    if (this.gold < def.price) return { ok: false, reason: 'gold' };
+    this.gold -= def.price;
+    const date = todayStr(Date.now());
+    if (!this.shopDaily || this.shopDaily.date !== date) this.shopDaily = { date, chests: {} };
+    this.shopDaily.chests[key] = (this.shopDaily.chests[key] || 0) + 1;
+    const n = def.shards[Math.floor(Math.random() * def.shards.length)];
+    const agg = {};
+    for (let i = 0; i < n; i++) {
+      const rar = def.rarities[Math.floor(Math.random() * def.rarities.length)];
+      const rid = CONFIG.randomShardCardId(rar);
+      if (!rid) continue;
+      agg[rid] = (agg[rid] || 0) + 1;
+    }
+    const gains = Object.keys(agg).map((rid) => ({ id: rid, n: agg[rid] }));
+    gains.forEach((g) => this.addShard(g.id, g.n));
+    return { ok: true, gains };
   }
 
   /* ---------- 宝箱 ---------- */
@@ -286,6 +337,8 @@ class Meta {
       /* v5.2 三消技能局外三槽配置（四连技/高连技/连消技） */
       matchSkills: this.matchSkills,
       globalSkills: this.globalSkills,
+      skillUnlocks: this.skillUnlocks,
+      shopDaily: this.shopDaily,
     };
   }
   static fromJSON(d) {
@@ -313,6 +366,8 @@ class Meta {
     // v5.2 三消技能三槽配置（旧档无字段 → 默认 cross/rainbow/attack）
     m.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, d.matchSkills || {});
     m.globalSkills = { slots: ['shuffle', 'refill', null], ...(d.globalSkills || {}) };
+    m.skillUnlocks = d.skillUnlocks || {};
+    m.shopDaily = d.shopDaily || null;
     // v1.6：塔位不再跨局持久化——读档后恒为空，每局由最先消除的 4 种颜色重新决定
     m.towerUnlocks = [];
     m.soundOn = d.soundOn !== false;   // v1.16.107 声音开关（旧档默认开）

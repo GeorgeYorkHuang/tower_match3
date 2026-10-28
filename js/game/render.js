@@ -96,7 +96,7 @@ const BOARD_IMG = {
 const imgCache = {};
 // v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
 const MENU_TABS = [
-  ['battle', '⚔', '主页'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴'],
+  ['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴'],  // v5.3c 主页标签换房屋图标
 ];
 const MENU_TAB_THEME = {
   battle: { main: '#e8603c', dark: '#8c2f18', top: 'rgba(58,26,32,0.9)' },
@@ -3863,75 +3863,90 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
-    // v5.3 技能配置两行（进入战斗按钮下方）：行1 三消技能（四连/高连/连消 3 槽）· 行2 全局技能（槽位），点击整行打开配置面板
-    this._menuSkillRow(ctx, s, push, '三消技能', s.matchSkills, 80, 958, 590, 44);
-    this._menuSkillRow(ctx, s, push, '全局技能', s.globalSkills, 80, 1012, 590, 44);
+    // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 3 卡（洗牌/补给/空槽）
+    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 80, 958, 590, 104, true);
+    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 80, 1072, 590, 104, false);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
   /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
+  /** 商店页 v5.3c：自上而下 每日碎片精选 → 圣遗物宝箱（限购）→ 技能解锁 */
   menuShop(ctx, s, push) {
-    // —— 每日精选圣物（3 卡横排：大图标 + 名称一行 + 金币价 / 广告免费）——
-    text(ctx, '每日精选 · 0 点刷新', 55, 300, 26, '#ffffff', 'left');
+    // —— 1. 每日圣遗物碎片精选（0 点刷新，金币购买碎片）——
+    text(ctx, '每日碎片精选 · 0 点刷新', 55, 226, 26, '#ffffff', 'left');
     const picks = (s.daily && s.daily.picks) || [];
-    const cw = 200, ch = 216, gap = 12;
+    const cw = 200, ch = 200, gap = 12;
     picks.slice(0, 3).forEach((p, i) => {
       const cx = 55 + i * (cw + gap);
       const def = CONFIG.RELIC.list.find((r) => r.id === p.relic) || {};
-      const owned = (s.relics || []).find((r) => r.id === p.relic) || {};
-      const lv = owned.level || 0;
-      fillRoundRect(ctx, cx, 326, cw, ch, 16, '#161d28');
-      strokeRoundRect(ctx, cx, 326, cw, ch, 16, lv > 0 ? '#f7c948' : '#7ca8ff', 1.4);
-      // 大图标（圣物图案，缺图回退 emoji）
-      const isz = 88;
+      const rar = p.rar || CONFIG.relicRarity(p.relic);
+      const rc = CONFIG.GO.RARITY[rar] || '#4aa3ff';
+      fillRoundRect(ctx, cx, 252, cw, ch, 16, '#161d28');
+      strokeRoundRect(ctx, cx, 252, cw, ch, 16, rc, 1.4);
+      const isz = 76;
       const src = relicIconSrc(p.relic);
-      ctx.beginPath(); ctx.arc(cx + cw / 2, 326 + 62, 44, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(168,107,255,0.16)'; ctx.fill();
-      if (!(src && drawImg(ctx, src, cx + cw / 2 - isz / 2, 326 + 62 - isz / 2, isz, isz))) {
-        text(ctx, def.icon || '📿', cx + cw / 2, 326 + 64, 42, '#d9c2ff', 'center');
-      }
-      // 名称一行（小字，已拥有角标）
-      text(ctx, `${def.name || p.relic}${lv > 0 ? ' ✓' : ''}`, cx + cw / 2, 326 + 122, 19, lv > 0 ? '#f7c948' : '#ffffff', 'center');
-      // 金币购买（价格胶囊）
-      push('dailyPick', { relic: p.relic, price: p.price, icon: def.icon, name: def.name }, cx + 18, 326 + 148, 96, 52);
-      fillRoundRect(ctx, cx + 18, 326 + 148, 96, 52, 12, '#2c3542');
-      strokeRoundRect(ctx, cx + 18, 326 + 148, 96, 52, 12, '#f7c948', 1.2);
-      if (!drawImg(ctx, IMG_SRC.coin, cx + 28, 326 + 160, 26, 26)) text(ctx, '🪙', cx + 41, 326 + 173, 20, '#f7c948', 'center');
-      text(ctx, `${p.price}`, cx + 62, 326 + 175, 20, '#f7c948', 'left');
-      // 广告免费
-      push('dailyAd', { relic: p.relic, price: 0, icon: def.icon, name: def.name }, cx + 122, 326 + 148, 60, 52);
-      fillRoundRect(ctx, cx + 122, 326 + 148, 60, 52, 12, '#2c3542');
-      strokeRoundRect(ctx, cx + 122, 326 + 148, 60, 52, 12, '#7cd6a6', 1.2);
-      text(ctx, '📺', cx + 152, 326 + 176, 24, '#7cd6a6', 'center');
+      ctx.beginPath(); ctx.arc(cx + cw / 2, 252 + 52, 40, 0, Math.PI * 2);
+      ctx.fillStyle = rc; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+      if (!(src && drawImg(ctx, src, cx + cw / 2 - isz / 2, 252 + 52 - isz / 2, isz, isz))) text(ctx, def.icon || '📿', cx + cw / 2, 252 + 54, 40, '#d9c2ff', 'center');
+      text(ctx, def.name || p.relic, cx + cw / 2, 252 + 110, 17, '#ffffff', 'center');
+      text(ctx, `碎片 ×${p.shards}`, cx + cw / 2, 252 + 136, 16, rc, 'center');
+      push('shopShard', { relic: p.relic, shards: p.shards, price: p.price, icon: def.icon, name: def.name }, cx + cw / 2 - 70, 252 + 150, 140, 40);
+      fillRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#2c3542');
+      strokeRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#f7c948', 1.2);
+      if (!drawImg(ctx, IMG_SRC.coin, cx + cw / 2 - 52, 252 + 160, 22, 22)) text(ctx, '🪙', cx + cw / 2 - 39, 252 + 171, 18, '#f7c948', 'center');
+      text(ctx, `${p.price}`, cx + cw / 2 - 14, 252 + 175, 18, '#f7c948', 'left');
     });
-    // —— 钻石兑换（2 卡：宝箱 / 金币）——
-    text(ctx, '钻石兑换', 55, 590, 26, '#7ca8ff', 'left');
-    const dx = 55, dw = 312, dh = 150, dy = 616;
-    push('diamondChest', null, dx, dy, dw, dh);
-    fillRoundRect(ctx, dx, dy, dw, dh, 16, '#1b2230');
-    strokeRoundRect(ctx, dx, dy, dw, dh, 16, '#7ca8ff', 1.2);
-    if (!drawImg(ctx, IMG_SRC.chestBronze, dx + 28, dy + 34, 82, 82)) text(ctx, '📦', dx + 69, dy + 78, 46, '#ffffff', 'center');
-    text(ctx, `${CONFIG.DIAMOND.chestPrice}💎 兑换宝箱×1`, dx + 136, dy + 78, 22, '#7ca8ff', 'left');
-    const dx2 = dx + dw + 16;
-    push('diamondGold', null, dx2, dy, dw, dh);
-    fillRoundRect(ctx, dx2, dy, dw, dh, 16, '#1b2230');
-    strokeRoundRect(ctx, dx2, dy, dw, dh, 16, '#7ca8ff', 1.2);
-    if (!drawImg(ctx, IMG_SRC.coin, dx2 + 28, dy + 34, 82, 82)) text(ctx, '🪙', dx2 + 69, dy + 78, 46, '#f7c948', 'center');
-    text(ctx, `${CONFIG.DIAMOND.chestPrice}💎 兑换金币×${fmtFull(CONFIG.DIAMOND.goldPrice)}`, dx2 + 136, dy + 78, 22, '#7ca8ff', 'left');
-    // —— 广告奖励 ——
-    push('adCard', null, 55, dy + dh + 20, 640, 104);
-    fillRoundRect(ctx, 55, dy + dh + 20, 640, 104, 16, '#1b2230');
-    strokeRoundRect(ctx, 55, dy + dh + 20, 640, 104, 16, '#7cd6a6', 1.4);
-    text(ctx, '📺', 108, dy + dh + 72, 44, '#7cd6a6', 'center');
-    text(ctx, '看广告 · 随机圣物卡', 148, dy + dh + 62, 26, '#ffffff', 'left');
-    text(ctx, `或 ${CONFIG.AD_REWARD.gold}🪙`, 148, dy + dh + 94, 18, '#8ea3b8', 'left');
-    text(ctx, '›', 672, dy + dh + 58, 40, '#5a6c80', 'center');
-    // —— 充值占位 ——
-    push('recharge', null, 55, dy + dh + 140, 640, 88);
-    fillRoundRect(ctx, 55, dy + dh + 140, 640, 88, 16, '#12171f');
-    strokeRoundRect(ctx, 55, dy + dh + 140, 640, 88, 16, '#3a4553', 1);
-    text(ctx, '🔒 充值 · 获取钻石', 375, dy + dh + 184, 22, '#5a6c80', 'center');
+    // —— 2. 圣遗物宝箱（金币购买随机碎片，每日限购）——
+    text(ctx, '圣遗物宝箱', 55, 500, 26, '#ffffff', 'left');
+    const chests = [CONFIG.SHOP_CHEST.bronze, CONFIG.SHOP_CHEST.gold];
+    chests.forEach((cd, i) => {
+      const cx = 55 + i * 330, cy = 528, cbw = 310, cbh = 150;
+      const left = (s.shopLeft && s.shopLeft[cd.key] !== undefined) ? s.shopLeft[cd.key] : cd.daily;
+      push('shopChest', { key: cd.key }, cx, cy, cbw, cbh);
+      fillRoundRect(ctx, cx, cy, cbw, cbh, 16, '#1b2230');
+      strokeRoundRect(ctx, cx, cy, cbw, cbh, 16, cd.color, 1.5);
+      text(ctx, cd.icon, cx + 62, cy + 66, 52, '#ffffff', 'center');
+      text(ctx, cd.name, cx + 130, cy + 44, 22, '#ffffff', 'left');
+      text(ctx, `随机 ${cd.shards.join('~')} 个圣物碎片`, cx + 130, cy + 76, 15, '#9fb2c3', 'left');
+      text(ctx, `今日剩余 ${left}/${cd.daily}`, cx + 130, cy + 102, 14, left > 0 ? '#7ef0a3' : '#ff6b6b', 'left');
+      if (left > 0) {
+        fillRoundRect(ctx, cx + cbw - 96, cy + cbh - 46, 80, 36, 10, '#2c3542');
+        strokeRoundRect(ctx, cx + cbw - 96, cy + cbh - 46, 80, 36, 10, '#f7c948', 1.2);
+        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw - 88, cy + cbh - 40, 18, 18)) text(ctx, '🪙', cx + cbw - 81, cy + cbh - 33, 16, '#f7c948', 'center');
+        text(ctx, `${cd.price}`, cx + cbw - 62, cy + cbh - 31, 17, '#f7c948', 'left');
+      } else {
+        text(ctx, '明日再来', cx + cbw - 96, cy + cbh - 30, 16, '#ff6b6b', 'left');
+      }
+    });
+    // —— 3. 技能解锁（三消 3 组 + 全局 2 款，金币购买）——
+    text(ctx, '技能解锁', 55, 722, 26, '#ffffff', 'left');
+    const groups = [
+      { slot: 'match4', label: '四连技', items: CONFIG.MATCH_SKILL.match4 },
+      { slot: 'match5', label: '高连技', items: CONFIG.MATCH_SKILL.match5 },
+      { slot: 'chain', label: '连消技', items: CONFIG.MATCH_SKILL.chain },
+      { slot: 'global', label: '全局', items: [
+        { id: 'shuffle', name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, mark: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
+        { id: 'refill', name: CONFIG.GLOBAL_SKILL.refillSkill.name, mark: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
+      ] },
+    ];
+    const gcw = 149, gch = 108, ggap = 12, gx0 = 55, gy0 = 752;
+    let gi = 0;
+    groups.forEach((g) => {
+      g.items.forEach((it) => {
+        const col = gi % 4, row = Math.floor(gi / 4);
+        const cx = gx0 + col * (gcw + ggap), cy = gy0 + row * (gch + 12);
+        const owned = this._skillOwned(s, g.slot, it.id);
+        push('shopSkill', { slot: g.slot, id: it.id }, cx, cy, gcw, gch);
+        fillRoundRect(ctx, cx, cy, gcw, gch, 12, owned ? '#141d2a' : '#1a1410');
+        strokeRoundRect(ctx, cx, cy, gcw, gch, 12, owned ? it.color : '#6b4a2a', owned ? 1.3 : 1);
+        text(ctx, it.mark || it.icon || '', cx + gcw / 2, cy + 34, 30, owned ? it.color : '#8f6a45', 'center');
+        text(ctx, it.name, cx + gcw / 2, cy + 62, 14, owned ? '#ffffff' : '#b58a5a', 'center');
+        if (owned) text(ctx, '已解锁 ✓', cx + gcw / 2, cy + 88, 13, '#7ef0a3', 'center');
+        else text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price[g.slot]}`, cx + gcw / 2, cy + 88, 14, '#ffb84d', 'center');
+        gi++;
+      });
+    });
   }
 
   /**
@@ -4263,83 +4278,109 @@ class Renderer {
   }
 
   /** v5.3 主页技能配置行：左标签胶囊 + 3 槽位展示（三消=四连/高连/连消技能名；全局=槽位技能/空槽），整行可点击打开配置面板 */
-  _menuSkillRow(ctx, s, push, label, cfg, x, y, w, h) {
-    const isMatch = label === '三消技能';
+  /** v5.3c 主页技能卡片行：左标签胶囊 + 3 张技能卡（图标 + 技能名 + 状态），点击卡片打开配置面板 */
+  _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) {
     const tagCol = isMatch ? '#a86bff' : '#f7c948';
-    fillRoundRect(ctx, x, y, 88, h, 10, 'rgba(255,255,255,0.07)');
-    strokeRoundRect(ctx, x, y, 88, h, 10, tagCol, 1.4);
-    text(ctx, label, x + 44, y + h / 2 + 1, 19, '#ffffff', 'center');
+    fillRoundRect(ctx, x, y, 88, h, 14, 'rgba(255,255,255,0.07)');
+    strokeRoundRect(ctx, x, y, 88, h, 14, tagCol, 1.4);
+    text(ctx, label, x + 44, y + h / 2 + 1, 20, '#ffffff', 'center');
     const slots = isMatch
       ? [
-          { k: '四连技', v: (cfg && cfg.match4 === 'random') ? { name: '随机抽取', color: '#a86bff' } : CONFIG.MATCH_SKILL.match4.find((d) => d.id === (cfg && cfg.match4)) || CONFIG.MATCH_SKILL.match4[0] },
+          { k: '四连技', v: (cfg && cfg.match4 === 'random') ? { name: '随机抽取', mark: '✱', color: '#a86bff' } : CONFIG.MATCH_SKILL.match4.find((d) => d.id === (cfg && cfg.match4)) || CONFIG.MATCH_SKILL.match4[0] },
           { k: '高连技', v: CONFIG.MATCH_SKILL.match5.find((d) => d.id === (cfg && cfg.match5)) || CONFIG.MATCH_SKILL.match5[0] },
           { k: '连消技', v: CONFIG.MATCH_SKILL.chain.find((d) => d.id === (cfg && cfg.chain)) || CONFIG.MATCH_SKILL.chain[0] },
         ]
       : [
-          { k: '技能1', v: { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color } },
-          { k: '技能2', v: { name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color } },
-          { k: '技能3', v: null },
+          { k: '洗牌', v: { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, mark: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color } },
+          { k: '补给', v: { name: CONFIG.GLOBAL_SKILL.refillSkill.name, mark: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color } },
+          { k: '空槽', v: null },
         ];
     const sx0 = x + 88 + 10, sw = (w - 88 - 10 - 12) / 3;
     slots.forEach((sl, i) => {
       const bx = sx0 + i * (sw + 6);
-      fillRoundRect(ctx, bx, y, sw, h, 10, sl.v ? '#1d2530' : '#151a22');
-      strokeRoundRect(ctx, bx, y, sw, h, 10, sl.v ? (sl.v.color || tagCol) : '#232b36', sl.v ? 1.3 : 1);
-      text(ctx, `${sl.v ? sl.v.name : '未配置'}`, bx + sw / 2, y + 18, 15, sl.v ? '#ffffff' : '#5b6b7c', 'center');
-      text(ctx, sl.k, bx + sw / 2, y + h - 10, 12, sl.v ? '#8ea3b8' : '#4a5a6e', 'center');
+      const sel = !!sl.v;
+      fillRoundRect(ctx, bx, y, sw, h, 14, sel ? '#1d2530' : '#151a22');
+      strokeRoundRect(ctx, bx, y, sw, h, 14, sel ? (sl.v.color || tagCol) : '#232b36', sel ? 1.6 : 1);
+      // 技能图标（圆形底 + mark）
+      const icx = bx + sw / 2, icy = y + 32;
+      ctx.beginPath(); ctx.arc(icx, icy, 24, 0, Math.PI * 2);
+      ctx.fillStyle = sel ? (sl.v.color || tagCol) : '#1f2733'; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1;
+      if (sel) text(ctx, sl.v.mark || sl.v.icon || '', icx, icy + 2, 26, sl.v.color || tagCol, 'center');
+      else text(ctx, '＋', icx, icy + 2, 26, '#5b6b7c', 'center');
+      // 技能名 + 槽位标签
+      text(ctx, sl.v ? (sl.v.name || '') : '未配置', bx + sw / 2, y + 66, 15, sel ? '#ffffff' : '#5b6b7c', 'center');
+      text(ctx, sl.k, bx + sw / 2, y + h - 12, 12, sel ? '#8ea3b8' : '#4a5a6e', 'center');
+      push(isMatch ? 'matchCfg' : 'globalCfg', { slot: i }, bx, y, sw, h);
     });
-    push(isMatch ? 'matchCfg' : 'globalCfg', null, x, y, w, h);
+    // 行点击兜底（标签胶囊区）
+    push(isMatch ? 'matchCfg' : 'globalCfg', null, x, y, 88, h);
   }
 
-  /** v5.3 三消技能配置面板：三行（四连技 5 款 / 高连技 4 款 / 连消技 2 款），点选即保存 */
+  /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */
+  _skillOwned(s, slot, id) {
+    const un = (s.skillUnlocks && s.skillUnlocks[slot]) || [];
+    if (un.length) return un.includes(id);
+    const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
+    return defs.includes(id);
+  }
+
+  /** v5.3c 三消技能配置面板：三行（四连 5 / 高连 4 / 连消 2），已解锁点选配置，未解锁点卡购买 */
   menuMatchCfg(ctx, s, push) {
-    const oy = this._menuPanelShell(ctx, s, push, '三消技能配置', 860);
+    const oy = this._menuPanelShell(ctx, s, push, '三消技能配置', 900);
+    text(ctx, '四消 / 五消 / 连锁消除 3 槽配置 · 点选即保存（未解锁点击购买）', 375, oy + 84, 17, '#8ea3b8', 'center');
+    let yy = oy + 120;
     const groups = [
       { slot: 'match4', title: '四连技', items: CONFIG.MATCH_SKILL.match4, tint: '#a86bff' },
       { slot: 'match5', title: '高连技', items: CONFIG.MATCH_SKILL.match5, tint: '#f7c948' },
       { slot: 'chain', title: '连消技', items: CONFIG.MATCH_SKILL.chain, tint: '#7ef0a3' },
     ];
-    let yy = oy + 84;
-    text(ctx, '四消 / 五消 / 连锁消除 3 槽配置 · 点选即保存（局内立即生效）', 375, yy, 17, '#8ea3b8', 'center');
-    yy += 36;
     groups.forEach((g) => {
       const cur = (s.matchSkills && s.matchSkills[g.slot]) || CONFIG.MATCH_SKILL.default[g.slot];
-      const chh = 92;
+      const chh = 100;
       text(ctx, `${g.title} · 当前：${(g.items.find((d) => d.id === cur) || {}).name || (cur === 'random' ? '随机抽取' : '')}`, 375, yy, 18, g.tint, 'center');
-      yy += 32;
+      yy += 30;
       const n = g.items.length;
       const cw = Math.floor((640 - (n - 1) * 10) / n);
       g.items.forEach((it, ii) => {
         const cx = 55 + ii * (cw + 10);
         const sel = it.id === cur;
+        const owned = this._skillOwned(s, g.slot, it.id);
         push('mSkill', { slot: g.slot, id: it.id }, cx, yy, cw, chh);
-        fillRoundRect(ctx, cx, yy, cw, chh, 12, sel ? 'rgba(167,107,255,0.14)' : 'rgba(255,255,255,0.05)');
-        strokeRoundRect(ctx, cx, yy, cw, chh, 12, sel ? '#f7c948' : '#2b3648', sel ? 2.2 : 1);
-        text(ctx, (it.mark || '') + ' ' + it.name, cx + cw / 2, yy + 30, 17, sel ? '#ffffff' : '#c9d6e4', 'center');
-        text(ctx, sel ? '✓ 已配置' : '点击配置', cx + cw / 2, yy + 56, 14, sel ? '#7ef0a3' : '#5b6b7c', 'center');
-        const desc = it.desc.length > 13 ? it.desc.slice(0, 13) + '…' : it.desc;
-        text(ctx, desc, cx + cw / 2, yy + 80, 12, '#8ea3b8', 'center');
+        fillRoundRect(ctx, cx, yy, cw, chh, 12, sel ? 'rgba(167,107,255,0.16)' : 'rgba(255,255,255,0.05)');
+        strokeRoundRect(ctx, cx, yy, cw, chh, 12, sel ? '#f7c948' : (owned ? '#3a6ea5' : '#6b4a2a'), sel ? 2.2 : (owned ? 1.2 : 1));
+        text(ctx, (it.mark || '') + ' ' + it.name, cx + cw / 2, yy + 34, 17, sel ? '#ffffff' : (owned ? '#c9d6e4' : '#b58a5a'), 'center');
+        if (owned) {
+          text(ctx, sel ? '✓ 已配置' : '点击配置', cx + cw / 2, yy + 60, 14, sel ? '#7ef0a3' : '#5b6b7c', 'center');
+          const desc = it.desc.length > 13 ? it.desc.slice(0, 13) + '…' : it.desc;
+          text(ctx, desc, cx + cw / 2, yy + 86, 12, '#8ea3b8', 'center');
+        } else {
+          text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price[g.slot]}`, cx + cw / 2, yy + 60, 15, '#ffb84d', 'center');
+          text(ctx, '点击购买', cx + cw / 2, yy + 86, 13, '#8f6a45', 'center');
+        }
       });
-      yy += chh + 34;
+      yy += chh + 32;
     });
   }
 
-  /** v5.3 全局技能配置面板：当前展示已装 2 款（洗牌/补给）+ 第 3 槽预留；技能池 v5.3（14 款）拍板后开放 */
+  /** v5.3c 全局技能配置面板：洗牌默认解锁；补给未解锁可点购买；第 3 槽预留 */
   menuGlobalCfg(ctx, s, push) {
     const oy = this._menuPanelShell(ctx, s, push, '全局技能配置', 640);
     text(ctx, '全局充能 → 施放全局技能（当前已装 2 款，第 3 槽预留）', 375, oy + 88, 18, '#f7c948', 'center');
-    const slots = [
-      { name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
-      { name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
+    const defs = [
+      { id: 'shuffle', name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, icon: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
+      { id: 'refill', name: CONFIG.GLOBAL_SKILL.refillSkill.name, icon: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
       null,
     ];
-    slots.forEach((sl, i) => {
+    defs.forEach((sl, i) => {
       const bx = 75 + i * 200, by = oy + 112, bw = 180, bh = 100;
+      const owned = sl ? this._skillOwned(s, 'global', sl.id) : false;
+      push('mSkill', { slot: 'global', id: sl ? sl.id : '' }, bx, by, bw, bh);
       fillRoundRect(ctx, bx, by, bw, bh, 14, sl ? '#1d2530' : '#151a22');
-      strokeRoundRect(ctx, bx, by, bw, bh, 14, sl ? sl.color : '#232b36', sl ? 1.5 : 1);
+      strokeRoundRect(ctx, bx, by, bw, bh, 14, sl ? (owned ? sl.color : '#6b4a2a') : '#232b36', sl ? 1.5 : 1);
       if (sl) {
-        text(ctx, `${sl.icon} ${sl.name}`, bx + bw / 2, by + 46, 22, '#ffffff', 'center');
-        text(ctx, '已装备', bx + bw / 2, by + 76, 16, sl.color, 'center');
+        text(ctx, `${sl.icon} ${sl.name}`, bx + bw / 2, by + 46, 22, owned ? '#ffffff' : '#b58a5a', 'center');
+        if (owned) text(ctx, '已装备', bx + bw / 2, by + 76, 16, sl.color, 'center');
+        else text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price.global} 点击购买`, bx + bw / 2, by + 76, 15, '#ffb84d', 'center');
       } else {
         text(ctx, '空槽位', bx + bw / 2, by + 50, 20, '#5b6b7c', 'center');
         text(ctx, '技能池拍板后开放', bx + bw / 2, by + 78, 14, '#4a5a6e', 'center');

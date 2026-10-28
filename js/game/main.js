@@ -1252,6 +1252,11 @@ class GameMain {
       panel: this.menuPanel,
       matchSkills: this.meta.matchSkills,   // v5.3 三消技能配置（主页配置行展示 / 面板修改）
       globalSkills: this.meta.globalSkills, // v5.3 全局技能槽（预留）
+      skillUnlocks: this.meta.skillUnlocks,   // v5.3c 技能解锁状态（商店购买）
+      shopLeft: {
+        bronze: this.meta.shopChestLeft('bronze'),
+        gold: this.meta.shopChestLeft('gold'),
+      },                                    // v5.3c 圣物宝箱每日限购剩余
       relicScroll: this.relicScroll || 0,   // v1.16.82 圣遗物页滚动位置
       relicDexPage: this.relicDexPage,   // v1.16.78 圣物图鉴分页（主页与图鉴面板共用）
       /* v1.16.76 激励系统状态 */
@@ -1361,12 +1366,27 @@ class GameMain {
           }
           return;
         }
-        // v5.3 三消技能配置面板：点选技能槽即保存
-        if (ptype === 'matchCfg' && it.key === 'mSkill' && it.hit(p.x, p.y)) {
+        // v5.3c 技能配置面板：已解锁 → 点选配置；未解锁 → 金币购买后自动配置（全局技能固定 2 款不写槽）
+        if ((ptype === 'matchCfg' || ptype === 'globalCfg') && it.key === 'mSkill' && it.hit(p.x, p.y)) {
           const slot = it.data.slot;
-          this.meta.matchSkills[slot] = it.data.id;
+          const id = it.data.id;
+          if (!id) return;
+          const def = (slot === 'global')
+            ? (id === 'shuffle' ? CONFIG.GLOBAL_SKILL.shuffleSkill : CONFIG.GLOBAL_SKILL.refillSkill)
+            : (CONFIG.MATCH_SKILL[slot].find((d) => d.id === id) || {});
+          const nm = def.name || id;
+          if (!this.meta.skillUnlocked(slot, id)) {
+            const res = this.meta.unlockSkill(slot, id);
+            if (!res.ok) {
+              if (res.reason === 'gold') this.toast('金币不足，可去商店或打怪获取', '#ff6b6b');
+              return;
+            }
+            this.save.save();
+            this.toast(`购买解锁 · ${nm}`, '#7ef0a3');
+          }
+          if (slot === 'global') return;   // 全局技能当前固定 2 款，无槽位写入
+          this.meta.matchSkills[slot] = id;
           this.save.save();
-          const nm = (CONFIG.MATCH_SKILL[slot].find((d) => d.id === it.data.id) || {}).name || it.data.id;
           this.toast(`已配置 · ${nm}`, '#a86bff');
           return;
         }
@@ -1461,53 +1481,45 @@ class GameMain {
           // v1.16.76 圣遗物升星面板（碎片/金币/星辉石 → 2★ 效果升级 / 3★ 质变）
           this.menuPanel = { type: 'starUp' };
           return;
-        case 'dailyPick': {
-          // 每日精选圣物卡（金币购买）
+        case 'shopShard': {
+          // 每日碎片精选：金币购买碎片（0 点刷新）
           const d = it.data;
           if (this.meta.gold < d.price) { this.toast('金币不足', '#ff6b6b'); return; }
           this.meta.gold -= d.price;
-          this.meta.addRelic(d.relic);
+          this.meta.addShard(d.relic, d.shards);
           this.save.save();
-          this.toast(`精选圣物 ${d.icon}${d.name} +1`, '#7ef0a3');
+          this.toast(`获得 ${d.icon}${d.name} 碎片 ×${d.shards}`, '#7ef0a3');
           return;
         }
-        case 'dailyAd': {
-          // 每日精选圣物卡（看广告免费领）
+        case 'shopChest': {
+          // 圣遗物宝箱：金币购买随机碎片（每日限购）
+          const res = this.meta.buyShopChest(it.data.key);
+          if (!res.ok) {
+            if (res.reason === 'limit') this.toast('今日次数已用完，明天再来', '#ff6b6b');
+            else if (res.reason === 'gold') this.toast('金币不足', '#ff6b6b');
+            return;
+          }
+          this.save.save();
+          const names = res.gains.map((g) => {
+            const dd = CONFIG.RELIC.list.find((r) => r.id === g.id) || {};
+            return `${dd.icon || ''}${dd.name || g.id}×${g.n}`;
+          }).join(' ');
+          this.toast(`宝箱开启：${names}`, '#f7c948');
+          return;
+        }
+        case 'shopSkill': {
+          // 技能解锁：金币购买技能（解锁后可在主页配置面板选用）
           const d = it.data;
-          this.playRewardedAd(() => {
-            this.meta.addRelic(d.relic);
-            this.save.save();
-            this.toast(`广告奖励圣物：${d.icon}${d.name} +1`, '#7ef0a3');
-          }, '广告未配置，先用金币购买吧');
-          return;
-        }
-        case 'adCard': {
-          this.playRewardedAd(() => {
-            const got = this.meta._randomRelicReward();
-            this.save.save();
-            this.toast(`广告奖励圣物：${got.icon}${got.name} +1`, '#7ef0a3');
-          }, '广告未配置');
-          return;
-        }
-        case 'diamondChest': {
-          if (this.meta.diamond < CONFIG.DIAMOND.chestPrice) { this.toast('钻石不足（充值后续开放）', '#ff6b6b'); return; }
-          this.meta.diamond -= CONFIG.DIAMOND.chestPrice;
-          this.meta.chests += 1;
+          if (this.meta.skillUnlocked(d.slot, d.id)) { this.toast('该技能已解锁', '#9fb2c3'); return; }
+          const res = this.meta.unlockSkill(d.slot, d.id);
+          if (!res.ok) { if (res.reason === 'gold') this.toast('金币不足', '#ff6b6b'); return; }
           this.save.save();
-          this.toast('钻石兑换宝箱 📦', '#7ef0a3');
+          const def = (d.slot === 'global')
+            ? (d.id === 'shuffle' ? CONFIG.GLOBAL_SKILL.shuffleSkill : CONFIG.GLOBAL_SKILL.refillSkill)
+            : (CONFIG.MATCH_SKILL[d.slot].find((x) => x.id === d.id) || {});
+          this.toast(`解锁技能 · ${def.name || d.id}`, '#7ef0a3');
           return;
         }
-        case 'diamondGold': {
-          if (this.meta.diamond < 1) { this.toast('钻石不足（充值后续开放）', '#ff6b6b'); return; }
-          this.meta.diamond -= 1;
-          this.meta.gold += CONFIG.DIAMOND.goldPrice;
-          this.save.save();
-          this.toast(`钻石兑换 ${CONFIG.DIAMOND.goldPrice} 金币`, '#7ef0a3');
-          return;
-        }
-        case 'recharge':
-          this.toast('充值功能开发中，敬请期待', '#9fb2c3');
-          return;
         case 'relicUp': {
           const res = this.meta.upgradeRelic(it.data);
           if (res.ok) {

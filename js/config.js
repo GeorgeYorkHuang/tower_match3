@@ -721,9 +721,25 @@ module.exports = {
     goldPrice: 500,             // 1 钻石 = 500 金币
   },
   DAILY: {
-    perDay: 3,                  // 每日精选圣物卡数量
-    price: 100,                 // 精选圣物卡金币价
+    perDay: 3,                  // v5.3c 每日碎片精选数量（改为碎片奖励，非整件）
+    shards: { r: 3, sr: 2, ssr: 1 },      // 各稀有度每日碎片数量
+    price: { r: 300, sr: 600, ssr: 1200 }, // 各稀有度精选金币价
     refreshHour: 0,             // 每日 0 点刷新
+  },
+  /* ================= 技能解锁（v5.3c） =================
+   * 三消 3 槽 + 全局 2 款：默认解锁基础款（默认配置技能免费可用），其余商店金币购买。
+   * 价格口径：约 1 局 50 波金币收益（5000+），四连技 800 / 连消技 1000 / 高连技 1200 / 全局 2000。
+   */
+  SKILL_UNLOCK: {
+    defaults: { match4: ['row'], match5: ['rainbow'], chain: ['attack'], global: ['shuffle'] },
+    price: { match4: 800, match5: 1200, chain: 1000, global: 2000 },
+  },
+  /* ================= 商店圣物宝箱（v5.3c） =================
+   * 金币购买随机圣遗物碎片（每日限购）；青铜=蓝/紫 1~2 片、黄金=紫/金 2~3 片。
+   */
+  SHOP_CHEST: {
+    bronze: { key: 'bronze', name: '青铜圣物箱', icon: '📦', color: '#d89e63', price: 450, shards: [1, 2], rarities: ['r', 'sr'], daily: 3 },
+    gold:   { key: 'gold', name: '黄金圣物箱', icon: '🎁', color: '#f7c948', price: 1000, shards: [2, 3], rarities: ['sr', 'ssr'], daily: 2 },
   },
 
   /* ================= 存档字段 ================= */
