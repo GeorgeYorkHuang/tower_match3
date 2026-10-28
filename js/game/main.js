@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.16.96';       // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
+const GAME_VERSION = 'v1.17.20';       // v1.17.20 碎片局末结算（局内记账→局末入账，失守按30%折算 floor 张数随机保留）+ 碎片改手动解锁（消耗蓝2/紫4/金8，取消达阈值自动解锁）+ 图鉴「可解锁」态 // v1.16.76 激励系统第一批：撤离点(每10波,池100%/阵亡30%)+深度里程碑(10-50波)+深度宝箱(5档/时间开启/钻石速开)+击杀掉落线(精英25%/Boss必掉碎片+小额金币)+圣遗物星级(1★解锁/2★升级/3★质变)+战场合约(熔岩/霜风/深渊+每日首战加成)+DEBUG测试工具       // v1.16.75 圣遗物三选一华丽金色UI + 宝箱点击动画链(5帧开箱→1s飞到屏幕中放大→0.5s从宝箱中心弹出) + 微开/快开帧素材 + 波间自动过渡提示/Boss闪烁警告 + 测试战场添加圣遗物 + 本局圣遗物详情弹层 + 主菜单4页签背景图/塔图鉴页 + debuff动画帧重做
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -116,8 +116,9 @@ class GameMain {
     this.run.fieldCfg = this.field;                    // v1.16.78 战场被动触发器（风场/诅咒）
     this.depthPool = 0;          // 深度收益池（撤离拿 100%，阵亡保底 30%）
     this.depthMult = 1;          // 深度倍率（每通过一个撤离点 ×1.30，40 波后 ×1.10）
-    this.runShardGained = 0;     // 本局击杀获得碎片数（结算展示）
-    this.runShardDetail = {};    // v1.17 本局碎片明细（圣遗物id→数量，结算页"图标×数量"展示）
+    this.runShardGained = 0;     // 本局击杀获得碎片数（局内掉落总数，结算时由 settleRunShards 折算入账）
+    this.runShardDetail = {};    // v1.17 本局碎片明细（圣遗物id→数量，只记账不入账；v1.17.20 局末统一结算）
+    this.runUnlocked = [];       // v1.17.20 本局因「三选一选中」直接解锁的圣遗物 id（结算页可提示）
     this.animClock = 0;          // v1.17 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
     // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
@@ -169,6 +170,7 @@ class GameMain {
     this.combat.reset();
     this.battleRelics = [];
     this.runShardDetail = {};    // v1.17 测试战场重置碎片明细
+    this.runShardGained = 0;     // v1.17.20 同步重置掉落总数（测试战场不参与结算，避免残留计数）
     // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
     this.run.slotOrder = ['fire'];
     this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
@@ -621,12 +623,17 @@ class GameMain {
     this.save.save();
     // v1.16.106 结算数据补全：总击杀 + 本局圣遗物快照 + 招财符加成系数（结算界面展示）
     const ks = this.combat && this.combat.kills ? Object.values(this.combat.kills).reduce((a, b) => a + b, 0) : 0;
+    // v1.17.20 碎片统一入账：撤离全额，失守按 SHARD_SETTLE.deadRatio 折算（floor 张数 + 随机保留）
+    const ss = this.settleRunShards(evacuated ? 1 : CONFIG.SHARD_SETTLE.deadRatio);
     this.runSummary = {
       evacuated, wave: this.run.wave, payout, miles,
       chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra,   // v1.17 chestKey：结算页宝箱档位图标
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
-      shards: this.runShardGained, depthMult: this.depthMult,
-      shardDetail: this.runShardDetail,   // v1.17 本局碎片明细（圣遗物id→数量，结算页图标×数量展示）
+      // v1.17.20 碎片三件套：raw=掉落总张数 / kept=折算后保留 / lost=损失（失败态展示"损失 N"）
+      shards: ss.kept, depthMult: this.depthMult,
+      shardDetail: ss.finalDetail,      // 折算后明细（结算页按此绘制图标×数量）
+      shardsRaw: ss.raw, shardsLost: ss.lost,
+      unlockedThisRun: this.runUnlocked.slice(),   // 本局三选一选中即解锁的圣遗物（失败不回退）
       silver: this.silverGained || 0,   // v1.17 局内银币按深度池口径折算的金币
       goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
       kills: ks,                        // v1.16.106 本局总击杀
@@ -635,6 +642,45 @@ class GameMain {
     this.gameoverAt = Date.now();   // v1.16.117 结算动画时间基准（圣遗物逐个弹出 → 收益最后弹出）
     this.state = 'gameover';
     this.sfx.stopBgm();
+  }
+
+  /**
+   * v1.17.20 局内碎片统一入账（撤离/失守/中途退出共用）
+   * 局内只记账（runShardDetail），此处按比例折算后批量写入 meta.shards，并清空本局账本。
+   * 折算规则：保留张数 K = floor(总张数 × ratio)；K 张从明细池按「张」等概率随机抽取后重新计数
+   *   （a×4 + b×3 + c×2 = 9 张、ratio=0.3 → K=2，可能保留 a+a / a+b / b+c 等任意组合）
+   * @param {number} ratio 1 = 全额（撤离）；0.3 = 失守 / 中途退出
+   * @returns {{finalDetail: Object, raw: number, kept: number, lost: number}}
+   */
+  settleRunShards(ratio) {
+    const detail = this.runShardDetail || {};
+    const pool = [];
+    Object.keys(detail).forEach((id) => {
+      const n = detail[id] | 0;
+      for (let i = 0; i < n; i++) pool.push(id);
+    });
+    const raw = pool.length;
+    const r = (typeof ratio === 'number' && ratio >= 0) ? Math.min(1, ratio) : 1;
+    const kept = Math.max(0, Math.floor(raw * r));
+    // 只保留前 kept 张 → 先打乱（kept < raw 时才需要随机；全额时不洗牌，保证明细稳定）
+    if (kept < raw && kept > 0) {
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+      }
+    }
+    const finalDetail = {};
+    for (let i = 0; i < kept; i++) {
+      const id = pool[i];
+      finalDetail[id] = (finalDetail[id] || 0) + 1;
+    }
+    Object.keys(finalDetail).forEach((id) => this.meta.addShard(id, finalDetail[id]));
+    const res = { finalDetail, raw, kept, lost: raw - kept };
+    // 清空本局账本，避免重复入账（goMenu/restart 与 finishRun 都会调本方法）
+    this.runShardDetail = {};
+    this.runShardGained = 0;
+    if (raw > 0) this.save.save();
+    return res;
   }
 
   /** v1.16.73 波清结算：先三选一（升级待选），无待选直接自动进入下一波；不弹确认窗 */
@@ -694,6 +740,8 @@ class GameMain {
   }
 
   restart() {
+    // v1.17.20 碎片局末入账：重开前先按失守比例结算，避免局内碎片凭空丢失
+    this.settleRunShardsOnExit('重新开局');
     // v1.16.115 修复：旧实现只清棋盘/塔位/技能，未重置 run.wave 与深度收益池——
     // 第 10 波（或任意波）重开后 wave.start() 使波数 +1，出现"塔清空却从 11 波继续"且深度池带旧账。
     // 改为复用 newRun(true)：全新 Run（波数/深度池/倍率/经验/敌人/战斗实体全部归零），波 1 重来。
@@ -701,6 +749,15 @@ class GameMain {
     this.newRun(true);
     this.firstBonus = fb;
     this.toast('重新开局 · 第 1 波', '#7ef0a3');
+  }
+
+  /** v1.17.20 中途退出/重开时的碎片兜底：有账才结算，按失守比例折算并提示 */
+  settleRunShardsOnExit(reason) {
+    if (!this.runShardGained || this.runShardGained <= 0) return;
+    const ss = this.settleRunShards(CONFIG.SHARD_SETTLE.deadRatio);
+    if (ss.raw > 0) {
+      this.toast(`${reason} · 碎片按 ${Math.round(CONFIG.SHARD_SETTLE.deadRatio * 100)}% 结算 ${ss.kept}/${ss.raw}`, '#a86bff');
+    }
   }
 
   /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
@@ -735,6 +792,8 @@ class GameMain {
 
   /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（v1.17 币种分离） */
   goMenu() {
+    // v1.17.20 碎片局末入账：战斗中直接返回主界面时先按失守比例兜底结算（结算后 runShardDetail 已清空 → 再调无副作用）
+    this.settleRunShardsOnExit('中途退出');
     this.state = 'menu';
     this.menuTab = 'battle';
     this.menuPanel = null;
@@ -808,10 +867,11 @@ class GameMain {
       if (n > 0) {
         const id = CONFIG.randomShardId(field.dropAttr);
         if (id) {
-          this.meta.addShard(id, n);
+          // v1.17.20 碎片改「局内记账 → 局末入账」：此处不再直接 meta.addShard，
+          //   否则失守时无法按 30% 折算收回（详见 settleRunShards）
           this.runShardGained += n;
           this.runShardDetail[id] = (this.runShardDetail[id] || 0) + n;   // v1.17 碎片明细（击杀掉落）
-          this.toast(`🧩 圣遗物碎片 +${n}`, '#a86bff');
+          this.toast(`🧩 圣遗物碎片 +${n}（局末结算）`, '#a86bff');
         }
       }
       // v1.17 击杀银币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场银币倍率
@@ -843,8 +903,11 @@ class GameMain {
       this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
       // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
       const shardId = CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r');
-      this.meta.addShard(shardId, 1);
-      if (shardId) this.runShardDetail[shardId] = (this.runShardDetail[shardId] || 0) + 1;   // v1.17 碎片明细（全解锁折算）
+      // v1.17.20 同样只记账，局末随其他碎片一起按比例入账
+      if (shardId) {
+        this.runShardGained += 1;
+        this.runShardDetail[shardId] = (this.runShardDetail[shardId] || 0) + 1;   // v1.17 碎片明细（全解锁折算）
+      }
       this.save.save();
       this._chestBusy = false;
       return;
@@ -1285,6 +1348,18 @@ class GameMain {
           }
           return;
         }
+        // v1.17.20 碎片手动解锁（圣遗物详情面板内）：消耗阈值碎片点亮图鉴
+        if (it.key === 'relicUnlock' && it.hit(p.x, p.y)) {
+          const need = this.meta.shardNeed(it.data);
+          const err = this.meta.unlockByShard(it.data);
+          if (err) this.toast(err, '#ff6b6b');
+          else {
+            this.save.save();
+            const def = CONFIG.relicRunDef(it.data);
+            this.toast(`已解锁 ${def ? def.name : it.data} · 消耗碎片 ${need}`, '#a86bff');
+          }
+          return;
+        }
         // v5.3 三消技能配置面板：点选技能槽即保存
         if (ptype === 'matchCfg' && it.key === 'mSkill' && it.hit(p.x, p.y)) {
           const slot = it.data.slot;
@@ -1535,16 +1610,19 @@ class GameMain {
       // v1.16.108 测试战场豁免：3★ 模式候选均为已拥有圣遗物，若走折算分支会 return 卡死弹层 → 测试战场直接注入本局生效
       if (this.meta.starOf(c.id) >= 1 && this._relicReturnState !== 'testfield') {
         const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
-        this.meta.addShard(c.id, n);
+        // v1.17.20 重复折算同样走「局末入账」，失守时一起按比例折算
+        this.runShardGained += n;
         this.runShardDetail[c.id] = (this.runShardDetail[c.id] || 0) + n;   // v1.17 碎片明细（重复圣遗物折算）
-        this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}`, '#a86bff');
+        this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}（局末结算）`, '#a86bff');
         this.save.save();
         return;
       }
       // 局内圣遗物（rougelike）：本局生效 + 图鉴解锁（跨局记录）
       this.runRelics.push(c.id);
       this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
+      const wasLocked = this.meta.starOf(c.id) < 1;   // v1.17.20 记录「本局选中即解锁」，失败折算不回退
       this.meta.codexUnlock(c.id);
+      if (wasLocked) this.runUnlocked.push(c.id);
       // v1.16.113 记录 3★ 生效标记：测试战场 3★ 注入 或 真实已升 3★
       const isStar3 = (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) || this.meta.starOf(c.id) >= 3;
       this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: isStar3 }); // v1.16.73 详情弹层需要 desc

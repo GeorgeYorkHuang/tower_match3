@@ -16,6 +16,8 @@ const s = {
   tab: 'battle', gold: 12345, diamond: 8, stage: 'ancient', chests: 2, chestOpenSec: 30,
   relics: [], daily: { picks: [] }, panel: null,
   codexSel: 'fire', towerCodex: { fire: 1, ice: 1, poison: 1, electric: 1 },
+  // v1.17.20 补齐 v1.16.76 后新增的快照字段（此前缺失导致 menuLayer[relic] 抛错）
+  relicStars: {}, runCodex: {}, shards: {}, relicScroll: 0, relicDexPage: 0, deepChests: [], bestWave: 0,
 };
 let fails = 0;
 for (const tab of ['battle', 'shop', 'relic', 'codex']) {

@@ -80,6 +80,7 @@ const s = {
   relics: [], daily: { picks: [] }, panel: null, codexSel: 'fire',
   towerCodex: { fire: 1, ice: 1, poison: 1, electric: 1 },
   relicStars: m.relicStars, shards: m.shards, starStones: m.starStones,
+  runCodex: m.runCodex, relicScroll: 0,   // v1.17.20 补齐：menuRelic 读取 runCodex/relicScroll
   deepChests: [{ tier: 'star', name: '星辉宝箱', ready: false, remainMin: 300 }, { tier: 'silver', name: '白银宝箱', ready: true, remainMin: 0 }],
   bestWave: 22, debug: true,
 };

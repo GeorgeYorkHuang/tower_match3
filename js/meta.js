@@ -56,11 +56,28 @@ class Meta {
 
   /* ---------- 圣遗物星级 / 碎片（v1.16.76） ---------- */
   starOf(id) { return this.relicStars[id] || (this.runCodex[id] ? 1 : 0); }   // 0=未解锁
-  /** v1.16.78 碎片达稀有度阈值（蓝2/紫4/金8）→ 直接解锁图鉴（无需局内三选一碰到） */
+  /** v1.17.20 碎片入账：只加碎片，不再自动解锁（解锁改为玩家手动触发 unlockByShard）
+   *   旧实现（v1.16.78）达阈值即静默解锁，与「凑齐也可选择不解锁、继续攒碎片」冲突 */
   addShard(id, n) {
     this.shards[id] = (this.shards[id] || 0) + n;
-    const need = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(id)];
-    if (need && !this.runCodex[id] && this.shards[id] >= need) this.runCodex[id] = 1;
+  }
+  /** 解锁所需碎片数（蓝 r=2 / 紫 sr=4 / 金 ssr=8），与升星消耗同源 */
+  shardNeed(id) { return CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(id)] || 0; }
+  /** 可用碎片解锁？（未解锁 且 碎片已够） */
+  canUnlockByShard(id) {
+    const need = this.shardNeed(id);
+    return need > 0 && this.starOf(id) < 1 && (this.shards[id] || 0) >= need;
+  }
+  /** 手动解锁（消耗碎片）：成功返回 null，失败返回错误文案 */
+  unlockByShard(id) {
+    if (this.starOf(id) >= 1) return '已解锁';
+    const need = this.shardNeed(id);
+    if (!need) return '该圣遗物无需碎片解锁';
+    const have = this.shards[id] || 0;
+    if (have < need) return `碎片不足（${have}/${need}）`;
+    this.shards[id] = have - need;
+    this.codexUnlock(id);
+    return null;
   }
   /** 升星：成功返回 null，失败返回错误文案 */
   upStar(id) {

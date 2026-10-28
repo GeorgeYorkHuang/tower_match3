@@ -254,6 +254,12 @@ module.exports = {
     poolShare: 0.5,          // 每波金币的一半进入「深度收益池」，撤离拿池 100%，阵亡拿 30%
     deadRatio: 0.30,
   },
+  /* v1.17.20 局内碎片结算：碎片改为「局内记账 → 局末入账」，失守时按比例折算
+   *   保留张数 K = floor(总张数 × deadRatio)，K 张从明细池按「张」等概率随机抽取后重新计数
+   *   与 EVAC.deadRatio 分开：前者管碎片张数，后者管金币 payout，后续可独立调 */
+  SHARD_SETTLE: {
+    deadRatio: 0.30,         // 失守 / 中途退出：10→3、9→2、8→2、4→1、3→0
+  },
   MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
   KILL_DROP: {
     eliteShardChance: 0.25,           // 精英掉碎片概率
