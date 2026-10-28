@@ -832,20 +832,23 @@ class Renderer {
     }
   }
 
-  /** 全局技能充能条绘制：技能主题色渐变底 + 图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；
-   *  返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y，样式明显区别于塔槽） */
+  /** 全局技能充能条绘制：未充能无背景色（仅淡描边）；充能 ≥1 格激活后，背景替换为技能主题色；
+   *  图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y） */
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
     ctx.globalAlpha = ready ? 1 : 0.6;
-    // 技能专属色渐变背景（区分塔槽的透明/淡白底）
-    const bg = ctx.createLinearGradient(0, by, 0, by + bh);
-    bg.addColorStop(0, ready ? tint + '33' : '#1b2230');
-    bg.addColorStop(1, ready ? tint + '16' : '#131a24');
-    roundRect(ctx, bx, by, bw, bh, 8);
-    ctx.fillStyle = bg; ctx.fill();
+    // 背景：未充能 = 无背景色；已充能 = 主题色渐变背景（替换底色）
+    if (ready) {
+      const bg = ctx.createLinearGradient(0, by, 0, by + bh);
+      bg.addColorStop(0, tint + '66');
+      bg.addColorStop(1, tint + '30');
+      roundRect(ctx, bx, by, bw, bh, 8);
+      ctx.fillStyle = bg; ctx.fill();
+    }
     ctx.strokeStyle = ready ? tint : 'rgba(255,255,255,0.18)';
     ctx.lineWidth = ready ? 2.5 : 1.5;
+    roundRect(ctx, bx, by, bw, bh, 8);
     ctx.stroke();
     text(ctx, icon, bx + bw / 2, by + 30, 30, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
     text(ctx, name, bx + bw / 2, by + 52, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
