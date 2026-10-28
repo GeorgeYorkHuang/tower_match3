@@ -3083,7 +3083,7 @@ class Renderer {
       tg.addColorStop(0, win ? 'rgba(247,201,72,0.20)' : 'rgba(231,76,60,0.20)');
       tg.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = tg; ctx.fillRect(X2, Y2, W2, 150);
-      text(ctx, win ? '🚪 撤离成功' : '💀 防线失守', 375, Y2 + 68, 44, win ? '#ffd34d' : '#ff6b6b', 'center');
+      text(ctx, win ? '撤离成功' : '防线失守', 375, Y2 + 68, 44, win ? '#ffd34d' : '#ff6b6b', 'center');
       text(ctx, `抵达第 ${su.wave} 波 · 深度倍率 ×${(su.depthMult || 1).toFixed(2)} · 总击杀 ${su.kills || 0}`, 375, Y2 + 118, 22, '#dfe6ee', 'center');
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(X2 + 44, Y2 + 146); ctx.lineTo(X2 + W2 - 44, Y2 + 146); ctx.stroke();
@@ -3104,7 +3104,14 @@ class Renderer {
           ctx.beginPath(); ctx.arc(cx + D / 2, cy + D / 2, (D / 2) * sc, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(168,107,255,0.18)'; ctx.fill();
           ctx.strokeStyle = 'rgba(168,107,255,0.75)'; ctx.lineWidth = 2; ctx.stroke();
-          text(ctx, r.icon, cx + D / 2, cy + D / 2 + 2, 32 * Math.min(1, sc), '#ffffff', 'center');
+          // v1.16.135 圣遗物图案（贴图）替代 emoji；缺图回退 = 紫底圆 + 圣遗物名首字
+          const src = r && r.id ? relicIconSrc(r.id) : null;
+          if (src && drawImg(ctx, src, cx + 4, cy + 4, D - 8, D - 8)) {
+            // 贴图成功
+          } else {
+            const def = r && r.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(r.id) : null;
+            text(ctx, def ? def.name.charAt(0) : '✦', cx + D / 2, cy + D / 2 + 2, 30 * Math.min(1, sc), '#d9c2ff', 'center');
+          }
           ctx.globalAlpha = 1;
         });
         if (rel.length > 10) text(ctx, `+${rel.length - 10}`, X2 + W2 - 44, Y2 + 348, 22, '#a86bff', 'right');
@@ -3131,20 +3138,20 @@ class Renderer {
             const ix = x0 + i * GAP;
             const src = relicIconSrc(en.id);
             if (!drawImg(ctx, src, ix, -34, ICON, ICON)) {
-              // 图标缺失回退：星辉圆底 + 圣遗物 emoji
+              // v1.16.135 图标缺失回退：紫底圆 + 圣遗物名首字（不再用 emoji）
               ctx.beginPath(); ctx.arc(ix + ICON / 2, -34 + ICON / 2, ICON / 2, 0, Math.PI * 2);
               ctx.fillStyle = 'rgba(168,107,255,0.25)'; ctx.fill();
               const def = CONFIG.relicRunDef ? CONFIG.relicRunDef(en.id) : null;
-              text(ctx, (def && def.icon) || '🧩', ix + ICON / 2, -34 + ICON / 2 + 2, 30, '#ffffff', 'center');
+              text(ctx, def ? def.name.charAt(0) : '✦', ix + ICON / 2, -34 + ICON / 2 + 2, 28, '#d9c2ff', 'center');
             }
             text(ctx, `×${en.n}`, ix + ICON + 6, -6, 26, '#c9a6ff', 'left');
           });
           if (entries.length > 3) text(ctx, `+${entries.length - 3}`, x0 + 3 * GAP, -6, 22, '#a86bff', 'left');
         } else if ((su.shards || 0) > 0) {
-          // 兜底：有碎片总数但明细缺失（异常/老数据）→ 通用碎片样式
+          // 兜底：有碎片总数但明细缺失（异常/老数据）→ 通用碎片字形 + 数量（v1.16.135 去 emoji）
           fillRoundRect(ctx, -210, -42, 420, 84, 42, 'rgba(168,107,255,0.16)');
           strokeRoundRect(ctx, -210, -42, 420, 84, 42, '#a86bff', 2.5);
-          text(ctx, `🧩 ×${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
+          text(ctx, `✦ ×${su.shards || 0}`, 0, 2, 36, '#c9a6ff', 'center');
         }
         ctx.restore();
       }
@@ -3159,7 +3166,7 @@ class Renderer {
         ctx.globalAlpha = cA;
         const gy = Y2 + 536, COIN = 58;
         if (!drawImg(ctx, IMG_SRC.coin, X2 + 64, gy - COIN, COIN, COIN)) {
-          text(ctx, '🪙', X2 + 64 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
+          text(ctx, '✦', X2 + 64 + COIN / 2, gy - COIN / 2, 44, '#f7c948', 'center');
         }
         text(ctx, `×${fmtNum(totalSilver)}`, X2 + 64 + COIN + 20, gy, 34, '#f7c948', 'left');
         ctx.globalAlpha = 1;
@@ -3172,7 +3179,7 @@ class Renderer {
           const by = Y2 + 604, CH = 58;
           const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
           if (!drawImg(ctx, tierImg, X2 + 64, by - CH, CH, CH)) {
-            text(ctx, '📦', X2 + 64 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
+            text(ctx, '✦', X2 + 64 + CH / 2, by - CH / 2, 44, '#d89e63', 'center');
           }
           ctx.globalAlpha = 1;
         }
@@ -3182,7 +3189,7 @@ class Renderer {
         const mA = ph(shT + 320 + 90, 240);
         if (mA > 0) {
           ctx.globalAlpha = mA;
-          text(ctx, '🏆 里程碑首达', X2 + 48, Y2 + 640, 18, '#9fb2c3', 'left');
+          text(ctx, '里程碑首达', X2 + 48, Y2 + 640, 18, '#9fb2c3', 'left');
           text(ctx, su.miles.join(' / '), X2 + W2 - 48, Y2 + 640, 20, '#a86bff', 'right');
           ctx.globalAlpha = 1;
         }
@@ -3202,8 +3209,9 @@ class Renderer {
     text(ctx, `银币 ${fmtNum(s.gold)} · 协同 ${s.synDoneCount}/2`, x + w / 2, y + 190, 22, '#9fb2c3', 'center');
     // v1.16.45 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
     // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
+    // v1.16.135 与汇总分支统一：hit/toMenu 都注册为命中函数（main.js 兼容两种形态）
     restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
-    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 });
+    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
   }
 
   toast(ctx, list) {
@@ -3477,7 +3485,7 @@ class Renderer {
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
     // v1.16.129 顶部安全区：灵动岛（居中 y≈22~96）+ 微信胶囊（右上 y≈100~164）下方才放内容
     //   标题 baseline 210（占 ~172~222，x 40~248 落在岛左侧空白带）；货币胶囊 y 172~224，整体左移避开 x>552 的胶囊列
-    text(ctx, '消消防线', 40, 210, 52, '#ffffff', 'left');
+    text(ctx, '深窟远征', 40, 210, 52, '#ffffff', 'left');
     // v1.17 局外永久货币：金币（主界面顶栏，与局内银币区分）
     fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(247,201,72,0.12)');
     strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#f7c948', 1.5);

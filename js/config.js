@@ -1,5 +1,5 @@
 /**
- * config.js —— 《消消防线》数值单源（策划数据表）
+ * config.js —— 《深窟远征》数值单源（策划数据表）
  * =====================================================================
  * 本文件是全部数值与设计的唯一配置源，UI/逻辑/模拟脚本均以它为准。
  * 与 tools/sim_effects.py 的 CONFIG 同步维护；与飞书 GDD 保持口径一致。
@@ -274,7 +274,7 @@ module.exports = {
   /* 战场合约（v1.16.76）：A 熔岩矿场 / B 霜风峡谷 / C 深渊裂隙；ancient 远古保留 */
   FIELDS: {
     ancient: { name: '远古战场', short: '🏰 远古战场', tint: '#2ecc71', tintDark: '#1f8c5f',
-      subtitle: '城墙防守 · 怪物攻城 · 消消防线', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
+      subtitle: '城墙防守 · 怪物攻城 · 深窟远征', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
     lava:    { name: '熔岩矿场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
       subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 0 },
     frost:   { name: '霜风峡谷', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',

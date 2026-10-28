@@ -15,7 +15,7 @@ const ctx = _c ? _c.ctx : null;
 if (!ctx) {
   module.exports = null;
 } else if (typeof console !== 'undefined' && console.info) {
-  console.info('[消消防线] 启动：canvas', _c.canvas.width + 'x' + _c.canvas.height,
+  console.info('[深窟远征] 启动：canvas', _c.canvas.width + 'x' + _c.canvas.height,
     'scale', (Math.min(_c.canvas.width / CONFIG.DESIGN.W, _c.canvas.height / CONFIG.DESIGN.H)).toFixed(3));
 }
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
@@ -329,7 +329,7 @@ class GameMain {
       this.pixelCheck();
       requestAnimationFrame(this.loop.bind(this));
     } catch (e) {
-      console.error('[消消防线] 帧循环错误：', e && e.stack ? e.stack : e);
+      console.error('[深窟远征] 帧循环错误：', e && e.stack ? e.stack : e);
       // 一次渲染/逻辑异常不应卡死整局：继续调度帧循环（保留最后画面，触摸仍可响应）
       requestAnimationFrame(this.loop.bind(this));
     }
@@ -342,9 +342,9 @@ class GameMain {
     try {
       const w = _c.canvas.width, h = _c.canvas.height;
       const img = ctx.getImageData(Math.floor(w / 2), Math.floor(h / 2), 1, 1);
-      console.info('[消消防线] 画布中心像素采样：', Array.prototype.slice.call(img.data));
+      console.info('[深窟远征] 画布中心像素采样：', Array.prototype.slice.call(img.data));
     } catch (e) {
-      console.info('[消消防线] 画布像素采样不可用：', e && e.message);
+      console.info('[深窟远征] 画布像素采样不可用：', e && e.message);
     }
   }
 
@@ -1609,8 +1609,9 @@ class GameMain {
     if (this.funcLayer) {
       const h = this.funcLayerHits;
       if (this.funcLayer.type === 'setting' && h.sound && h.sound.hit(p.x, p.y)) {
-        // v1.16.107 声音开关：持久化 + 即时应用
+        // v1.16.107 声音开关：持久化 + 即时应用；v1.16.135 同步 funcLayer.soundOn，否则弹层按钮文案不刷新
         this.meta.soundOn = !this.meta.soundOn;
+        this.funcLayer.soundOn = this.meta.soundOn;
         this.save.save();
         this.sfx.setEnabled(this.meta.soundOn);
         this.toast(this.meta.soundOn ? '🔊 音效已开启' : '🔇 音效已关闭', '#9fb2c3');
@@ -1745,8 +1746,14 @@ class GameMain {
       return true;
     }
     if (this.state === 'gameover') {
-      if (this.restartBtn.hit && this.restartBtn.hit(p.x, p.y)) { this.restart(); return true; }
-      if (this.restartBtn.toMenu && this.restartBtn.toMenu.hit(p.x, p.y)) { this.goMenu(); return true; }
+      // v1.16.135 兼容两种注册形态：hit 可以是函数（v1.17 汇总分支）或 {hit:fn} 对象（兜底分支）。
+      //   此前汇总分支 toMenu=hit 函数，这里却调用 .toMenu.hit() → TypeError → 「返回主界面」点击无响应
+      const rb = this.restartBtn || {};
+      const h1 = typeof rb.hit === 'function' ? rb.hit : rb.hit && rb.hit.hit;
+      if (h1 && h1(p.x, p.y)) { this.restart(); return true; }
+      const tm = rb.toMenu;
+      const h2 = typeof tm === 'function' ? tm : tm && tm.hit;
+      if (h2 && h2(p.x, p.y)) { this.goMenu(); return true; }
       return true;
     }
     // v1.16.76 撤离决策层（战斗暂停）

@@ -37,7 +37,7 @@ function initCanvas() {
   const ctx = canvas ? canvas.getContext('2d') : null;
   if (!ctx) {
     if (typeof console !== 'undefined') {
-      console.error('[消消防线] 运行环境诊断：', JSON.stringify({
+      console.error('[深窟远征] 运行环境诊断：', JSON.stringify({
         hasCanvas: typeof canvas !== 'undefined',
         hasGameGlobalCanvas: (typeof GameGlobal !== 'undefined' && !!GameGlobal.canvas),
         hasWx: typeof wx !== 'undefined',
@@ -46,7 +46,7 @@ function initCanvas() {
         canCreateAudio: (typeof wx !== 'undefined' && typeof wx.createInnerAudioContext),
       }));
       console.error(
-        '[消消防线] 未找到 canvas：本游戏只能在微信小游戏主域（主包 game.js 入口）运行。\n' +
+        '[深窟远征] 未找到 canvas：本游戏只能在微信小游戏主域（主包 game.js 入口）运行。\n' +
         '  可能原因：项目根被配置为开放数据域(openDataContext)，或主游戏代码被放进了子域目录。\n' +
         '  排行榜子域请使用 sharedCanvas 单独编写，不要加载主游戏代码。'
       );

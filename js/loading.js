@@ -46,7 +46,7 @@ function draw() {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ff7a2f';
   ctx.font = `bold ${Math.round(W * 0.075)}px sans-serif`;
-  ctx.fillText('消消防线', cx, H * 0.34);
+  ctx.fillText('深窟远征', cx, H * 0.34);
   ctx.fillStyle = '#8fa3b5';
   ctx.font = `${Math.round(W * 0.03)}px sans-serif`;
   ctx.fillText('正在加载游戏素材…', cx, H * 0.42);
@@ -92,7 +92,7 @@ function startGame() {
   try {
     require('./game/main.js');
   } catch (err) {
-    console.error('[消消防线] 游戏主体启动失败：', err);
+    console.error('[深窟远征] 游戏主体启动失败：', err);
     loadingFailed = true;
     curProgress = 0;
     draw();
@@ -107,7 +107,7 @@ function loadAssets() {
     name: 'assets',
     success: () => { curProgress = 100; draw(); startGame(); },
     fail: (err) => {
-      console.error('[消消防线] 分包 assets 加载失败：', err);
+      console.error('[深窟远征] 分包 assets 加载失败：', err);
       loadingFailed = true;
       draw();
     },
@@ -120,7 +120,7 @@ function loadAssets() {
     task = wx.loadSubpackage(cb);
   } catch (e) {
     // 基础库过旧不支持：标记失败让用户重试（或兼容降级）
-    console.error('[消消防线] wx.loadSubpackage 不可用：', e);
+    console.error('[深窟远征] wx.loadSubpackage 不可用：', e);
     loadingFailed = true;
     draw();
     return;
