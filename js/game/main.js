@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.17.23';       // v1.17.23 fix 全歼波数恒 0（combat 死亡清场先于 main 统计处移除尸体，改为 combat 清场处归集回调 _tallyWaveDeaths）+ fix 总击杀恒 0（combat.kills 自 v1.16.106 起从不自增，damage 致死按 srcKey 计数 / 腐化3★致死归毒塔）
+const GAME_VERSION = 'v1.17.23';       // fix 全歼波数恒 0（combat 清场处归集回调 _tallyWaveDeaths）+ 总击杀恒 0（kills 从不自增，damage 按 srcKey 计数）+ 撤离判定改全歼口径（clearedWaves 跨 10/20/30…检查点才在波末判定并涨深度倍率，超时叠加波不再误弹）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');
@@ -593,9 +593,16 @@ class GameMain {
     if (Fp.curseEvery && this.run.wave % Fp.curseEvery === 0) {
       this.toast(`☠ 深渊诅咒！怪物血量 +15%（第 ${this.run.wave} 波起）`, '#c9a0ff');
     }
-    // 撤离点：每 10 波一次决策（测试战场不弹）
-    if (this.run.wave % EV.interval === 0) {
-      this.depthMult *= (this.run.wave < EV.lateWave ? EV.depthMult : EV.depthMultLate);
+    // v1.17.23 撤离检查点改「全歼口径」：此前按到达波次（run.wave % 10 === 0）判定，超时叠加波
+    //   （投放完 3s 残怪保留）同样触发 → 实际才全歼 7 波也会弹撤离决策（用户实测：进入第 10 波即判定）。
+    //   改为：每 10 波的怪全部击杀完（clearedWaves 跨过 10/20/30…检查点）才在波末判定，
+    //   深度倍率 ×1.30 同步挂到检查点——未全歼通过不涨倍率（「通过撤离点」= 全歼通过）。
+    const cp = Math.floor((this.run.clearedWaves || 0) / EV.interval);
+    if (cp > (this.run._evacSeen || 0)) {
+      for (let i = (this.run._evacSeen || 0) + 1; i <= cp; i++) {
+        this.depthMult *= (i * EV.interval < EV.lateWave ? EV.depthMult : EV.depthMultLate);
+      }
+      this.run._evacSeen = cp;
       if (this.menuStage !== 'test') {
         // v1.16.116 撤离决策层只允许两个选项（正常撤离/继续前进）：清掉所有可能叠加的弹层，
         // 否则波中途打开的设置弹层（含「重新开始」按钮）会盖在决策层上造成歧义
