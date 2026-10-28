@@ -981,8 +981,8 @@ class Renderer {
     enemies.forEach((e) => {
       const isElite = e.type === 'elite';
       let size = e.isBoss ? L.enemy.boss : (L.enemy[e.type] || L.enemy.normal);
-      // v1.16.11 精英怪：同种怪物放大 25% + 紫色调染色（贴图 source-atop 罩色 / 回退几何换色），一眼可辨
-      if (isElite) size = Math.round(size * 1.25);
+      // v1.17.7 精英怪：放大 35% + 金色发光描边 + 紫金染色，同种怪物一眼可辨
+      if (isElite) size = Math.round(size * 1.35);
       const x = e.x - size / 2, y = e.y - size / 2;
       this.drawEnemyBody(ctx, e, x, y, size, isElite);
       this.drawEnemyDebuffs(ctx, e, x, y, size);
@@ -1002,10 +1002,28 @@ class Renderer {
       : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
     const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#9b59b6' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
     const fallbackText = e.isBoss ? 'BOSS' : (isElite ? '精' : (e.type === 'runner' ? '快' : (e.type === 'tank' ? '盾' : '👾')));
-    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
+    let drawn = false;
+    if (isElite) {
+      // v1.17.7 精英描边特效：绘制贴图时开启金色发光轮廓（shadow 描边），贴图/旧图均自动带外描边
+      ctx.save();
+      ctx.shadowColor = '#ffd54f';
+      ctx.shadowBlur = 7;
+      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
+      if (!drawn && drawImg(ctx, src, x, y, size, size)) drawn = true;
+      ctx.restore();
+    } else {
+      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
+    }
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
+      if (isElite) { // 几何回退也带描边：金色发光方框
+        ctx.save();
+        ctx.shadowColor = '#ffd54f'; ctx.shadowBlur = 7;
+        ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 2.5;
+        ctx.strokeRect(x - 2, y - 2, size + 4, size + 4);
+        ctx.restore();
+      }
     } else if (isElite) {
       // 精英染色：紫红色罩（source-atop 只染已绘区域，保持透明底）
       ctx.save();
