@@ -3491,18 +3491,21 @@ class Renderer {
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
-    // v1.16.129 顶部安全区：灵动岛（居中 y≈22~96）+ 微信胶囊（右上 y≈100~164）下方才放内容
-    //   标题 baseline 210（占 ~172~222，x 40~248 落在岛左侧空白带）；货币胶囊 y 172~224，整体左移避开 x>552 的胶囊列
-    text(ctx, '深窟远征', 40, 210, 52, '#ffffff', 'left');
-    // v1.17 局外永久货币：金币（主界面顶栏，与局内银币区分）
-    fillRoundRect(ctx, 300, 172, 180, 52, 26, 'rgba(247,201,72,0.12)');
-    strokeRoundRect(ctx, 300, 172, 180, 52, 26, '#f7c948', 1.5);
-    if (!drawImg(ctx, IMG_SRC.coin, 320, 182, 32, 32)) text(ctx, '🪙', 336, 198, 26, '#f7c948', 'center');
-    text(ctx, fmtNum(s.gold || 0), 396, 206, 30, '#f7c948', 'left');
-    // 钻石（充值货币，占位）
-    fillRoundRect(ctx, 496, 172, 154, 52, 26, 'rgba(124,168,255,0.12)');
-    strokeRoundRect(ctx, 496, 172, 154, 52, 26, '#7ca8ff', 1.5);
-    text(ctx, `💎 ${s.diamond}`, 573, 206, 30, '#7ca8ff', 'center');
+    // v1.17.9d 顶部布局：货币胶囊移左上角（y 与微信右上胶囊平行），游戏名移至战场卡正上方
+    //   金币（完整显示 3 位一逗号）+ 钻石并排左上；右侧留给微信胶囊（x>552）与灵动岛（居中）
+    const mcy = 110, mch = 52;
+    const coinTxt = fmtFull(s.gold || 0);
+    const coinW = 64 + txtW(coinTxt, 28) + 12;
+    fillRoundRect(ctx, 18, mcy, coinW, mch, 26, 'rgba(247,201,72,0.12)');
+    strokeRoundRect(ctx, 18, mcy, coinW, mch, 26, '#f7c948', 1.5);
+    if (!drawImg(ctx, IMG_SRC.coin, 30, mcy + 10, 32, 32)) text(ctx, '🪙', 46, mcy + 26, 26, '#f7c948', 'center');
+    text(ctx, coinTxt, 70, mcy + 27, 28, '#f7c948', 'left');
+    const dW = 120;
+    fillRoundRect(ctx, 18 + coinW + 12, mcy, dW, mch, 26, 'rgba(124,168,255,0.12)');
+    strokeRoundRect(ctx, 18 + coinW + 12, mcy, dW, mch, 26, '#7ca8ff', 1.5);
+    text(ctx, `💎 ${fmtFull(s.diamond)}`, 18 + coinW + 12 + dW / 2, mcy + 27, 28, '#7ca8ff', 'center');
+    // v1.17.9d 游戏名：3D 立体 + 轻微弧线，位于战场卡（sy=400）正上方，4 字总宽 ≈ 战场卡宽 2/3
+    drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200);
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
@@ -3552,6 +3555,7 @@ class Renderer {
       else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // v1.16.76 圣遗物升星
       else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // v1.16.76 调试工具（仅 DEBUG 构建）
       else if (s.panel.type === 'codexSkill') this.codexSkillPanel(ctx, s, push); // v1.16.78 技能分支面板
+      else if (s.panel.type === 'chestOpen') this.menuChestOpen(ctx, s, push);   // v1.17.9d 开箱弹窗（收益一次弹出）
     }
     // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
     if (s.debug) {
@@ -3703,58 +3707,151 @@ class Renderer {
   }
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
-  /** 商店页：每日精选圣物卡（金币购买）+ 广告随机圣物 + 钻石兑换（v1.4 无技能卡） */
+  /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
   menuShop(ctx, s, push) {
-    // 每日精选（圣物卡）
-    text(ctx, '每日精选圣物（0 点刷新）', 55, 288, 30, '#ffffff', 'left');
-    let ry = 326;
-    s.daily.picks.forEach((p) => {
+    // —— 每日精选圣物（3 卡横排：大图标 + 名称一行 + 金币价 / 广告免费）——
+    text(ctx, '每日精选 · 0 点刷新', 55, 300, 26, '#ffffff', 'left');
+    const picks = (s.daily && s.daily.picks) || [];
+    const cw = 200, ch = 216, gap = 12;
+    picks.slice(0, 3).forEach((p, i) => {
+      const cx = 55 + i * (cw + gap);
       const def = CONFIG.RELIC.list.find((r) => r.id === p.relic) || {};
-      const owned = s.relics.find((r) => r.id === p.relic) || {};
+      const owned = (s.relics || []).find((r) => r.id === p.relic) || {};
       const lv = owned.level || 0;
-      fillRoundRect(ctx, 55, ry, 640, 88, 12, '#161d28');
-      strokeRoundRect(ctx, 55, ry, 640, 88, 12, '#7ca8ff', 1);
-      ctx.beginPath(); ctx.arc(100, ry + 44, 24, 0, Math.PI * 2);
-      ctx.fillStyle = '#7ca8ff'; ctx.fill();
-      text(ctx, def.icon || '📿', 100, ry + 45, 24, '#ffffff', 'center');
-      text(ctx, `${def.name || p.relic}${lv > 0 ? ` · 已拥有 Lv${lv}` : ' · 新圣物'}`, 140, ry + 44, 22, '#ffffff', 'left');
-      text(ctx, (def.desc ? def.desc(lv + 1) : ''), 140, ry + 74, 17, '#8ea3b8', 'left');
-      // 金币购买
-      push('dailyPick', { relic: p.relic, price: p.price, icon: def.icon, name: def.name }, 420, ry + 16, 110, 56);
-      fillRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#2c3542');
-      strokeRoundRect(ctx, 420, ry + 16, 110, 56, 10, '#f7c948', 1);
-      text(ctx, `${p.price}🪙`, 475, ry + 50, 22, '#f7c948', 'center');
-      // 广告免费领（同一精选圣物）
-      push('dailyAd', { relic: p.relic, price: 0, icon: def.icon, name: def.name }, 545, ry + 16, 140, 56);
-      fillRoundRect(ctx, 545, ry + 16, 140, 56, 10, '#2c3542');
-      strokeRoundRect(ctx, 545, ry + 16, 140, 56, 10, '#7cd6a6', 1);
-      text(ctx, '📺 看广告领', 615, ry + 50, 20, '#7cd6a6', 'center');
-      ry += 100;
+      fillRoundRect(ctx, cx, 326, cw, ch, 16, '#161d28');
+      strokeRoundRect(ctx, cx, 326, cw, ch, 16, lv > 0 ? '#f7c948' : '#7ca8ff', 1.4);
+      // 大图标（圣物图案，缺图回退 emoji）
+      const isz = 88;
+      const src = relicIconSrc(p.relic);
+      ctx.beginPath(); ctx.arc(cx + cw / 2, 326 + 62, 44, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(168,107,255,0.16)'; ctx.fill();
+      if (!(src && drawImg(ctx, src, cx + cw / 2 - isz / 2, 326 + 62 - isz / 2, isz, isz))) {
+        text(ctx, def.icon || '📿', cx + cw / 2, 326 + 64, 42, '#d9c2ff', 'center');
+      }
+      // 名称一行（小字，已拥有角标）
+      text(ctx, `${def.name || p.relic}${lv > 0 ? ' ✓' : ''}`, cx + cw / 2, 326 + 122, 19, lv > 0 ? '#f7c948' : '#ffffff', 'center');
+      // 金币购买（价格胶囊）
+      push('dailyPick', { relic: p.relic, price: p.price, icon: def.icon, name: def.name }, cx + 18, 326 + 148, 96, 52);
+      fillRoundRect(ctx, cx + 18, 326 + 148, 96, 52, 12, '#2c3542');
+      strokeRoundRect(ctx, cx + 18, 326 + 148, 96, 52, 12, '#f7c948', 1.2);
+      if (!drawImg(ctx, IMG_SRC.coin, cx + 28, 326 + 160, 26, 26)) text(ctx, '🪙', cx + 41, 326 + 173, 20, '#f7c948', 'center');
+      text(ctx, `${p.price}`, cx + 62, 326 + 175, 20, '#f7c948', 'left');
+      // 广告免费
+      push('dailyAd', { relic: p.relic, price: 0, icon: def.icon, name: def.name }, cx + 122, 326 + 148, 60, 52);
+      fillRoundRect(ctx, cx + 122, 326 + 148, 60, 52, 12, '#2c3542');
+      strokeRoundRect(ctx, cx + 122, 326 + 148, 60, 52, 12, '#7cd6a6', 1.2);
+      text(ctx, '📺', cx + 152, 326 + 176, 24, '#7cd6a6', 'center');
     });
-    // 广告奖励（随机圣物）
-    push('adCard', null, 55, ry, 640, 100);
-    fillRoundRect(ctx, 55, ry, 640, 100, 14, '#1b2230');
-    strokeRoundRect(ctx, 55, ry, 640, 100, 14, '#7cd6a6', 1.5);
-    text(ctx, '📺 看广告得随机圣物卡', 105, ry + 48, 28, '#ffffff', 'left');
-    text(ctx, '完整观看发奖 · 圣物拥有即生效', 105, ry + 80, 20, '#8ea3b8', 'left');
-    text(ctx, '›', 670, ry + 58, 40, '#5a6c80', 'center');
-    ry += 130;
-    // 钻石区
-    text(ctx, `💎 钻石 ×${s.diamond}（充值后续开放）`, 55, ry + 6, 26, '#7ca8ff', 'left');
-    ry += 44;
-    push('diamondChest', null, 55, ry, 300, 92);
-    fillRoundRect(ctx, 55, ry, 300, 92, 12, '#1b2230');
-    strokeRoundRect(ctx, 55, ry, 300, 92, 12, '#7ca8ff', 1);
-    text(ctx, `1💎 兑换 1 宝箱`, 205, ry + 46, 22, '#7ca8ff', 'center');
-    push('diamondGold', null, 395, ry, 300, 92);
-    fillRoundRect(ctx, 395, ry, 300, 92, 12, '#1b2230');
-    strokeRoundRect(ctx, 395, ry, 300, 92, 12, '#7ca8ff', 1);
-    text(ctx, `1💎 兑换 ${CONFIG.DIAMOND.goldPrice} 🪙`, 545, ry + 46, 22, '#7ca8ff', 'center');
-    ry += 110;
-    push('recharge', null, 55, ry, 640, 92);
-    fillRoundRect(ctx, 55, ry, 640, 92, 12, '#12171f');
-    strokeRoundRect(ctx, 55, ry, 640, 92, 12, '#3a4553', 1);
-    text(ctx, '🔒 充值（获取钻石）', 375, ry + 46, 24, '#5a6c80', 'center');
+    // —— 钻石兑换（2 卡：宝箱 / 金币）——
+    text(ctx, '钻石兑换', 55, 590, 26, '#7ca8ff', 'left');
+    const dx = 55, dw = 312, dh = 150, dy = 616;
+    push('diamondChest', null, dx, dy, dw, dh);
+    fillRoundRect(ctx, dx, dy, dw, dh, 16, '#1b2230');
+    strokeRoundRect(ctx, dx, dy, dw, dh, 16, '#7ca8ff', 1.2);
+    if (!drawImg(ctx, IMG_SRC.chestBronze, dx + 28, dy + 34, 82, 82)) text(ctx, '📦', dx + 69, dy + 78, 46, '#ffffff', 'center');
+    text(ctx, `${CONFIG.DIAMOND.chestPrice}💎 兑换宝箱×1`, dx + 136, dy + 78, 22, '#7ca8ff', 'left');
+    const dx2 = dx + dw + 16;
+    push('diamondGold', null, dx2, dy, dw, dh);
+    fillRoundRect(ctx, dx2, dy, dw, dh, 16, '#1b2230');
+    strokeRoundRect(ctx, dx2, dy, dw, dh, 16, '#7ca8ff', 1.2);
+    if (!drawImg(ctx, IMG_SRC.coin, dx2 + 28, dy + 34, 82, 82)) text(ctx, '🪙', dx2 + 69, dy + 78, 46, '#f7c948', 'center');
+    text(ctx, `${CONFIG.DIAMOND.chestPrice}💎 兑换金币×${fmtFull(CONFIG.DIAMOND.goldPrice)}`, dx2 + 136, dy + 78, 22, '#7ca8ff', 'left');
+    // —— 广告奖励 ——
+    push('adCard', null, 55, dy + dh + 20, 640, 104);
+    fillRoundRect(ctx, 55, dy + dh + 20, 640, 104, 16, '#1b2230');
+    strokeRoundRect(ctx, 55, dy + dh + 20, 640, 104, 16, '#7cd6a6', 1.4);
+    text(ctx, '📺', 108, dy + dh + 72, 44, '#7cd6a6', 'center');
+    text(ctx, '看广告 · 随机圣物卡', 148, dy + dh + 62, 26, '#ffffff', 'left');
+    text(ctx, `或 ${CONFIG.AD_REWARD.gold}🪙`, 148, dy + dh + 94, 18, '#8ea3b8', 'left');
+    text(ctx, '›', 672, dy + dh + 58, 40, '#5a6c80', 'center');
+    // —— 充值占位 ——
+    push('recharge', null, 55, dy + dh + 140, 640, 88);
+    fillRoundRect(ctx, 55, dy + dh + 140, 640, 88, 16, '#12171f');
+    strokeRoundRect(ctx, 55, dy + dh + 140, 640, 88, 16, '#3a4553', 1);
+    text(ctx, '🔒 充值 · 获取钻石', 375, dy + dh + 184, 22, '#5a6c80', 'center');
+  }
+
+  /**
+   * v1.17.9d 开箱弹窗：宝箱开启后收益一次性弹出（参考结算页圣遗物碎片动画——图标逐个弹跳出场）。
+   * s.panel = { type:'chestOpen', mode:'deep'|'relic', gain?, reward?, tier? }
+   */
+  menuChestOpen(ctx, s, push) {
+    const p = s.panel;
+    const gain = p.gain || null;
+    const reward = p.reward || null;
+    // 收益条目（图标 + ×数量）
+    const entries = [];
+    if (gain) {
+      if (gain.gold > 0) entries.push({ kind: 'img', src: IMG_SRC.coin, txt: `×${fmtFull(gain.gold)}`, col: '#f7c948' });
+      if (gain.shards > 0) entries.push({ kind: 'glyph', glyph: '✦', txt: `×${gain.shards}`, col: '#c9a6ff' });
+      if (gain.diamond > 0) entries.push({ kind: 'glyph', glyph: '💎', txt: `×${gain.diamond}`, col: '#7ca8ff' });
+      if (gain.stone > 0) entries.push({ kind: 'glyph', glyph: '✪', txt: '×1', col: '#a86bff' });
+      if (gain.card) entries.push({ kind: 'img', src: relicIconSrc(gain.card), txt: '×5', col: '#d9c2ff' });
+    }
+    if (reward) entries.push({ kind: 'img', src: relicIconSrc(reward.id), txt: '×1', col: '#d9c2ff' });
+    if (!entries.length) entries.push({ kind: 'glyph', glyph: '✦', txt: '×0', col: '#8ea3b8' });
+    // 宝箱中心图：深度宝箱 → 档位图标；圣物卡 → 全开帧
+    const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar };
+    const chestSrc = (p.tier && tierImg[p.tier]) || IMG_SRC.chestOpen;
+    const T = Date.now();
+    const ph = (t0, dur) => Math.max(0, Math.min(1, (T - t0) / (dur || 260)));
+    const eob = (t) => { const q = Math.max(0, Math.min(1, t)); return 1 + 2.70158 * Math.pow(q - 1, 3) + 1.70158 * Math.pow(q - 1, 2); };
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    const W = 560, H = 470, X = (750 - W) / 2, Y = (LOGIC_H - H) / 2;
+    const pin = ph(0, 200);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, pin * 1.6);
+    fillRoundRect(ctx, X, Y, W, H, 18, '#241f16');
+    strokeRoundRect(ctx, X, Y, W, H, 18, '#f7c948', 3);
+    const tg = ctx.createLinearGradient(0, Y, 0, Y + 140);
+    tg.addColorStop(0, 'rgba(247,201,72,0.20)'); tg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = tg; ctx.fillRect(X, Y, W, 140);
+    // 宝箱图标（开箱演出中心，弹跳出场）
+    const cp = ph(120, 300);
+    if (cp > 0) {
+      ctx.save();
+      ctx.translate(375, Y + 92);
+      ctx.scale(Math.min(1.15, eob(cp)), Math.min(1.15, eob(cp)));
+      ctx.globalAlpha = Math.min(1, cp * 1.6);
+      if (!drawImg(ctx, chestSrc, -46, -46, 92, 92)) text(ctx, '📦', 0, 8, 64, '#f7c948', 'center');
+      ctx.restore();
+    }
+    text(ctx, p.mode === 'relic' ? '获得圣物' : '宝箱开启', 375, Y + 172, 30, '#ffd34d', 'center');
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X + 44, Y + 196); ctx.lineTo(X + W - 44, Y + 196); ctx.stroke();
+    // 收益条目一次弹出（图标×数量，逐个弹跳）
+    const rowY = Y + 252;
+    const ICON = 64, GAP = 152;
+    const show = entries.slice(0, 3);
+    const x0 = 375 - ((show.length * GAP - GAP + ICON) / 2);
+    show.forEach((en, i) => {
+      const pe = ph(320 + i * 180, 300);
+      if (pe <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, pe * 1.8);
+      ctx.translate(x0 + i * GAP, rowY);
+      ctx.scale(Math.min(1.1, eob(pe)), Math.min(1.1, eob(pe)));
+      ctx.beginPath(); ctx.arc(ICON / 2, ICON / 2, ICON / 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(247,201,72,0.14)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(247,201,72,0.7)'; ctx.lineWidth = 1.6; ctx.stroke();
+      if (en.kind === 'img') {
+        if (!drawImg(ctx, en.src, 4, 4, ICON - 8, ICON - 8)) text(ctx, '✦', ICON / 2, ICON / 2 + 2, 26, en.col, 'center');
+      } else {
+        text(ctx, en.glyph, ICON / 2, ICON / 2 + 2, 30, en.col, 'center');
+      }
+      text(ctx, en.txt, ICON + 10, ICON / 2 + 5, 26, en.col, 'left');
+      ctx.restore();
+    });
+    if (entries.length > 3) text(ctx, `+${entries.length - 3}`, x0 + 3 * GAP, rowY + ICON / 2, 22, '#f7c948', 'left');
+    ctx.globalAlpha = 1;
+    // 收下按钮（panelClose 语义：面板打开时通用关闭分发命中）
+    push('panelClose', null, X + 90, Y + H - 88, W - 180, 62);
+    fillRoundRect(ctx, X + 92, Y + H - 86, W - 184, 58, 14, '#2c3542');
+    strokeRoundRect(ctx, X + 92, Y + H - 86, W - 184, 58, 14, '#f7c948', 1.6);
+    text(ctx, '收 下', 375, Y + H - 57, 28, '#f7c948', 'center');
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   /* v1.16.78 圣遗物图鉴网格（主页与图鉴面板共用） */
@@ -4585,6 +4682,49 @@ function fmtNum(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'm';
   if (n >= 1e4) return (n / 1e4).toFixed(1) + 'w';
   return String(Math.floor(n));
+}
+
+/** v1.17.9d 完整数字：3 位一逗号、不缩写（主界面货币展示用） */
+function fmtFull(n) {
+  if (!isFinite(n)) return '0';
+  return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * v1.17.9d 主界面游戏名：3D 立体字 + 轻微弧线。
+ * 沿大半径圆弧排布（两端下沉、逐字沿切线旋转）；三层偏移（深底→中底→金色渐变主层）+ 顶部高光。
+ * @param {number} size 字号（字宽≈size）
+ * @param {number} archR 弧半径（越大越平缓；如 1200 → 端部下沉 ~7px、端字旋转 ~6°）
+ */
+function drawArchedTitle(ctx, text, cx, baseY, size, archR) {
+  const chars = [...text];
+  const n = chars.length;
+  const step = size * 0.96;
+  const totalW = step * (n - 1);
+  const R = archR || 1200;
+  const halfAng = totalW / 2 / R;
+  chars.forEach((ch, i) => {
+    const ang = (i / (n - 1) - 0.5) * halfAng * 2;   // -halfAng..halfAng
+    const x = cx + Math.sin(ang) * R;
+    const y = baseY - R * (1 - Math.cos(ang));       // 中间最高，两端轻微下沉
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.font = `bold ${size}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // 3D 三层：深色底层（偏移 4px）→ 暗金中层（偏移 2px）→ 金色渐变主层 + 顶部受光
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillText(ch, 4, 5);
+    ctx.fillStyle = 'rgba(120,80,20,0.9)';
+    ctx.fillText(ch, 2, 2.5);
+    const grad = ctx.createLinearGradient(0, -size / 2, 0, size / 2);
+    grad.addColorStop(0, '#fff3c4'); grad.addColorStop(0.45, '#f7c948'); grad.addColorStop(1, '#d99e16');
+    ctx.fillStyle = grad;
+    ctx.fillText(ch, 0, 0);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(ch, 0, -size * 0.12);
+    ctx.restore();
+  });
 }
 
 function easeOutCubic(t) {

@@ -429,15 +429,17 @@ class GameMain {
     }
   }
 
-  /** 主界面宝箱倒计时推进：到点自动发卡 */
+  /** 主界面宝箱倒计时推进：到点自动发卡 → 弹出开箱收益弹窗 */
   tickChest(now) {
     const m = this.meta;
     if (!m.chestTimer) return;
     const remain = m.chestRemainSec(now);
     if (remain === 0) {
       const got = m.finishChest(now);
-      if (got) this.toast(`宝箱开启：获得 ${got.icon}${got.name}`, '#f7c948');
-      this.save.save();
+      if (got) {
+        this.save.save();
+        this.menuPanel = { type: 'chestOpen', mode: 'relic', reward: got };   // v1.17.9d 开箱弹窗：圣物卡收益一次弹出
+      }
     }
   }
 
@@ -1438,7 +1440,7 @@ class GameMain {
           if (m.chestReady(ch)) {
             const gain = m.openDeepChest(it.data);
             this.save.save();
-            if (gain) this.toast(`开启成功！💰${gain.gold} · 碎片+${gain.shards}${gain.diamond ? ` · 💎+${gain.diamond}` : ''}${gain.stone ? ' · 星辉石+1' : ''}${gain.card ? ' · 圣遗物卡×1' : ''}`, '#f7c948');
+            if (gain) this.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier };   // v1.17.9d 开箱弹窗：收益一次弹出
             return;
           }
           const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
@@ -1447,7 +1449,7 @@ class GameMain {
           if (m.diamond >= cost && m.speedOpen(it.data)) {
             const gain = m.openDeepChest(it.data);
             this.save.save();
-            if (gain) this.toast(`已用 ${cost}💎 立即开启！💰${gain.gold} · 碎片+${gain.shards}`, '#f7c948');
+            if (gain) this.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier };   // v1.17.9d 速开同样弹窗
             return;
           }
           this.toast(`${tier.name} 开启中 · 还需 ${remainMin} 分钟（${cost}💎 立即开启）`, '#9fb2c3');
