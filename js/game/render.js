@@ -793,9 +793,8 @@ class Renderer {
         if (!drawImg(ctx, IMG_SRC[tw.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
           drawTowerGlyph(ctx, tw.key, ix, iy, L.towerIcon.size);
         }
-        // 等级徽章（v1.16.17：塔自身等级 = 选择次数+1）
-        fillRoundRect(ctx, x + slotSize - 16, slotY - 6, L.towerIcon.badge, L.towerIcon.badge, 4, '#f7c948');
-        text(ctx, `${tw.level}`, x + slotSize - 8, slotY + 2, 12, '#5c4a00', 'center');
+        // 等级（v1.17.10 不再显示右上角数字徽章，改槽底小字，避免遮挡塔图标）
+        text(ctx, `Lv${tw.level}`, x + slotSize / 2, slotY + slotSize - 10, 13, 'rgba(255,255,255,0.75)', 'center');
         // 可点详情小圆标 ⓘ（点击塔图标查看攻击/攻击间隔/技能等级）
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.beginPath(); ctx.arc(x + 17, slotY + 17, 11, 0, Math.PI * 2); ctx.fill();
@@ -833,27 +832,33 @@ class Renderer {
     }
   }
 
-  /** 全局技能充能条绘制：图标 + 名称 + 3 格竖向充能（自下而上，每格 = 1 次释放）；返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y） */
+  /** 全局技能充能条绘制：技能主题色渐变底 + 图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；
+   *  返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y，样式明显区别于塔槽） */
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
-    ctx.globalAlpha = ready ? 1 : 0.55;
-    ctx.fillStyle = ready ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.28)';
+    ctx.globalAlpha = ready ? 1 : 0.6;
+    // 技能专属色渐变背景（区分塔槽的透明/淡白底）
+    const bg = ctx.createLinearGradient(0, by, 0, by + bh);
+    bg.addColorStop(0, ready ? tint + '33' : '#1b2230');
+    bg.addColorStop(1, ready ? tint + '16' : '#131a24');
+    roundRect(ctx, bx, by, bw, bh, 8);
+    ctx.fillStyle = bg; ctx.fill();
     ctx.strokeStyle = ready ? tint : 'rgba(255,255,255,0.18)';
     ctx.lineWidth = ready ? 2.5 : 1.5;
-    roundRect(ctx, bx, by, bw, bh, 8);
-    ctx.fill(); ctx.stroke();
-    text(ctx, icon, bx + bw / 2, by + 30, 27, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
-    text(ctx, name, bx + bw / 2, by + 55, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
-    // 3 格竖向充能条（自下而上；每格满 = 1 次释放）
-    const cellW = 20, cellH = 15, cellGap = 6;
-    const cx0 = bx + bw / 2 - cellW / 2;
-    const cyBase = by + bh - 14 - (maxCells * cellH + (maxCells - 1) * cellGap);
+    ctx.stroke();
+    text(ctx, icon, bx + bw / 2, by + 30, 30, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
+    text(ctx, name, bx + bw / 2, by + 52, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
+    // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
+    const segW = 24, segH = 12, segGap = 8;
+    const sx0 = bx + (bw - (maxCells * segW + (maxCells - 1) * segGap)) / 2;
+    const sy0 = by + bh - 26;
     for (let i = 0; i < maxCells; i++) {
-      const cy = cyBase + (maxCells - 1 - i) * (cellH + cellGap);   // i=0 最下，自下而上
-      fillRoundRect(ctx, cx0, cy, cellW, cellH, 4, i < filled ? tint : 'rgba(255,255,255,0.12)');
-      if (i < filled) strokeRoundRect(ctx, cx0, cy, cellW, cellH, 4, 'rgba(255,255,255,0.8)', 1);
+      const sx = sx0 + i * (segW + segGap);
+      fillRoundRect(ctx, sx, sy0, segW, segH, 6, i < filled ? tint : 'rgba(255,255,255,0.12)');
+      if (i < filled) strokeRoundRect(ctx, sx, sy0, segW, segH, 6, 'rgba(255,255,255,0.8)', 1);
     }
+    text(ctx, `${filled}/${maxCells}`, bx + bw / 2, by + bh - 8, 12, ready ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)', 'center');
     ctx.globalAlpha = 1;
     return { key, x: bx, y: by, w: bw, h: bh };
   }
@@ -3364,9 +3369,8 @@ class Renderer {
       if (!drawImg(ctx, IMG_SRC[cur.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
         drawTowerGlyph(ctx, cur.key, ix, iy, L.towerIcon.size);
       }
-      // 等级徽章
-      fillRoundRect(ctx, 15 + 100 - 16, 1053 - 6, L.towerIcon.badge, L.towerIcon.badge, 4, '#f7c948');
-      text(ctx, `${cur.level}`, 15 + 100 - 8, 1053 + 2, 12, '#5c4a00', 'center');
+      // v1.17.10 等级小字（不再显示右上角数字徽章，避免遮挡塔图标）
+      text(ctx, `Lv${cur.level}`, 15 + 50, 1053 + 100 - 10, 13, 'rgba(255,255,255,0.75)', 'center');
       // 能量竖条（槽内右侧；v1.16.77 弹药→能量）
       const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
       const bx = 15 + 100 - 9, by0 = 1053 + 8, bh = 100 - 16;
