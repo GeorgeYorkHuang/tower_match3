@@ -81,6 +81,11 @@ const IMG_SRC = {
   wall: 'assets/images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
   towerRow: 'assets/images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
   boardBg: 'assets/images/ui/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
+  // v1.17.17 火墙技能 4 帧动画（512×160 黑底，加法混合 lighter；12fps 循环）
+  firewall1: 'assets/images/fx/firewall/anim_firewall_01.png',
+  firewall2: 'assets/images/fx/firewall/anim_firewall_02.png',
+  firewall3: 'assets/images/fx/firewall/anim_firewall_03.png',
+  firewall4: 'assets/images/fx/firewall/anim_firewall_04.png',
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -2525,7 +2530,9 @@ class Renderer {
   }
 
   fxFireWall(ctx, f) {
-      // 火焰墙（v1.16.21 烈焰墙）：长条可穿越火墙（长 w·宽 h·持续 6s），火焰上下跳动 + 地面余焰 + 上升火花
+      // 火焰墙（v1.16.21 烈焰墙）：长条可穿越火墙（长 w·宽 h·持续 6s）
+      // v1.17.17：墙体主体改为 4 帧贴图（12fps 循环·加法混合），代码层保留地面红晕与上升火花；
+      //           贴图未加载完成时回退 v1.16.21 程序化绘制（_fxFireWallProc），不出现空墙。
       const p = Math.min(1, f.t / f.dur);
       const cx = f.x, cy = f.y, w = f.w || 100, h = f.h || 30, seed = f.seed || 0;
       const fade = p < 0.1 ? p / 0.1 : (p > 0.85 ? (1 - p) / 0.15 : 1);
@@ -2533,23 +2540,21 @@ class Renderer {
       ctx.globalAlpha = 0.25 * fade;
       ctx.fillStyle = 'rgba(255,112,67,0.4)';
       ctx.beginPath(); ctx.ellipse(cx, cy + h / 2, w * 0.55, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      // 主火焰条：N 段竖火焰沿 x 排列，上下跳动
-      const segs = Math.max(4, Math.round(w / 14));
-      for (let i = 0; i < segs; i++) {
-        const s = ((i * 5171 + seed * 13) % 97) / 97;
-        const fx = cx - w / 2 + (i + 0.5) * (w / segs);
-        const sway = Math.sin(p * 18 + i * 1.7 + seed) * 4;
-        const hh = h * (0.75 + 0.35 * s) + Math.sin(p * 24 + i * 2.1) * 4;
-        const col = i % 3 === 0 ? '#e74c3c' : (i % 3 === 1 ? '#ff7043' : '#ff9f43');
-        ctx.globalAlpha = (0.55 + 0.3 * s) * fade;
-        ctx.fillRect(fx - (w / segs) * 0.34, cy + h / 2 - hh, (w / segs) * 0.68, hh);
-        drawFlameTongue(ctx, fx, cy + h / 2 - hh, (w / segs) * 0.9, 8 + 4 * s, sway, col, 0.9 * fade);
-      }
-      // 内部亮芯（发光跳动）
-      ctx.globalAlpha = (0.35 + 0.25 * Math.sin(p * 26 + seed)) * fade;
-      ctx.fillStyle = '#ffd24a';
-      ctx.fillRect(cx - w * 0.32, cy + h / 2 - h * 0.55, w * 0.64, h * 0.55);
-      // 上升火花
+      ctx.globalAlpha = 1;
+      // 4 帧贴图：12fps 循环，按 seed 错相（同屏多面火墙不同步）；底边贴地面线，宽=墙宽，高按 512:160
+      const FW_N = 4, FW_FPS = 12, FW_AR = 160 / 512;
+      for (let i = 1; i <= FW_N; i++) loadImg(IMG_SRC['firewall' + i]);   // 首帧一次性拉起 4 张
+      const fi = (Math.floor(f.t * FW_FPS + seed * 1.7) % FW_N + FW_N) % FW_N + 1;
+      const FW = Math.max(24, w);
+      const FH = Math.round(FW * FW_AR);
+      const bx = cx - FW / 2, by = cy + h / 2 - FH;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';   // 全特效唯一混合方式（加法），黑底即透明
+      ctx.globalAlpha = fade;
+      const drawn = drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
+      ctx.restore();   // 恢复混合模式/透明度（由 save 前的状态决定，不硬写 source-over）
+      if (!drawn) this._fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade);
+      // 上升火花（代码层粒子，与贴图层叠加：贴图给形，粒子给活）
       for (let i = 0; i < 5; i++) {
         const s = ((i * 8191 + seed * 7) % 89) / 89;
         const ex = cx - w / 2 + (s - 0.2) * w * 0.9;
@@ -2558,6 +2563,25 @@ class Renderer {
         ctx.globalAlpha = (0.3 + s * 0.5) * fade;
         ctx.beginPath(); ctx.arc(ex, ey, 1.6 + s * 2.4, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.globalAlpha = 1;
+  }
+
+  /* v1.16.21 程序化火墙（贴图未就绪时的回退绘制：N 段竖火焰 + 亮芯） */
+  _fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade) {
+      const segs = Math.max(4, Math.round(w / 14));
+      for (let i = 0; i < segs; i++) {
+        const s = ((i * 5171 + seed * 13) % 97) / 97;
+        const fx2 = cx - w / 2 + (i + 0.5) * (w / segs);
+        const sway = Math.sin(p * 18 + i * 1.7 + seed) * 4;
+        const hh = h * (0.75 + 0.35 * s) + Math.sin(p * 24 + i * 2.1) * 4;
+        const col = i % 3 === 0 ? '#e74c3c' : (i % 3 === 1 ? '#ff7043' : '#ff9f43');
+        ctx.globalAlpha = (0.55 + 0.3 * s) * fade;
+        ctx.fillRect(fx2 - (w / segs) * 0.34, cy + h / 2 - hh, (w / segs) * 0.68, hh);
+        drawFlameTongue(ctx, fx2, cy + h / 2 - hh, (w / segs) * 0.9, 8 + 4 * s, sway, col, 0.9 * fade);
+      }
+      ctx.globalAlpha = (0.35 + 0.25 * Math.sin(p * 26 + seed)) * fade;
+      ctx.fillStyle = '#ffd24a';
+      ctx.fillRect(cx - w * 0.32, cy + h / 2 - h * 0.55, w * 0.64, h * 0.55);
       ctx.globalAlpha = 1;
   }
 
@@ -3866,6 +3890,12 @@ class Renderer {
     return list.slice().sort((a, b) => o[CONFIG.relicRarity(a.id)] - o[CONFIG.relicRarity(b.id)]);
   }
   _relicUnlocked(s, id) { return !!(s.relicStars[id] || s.runCodex[id]); }
+  /** v1.17.20 可解锁态：未解锁但碎片已够阈值（蓝2/紫4/金8），由玩家在详情面板手动解锁 */
+  _relicUnlockable(s, id) {
+    if (this._relicUnlocked(s, id)) return false;
+    const need = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(id)] || 0;
+    return need > 0 && (s.shards[id] || 0) >= need;
+  }
   _relicRarColor(rar) { return rar === 'ssr' ? '#f7c948' : rar === 'sr' ? '#a86bff' : '#5dade2'; }
 
   /** v1.16.110 胶囊进度条：深色内凹槽 + 渐变填充（顶部内高光）+ 文字居中在胶囊内（图鉴卡片通用） */
@@ -3927,14 +3957,27 @@ class Renderer {
         text(ctx, `${CONFIG.relicRarity(d.id).toUpperCase()}${star > 1 ? ' ' + star + '★' : ''}`, rx + 14, ry2 + 128, 15, rc, 'left');
         text(ctx, d.desc ? d.desc.slice(0, 12) + (d.desc.length > 12 ? '…' : '') : '', rx + 14, ry2 + 72, 14, '#9fb2c3', 'left');
       } else {
-        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
-        ctx.fillStyle = '#151a22'; ctx.fill();
-        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
-        text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
+        // v1.17.20 未解锁两态：碎片够 → 金框「可解锁」（点击进详情解锁）；不够 → 问号占位
+        const needG = CONFIG.DUPLICATE_SHARDS[rar] || 0;
+        const shG = s.shards[d.id] || 0;
+        if (needG > 0 && shG >= needG) {
+          strokeRoundRect(ctx, rx, ry2, cw, ch, 12, '#f7c948', 2.5);
+          ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
+          ctx.strokeStyle = '#f7c948'; ctx.lineWidth = 1.5; ctx.stroke();
+          text(ctx, '?', icx, icy + 5, 34, '#ffd34d', 'center');
+          text(ctx, '可解锁', rx + cw / 2, ry2 + ch - 26, 16, '#ffd34d', 'center');
+        } else {
+          ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+          ctx.fillStyle = '#151a22'; ctx.fill();
+          ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+          text(ctx, '?', icx, icy + 5, 34, rc, 'center');
+          text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
+        }
       }
-      // 点击区：已解锁 → 详情；未解锁 → 无操作
-      push(owned ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
+      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；未解锁 → 无操作
+      const clickableG = owned || this._relicUnlockable(s, d.id);
+      push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
     text(ctx, `${page + 1}/${pages}`, 375, 985, 18, '#8ea3b8', 'center');
@@ -4026,21 +4069,43 @@ class Renderer {
         else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; ct3 = '#8fb6ff'; cb3 = '#5b86d6'; }
         this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, ratio3, lbl3, ct3, cb3);
       } else {
-        // 未解锁：? 图标圈（居中于上 2/3 区）
-        ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
-        ctx.fillStyle = '#151a22'; ctx.fill();
-        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 46, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
-        // 底部：胶囊进度条（v1.16.110，阈值 = DUPLICATE_SHARDS，灰阶填充）
+        // v1.17.20 未解锁两态：碎片已够=可解锁（真图半透明 + 金框 + 「可解锁」角标，点击进详情解锁）
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
-        const r4 = thr > 0 ? Math.min(1, sh4 / thr) : 0;
-        this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, r4, `${sh4}/${thr}`, '#5a6b80', '#3d4c5e');
+        const canUnlock = thr > 0 && sh4 >= thr;
+        if (canUnlock) {
+          const src0 = relicIconSrc(d.id);
+          ctx.globalAlpha = 0.6;
+          if (!(src0 && drawImg(ctx, src0, icx - 52, icy - 52, 104, 104))) {
+            ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
+            ctx.fillStyle = rc; ctx.globalAlpha = 0.2; ctx.fill();
+            ctx.globalAlpha = 0.6;
+            text(ctx, d.icon, icx, icy + 2, 44, '#ffffff', 'center');
+          }
+          ctx.globalAlpha = 1;
+          // 金框覆盖原稀有度框
+          strokeRoundRect(ctx, rx, ry2, cw, ch, 12, '#f7c948', 2.5);
+          text(ctx, d.name, icx, ry2 + 150, 24, '#ffe08a', 'center');
+          this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, 1, '可解锁', '#f6d67c', '#c48a1a');
+          fillRoundRect(ctx, rx + cw - 68, ry2 + 8, 60, 26, 13, '#f7c948');
+          text(ctx, '可解锁', rx + cw - 38, ry2 + 21, 15, '#3a2600', 'center');
+        } else {
+          // 未解锁：? 图标圈（居中于上 2/3 区）
+          ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
+          ctx.fillStyle = '#151a22'; ctx.fill();
+          ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+          text(ctx, '?', icx, icy + 5, 46, rc, 'center');
+          text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
+          // 底部：胶囊进度条（v1.16.110，阈值 = DUPLICATE_SHARDS，灰阶填充）
+          const r4 = thr > 0 ? Math.min(1, sh4 / thr) : 0;
+          this._capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, r4, `${sh4}/${thr}`, '#5a6b80', '#3d4c5e');
+        }
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
-      if (hy2 > hy) push(owned ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
+      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）
+      const clickable = owned || this._relicUnlockable(s, d.id);
+      if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();
     // 右侧滚动条（maxScroll>0 时显示）
@@ -4056,7 +4121,7 @@ class Renderer {
   /** 圣物图鉴面板：同主页网格（未解锁占位卡 / 已解锁可点详情） */
   menuRelicDex(ctx, s, push) {
     this._menuPanelShell(ctx, s, push, '圣物图鉴', 1020);
-    text(ctx, '战斗中获得 · 碎片达阈值自动解锁 · 点卡查看星级效果', 375, 268, 20, '#8ea3b8', 'center');
+    text(ctx, '战斗中获得 · 碎片凑够后可解锁（消耗碎片） · 点卡查看星级效果', 375, 268, 20, '#8ea3b8', 'center');
     this._menuRelicGrid(ctx, s, push, 'relicPage', false);
   }
 
@@ -4173,8 +4238,10 @@ class Renderer {
     if (!(src && drawImg(ctx, src, gx - dia / 2, gy - dia / 2, dia, dia))) text(ctx, d.icon, gx, gy, 150, '#ffffff', 'center');
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
+    // v1.17.20 未解锁时进度条口径 = 解锁所需碎片（原实现取 STAR_UP.cost[1] 不存在 → 恒显 0/0）
+    const unlockNeed = CONFIG.DUPLICATE_SHARDS[rar] || 0;
     const cost = CONFIG.STAR_UP.cost[star + 1];
-    const need = cost ? cost.shards : 0;
+    const need = owned ? (cost ? cost.shards : 0) : unlockNeed;
     const px0 = gx - 100, py0 = oy + 268, pw = 200, ph = 36;
     fillRoundRect(ctx, px0, py0, pw, ph, 18, 'rgba(20,26,38,0.95)');
     strokeRoundRect(ctx, px0, py0, pw, ph, 18, '#3a4553', 2);
@@ -4221,7 +4288,17 @@ class Renderer {
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
     const btnY = ry0 + 3 * (rh + rgap) + 24;
     if (!owned) {
-      text(ctx, '战斗中获取碎片解锁圣遗物', 375, btnY + 31, 24, '#5a6c80', 'center');
+      // v1.17.20 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示
+      if (this._relicUnlockable(s, id)) {
+        push('relicUnlock', id, rx, btnY, rw, 62);
+        const bg = ctx.createLinearGradient(0, btnY, 0, btnY + 62);
+        bg.addColorStop(0, '#4b3a15'); bg.addColorStop(1, '#33270e');
+        fillRoundRect(ctx, rx, btnY, rw, 62, 16, bg);
+        strokeRoundRect(ctx, rx, btnY, rw, 62, 16, '#f7c948', 2.5);
+        text(ctx, `解锁 · 消耗 ${unlockNeed} 碎片`, rx + rw / 2, btnY + 31, 24, '#ffd34d', 'center');
+      } else {
+        text(ctx, `碎片 ${shards}/${unlockNeed} · 战斗中击杀精英/Boss 掉落`, 375, btnY + 31, 22, '#5a6c80', 'center');
+      }
     } else if (cost && star < 3) {
       push('relicStar', id, rx, btnY, rw, 62);
       const bg = ctx.createLinearGradient(0, btnY, 0, btnY + 62);
