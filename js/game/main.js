@@ -404,14 +404,14 @@ class GameMain {
       this.stepEnemies(bdt);
       // v1.12.1 失败立即结算：城墙血量归零 → 直接进入失败界面（不再等当前波打完）
       if (this.run.broken) { this.waveEnd(); return; }
-      // v1.17.5 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 10s（场上残怪保留，叠加波继续打）
-      //   （不再固定 40s 超时；波时长随出怪数量自然增长）
+      // v1.17.8 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 3s（场上残怪保留，叠加波继续打）
+      //   （波时长不再固定；出怪节奏=0.5s/批，每批随机 1~⌈w/5⌉ 只）
       const allDead = !this.enemies.length && !this.wave.plan.length;
       const spawnedAll = !this.wave.plan.length && this.wave.planDoneAt !== null;
       if (allDead) {
         this._overlapWave = false;
         this.waveEnd();
-      } else if (spawnedAll && this.waveTime - this.wave.planDoneAt >= 10) {
+      } else if (spawnedAll && this.waveTime - this.wave.planDoneAt >= 3) {
         this._overlapWave = this.enemies.length > 0;   // v1.17.3 叠加波：保留场上残怪，下一波继续出
         this.waveEnd();
       }
