@@ -1838,12 +1838,12 @@ class CombatSystem {
         this.fxFlash(o.x, o.y, '#ff9f43');
       }
     };
-    // 中心弹：锁定主目标（onHit 命中才结算；render aim:true 末端跟随）
+    // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
     const aim0 = aimOf(e, 0);
     const baseAng = Math.atan2(aim0.ty - fsy, aim0.tx - fsx);
     const strikeCenter = (o) => strike(o, perDmg, baseAng);
     this.shots.push({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter });
-    g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, aim: true, scale: 1.35 });
+    g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, scale: 1.35, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
     const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
     for (let i = 0; i < n - 1; i++) {
@@ -2244,11 +2244,11 @@ class CombatSystem {
       const cos = Math.cos(off), sin = Math.sin(off);
       return { tx: msx + dx * cos - dy * sin, ty: msy + dx * sin + dy * cos };
     };
-    // 中心弹：锁定主目标（onHit 命中才结算；render aim:true 末端跟随）
+    // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
     const aim0 = aimOf(e, 0);
     const strikeCenter = (o) => strike(o, perDmg);
     this.shots.push({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter });
-    g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, aim: true, scale: 1.15 });
+    g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
     const maxOff = (n - 2) * 0.08;
     for (let i = 0; i < n - 1; i++) {
