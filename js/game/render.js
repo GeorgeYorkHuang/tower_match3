@@ -3524,35 +3524,42 @@ class Renderer {
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
     else if (s.tab === 'codex') this.menuCodex(ctx, s, push);
     else this.menuRelic(ctx, s, push);
-    // v1.17.10 底部大分页标签：只显示当前激活页签（其余三个分页不显示；如需恢复导航入口改回全量渲染）
+    // v1.17.10c 底部大分页标签（4 个全部显示，不隐藏）：激活页签与页面"融为一体"——
+    // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
     const tabY = 1504, tabH = 100, tabW = 163, tabGap = 12, x0 = 31;
     const tabs = MENU_TABS;
+    // 激活页签向上光束（页面↔页签的视觉连接）
+    const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
+    ag.addColorStop(0, 'rgba(0,0,0,0)');
+    ag.addColorStop(1, theme.main + '55');
+    ctx.fillStyle = ag; ctx.fillRect(x0, tabY - 70, tabW * 4 + tabGap * 3, 70);
     tabs.forEach(([key, icon, label], i) => {
-      if (key !== s.tab) return;                   // v1.17.10 其余三个分页不显示
       const tx = x0 + i * (tabW + tabGap);
-      // 激活页签向上光束（页面↔页签的视觉连接）
-      const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
-      ag.addColorStop(0, 'rgba(0,0,0,0)');
-      ag.addColorStop(1, theme.main + '55');
-      ctx.fillStyle = ag; ctx.fillRect(tx, tabY - 70, tabW, 70);
       push('tab', key, tx, tabY, tabW, tabH);
+      const active = s.tab === key;
       const th = MENU_TAB_THEME[key];
-      // 同页主题色渐变（上亮下稍暗）+ 仅上圆角，与屏幕底边贴合
-      const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
-      tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
-      ctx.beginPath();
-      ctx.moveTo(tx, tabY + tabH);
-      ctx.lineTo(tx, tabY + 16);
-      ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
-      ctx.lineTo(tx + tabW - 16, tabY);
-      ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
-      ctx.lineTo(tx + tabW, tabY + tabH);
-      ctx.closePath();
-      ctx.fillStyle = tg; ctx.fill();
-      // 顶部亮条
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, ctx.fillStyle);
-      text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
+      if (active) {
+        // 同页主题色渐变（上亮下稍暗）+ 仅上圆角，与屏幕底边贴合
+        const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
+        tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
+        ctx.beginPath();
+        ctx.moveTo(tx, tabY + tabH);
+        ctx.lineTo(tx, tabY + 16);
+        ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
+        ctx.lineTo(tx + tabW - 16, tabY);
+        ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
+        ctx.lineTo(tx + tabW, tabY + tabH);
+        ctx.closePath();
+        ctx.fillStyle = tg; ctx.fill();
+        // 顶部亮条
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, ctx.fillStyle);
+        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
+      } else {
+        fillRoundRect(ctx, tx, tabY, tabW, tabH, 16, 'rgba(20,26,36,0.92)');
+        strokeRoundRect(ctx, tx, tabY, tabW, tabH, 16, '#2b3648', 1);
+        text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + tabH / 2, 26, '#8ea3b8', 'center');
+      }
     });
     // 子面板
     if (s.panel) {
