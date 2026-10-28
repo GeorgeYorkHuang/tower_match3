@@ -3722,11 +3722,8 @@ class Renderer {
     };
     arrow(sx - 38, '‹');
     arrow(sx + sw + 38, '›');
-    // v5.3 技能配置两行（战斗卡片下方）：行1 三消技能（四连/高连/连消 3 槽）· 行2 全局技能（槽位），点击整行打开配置面板
-    this._menuSkillRow(ctx, s, push, '三消技能', s.matchSkills, 80, 806, 590, 44);
-    this._menuSkillRow(ctx, s, push, '全局技能', s.globalSkills, 80, 860, 590, 44);
-    // 进入战斗（配置行下方）
-    const ey = 942, eh = 78;
+    // 进入战斗
+    const ey = 850, eh = 80;
     push('enter', null, 75, ey, 600, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, tint); bgrad.addColorStop(1, tintDark);
@@ -3735,6 +3732,9 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
+    // v5.3 技能配置两行（进入战斗按钮下方）：行1 三消技能（四连/高连/连消 3 槽）· 行2 全局技能（槽位），点击整行打开配置面板
+    this._menuSkillRow(ctx, s, push, '三消技能', s.matchSkills, 80, 958, 590, 44);
+    this._menuSkillRow(ctx, s, push, '全局技能', s.globalSkills, 80, 1012, 590, 44);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
 
