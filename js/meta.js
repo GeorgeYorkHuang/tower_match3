@@ -220,7 +220,13 @@ class Meta {
   /* ---------- 每日碎片精选（v5.3c 0 点刷新，碎片奖励） ---------- */
   ensureDailyPicks(nowMs) {
     const date = todayStr(nowMs);
-    if (this.dailyPicks && this.dailyPicks.date === date) return this.dailyPicks;
+    // 旧存档兼容：同日缓存若为旧结构（无 shards/rar 或非新体系 id），视为过期重建
+    if (this.dailyPicks && this.dailyPicks.date === date) {
+      const picks = this.dailyPicks.picks || [];
+      const fresh = picks.length === CONFIG.DAILY.perDay && picks.every((p) =>
+        p && p.shards > 0 && p.rar && CONFIG.relicRunDef(p.relic) && CONFIG.GO.RARITY[p.rar]);
+      if (fresh) return this.dailyPicks;
+    }
     const picks = [];
     const rars = ['r', 'sr', 'ssr'];
     while (picks.length < CONFIG.DAILY.perDay) {

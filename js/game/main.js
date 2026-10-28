@@ -1288,10 +1288,7 @@ class GameMain {
       matchSkills: this.meta.matchSkills,   // v5.3 三消技能配置（主页配置行展示 / 面板修改）
       globalSkills: this.meta.globalSkills, // v5.3 全局技能槽（预留）
       skillUnlocks: this.meta.skillUnlocks,   // v5.3c 技能解锁状态（商店购买）
-      shopLeft: {
-        bronze: this.meta.shopChestLeft('bronze'),
-        gold: this.meta.shopChestLeft('gold'),
-      },                                    // v5.3c 圣物宝箱每日限购剩余
+      shopLeft: Object.keys(CONFIG.SHOP_CHEST).reduce((acc, k) => { acc[k] = this.meta.shopChestLeft(k); return acc; }, {}), // v5.3c 圣物宝箱每日限购剩余（蓝/紫/金 3 档）
       relicScroll: this.relicScroll || 0,   // v1.16.82 圣遗物页滚动位置
       relicDexPage: this.relicDexPage,   // v1.16.78 圣物图鉴分页（主页与图鉴面板共用）
       /* v1.16.76 激励系统状态 */

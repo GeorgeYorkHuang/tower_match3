@@ -3923,33 +3923,35 @@ class Renderer {
       ctx.fillStyle = rc; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
       if (!(src && drawImg(ctx, src, cx + cw / 2 - isz / 2, 252 + 52 - isz / 2, isz, isz))) text(ctx, def.icon || '📿', cx + cw / 2, 252 + 54, 40, '#d9c2ff', 'center');
       text(ctx, def.name || p.relic, cx + cw / 2, 252 + 110, 17, '#ffffff', 'center');
-      text(ctx, `碎片 ×${p.shards}`, cx + cw / 2, 252 + 136, 16, rc, 'center');
-      push('shopShard', { relic: p.relic, shards: p.shards, price: p.price, icon: def.icon, name: def.name }, cx + cw / 2 - 70, 252 + 150, 140, 40);
+      const shN = p.shards || CONFIG.DAILY.shards[p.rar || CONFIG.relicRarity(p.relic)] || 1;
+      text(ctx, `碎片 ×${shN}`, cx + cw / 2, 252 + 136, 16, rc, 'center');
+      push('shopShard', { relic: p.relic, shards: shN, price: p.price, icon: def.icon, name: def.name }, cx + cw / 2 - 70, 252 + 150, 140, 40);
       fillRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#2c3542');
       strokeRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#f7c948', 1.2);
       if (!drawImg(ctx, IMG_SRC.coin, cx + cw / 2 - 52, 252 + 160, 22, 22)) text(ctx, '🪙', cx + cw / 2 - 39, 252 + 171, 18, '#f7c948', 'center');
       text(ctx, `${p.price}`, cx + cw / 2 - 14, 252 + 175, 18, '#f7c948', 'left');
     });
-    // —— 2. 圣遗物宝箱（金币购买随机碎片，每日限购）——
+    // —— 2. 圣遗物宝箱（金币购买随机碎片，每日限购；蓝/紫/金 3 档稀有度）——
     text(ctx, '圣遗物宝箱', 55, 500, 26, '#ffffff', 'left');
-    const chests = [CONFIG.SHOP_CHEST.bronze, CONFIG.SHOP_CHEST.gold];
+    const chests = [CONFIG.SHOP_CHEST.blue, CONFIG.SHOP_CHEST.purple, CONFIG.SHOP_CHEST.gold];
+    const cbw = 205, cbh = 150, cgap = 12;
     chests.forEach((cd, i) => {
-      const cx = 55 + i * 330, cy = 528, cbw = 310, cbh = 150;
+      const cx = 55 + i * (cbw + cgap), cy = 528;
       const left = (s.shopLeft && s.shopLeft[cd.key] !== undefined) ? s.shopLeft[cd.key] : cd.daily;
+      const cImg = cd.key === 'blue' ? IMG_SRC.chestBronze : cd.key === 'purple' ? IMG_SRC.chestSilver : IMG_SRC.chestGold;
       push('shopChest', { key: cd.key }, cx, cy, cbw, cbh);
       fillRoundRect(ctx, cx, cy, cbw, cbh, 16, '#1b2230');
       strokeRoundRect(ctx, cx, cy, cbw, cbh, 16, cd.color, 1.5);
-      text(ctx, cd.icon, cx + 62, cy + 66, 52, '#ffffff', 'center');
-      text(ctx, cd.name, cx + 130, cy + 44, 22, '#ffffff', 'left');
-      text(ctx, `随机 ${cd.shards.join('~')} 个圣物碎片`, cx + 130, cy + 76, 15, '#9fb2c3', 'left');
-      text(ctx, `今日剩余 ${left}/${cd.daily}`, cx + 130, cy + 102, 14, left > 0 ? '#7ef0a3' : '#ff6b6b', 'left');
+      if (!drawImg(ctx, cImg, cx + cbw / 2 - 34, cy + 22, 68, 68)) text(ctx, cd.icon, cx + cbw / 2, cy + 56, 46, cd.color, 'center');
+      text(ctx, cd.name, cx + cbw / 2, cy + 98, 17, '#ffffff', 'center');
+      text(ctx, `随机 ${cd.shards.join('~')} 个碎片 · 剩 ${left}/${cd.daily}`, cx + cbw / 2, cy + 122, 12, left > 0 ? '#9fb2c3' : '#ff6b6b', 'center');
       if (left > 0) {
-        fillRoundRect(ctx, cx + cbw - 96, cy + cbh - 46, 80, 36, 10, '#2c3542');
-        strokeRoundRect(ctx, cx + cbw - 96, cy + cbh - 46, 80, 36, 10, '#f7c948', 1.2);
-        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw - 88, cy + cbh - 40, 18, 18)) text(ctx, '🪙', cx + cbw - 81, cy + cbh - 33, 16, '#f7c948', 'center');
-        text(ctx, `${cd.price}`, cx + cbw - 62, cy + cbh - 31, 17, '#f7c948', 'left');
+        fillRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#2c3542');
+        strokeRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#f7c948', 1.2);
+        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw / 2 - 38, cy + 137, 16, 16)) text(ctx, '🪙', cx + cbw / 2 - 32, cy + 144, 14, '#f7c948', 'center');
+        text(ctx, `${cd.price}`, cx + cbw / 2 - 16, cy + 148, 16, '#f7c948', 'left');
       } else {
-        text(ctx, '明日再来', cx + cbw - 96, cy + cbh - 30, 16, '#ff6b6b', 'left');
+        text(ctx, `明日再来 ${left}/${cd.daily}`, cx + cbw / 2, cy + 148, 13, '#ff6b6b', 'center');
       }
     });
     // —— 3. 技能解锁（三消 3 组 + 全局 2 款，金币购买）——

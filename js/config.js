@@ -738,8 +738,9 @@ module.exports = {
    * 金币购买随机圣遗物碎片（每日限购）；青铜=蓝/紫 1~2 片、黄金=紫/金 2~3 片。
    */
   SHOP_CHEST: {
-    bronze: { key: 'bronze', name: '青铜圣物箱', icon: '📦', color: '#d89e63', price: 450, shards: [1, 2], rarities: ['r', 'sr'], daily: 3 },
-    gold:   { key: 'gold', name: '黄金圣物箱', icon: '🎁', color: '#f7c948', price: 1000, shards: [2, 3], rarities: ['sr', 'ssr'], daily: 2 },
+    blue:   { key: 'blue',   name: '圣物宝箱·蓝', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 5 },
+    purple: { key: 'purple', name: '圣物宝箱·紫', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 3 },
+    gold:   { key: 'gold',   name: '圣物宝箱·金', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 2 },
   },
 
   /* ================= 存档字段 ================= */
