@@ -21,7 +21,7 @@ if (!ctx) {
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
 const LOGIC_H = CONFIG.DESIGN.H;      // 1334
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
-const GAME_VERSION = 'v1.17.22';       // v1.17.22 结算页 3 大卡+账单四态+里程碑条+碎片数字滚动；通关数改「全歼波数」口径（一波怪全部死亡且投放完毕才算，按 waveNo 逐波统计，修「到达即计数」+叠加波多波同场问题）
+const GAME_VERSION = 'v1.17.23';       // v1.17.23 fix 全歼波数恒 0（combat 死亡清场先于 main 统计处移除尸体，改为 combat 清场处归集回调 _tallyWaveDeaths）+ fix 总击杀恒 0（combat.kills 自 v1.16.106 起从不自增，damage 致死按 srcKey 计数 / 腐化3★致死归毒塔）
 const { SaveManager } = require('../save.js');
 const { WaveDirector } = require('../wave.js');
 const { Match3Controller } = require('../match3.js');

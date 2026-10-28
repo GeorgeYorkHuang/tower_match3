@@ -415,6 +415,11 @@ class CombatSystem {
     this.tickCannon(dt);
     this.tickBoomerang(dt);
     // 6. 死亡清场（死亡技能已在伤害结算处触发）
+    // v1.17.23 fix：v1.17.22 把全歼统计挂在 main.stepEnemies 的尸体过滤处，但此处更早把尸体
+    //   filter 掉了 → 统计永远看不到死亡，clearedWaves 恒 0（深度轨迹不走、通关数恒「全歼 0 波」）。
+    //   改为在此归集死亡并回调统计（main 处保留为兜底）。
+    const dead = g.enemies.filter((e) => e.hp <= 0);
+    if (dead.length && g._tallyWaveDeaths) g._tallyWaveDeaths(dead);
     g.enemies = g.enemies.filter((e) => e.hp > 0);
   }
 
@@ -841,7 +846,7 @@ class CombatSystem {
         const pct = e.isBoss ? 0.01 : 0.02;
         const v0 = (e.maxHp || e.hp) * pct;
         e.hp -= v0;
-        if (e.hp <= 0 && !e._dying) { e._dying = true; this.onKill(e); }
+        if (e.hp <= 0 && !e._dying) { e._dying = true; this.kills.poison = (this.kills.poison || 0) + 1; this.onKill(e); }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
         this.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);
       }
     }
@@ -1051,6 +1056,8 @@ class CombatSystem {
     e.lastDmgKey = srcKey || e.lastDmgKey;
     if (e.hp <= 0 && !e._dying) {
       e._dying = true;
+      // v1.17.23 fix：总击杀此前恒 0——kills 只在 reset 初始化、从不自增；按伤害来源（塔/DoT 元素）计数
+      if (srcKey) this.kills[srcKey] = (this.kills[srcKey] || 0) + 1;
       this.onKill(e);
     }
   }
