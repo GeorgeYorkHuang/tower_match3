@@ -814,23 +814,26 @@ class Renderer {
       }
       x += slotSize + slotGap;
     }
-    // v1.12.4 全局技能按钮：塔位区两侧（左=全局洗牌，右=弹药补给）；累计弹药每 chargePerUse 发 = 1 格，上限 3 格；按钮缩小 20%（128×94 → 102×75）
+    // v1.17.10 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y、6px 间距并排在塔位区左右两侧
+    //   左=全局洗牌，右=弹药补给；累计充能每 chargePerUse 点 = 1 格（竖向自下而上，上限 3 格）
     // v1.14 测试战场（showGlobal=false）不渲染全局技能按钮
     if (showGlobal !== false) {
-      const btnW = 102, btnH = 75, btnY = TOWER_ROW_Y + 12, btnGapX = 8;
+      const sz = this.ly.slotSize;                          // 与塔槽位同尺寸
+      const gapX = 6;                                       // 与塔位区 x 间距 6px
       const perUse = Math.max(1, s.chargePerUse || 30);
       const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
       const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
+      const bx0 = (750 - (sz + gapX + total + gapX + sz)) / 2;
       this.globalBtns = [
-        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', btnGapX, btnY, btnW, btnH, shuCells, '#ff8c42'),
-        this._globalBtn(ctx, 'refill', '🔋', '补给', 750 - btnGapX - btnW, btnY, btnW, btnH, refCells, '#7ef0a3'),
+        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', bx0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
+        this._globalBtn(ctx, 'refill', '🔋', '补给', bx0 + sz + gapX + total + gapX, this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
       ];
     } else {
       this.globalBtns = [];
     }
   }
 
-  /** 全局技能按钮绘制：图标 + 名称 + 3 格能量；返回命中矩形 {key,x,y,w,h}（v1.12.4 缩小 20% 布局） */
+  /** 全局技能充能条绘制：图标 + 名称 + 3 格竖向充能（自下而上，每格 = 1 次释放）；返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y） */
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
@@ -840,15 +843,16 @@ class Renderer {
     ctx.lineWidth = ready ? 2.5 : 1.5;
     roundRect(ctx, bx, by, bw, bh, 8);
     ctx.fill(); ctx.stroke();
-    text(ctx, icon, bx + bw / 2, by + 25, 27, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
-    text(ctx, name, bx + bw / 2, by + 46, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
-    // 3 格能量圆点
-    const dotR = 6, dotY = by + bh - 12, gap = 21, x0 = bx + (bw - (gap * (maxCells - 1))) / 2;
+    text(ctx, icon, bx + bw / 2, by + 30, 27, ready ? '#ffffff' : 'rgba(255,255,255,0.5)', 'center');
+    text(ctx, name, bx + bw / 2, by + 55, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
+    // 3 格竖向充能条（自下而上；每格满 = 1 次释放）
+    const cellW = 20, cellH = 15, cellGap = 6;
+    const cx0 = bx + bw / 2 - cellW / 2;
+    const cyBase = by + bh - 14 - (maxCells * cellH + (maxCells - 1) * cellGap);
     for (let i = 0; i < maxCells; i++) {
-      const dx = x0 + i * gap;
-      ctx.beginPath(); ctx.arc(dx, dotY, dotR, 0, Math.PI * 2);
-      if (i < filled) { ctx.fillStyle = tint; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.stroke(); }
-      else { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fill(); }
+      const cy = cyBase + (maxCells - 1 - i) * (cellH + cellGap);   // i=0 最下，自下而上
+      fillRoundRect(ctx, cx0, cy, cellW, cellH, 4, i < filled ? tint : 'rgba(255,255,255,0.12)');
+      if (i < filled) strokeRoundRect(ctx, cx0, cy, cellW, cellH, 4, 'rgba(255,255,255,0.8)', 1);
     }
     ctx.globalAlpha = 1;
     return { key, x: bx, y: by, w: bw, h: bh };
