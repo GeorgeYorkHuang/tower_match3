@@ -91,7 +91,7 @@ const BOARD_IMG = {
 const imgCache = {};
 // v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
 const MENU_TABS = [
-  ['battle', '⚔', '战斗'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴'],
+  ['battle', '⚔', '主页'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴'],
 ];
 const MENU_TAB_THEME = {
   battle: { main: '#e8603c', dark: '#8c2f18', top: 'rgba(58,26,32,0.9)' },
@@ -778,8 +778,12 @@ class Renderer {
       fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
     }
     text(ctx, '塔位', AREA_X + 14, TOWER_ROW_Y + 24, 18, 'rgba(255,255,255,0.4)');
-    const total = slotCount * slotSize + (slotCount - 1) * slotGap;
-    let x = (750 - total) / 2;
+    // v1.17.10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
+    const showG = showGlobal !== false;
+    const itemN = showG ? slotCount + 2 : slotCount;
+    const totalX = itemN * slotSize + (itemN - 1) * slotGap;
+    const x0 = (750 - totalX) / 2;
+    let x = x0 + (showG ? slotSize + slotGap : 0);
     for (let i = 0; i < slotCount; i++) {
       const tw = towers[i] || null;
       // 槽：无压暗层、无描边；空槽仅淡白提示
@@ -813,19 +817,17 @@ class Renderer {
       }
       x += slotSize + slotGap;
     }
-    // v1.17.10 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y、6px 间距并排在塔位区左右两侧
-    //   左=全局洗牌，右=弹药补给；累计充能每 chargePerUse 点 = 1 格（竖向自下而上，上限 3 格）
+    // v1.17.10e 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y，与 4 塔槽按 x 轴等间距（slotGap）居中
+    //   左=全局洗牌，右=弹药补给；累计充能每 chargePerUse 点 = 1 格（横向 3 段，上限 3 格）
     // v1.14 测试战场（showGlobal=false）不渲染全局技能按钮
-    if (showGlobal !== false) {
-      const sz = this.ly.slotSize;                          // 与塔槽位同尺寸
-      const gapX = 6;                                       // 与塔位区 x 间距 6px
+    if (showG) {
+      const sz = this.ly.slotSize;
       const perUse = Math.max(1, s.chargePerUse || 30);
       const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
       const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
-      const bx0 = (750 - (sz + gapX + total + gapX + sz)) / 2;
       this.globalBtns = [
-        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', bx0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
-        this._globalBtn(ctx, 'refill', '🔋', '补给', bx0 + sz + gapX + total + gapX, this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
+        this._globalBtn(ctx, 'shuffle', '🔀', '洗牌', x0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
+        this._globalBtn(ctx, 'refill', '🔋', '补给', x0 + (slotCount + 1) * (slotSize + slotGap), this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
       ];
     } else {
       this.globalBtns = [];
