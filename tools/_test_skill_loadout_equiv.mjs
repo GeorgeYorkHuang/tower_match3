@@ -158,5 +158,32 @@ for (const index of [0, 1]) {
   else { fail++; console.error(`FAIL 命中键序列：旧=[${keys(oldH)}] 新=[${keys(newH)}]`); }
 }
 
+// 8. v1.17 视觉验收：面板高度随候选行数自适应（绝对几何锁定）
+//    注：Codex 接入后 render 旧方法已委托本模块，第 3/4/7 节变成「自己比自己」，
+//    这里改用绝对坐标断言锁住新行为，防止以后回归。
+{
+  const panelHOf = (r) => {
+    for (const c of r.calls) {
+      if (c[0] === 'arcTo' && c[1] === 725 && c[3] === 25) return c[2] - 180;   // 面板主体 roundRect（x=25,w=700）
+    }
+    return -1;
+  };
+  const want = { match4: 956, match5: 688, chain: 420 };   // 卡区 120+rows*268-16 + 底留白 48（rows=3/2/1）
+  let bad = 0;
+  for (const slot of Object.keys(want)) {
+    const h = panelHOf(run((ctx, push) => SL.menuMatchCfg(ctx, mkState({ panel: { type: 'matchCfg', slot } }), push)));
+    if (h !== want[slot]) { bad++; console.error(`FAIL 面板高度 ${slot}: got ${h}, want ${want[slot]}`); }
+  }
+  // 全局：满页（6 条）保持旧几何 1060 / 翻页键 y=1150；末页（4 条）缩到 792 / 上一页键 y=882
+  const g0 = run((ctx, push) => SL.menuGlobalCfg(ctx, mkState({ panel: { type: 'globalCfg', index: 0, page: 0 } }), push));
+  const g2 = run((ctx, push) => SL.menuGlobalCfg(ctx, mkState({ panel: { type: 'globalCfg', index: 1, page: 2 } }), push));
+  const pagerY = (r) => { const h = r.hits.find((x) => x[0] === 'globalPage'); return h ? h[3] : -1; };
+  if (panelHOf(g0) !== 1060) { bad++; console.error(`FAIL 全局满页高度: ${panelHOf(g0)} (want 1060)`); }
+  if (pagerY(g0) !== 1150) { bad++; console.error(`FAIL 满页翻页键 y: ${pagerY(g0)} (want 1150)`); }
+  if (panelHOf(g2) !== 792) { bad++; console.error(`FAIL 全局末页高度: ${panelHOf(g2)} (want 792)`); }
+  if (pagerY(g2) !== 882) { bad++; console.error(`FAIL 末页翻页键 y: ${pagerY(g2)} (want 882)`); }
+  if (bad) fail += bad; else pass++;
+}
+
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

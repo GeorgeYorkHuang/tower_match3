@@ -1,7 +1,8 @@
 /**
  * skill-loadout.js —— 主页技能卡 + 技能配置面板（重构 R2：技能配置页面拆分，W工程师）
  *
- * 从 render.js 机械提取（逐行等价，不改交互、不改样式、不改命中键）：
+ * 从 render.js 机械提取（逐行等价，不改交互、不改命中键）。v1.17 视觉验收有一处有意偏差：
+ *   面板高度改为随候选行数自适应（panelH），消除候选少时的下部空洞；满页几何不变，见 panelH 注释。
  *   render._menuSkillCards   → skillCards
  *   render._skillOwned       → skillOwned
  *   render._skillChoiceCards → skillChoiceCards
@@ -108,13 +109,23 @@ function createSkillLoadout(deps = {}) {
     return defs.includes(id);
   }
 
+  /** v1.17 视觉验收：面板高度随候选行数自适应——候选少（高连4/连消2/全局末页4）不再拖出大片空洞。
+   *  卡片区：oy+120 起，行高 268（252 卡 + 16 缝）；底部留白：带翻页 152（保持原满页几何逐像素不变）/ 不带 48 */
+  function panelH(itemCount, withPager) {
+    const rows = Math.max(1, Math.ceil(itemCount / 2));
+    return 120 + rows * 268 - 16 + (withPager ? 152 : 48);
+  }
+
   /** v5.3c 技能配置面板：2 列卡片列表（已解锁点选配置，未解锁点卡购买）
-   *  原 render._skillChoiceCards：外壳由注入的 panelShell 绘制，命中键 mSkill{slot,id} */
-  function skillChoiceCards(ctx, s, push, title, slot, items, current, tint) {
+   *  原 render._skillChoiceCards：外壳由注入的 panelShell 绘制，命中键 mSkill{slot,id}
+   *  opts.pager=true 时底部预留翻页区（全局面板用）；返回面板底边 y（供翻页区定位） */
+  function skillChoiceCards(ctx, s, push, title, slot, items, current, tint, opts) {
     if (typeof panelShell !== 'function') {
       throw new Error('skill-loadout: 必须注入 panelShell（render._menuPanelShell）后才能渲染配置面板');
     }
-    const oy = panelShell(ctx, s, push, title, 1060);
+    const withPager = !!(opts && opts.pager);
+    const hgt = panelH(items.length, withPager);
+    const oy = panelShell(ctx, s, push, title, hgt);
     text(ctx, '仅显示当前槽位可用技能 · 点击卡片配置', 375, oy + 84, 18, '#9cacc2', 'center');
     const gap = 18, cw = 291, ch = 252;
     items.forEach((it, i) => {
@@ -132,6 +143,7 @@ function createSkillLoadout(deps = {}) {
       text(ctx, status, x + cw / 2, y + ch - 27, 16, selected ? '#ffe0a0' : '#b9cee7', 'center');
       push('mSkill', { slot, id: it.id }, x, y, cw, ch);
     });
+    return oy + hgt;   // 面板底边（翻页区定位用）
   }
 
   /** 三消技能槽选择面板（四连 5 + 随机 / 高连 4 / 连消 2），命中键 mSkill{slot,id} */
@@ -145,16 +157,17 @@ function createSkillLoadout(deps = {}) {
       (s.matchSkills && s.matchSkills[slot]) || CONFIG.MATCH_SKILL.default[slot], '#b896ff');
   }
 
-  /** 全局技能槽选择面板（16 技能 / 3 页 / 双槽互换提示），命中键 mSkill{slot:'global',id} + globalPage{page} */
+  /** 全局技能槽选择面板（16 技能 / 3 页 / 双槽互换提示），命中键 mSkill{slot:'global',id} + globalPage{page}
+   *  v1.17 视觉验收：翻页区改锚定面板底边（bottom-90/-72/-43），满页时与旧绝对坐标 1150/1168/1197 逐像素一致 */
   function menuGlobalCfg(ctx, s, push) {
     const index = Number(s.panel.index || 0), slots = GlobalSkills.slots(s.globalSkills);
     const page = Math.max(0, Math.min(2, s.panel.page || 0));
     const items = GlobalSkills.POOL.slice(page * 6, page * 6 + 6);
-    skillChoiceCards(ctx, s, push, '全局槽位 ' + (index + 1) + ' · 技能选择', 'global', items, slots[index], '#f4cb79');
-    text(ctx, '装备与另一槽相同的技能时，自动交换两个槽位', 375, 1197, 16, '#9cacc2', 'center');
-    if (page > 0) { button(ctx, 80, 1150, 130, 36, '‹ 上一页'); push('globalPage', page - 1, 80, 1150, 130, 36); }
-    text(ctx, (page + 1) + ' / 3', 375, 1168, 20, '#f4cb79', 'center');
-    if (page < 2) { button(ctx, 540, 1150, 130, 36, '下一页 ›'); push('globalPage', page + 1, 540, 1150, 130, 36); }
+    const bottom = skillChoiceCards(ctx, s, push, '全局槽位 ' + (index + 1) + ' · 技能选择', 'global', items, slots[index], '#f4cb79', { pager: true });
+    text(ctx, '装备与另一槽相同的技能时，自动交换两个槽位', 375, bottom - 43, 16, '#9cacc2', 'center');
+    if (page > 0) { button(ctx, 80, bottom - 90, 130, 36, '‹ 上一页'); push('globalPage', page - 1, 80, bottom - 90, 130, 36); }
+    text(ctx, (page + 1) + ' / 3', 375, bottom - 72, 20, '#f4cb79', 'center');
+    if (page < 2) { button(ctx, 540, bottom - 90, 130, 36, '下一页 ›'); push('globalPage', page + 1, 540, bottom - 90, 130, 36); }
   }
 
   return { skillCards, skillOwned, skillChoiceCards, menuMatchCfg, menuGlobalCfg };
