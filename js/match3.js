@@ -33,11 +33,11 @@ class Match3Controller {
     const first = steps[0];
     g.anim = {
       phase: 'swap', swap: [r1, c1, r2, c2], swapGrid,
-      progress: 0, durSwap: 0.46,   // v5.6.2 交换动画统一放缓 +0.3s（原 0.16）
+      progress: 0, durSwap: 0.3,   // v5.6.3 交换动画 0.3s
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
-      durClear: this._stepDur(),
+      durClear: 0.5, durFall: 0.4,   // v5.6.3 消除段 0.5s 串行下落段 0.4s
       cascade: { steps, index: 0, settledByStep: ret.settledByStep },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
@@ -50,17 +50,21 @@ class Match3Controller {
     }
   }
 
-  /** 每帧推进动画状态机：交换 → 消除 → 逐级连锁，直到棋盘稳定 */
+  /** 每帧推进动画状态机：交换 → 消除 → 下落 → 逐级连锁，直到棋盘稳定
+   *  v5.6.3 消除与下落拆为串行两段：clear 0.5s 淡出 → fall 0.4s 匀速下落 */
   update(dt) {
     const g = this.game;
     if (!g.anim) return;
     const a = g.anim;
-    a.progress += dt / (a.phase === 'swap' ? a.durSwap : a.durClear);
+    a.progress += dt / (a.phase === 'swap' ? a.durSwap : (a.phase === 'clear' ? a.durClear : a.durFall));
     if (a.phase === 'swap' && a.progress >= 1) {
       a.phase = 'clear';
       a.progress = 0;
       if (!a.cleared.size) g.anim = null; // 无消除：交换完即结束
-    } else if (a.progress >= 1) {
+    } else if (a.phase === 'clear' && a.progress >= 1) {
+      a.phase = 'fall'; // 消除淡出完成 → 进入下落段
+      a.progress = 0;
+    } else if (a.phase === 'fall' && a.progress >= 1) {
       const cs = a.cascade;
       cs.index++;
       if (cs.index < cs.steps.length) {
@@ -69,8 +73,9 @@ class Match3Controller {
         a.base = cs.steps[cs.index - 1].gridAfter;
         a.cleared = new Set(st.clearedCells.map(([r, c]) => r + ',' + c));
         a.final = st.gridAfter;
-        a.durClear = this._stepDur();
+        a.durClear = 0.5; a.durFall = 0.4;
         a.progress = 0;
+        a.phase = 'clear'; // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效
         this.cascadeToast(cs.index);
         this._burst(st.clearedCells, st.matches); // 连锁级消除反馈
@@ -78,11 +83,6 @@ class Match3Controller {
         g.anim = null; // 连锁结束，棋盘稳定
       }
     }
-  }
-
-  /** 每级下落+消除动画时长：固定 0.8s（v5.6.2 由 0.5s 统一放缓 +0.3s，全局速度 525px/s 适配） */
-  _stepDur() {
-    return 0.8;
   }
 
   /** 第 idx 级连锁的消除收益提示（直4 / L5 / 直5 / 获得塔） */
@@ -122,7 +122,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialBlast', s: b.s, sub: b.sub,
         x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
-        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.8, cell,   // v5.6.2 引爆动画 +0.3s（原 0.5）
+        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.8, cell,   // 特殊块引爆 0.8s（预告25%+爆发75%）
         parts: i === 0 ? this._blastParts(b.s) : null,
       });
     });
@@ -130,7 +130,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialSpawn', s: p.s, sub: p.sub,
         x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
-        color: p.color, t: 0, dur: 0.9, cell,   // v5.6.2 生成降临动画 +0.3s（原 0.6）
+        color: p.color, t: 0, dur: 0.4, cell,   // v5.6.3 特殊块生成降临 0.4s（原 0.9）
       });
     });
     if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
@@ -157,7 +157,7 @@ class Match3Controller {
     return parts;
   }
 
-  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.62s，v5.6.2 原 0.32s，渲染层绘制） */
+  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.8s，v5.6.3 原 0.62s，渲染层绘制） */
   _burst(cells, matches) {
     const g = this.game;
     const { boardX, boardY, cell } = g.ly;
@@ -174,7 +174,7 @@ class Match3Controller {
         x: boardX + c * cell + cell / 2,
         y: boardY + r * cell + cell / 2,
         color,
-        t: 0, dur: 0.62,   // v5.6.2 消除迸发 +0.3s（原 0.32）
+        t: 0, dur: 0.8,   // v5.6.3 消除迸发星芒 0.8s（原 0.62）
       });
     });
   }

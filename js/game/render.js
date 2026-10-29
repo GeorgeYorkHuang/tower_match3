@@ -923,11 +923,11 @@ class Renderer {
       return;
     }
 
-    /* 阶段 2：消除+下落——被消除格淡出缩小，其余格从本级连锁的原地下落补位 */
+    /* 阶段 2：消除（0.5s 串行段）→ 下落（0.4s 串行段）——v5.6.3 拆分为两段：消除格在 clear 段全程淡出缩小，下落补位在 fall 段匀速滑落 */
     const g0 = (anim && (anim.base || anim.swapGrid)) ? (anim.base || anim.swapGrid) : grid; // 本级下落前棋盘
     const g1 = (anim && anim.final) ? anim.final : grid;                                    // 本级下落后棋盘
     if (anim && anim.phase === 'clear') {
-      const fade = Math.min(1, anim.progress / 0.35);
+      const fade = Math.min(1, anim.progress);   // v5.6.3 消除段 0.5s 全程淡出（原 progress/0.35）
       if (fade < 1) {
         for (let r = 0; r < boardRows; r++) {
           for (let c = 0; c < boardCols; c++) {
@@ -947,14 +947,13 @@ class Renderer {
         }
       }
     }
-    // 下落层：最终布局 + 下落偏移（列整体同步下移——同列所有移动格下移相同格数、同速、同时到达，
-    // 新补方块从各自对应高度出发，不出现"底部最后才到/一列展开"）
-    const clearDur = (anim && anim.phase === 'clear') ? anim.durClear : 1;
-    const v = CONFIG.FALL_SPEED * cell; // 固定下落速度（格/秒 × cell），与 _stepDur 匹配：到位即结束
+    // 下落层：clear 段显示消除前原位布局（未消除格保持原位、消除格由淡出层绘制）；fall 段显示最终布局 + 匀速下滑
+    // （列整体同步下移——同列所有移动格下移相同格数、同速、同时到达，新补方块从各自对应高度出发）
+    const v = CONFIG.FALL_SPEED * cell; // 固定下落速度（格/秒 × cell），与 durFall 0.4s 匹配：到位即结束
     // 预算：每列消除格数 colDrop、每列消除行 colClearedRows
     const colDrop = new Array(boardCols).fill(0);
     const colClearedRows = new Array(boardCols).fill(0).map(() => []);
-    if (anim && anim.phase === 'clear' && anim.cleared) {
+    if (anim && anim.cleared) {   // v5.6.3 clear/fall 两段都需要下落预算
       for (const key of anim.cleared) {
         const [cr, cc] = key.split(',').map(Number);
         if (cc >= 0 && cc < boardCols && cr >= 0 && cr < boardRows) {
@@ -966,13 +965,15 @@ class Renderer {
       if (srcRow === -1) return colDrop[c]; // 新补方块：随整列下移 colDrop 格
       return colClearedRows[c].filter((cr) => cr > srcRow).length; // 未消除格：其下方消除格数
     };
+    const inClear = !!(anim && anim.phase === 'clear');
     for (let r = 0; r < boardRows; r++) {
       for (let c = 0; c < boardCols; c++) {
-        const color = g1[r][c]; // 本级下落后棋盘
+        let color = inClear ? (g0[r][c] || null) : g1[r][c];   // v5.6.3 clear 段画原位，fall 段画最终布局
         if (!color) continue;
+        if (inClear && anim.cleared.has(r + ',' + c)) continue; // 消除格由淡出层绘制，不重复
         let y = boardY + r * cell + 2;
-        if (anim && anim.phase === 'clear' && anim.progress < 1) {
-          const elapsed = anim.progress * anim.durClear; // 已流逝时间（秒）
+        if (anim && anim.phase === 'fall' && anim.progress < 1) {   // v5.6.3 下落段独立计时
+          const elapsed = anim.progress * anim.durFall; // 已流逝时间（秒）
           const srcRow = this._sourceRow(anim, g1, r, c);
           const dist = dropCellsOf(srcRow, c) * cell; // 同列内所有移动格距离一致
           const dy = Math.min(dist, v * elapsed);
