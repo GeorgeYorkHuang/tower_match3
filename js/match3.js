@@ -33,11 +33,11 @@ class Match3Controller {
     const first = steps[0];
     g.anim = {
       phase: 'swap', swap: [r1, c1, r2, c2], swapGrid,
-      progress: 0, durSwap: 0.3,   // v5.6.3 交换动画 0.3s
+      progress: 0, durSwap: 0.2,   // v5.6.5 交换动画 0.2s
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
-      durClear: 0.2, durWait: 0.3, durFall: 0.4,   // v5.6.4 消除淡出 0.2s → 等待 0.3s → 下落 0.4s 串行
+      durClear: 0.15, durWait: 0.2, durFall: 0.3,   // v5.6.5 消除淡出 0.15s → 等待 0.2s → 下落 0.3s 串行
       cascade: { steps, index: 0, settledByStep: ret.settledByStep },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
@@ -51,7 +51,7 @@ class Match3Controller {
   }
 
   /** 每帧推进动画状态机：交换 → 消除淡出 → 等待 → 下落 → 逐级连锁，直到棋盘稳定
-   *  v5.6.4 消除过程拆两段：clear 0.2s 淡出 → wait 0.3s 停留（消除感呈现）→ fall 0.4s 匀速下落 */
+   *  v5.6.5 时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
   update(dt) {
     const g = this.game;
     if (!g.anim) return;
@@ -77,7 +77,7 @@ class Match3Controller {
         a.base = cs.steps[cs.index - 1].gridAfter;
         a.cleared = new Set(st.clearedCells.map(([r, c]) => r + ',' + c));
         a.final = st.gridAfter;
-        a.durClear = 0.2; a.durWait = 0.3; a.durFall = 0.4;
+        a.durClear = 0.15; a.durWait = 0.2; a.durFall = 0.3;
         a.progress = 0;
         a.phase = 'clear'; // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效
