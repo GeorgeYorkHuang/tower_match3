@@ -733,7 +733,7 @@ module.exports = {
    * 价格口径：约 1 局 50 波金币收益（5000+），四连技 800 / 连消技 1000 / 高连技 1200 / 全局 2000。
    */
   SKILL_UNLOCK: {
-    defaults: { match4: ['row'], match5: ['rainbow'], chain: ['attack'], global: ['shuffle'] },
+    defaults: { match4: ['row', 'random'], match5: ['rainbow'], chain: ['attack'], global: ['shuffle', 'refill'] },
     price: { match4: 800, match5: 1200, chain: 1000, global: 2000 },
   },
   /* ================= 商店圣物宝箱（v5.3c） =================

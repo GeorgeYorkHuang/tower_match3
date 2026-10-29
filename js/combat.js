@@ -1,3 +1,4 @@
+const COMBAT_BALANCE = require('./config/combat-common.js');
 /**
  * combat.js —— 真实战斗系统（A1 技能行为差异化）
  * =====================================================================
@@ -149,7 +150,7 @@ class CombatSystem {
     if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
-    return Math.max(0.15, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1));
+    return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1));
   }
 
   /** 塔当前射程（射程/技能叠加） */
@@ -279,7 +280,7 @@ class CombatSystem {
     const n = this.lv('poison', '毒性强化');
     const aLv = this.branchLv('poison', '毒性强化', 'A');
     return {
-      dmg: n > 0 ? [0.15, 0.18, 0.21, 0.24][aLv] || 0.15 : 0.10,   // 每层每秒伤害比例（单发×此比例）
+      dmg: n > 0 ? SKILL_NUM.poison['毒性强化'].damage[aLv] || SKILL_NUM.poison['毒性强化'].damage[0] : SKILL_NUM.poison['剧毒'].baseDamage,   // 每层每秒伤害比例（单发×此比例）
       ttlAdd: n > 0 ? SKILL_NUM.poison['毒性强化'].ttlAdd[this.branchLv('poison', '毒性强化', 'B')] : 0,
     };
   }
@@ -369,12 +370,13 @@ class CombatSystem {
   stepShot(s, dt) {
     const g = this.game;
     s.t += dt;
+    if (s.t < 0) return true;
     if (s.orb) {
       // v1.16.21 游走电球（活电扩散）：每帧随机转向漂移（转向幅度加大 ±1.6 rad，配合等分初角更像四周扩散），命中 34px 内敌人即结算消失，dur 耗尽消散
-      s.ang += (Math.random() - 0.5) * 3.2;
+      s.ang += (Math.random() - 0.5) * SKILL_NUM.electric['活电'].turnJitter;
       s.x += Math.cos(s.ang) * s.speed * dt;
       s.y += Math.sin(s.ang) * s.speed * dt;
-      const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < 34);
+      const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < SKILL_NUM.electric['活电'].hitRadius);
       if (hitE) {
         if (s.fx) s.fx.t = s.fx.dur;
         this.damage(hitE, s.dmg, 'electric');
@@ -735,9 +737,9 @@ class CombatSystem {
           o._trailMarkCd = (o._trailMarkCd || 0) - dt;
           if (o._trailMarkCd <= 0) {
             o._trailMarkCd = 1;
-            const cap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
+            const cap = SKILL_NUM.boomerang['猎手标记'].stackCap + SKILL_NUM.boomerang['猎手标记'].stacksPerBranch * this.branchLv('boomerang', '猎手标记', 'B');
             o._mark = Math.min(cap, (o._mark || 0) + 1);
-            o._markT = 5;
+            o._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
             this.fxParticle(o.x, o.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
           }
         }
@@ -824,7 +826,7 @@ class CombatSystem {
           // 火·爆燃 C 灼裂：灼烧每跳 15%/30%/50% 概率爆炸一次（30% 范围伤害）
           const burstLv = this.branchLv('fire', '爆燃', 'C');
           if (d.type === 'burn' && burstLv > 0 && Math.random() < SKILL_NUM.fire['灼烧'].burst[burstLv]) {
-            this.explode(e.x, e.y, 50, this.shotDmg('fire', true) * 0.30, 'fire');
+            this.explode(e.x, e.y, SKILL_NUM.fire['爆燃'].tickBurstRadius, this.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].tickBurstDamage, 'fire');
           }
           // 持续伤特效：灼烧=火焰粒子（上飘，数量随叠层）、中毒=毒泡（小概率避免过密）
           if (Math.random() < 0.7) {
@@ -853,8 +855,8 @@ class CombatSystem {
       e.bleedT -= dt;
       e._bleedDist = (e._bleedDist || 0) + Math.max(0, e.y - (e._bleedLastY != null ? e._bleedLastY : e.y));
       e._bleedLastY = e.y;
-      if (e._bleedDist >= 100) {
-        e._bleedDist -= 100;
+      if (e._bleedDist >= SKILL_NUM.boomerang['放血'].distancePerTick) {
+        e._bleedDist -= SKILL_NUM.boomerang['放血'].distancePerTick;
         this.damage(e, e._bleedDmg || 0, 'boomerang');
         this.fxParticle(e.x, e.y - 10, '#c0392b', 4, 20, 0.35, 80, 5);
       }
@@ -865,15 +867,15 @@ class CombatSystem {
     if (plague > 0 && this.hasDot(e, 'poison')) {
       // 减速：中毒敌人移速 ×0.8（与冰减速并存取更慢）
       const s = e.slow;
-      const mult = s && s.ttl > 0 ? Math.min(s.mult, 0.8) : 0.8;
-      e.slow = { mult, ttl: 1 };
+      const mult = s && s.ttl > 0 ? Math.min(s.mult, SKILL_NUM.poison['瘟疫'].speedMultiplier) : SKILL_NUM.poison['瘟疫'].speedMultiplier;
+      e.slow = { mult, ttl: SKILL_NUM.poison['瘟疫'].slowDuration };
       e._plagueT = (e._plagueT || 0) + dt;
-      const ivP = SKILL_NUM.poison['瘟疫'].iv[this.branchLv('poison', '瘟疫', 'A')] || 2;
+      const ivP = SKILL_NUM.poison['瘟疫'].iv[this.branchLv('poison', '瘟疫', 'A')] || SKILL_NUM.poison['瘟疫'].defaultInterval;
       if (e._plagueT >= ivP) {
         e._plagueT -= ivP;
-        const prob = Math.min(1, 0.30 + 0.10 * this.branchLv('poison', '瘟疫', 'C'));
+        const prob = Math.min(1, SKILL_NUM.poison['瘟疫'].baseProbability + SKILL_NUM.poison['瘟疫'].probabilityPerBranch * this.branchLv('poison', '瘟疫', 'C'));
         if (Math.random() < prob) {
-          const rP = 50 + 25 * this.branchLv('poison', '瘟疫', 'B');
+          const rP = SKILL_NUM.poison['瘟疫'].radius + SKILL_NUM.poison['瘟疫'].radiusPerBranch * this.branchLv('poison', '瘟疫', 'B');
           const near = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= rP);
           if (near.length) {
             // v1.16.100 速疫3★：瘟疫传染无人数上限（按范围判定，范围内全部判定）
@@ -898,23 +900,24 @@ class CombatSystem {
     }
     // 毒·瘴气（v1.16.21 重做；v1.16.47 毒雾区域渲染）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——
     //   每 2s 叠毒 1 层 + 命中率下降标记；B 中毒 dot 伤 +20~40%；C 瘴内中毒敌攻击降低
+    const miasmaBalance = SKILL_NUM.poison['瘴气'];
     const miasma = this.lv('poison', '瘴气');
     if (miasma > 0) {
       const wallY = (this.game.ly && this.game.ly.wallY) ? this.game.ly.wallY : 967;
-      const half = 20 * (1 + 0.2 * this.branchLv('poison', '瘴气', 'A'));
+      const half = miasmaBalance.halfHeight * (1 + miasmaBalance.heightPerBranch * this.branchLv('poison', '瘴气', 'A'));
       // v1.16.47：毒雾驻场 fx（城墙上方翻滚毒雾条带；全帧只推入一次，失活时在 else 分支移除）
       if (!this.game.fx.some((f) => f.kind === 'miasma')) {
-        this.game.fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - 50, w: 750, half, t: 0, dur: 1e9 });
+        this.game.fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - miasmaBalance.wallOffset, w: 750, half, t: 0, dur: 1e9 });
       }
-      const inM = Math.abs(e.y - (wallY - 50)) <= half;
+      const inM = Math.abs(e.y - (wallY - miasmaBalance.wallOffset)) <= half;
       e._miasma = inM;
       if (inM) {
         e._miaT = (e._miaT || 0) + dt;
-        if (e._miaT >= 2) {
-          e._miaT -= 2;
+        if (e._miaT >= miasmaBalance.tickInterval) {
+          e._miaT -= miasmaBalance.tickInterval;
           // v1.16.42 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
           const bLv = this.branchLv('poison', '瘴气', 'B');
-          this.applyPoison(e, this.shotDmg('poison', true) * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', 1);
+          this.applyPoison(e, this.shotDmg('poison', true) * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', miasmaBalance.stacksPerTick);
           // v1.16.100 瘴毒3★：瘴气每叠 4 层毒引发一次小毒爆（30% 攻击伤害）
           if (this.game.run.relic3('poison_miasma')) {
             e._miaLayers = (e._miaLayers || 0) + 1;
@@ -1020,18 +1023,18 @@ class CombatSystem {
         //   3★：爆炸后留下 1 枚余烬弹，1 秒后自动射向最近敌人（伤害 30%）
         const emberN = g.run.relicNum('fire_ember');
         if (emberN > 0 && Math.random() < emberN / 100) {
-          this.explode(e.x, e.y, 50, this.shotDmg('fire', true) * 0.30, 'fire');
+          this.explode(e.x, e.y, SKILL_NUM.fire['爆燃'].tickBurstRadius, this.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].tickBurstDamage, 'fire');
           if (g.run.relic3('fire_ember')) {
             g.run._emberShots = g.run._emberShots || [];
             g.run._emberShots.push({ t: 1, x: e.x, y: e.y, dmg: this.shotDmg('fire', true) * 0.30 });
           }
         }
         // 爆燃（v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%）
-        if (this.has('fire', '爆燃') && Math.random() < 0.40) {
+        if (this.has('fire', '爆燃') && Math.random() < SKILL_NUM.fire['爆燃'].deathProbability) {
           const aLv = this.branchLv('fire', '爆燃', 'A');
           const bLv = this.branchLv('fire', '爆燃', 'B');
-          const boomR = 80 * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]);
-          this.explode(e.x, e.y, boomR, this.shotDmg('fire', true) * 0.96 * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
+          const boomR = SKILL_NUM.fire['爆燃'].baseRadius * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]);
+          this.explode(e.x, e.y, boomR, this.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].baseDamage * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
           // v1.16.96 连锁爆破3★：爆燃爆炸可传染——爆炸范围内敌人 30% 概率带 1 层灼烧
           if (g.run.relic3('fire_chain')) {
             this.enemies().forEach((o) => {
@@ -1045,9 +1048,9 @@ class CombatSystem {
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
         // v1.16.42 毒爆重做：中毒目标死亡时传染 3+A 个目标，每个目标 30% 几率造成 1 层中毒；
         //   B 继承：30%/40%/50% 概率传播时附带死亡时所有层数；C 毒沼：留下 60px 毒沼 4/5/6 秒每秒叠 1 层并减速 25%
-        const n = SKILL_NUM.ice['碎冰'].count + this.branchLv('poison', '毒爆', 'A');
+        const n = SKILL_NUM.poison['毒爆'].targets + this.branchLv('poison', '毒爆', 'A');
         const bLv = this.branchLv('poison', '毒爆', 'B');
-        const r = 200;
+        const r = SKILL_NUM.poison['毒爆'].radius;
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r)
           .sort((a, b) => (Math.abs(a.x - e.x) + Math.abs(a.y - e.y)) - (Math.abs(b.x - e.x) + Math.abs(b.y - e.y)));
         const picks = cands.slice(0, n);
@@ -1109,7 +1112,7 @@ class CombatSystem {
       // 冰·冰冻 C 碎冰（v1.16.21）：击杀冰冻敌人 → 120px 范围爆炸（30%/40%/50%×攻击力，档位式）并减速 30%
       if (key === 'ice' && this.branchLv('ice', '冰冻', 'C') > 0 && e.frozen > 0) {
         const frzC = this.branchLv('ice', '冰冻', 'C');
-        this.explode(e.x, e.y, 120, this.shotDmg('ice', true) * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
+        this.explode(e.x, e.y, SKILL_NUM.ice['冰冻'].shatterRadius, this.shotDmg('ice', true) * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
       }
       // v1.16.98 霜爆3★：击杀冰冻敌人时引发冰爆（100% 伤害，半径 120 码），并将范围内所有敌人冻结 1 秒
       if (key === 'ice' && this.game.run.relic3('ice_frostburst') && e.frozen > 0) {
@@ -1141,12 +1144,12 @@ class CombatSystem {
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
       if (key === 'boomerang' && this.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
         const cLv = this.branchLv('boomerang', '猎手标记', 'C');
-        const markCap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
-        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100);
+        const markCap = SKILL_NUM.boomerang['猎手标记'].stackCap + SKILL_NUM.boomerang['猎手标记'].stacksPerBranch * this.branchLv('boomerang', '猎手标记', 'B');
+        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= SKILL_NUM.boomerang['猎手标记'].spreadRadius);
         for (let i = 0; i < Math.min(cLv, cands.length); i++) {
           const pick = cands[i];
           pick._mark = Math.min(markCap, (pick._mark || 0) + 1);
-          pick._markT = 5;
+          pick._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
           this.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
         }
         // v1.16.102 猎心3★：标记满层的敌人死亡时，标记转移至最近的敌人并保留全部层数
@@ -1154,7 +1157,7 @@ class CombatSystem {
           const rec = cands.slice().sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
           if (rec) {
             rec._mark = Math.min(markCap, (rec._mark || 0) + e._mark);
-            rec._markT = 5;
+            rec._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
             this.fxBeam(e.x, e.y, rec.x, rec.y, '#d2b4de', 0.4, 3);
           }
         }
@@ -1284,7 +1287,7 @@ class CombatSystem {
   pickAltTarget(key, main) {
     const r = this.range(key);
     const mz = this.towerMuzzle(key);
-    const y0 = main.y - 40, y1 = main.y;
+    const y0 = main.y - COMBAT_BALANCE.alternateTargetBand, y1 = main.y;
     const cands = this.enemies().filter((e) => e.hp > 0 && e !== main && e.y >= y0 && e.y <= y1 && Math.hypot(e.x - mz.x, e.y - mz.y) <= r);
     if (!cands.length) return main;
     return cands[Math.floor(Math.random() * cands.length)];
@@ -1296,6 +1299,12 @@ class CombatSystem {
     // v1.16.77 能量：普攻每次耗 0.5 能量（每 2 发 1 点）；能量耗尽不停火，进入弱化态（shotDmg ×0.5）
     // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
     const ammoT = this.tower(key);
+    const target = this.pickTarget(key);
+    if (!target) {
+      // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
+      if (key === 'boomerang') this.bWait[key] = false;
+      return;
+    }
     // v1.16.103 速射3★：速射期间每 10 次攻击免费 1 发（不耗能量）
     let freeShot = false;
     if (key === 'cannon' && g.run.relic3('can_rapid') && ammoT) {
@@ -1303,12 +1312,6 @@ class CombatSystem {
       if (ammoT._rapidN >= 10) { ammoT._rapidN = 0; freeShot = true; }
     }
     if (ammoT && !freeShot) g.run.spendAttackEnergy(ammoT);
-    const target = this.pickTarget(key);
-    if (!target) {
-      // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
-      if (key === 'boomerang') this.bWait[key] = false;
-      return;
-    }
     // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补；v1.17.10 按塔实际能耗回补）
     const regain = key === 'boomerang' && this.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < SKILL_NUM.boomerang['接镖'].catchRegain;
     if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + g.run.attackCost(ammoT), g.run.armoryEnergyMax());
@@ -1328,7 +1331,14 @@ class CombatSystem {
     if (volley && volley[key]) {
       delete volley[key]; dmg *= GS_BALANCE.volley.damagePerShot;
       for (let i=1;i<GS_BALANCE.volley.count;i++) {
-        this.addProjectile({key,target,dmg,t:-i*GS_BALANCE.volley.shotDelay,dur,sx,sy}, {type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*GS_BALANCE.volley.shotDelay,key});
+        const start = this.shots.length;
+        if (key === 'fire' && this.lv('fire', '多重火球') > 0) this._fireMultiShot(target, dmg);
+        else if (key === 'ice' && this.lv('ice', '多重冰锥') > 0) this._iceMultiShot(target, dmg);
+        else this.addProjectile({key,target,dmg,t:0,dur,sx,sy}, {type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur,key});
+        for (let j = start; j < this.shots.length; j++) {
+          this.shots[j].t = -i * GS_BALANCE.volley.shotDelay;
+          if (this.shots[j].visual) this.shots[j].visual.t = this.shots[j].t;
+        }
       }
     }
     // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
@@ -1392,12 +1402,12 @@ class CombatSystem {
       this._nextDmg[key] = 0;
       // 怪物只沿 +y 走向城墙（main.moveEnemy），预测位移 = speed × 减速系数 × 到达弧顶时间（dur×0.53）
       // v1.16.5 接镖 A 疾飞：镖飞行速度 +20%/级 → 飞行时长缩短、命中与接回更快
-      const flyBoost = 1 + 0.20 * this.branchLv('boomerang', '接镖', 'A') + this.relicVal('boo_spin') / 100;   // v1.16.114 回旋1★/2★：镖速 +20%/30%
+      const flyBoost = 1 + SKILL_NUM.boomerang['接镖'].speedPerBranch * this.branchLv('boomerang', '接镖', 'A') + this.relicVal('boo_spin') / 100;   // v1.16.114 回旋1★/2★：镖速 +20%/30%
       const bDur = dur / flyBoost;
       const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
       const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
-      const n = 1 + multi + this.relicVal('boo_multi');   // v1.16.114 镖群1★/2★：每次投掷镖数 +2/+3
-      const decay = multi > 0 ? (0.12 * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? 0.5 : 1) : 0;
+      const n = SKILL_NUM.boomerang['多镖'].baseCount + multi + this.relicVal('boo_multi');   // v1.16.114 镖群1★/2★：每次投掷镖数 +2/+3
+      const decay = multi > 0 ? (SKILL_NUM.boomerang['多镖'].damageDecayPerLevel * multi) * (this.branchLv('boomerang', '多镖', 'B') > 0 ? SKILL_NUM.boomerang['多镖'].branchDecayMultiplier : 1) : 0;
       const perDmg = dmg * (1 - decay) * (1 + nextBoost);
       const maxD = CONFIG.TOWERS.boomerang.range;
       // v1.16.130 独立索敌：主镖 = 最近敌人，其余 = 主目标上方 40px 截面内随机敌人
@@ -1446,7 +1456,7 @@ class CombatSystem {
     const prev = Math.max(0, Math.min(1, s._collisionP || 0));
     const ax=s.sx+(s.tx-s.sx)*prev, ay=s.sy+(s.ty-s.sy)*prev;
     const bx=s.sx+(s.tx-s.sx)*p, by=s.sy+(s.ty-s.sy)*p;
-    const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy,r=s.hitR||42;
+    const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy,r=s.hitR||COMBAT_BALANCE.scatterHitRadius;
     s._collisionP=p;
     let first=null, at=Infinity;
     for(const e of this.enemies()) {
@@ -1512,11 +1522,11 @@ class CombatSystem {
       const wB = this.branchLv('boomerang', '风痕', 'B');
       const wC = this.branchLv('boomerang', '风痕', 'C');
       this.windTrails = this.windTrails || [];
-      const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= 32;
-      if (spaced && this.windTrails.length < 240) {
-        const ttl = 1.5 + 0.5 * wA;
-        const dps = this.shotDmg('boomerang', true) * 0.30 * (1 + 0.3 * wB);
-        this.windTrails.push({ x: bx, y: by, r: 34, ttl, dps, slow: SKILL_NUM.boomerang['风痕'].slow[wC] });   // v1.16.42 C 卷痕档位式 10%/20%/30%
+      const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= SKILL_NUM.boomerang['风痕'].sampleDistance;
+      if (spaced && this.windTrails.length < SKILL_NUM.boomerang['风痕'].maxTrails) {
+        const ttl = SKILL_NUM.boomerang['风痕'].duration + SKILL_NUM.boomerang['风痕'].durationPerBranch * wA;
+        const dps = this.shotDmg('boomerang', true) * SKILL_NUM.boomerang['风痕'].damage * (1 + SKILL_NUM.boomerang['风痕'].damagePerBranch * wB);
+        this.windTrails.push({ x: bx, y: by, r: SKILL_NUM.boomerang['风痕'].radius, ttl, dps, slow: SKILL_NUM.boomerang['风痕'].slow[wC] });   // v1.16.42 C 卷痕档位式 10%/20%/30%
         s._wLast = { x: bx, y: by };
       }
       if (Math.random() < 0.5) this.fxParticle(bx, by, '#c39bd3', 1, 14, 0.5, 50, 3);
@@ -1574,13 +1584,13 @@ class CombatSystem {
       const pA = this.branchLv('electric', '麻痹', 'A');
       const pB = this.branchLv('electric', '麻痹', 'B');
       const pC = this.branchLv('electric', '麻痹', 'C');
-      const pProb = Math.min(1, 0.20 + (paraLv > 0 ? 0.20 : 0) + 0.15 * pA + this.relicVal('elec_strong') / 100);   // v1.16.114 强麻1★/2★
+      const pProb = Math.min(1, SKILL_NUM.electric['麻痹'].baseProbability + (paraLv > 0 ? SKILL_NUM.electric['麻痹'].learnedProbability : 0) + SKILL_NUM.electric['麻痹'].probabilityPerBranch * pA + this.relicVal('elec_strong') / 100);   // v1.16.114 强麻1★/2★
       // v1.16.101 强麻3★：麻痹概率触顶（≥80%）时，多余判定转为麻痹时长 +0.5 秒
       const strong = this.game.run.relic3('elec_strong') && pProb >= 0.8;
       if (strong ? Math.random() < 0.8 : Math.random() < pProb) {
-        const dur = 2 + 0.5 * pB;
+        const dur = SKILL_NUM.electric['麻痹'].duration + SKILL_NUM.electric['麻痹'].durationPerBranch * pB;
         o.paralyzed = Math.max(o.paralyzed || 0, dur);
-        this.applySlow(o, 0.5, dur);
+        this.applySlow(o, SKILL_NUM.electric['麻痹'].slow, dur);
         this.fxParticle(o.x, o.y, '#f4d03f', 8, 50, 0.4, 140, 5);
         if (pC > 0) {
           // v1.16.101 麻痹扩散3★：麻痹传导链最多 3 跳（原 1 跳），每跳概率衰减 5%
@@ -1589,16 +1599,16 @@ class CombatSystem {
           let prev = o;
           let chainProb = cProb0;
           for (let hop = 0; hop < hopMax; hop++) {
-            const nexts = this.enemies().filter((q) => q !== prev && q.hp > 0 && Math.hypot(q.x - prev.x, q.y - prev.y) <= 100);
+            const nexts = this.enemies().filter((q) => q !== prev && q.hp > 0 && Math.hypot(q.x - prev.x, q.y - prev.y) <= SKILL_NUM.electric['麻痹'].spreadRadius);
             if (!nexts.length) break;
             if (Math.random() < chainProb) {
               const q = nexts[Math.floor(Math.random() * nexts.length)];
-              q.paralyzed = Math.max(q.paralyzed || 0, 1);
-              this.applySlow(q, 0.5, 1);
+              q.paralyzed = Math.max(q.paralyzed || 0, SKILL_NUM.electric['麻痹'].spreadDuration);
+              this.applySlow(q, SKILL_NUM.electric['麻痹'].spreadSlow, SKILL_NUM.electric['麻痹'].spreadDuration);
               this.fxParticle(q.x, q.y, '#f4d03f', 4, 30, 0.35, 110, 4);
               this.fxBeam(prev.x, prev.y, q.x, q.y, '#ffe08a', 0.25, 2.5);
               prev = q;
-              chainProb -= 0.05;
+              chainProb -= SKILL_NUM.electric['麻痹'].spreadDecay;
             } else break;
           }
         }
@@ -1610,9 +1620,9 @@ class CombatSystem {
       }
     } else if (key === 'poison') {
       // 中毒（v1.16.21）：基础 20%；学剧毒 +25% + A 每级 +15%
-      let prob = 0.20;
+      let prob = SKILL_NUM.poison['剧毒'].baseProbability;
       const toxic = this.lv('poison', '剧毒');
-      if (toxic > 0) prob += 0.25 + 0.15 * this.branchLv('poison', '剧毒', 'A');
+      if (toxic > 0) prob += SKILL_NUM.poison['剧毒'].learnedProbability + SKILL_NUM.poison['剧毒'].probabilityPerBranch * this.branchLv('poison', '剧毒', 'A');
       prob += this.relicVal('poison_fang') / 100;   // v1.16.114 毒牙1★/2★
       // v1.16.100 毒牙3★：中毒概率触顶（≥80%）时，多余判定转为 +1 层毒
       if (this.game.run.relic3('poison_fang') && prob >= 0.8) {
@@ -1630,7 +1640,7 @@ class CombatSystem {
     } else if (key === 'boomerang') {
       // 流血（v1.16.21）：基础 20%；学放血 +25%（20→45）+ A 刺骨 +15%/级（45→90%）
       const bleedLv = this.lv('boomerang', '放血');
-      const bleedChance = 0.20 + (bleedLv > 0 ? 0.25 + 0.15 * this.branchLv('boomerang', '放血', 'A') : 0) + this.relicVal('boo_bleed') / 100;   // v1.16.114 放血刃1★/2★
+      const bleedChance = SKILL_NUM.boomerang['放血'].baseProbability + (bleedLv > 0 ? SKILL_NUM.boomerang['放血'].learnedProbability + SKILL_NUM.boomerang['放血'].probabilityPerBranch * this.branchLv('boomerang', '放血', 'A') : 0) + this.relicVal('boo_bleed') / 100;   // v1.16.114 放血刃1★/2★
       // v1.16.102 放血刃3★：流血概率触顶（≥80%）时，多余判定转为流血时长 +1 秒
       const bleedTip = this.game.run.relic3('boo_bleed') && bleedChance >= 0.8;
       if (bleedTip ? Math.random() < 0.8 : Math.random() < bleedChance) {
@@ -1647,16 +1657,17 @@ class CombatSystem {
   hit(key, e, dmg) {
     const g = this.game;
     // 电磁场（v1.13.22 分支补全）：任意塔命中概率触发微型连锁——A 激磁 +10%/级、B 强磁伤害 +30%/级、C 扩磁目标 +1/级
+    const emBalance = SKILL_NUM.electric['电磁场'];
     const em = this.lv('electric', '电磁场');
     if (em > 0) {
       const emA = this.branchLv('electric', '电磁场', 'A');
       const emB = this.branchLv('electric', '电磁场', 'B');
       const emC = this.branchLv('electric', '电磁场', 'C');
-      if (Math.random() < 0.10 + 0.10 * (em - 1) + 0.10 * emA) {
-        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < 110 && Math.abs(o.y - e.y) < 110);
-        const emDmg = this.shotDmg('electric') * 0.4 * (1 + 0.3 * (em - 1)) * (1 + 0.3 * emB);
+      if (Math.random() < emBalance.probability + emBalance.probabilityPerLevel * (em - 1) + emBalance.probabilityPerBranch * emA) {
+        const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.x - e.x) < emBalance.radius && Math.abs(o.y - e.y) < emBalance.radius);
+        const emDmg = this.shotDmg('electric') * emBalance.damage * (1 + emBalance.damagePerLevel * (em - 1)) * (1 + emBalance.damagePerBranch * emB);
         // v1.16.101 超导3★：全部连锁类效果目标数 +1
-        const n = 1 + emC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 扩磁：目标 +1/级
+        const n = emBalance.targets + emC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 扩磁：目标 +1/级
         for (let i = 0; i < n && cands.length; i++) {
           const pick = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
           this.damage(pick, emDmg, 'electric');
@@ -1941,11 +1952,11 @@ class CombatSystem {
         const da = off + (ang || 0);
         const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
         const mStrike = (m2) => {
-          this.damage(m2, d * 0.25, 'fire');
+          this.damage(m2, d * SKILL_NUM.fire['多重火球'].splitDamage, 'fire');
           this.tryAttackDebuff('fire', m2, d);
           this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
         };
-        this.addProjectile({ key: 'fire', scatter: true, dmg: d * 0.25, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+        this.addProjectile({ key: 'fire', scatter: true, dmg: d * SKILL_NUM.fire['多重火球'].splitDamage, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * SKILL_NUM.fire['多重火球'].splitDurationRatio, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: SKILL_NUM.fire['多重火球'].splitHitRadius, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * SKILL_NUM.fire['多重火球'].splitDurationRatio, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
       }
     }
     // 大火球爆炸（含爆核1★/2★ 半径扩大）
@@ -2232,9 +2243,7 @@ class CombatSystem {
         const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
         this.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
       }
-      // 主目标也受一枚小冰锥伤害（增殖时无直瞄主目标概念，主目标被环形索敌覆盖）
-      this.damage(e, perDmg, 'ice');
-      this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
+      // 增殖仅由每枚真实冰锥碰撞结算，不额外对主目标即时扣血。
       return;
     }
     const n = balance.count + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
@@ -2376,10 +2385,10 @@ class CombatSystem {
       const aLv = this.branchLv('ice', '冰穿刺', 'A');
       const bLv = this.branchLv('ice', '冰穿刺', 'B');
       const cLv = this.branchLv('ice', '冰穿刺', 'C');
-      const pierceN = 1 + aLv + this.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
+      const pierceN = SKILL_NUM.ice['冰穿刺'].baseTargets + aLv + this.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
       // 穿透目标：沿弹道方向位于目标身后（远离塔侧）的敌人，按投影距离排序
       const cands = this.enemies().filter((o) => o.hp > 0 && o !== e
-          && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > 20)
+          && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > SKILL_NUM.ice['冰穿刺'].minProjection)
         .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
       const hitCnt = Math.min(pierceN, cands.length);
       for (let i = 0; i < hitCnt; i++) {
@@ -2399,7 +2408,7 @@ class CombatSystem {
           if (o.hp <= 0 || o === e) return;
           const proj = (o.x - e.x) * ddx + (o.y - e.y) * ddy;          // 沿弹道方向投影（正=身后）
           const side = Math.abs((o.x - e.x) * ddy - (o.y - e.y) * ddx); // 侧向距离
-          if (proj > 0 && proj <= 60 && side <= proj) this.damage(o, fDmg, 'ice');   // ±45°（90° 扇形）
+          if (proj > 0 && proj <= SKILL_NUM.ice['冰穿刺'].coneLength && side <= proj * SKILL_NUM.ice['冰穿刺'].coneWidthRatio) this.damage(o, fDmg, 'ice');   // ±45°（90° 扇形）
         });
         this.fxParticle(e.x, e.y, '#d6f0ff', 8, 70, 0.35, 130, 5);
         this.fxRing(e.x, e.y, '#b8e6ff', 42, 0.3, 3);
@@ -2619,32 +2628,33 @@ class CombatSystem {
       }
     }
     // 过载（v1.16.21 重做）：仅命中麻痹目标叠层（上限 3 层·2s）；A 每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 发炮弹；C 满层闪电爆发（不变）
+    const overBalance = SKILL_NUM.electric['过载'];
     const over = this.lv('electric', '过载');
     if (over > 0) {
       if (e.paralyzed > 0) {
-        if (!e.overload) e.overload = { n: 0, ttl: 2 };
-        const ovCap = 3 + this.relicVal('elec_overload');   // v1.16.114 过载1★/2★：充能层数上限 +2/+3
+        if (!e.overload) e.overload = { n: 0, ttl: overBalance.duration };
+        const ovCap = overBalance.stackCap + this.relicVal('elec_overload');   // v1.16.114 过载1★/2★：充能层数上限 +2/+3
         e.overload.n = Math.min(ovCap, e.overload.n + 1);
-        e.overload.ttl = 2;
+        e.overload.ttl = overBalance.duration;
         // v1.16.101 过载3★：满层过载时标记下一发普攻必为双倍伤害（满层=当前上限）
         if (this.game.run.relic3('elec_overload') && e.overload.n >= ovCap) e._ovDbl = true;
         // C 分支：满层闪电爆发（每层周期只触发一次，层数清零后重新可触发）
-        if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= 3 && !e.overload._burst) {
+        if (this.branchLv('electric', '过载', 'C') > 0 && e.overload.n >= overBalance.triggerStacks && !e.overload._burst) {
           e.overload._burst = true;
-          const bDmg = this.shotDmg('electric') * 0.8;
-          const r = 150;
+          const bDmg = this.shotDmg('electric') * overBalance.burstDamage;
+          const r = overBalance.burstRadius;
           this.enemies().forEach((o) => {
             if (o.hp <= 0 || Math.hypot(o.x - e.x, o.y - e.y) > r) return;
             this.damage(o, bDmg, 'electric');
-            o.paralyzed = Math.max(o.paralyzed || 0, 1.5);
-            this.applySlow(o, 0.5, 1.5);
+            o.paralyzed = Math.max(o.paralyzed || 0, overBalance.paralysisDuration);
+            this.applySlow(o, overBalance.burstSlow, overBalance.paralysisDuration);
             this.fxFlash(o.x, o.y, '#f4d03f');
           });
           this.fxRing(e.x, e.y, '#f4d03f', r, 0.4, 4);
         }
         // A 分支：每 3 层消耗所有过载 → 20%/30%/40% 伤害 + 填充 1 点能量（封顶能量上限）
         const ovA = this.branchLv('electric', '过载', 'A');
-        if (ovA > 0 && e.overload.n >= 3) {
+        if (ovA > 0 && e.overload.n >= overBalance.triggerStacks) {
           this.damage(e, this.shotDmg('electric') * SKILL_NUM.electric['过载'].deton[ovA], 'electric');
           this.fxFlash(e.x, e.y, '#f4d03f');
           this.fxRing(e.x, e.y, '#f4d03f', 40, 0.3, 3);
@@ -2661,17 +2671,18 @@ class CombatSystem {
     // 活电（v1.13.18 改电球，v1.13.19 更名）：命中麻痹中的敌人 → 向四周扩散 N 个随机游走电球（A 分支 +2/级；B 分支伤害 +20%/级；C 分支游走更久）
     const bounce = this.lv('electric', '活电');
     if (bounce > 0 && e.paralyzed > 0) {
-      const n = 5 + 2 * this.branchLv('electric', '活电', 'A');
-      const orbDmg = dmg * 0.5 * (1 + 0.2 * this.branchLv('electric', '活电', 'B'));
-      const oDur = 1.4 + 0.4 * this.branchLv('electric', '活电', 'C');   // v1.13.21 游走时长 0.8→1.4s
+      const live = SKILL_NUM.electric['活电'];
+      const n = live.count + live.countPerBranch * this.branchLv('electric', '活电', 'A');
+      const orbDmg = dmg * live.damage * (1 + live.damagePerBranch * this.branchLv('electric', '活电', 'B'));
+      const oDur = live.duration + live.durationPerBranch * this.branchLv('electric', '活电', 'C');   // v1.13.21 游走时长 0.8→1.4s
       for (let i = 0; i < n; i++) {
         const orb = {
           key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
           x: e.x, y: e.y,
           // v1.16.21 电球均匀向周围扩散：初始角度等分圆周（360°/n）+ 小幅抖动，不再扎堆生成方向
-          ang: (Math.PI * 2 / n) * i + (Math.random() - 0.5) * 0.9,
+          ang: (Math.PI * 2 / n) * i + (Math.random() - 0.5) * live.angleJitter,
           // v1.16.21 电球速度 +30%：150-230 → 195-299
-          speed: (150 + Math.random() * 80) * 1.3,   // v1.13.21 速度 95-155→150-230
+          speed: (live.minSpeed + Math.random() * live.randomSpeed) * live.speedMultiplier,   // v1.13.21 速度 95-155→150-230
           orb: true, fx: null,
         };
         orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };
@@ -2687,9 +2698,9 @@ class CombatSystem {
     const chainC = this.branchLv('electric', '连锁', 'C');
     if (chainLv > 0) {
       const super3 = this.game.run.relic3('elec_super');   // v1.16.101 超导3★：全部连锁类衰减归零 + 目标数 +1
-      const extra = (2 + 1 * chainA + (super3 ? 1 : 0)) + this.relicVal('elec_arc')   // v1.16.114 电弧1★/2★：攻击连锁 +2/+3
+      const extra = (SKILL_NUM.electric['连锁'].extraTargets + SKILL_NUM.electric['连锁'].targetsPerBranch * chainA + (super3 ? 1 : 0)) + this.relicVal('elec_arc')   // v1.16.114 电弧1★/2★：攻击连锁 +2/+3
         + (this.game.run.relic3('elec_light') && (this.tower('electric')._chargeLayers || 0) > 0 ? 1 : 0);   // 电光3★：攻速加成期间连锁数量 +1
-      let decay = 0.30 * (1 - 0.2 * chainB);   // 基础衰减 30% - B 稳流每级 20%
+      let decay = SKILL_NUM.electric['连锁'].decay * (1 - SKILL_NUM.electric['连锁'].decayReductionPerBranch * chainB);   // 基础衰减 30% - B 稳流每级 20%
       decay = super3 ? 0 : Math.max(0.10, decay);
       // v1.16.101 传导3★：连锁衰减降为 0 时，每跳额外 +5% 伤害
       const conduit = this.game.run.relic3('elec_conduit') && decay <= 0.11;
@@ -2713,7 +2724,7 @@ class CombatSystem {
         }
         // C 回能：每次连锁命中缩短电塔攻击间隔（3%/级）
         if (chainC > 0 && this.atkTimers.electric !== undefined) {
-          this.atkTimers.electric = Math.max(0, this.atkTimers.electric - this.interval('electric') * 0.03 * chainC);
+          this.atkTimers.electric = Math.max(0, this.atkTimers.electric - this.interval('electric') * SKILL_NUM.electric['连锁'].cooldownRefundPerBranch * chainC);
         }
         hitSet.push(next);
         cur = next;
@@ -2725,6 +2736,7 @@ class CombatSystem {
 
   tickElectric(dt) {
     const g = this.game;
+    const arcBalance = SKILL_NUM.electric['极光电击'];
     // v1.16.101 快充3★：过载脉冲窗口递减（interval 读取 run._elecPulseTtl）
     if (g.run._elecPulseTtl > 0) g.run._elecPulseTtl -= dt;
     // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 裂电；
@@ -2737,7 +2749,7 @@ class CombatSystem {
       const arcB = this.branchLv('electric', '极光电击', 'B');
       const arcC = this.branchLv('electric', '极光电击', 'C');
       this.timers.arc = (this.timers.arc || 0) + dt;
-      const period = 8 * this._weakPeriod('electric');   // v1.16.42 周期固定 8 秒（弱化态 ×1.5）
+      const period = arcBalance.period * this._weakPeriod('electric');   // v1.16.42 周期固定 8 秒（弱化态 ×1.5）
       if (this.timers.arc >= period) {
         this.timers.arc = 0;
         this.castEnergy('electric', '极光电击');
@@ -2749,15 +2761,15 @@ class CombatSystem {
         if (alive.length) {
           // 最近的敌人（行距离最小）为电击目标（v1.16.51：不再沿延长线穿透，仅此一目标受主线伤害）
           const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
-          const dmg = this.shotDmg('electric') * (0.80 + 0.20 * arcB);
+          const dmg = this.shotDmg('electric') * (arcBalance.damage + arcBalance.damagePerBranch * arcB);
           const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
           this.damage(nearest, dmg, 'electric');
           this.fxFlash(nearest.x, nearest.y, '#f4d03f');
           // v1.16.51 分叉电弧：从最近敌向 (100+20×A) 码内分叉 3+arcC 个敌人，各 40% 主线伤害（不递归、不重复）
           const hitSet = new Set([nearest]);
-          const branchRange = 100 + 20 * arcA;   // A 扩域：100→120→140→160 码
+          const branchRange = arcBalance.branchRadius + arcBalance.radiusPerBranch * arcA;   // A 扩域：100→120→140→160 码
           // v1.16.101 超导3★：全部连锁类效果目标数 +1
-          const nB = 3 + arcC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 裂电：3→4→5→6 个
+          const nB = arcBalance.branchCount + arcC + (this.game.run.relic3('elec_super') ? 1 : 0);   // C 裂电：3→4→5→6 个
           // v1.16.101 电链3★：分叉电弧可再分叉一次（各 20% 伤害）
           const reFork = this.game.run.relic3('elec_chain');
           for (let k = 0; k < nB; k++) {
@@ -2765,7 +2777,7 @@ class CombatSystem {
             if (!cands.length) break;
             const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
             hitSet.add(tgt);
-            this.damage(tgt, dmg * 0.4, 'electric');
+            this.damage(tgt, dmg * arcBalance.branchDamage, 'electric');
             this.fxFlash(tgt.x, tgt.y, '#7fc7ff');
             const cpath = [
               { x: nearest.x, y: nearest.y },
@@ -2799,19 +2811,20 @@ class CombatSystem {
         }
       }
     }
+    const stormBalance = SKILL_NUM.electric['雷暴'];
     const storm = this.lv('electric', '雷暴');
     if (storm > 0) {
       // v1.16.21 雷暴分支调整：A=雷击目标+2/级（3/5/7/9）；B=连雷 30%/45%/60% 几率连锁周边 90px 敌人；C=雷击间隔 -1s/级（10→9/8/7s）
       const cLv = this.branchLv('electric', '雷暴', 'C');
-      const period = (10 - 1 * cLv) * this._weakPeriod('electric');   // C0 10 / C1 9 / C2 8 / C3 7s（弱化态 ×1.5）
+      const period = (stormBalance.period - stormBalance.periodReductionPerBranch * cLv) * this._weakPeriod('electric');   // C0 10 / C1 9 / C2 8 / C3 7s（弱化态 ×1.5）
       this.timers.storm = (this.timers.storm || 0) + dt;
       if (this.timers.storm >= period) {
         this.timers.storm = 0;
         this.castEnergy('electric', '雷暴');
         const aLv = this.branchLv('electric', '雷暴', 'A');
         const bLv = this.branchLv('electric', '雷暴', 'B');
-        const n = 3 + 2 * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
-        const dmg = this.shotDmg('electric') * 0.64 * (1 + 0.25 * (storm - 1));
+        const n = stormBalance.targetCount + stormBalance.targetsPerBranch * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
+        const dmg = this.shotDmg('electric') * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1));
         // 全图随机 N 个存活目标（Fisher-Yates）
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('electric', e.x, e.y));
         const pool = alive.slice();
@@ -2834,7 +2847,7 @@ class CombatSystem {
           this.damage(e, dmg, 'electric');
           // v1.16.101 雷霆3★：雷暴击中麻痹的敌人时，将其麻痹向 90 码内 2 名敌人传导（各 1 秒）
           if (this.game.run.relic3('elec_storm') && e.paralyzed > 0) {
-            const spread2 = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
+            const spread2 = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= stormBalance.chainRadius)
               .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, 2);
             spread2.forEach((o) => {
               o.paralyzed = Math.max(o.paralyzed || 0, 1);
@@ -2844,13 +2857,13 @@ class CombatSystem {
             });
           }
           // B 分支（v1.16.21 连雷）：雷击 30%/45%/60% 几率连锁周边最近 bLv 个敌人（90px，50% 伤害）
-          if (bLv > 0 && Math.random() < SKILL_NUM.poison['瘟疫'].prob[bLv]) {
+          if (bLv > 0 && Math.random() < stormBalance.chainProbability[bLv]) {
             // v1.16.101 超导3★：全部连锁类效果目标数 +1
             const chainN = bLv + (this.game.run.relic3('elec_super') ? 1 : 0);
-            const chain = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= 90)
+            const chain = this.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= stormBalance.chainRadius)
               .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, chainN);
             chain.forEach((o) => {
-              this.damage(o, dmg * 0.5, 'electric');
+              this.damage(o, dmg * stormBalance.chainDamage, 'electric');
               const cpath = [{ x: e.x, y: e.y }];
               const mx = (e.x + o.x) / 2 + (Math.random() * 14 - 7), my = (e.y + o.y) / 2 + (Math.random() * 14 - 7);
               cpath.push({ x: mx, y: my }, { x: o.x, y: o.y });
@@ -2882,8 +2895,8 @@ class CombatSystem {
   applyPoison(e, dmg, src, layers) {
     const boost = this.dotBoost();
     const perStackDps = dmg * boost.dmg;
-    const ttl = (5 + 2 * this.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
-    const cap = 5 + 2 * this.branchLv('poison', '毒性强化', 'C');
+    const ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * this.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
+    const cap = SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * this.branchLv('poison', '毒性强化', 'C');
     const add = Math.max(1, layers || 1);
     const freq = 1 / (1 - SKILL_NUM.poison['剧毒'].freq[this.branchLv('poison', '剧毒', 'C')]);
     let dot = e.dots.find((d) => d.type === 'poison');
@@ -2913,21 +2926,22 @@ class CombatSystem {
    *  v1.16.39 槽数恒用渲染固定值（正式 4 槽），不随已激活塔数变化——得塔前/后塔位坐标稳定（旧实现 n=slotOrder.length，1 塔时算成单槽居中 → 塔区中心） */
   tickPoison(dt) {
     const g = this.game;
+    const poolBalance=SKILL_NUM.poison['毒池'], stickBalance=SKILL_NUM.poison['毒棒'], vineBalance=SKILL_NUM.poison['毒藤'];
     // 毒·毒池（v1.15；v1.16.21 数值调整）：周期 5s 释放毒池（半径 130；A 伤 +40%/级；B 持续 +2s/级；C 范围 +20%/级），池内每秒毒伤并叠毒
     const pool = this.lv('poison', '毒池');
     if (pool > 0) {
       this.timers.pool = (this.timers.pool || 0) + dt;
-      if (this.timers.pool >= 5 * this._weakPeriod('poison')) {
+      if (this.timers.pool >= poolBalance.period * this._weakPeriod('poison')) {
         this.timers.pool = 0;
         this.castEnergy('poison', '毒池');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;
         const tgt = alive[Math.floor(Math.random() * alive.length)];
-        const pr = 130 * (1 + 0.2 * this.branchLv('poison', '毒池', 'C'));
-        const dps = this.shotDmg('poison') * 0.20 * (1 + 0.4 * this.branchLv('poison', '毒池', 'A'));
-        const ttl = 4 + 2 * this.branchLv('poison', '毒池', 'B');
+        const pr = poolBalance.radius * (1 + poolBalance.radiusPerBranch * this.branchLv('poison', '毒池', 'C'));
+        const dps = this.shotDmg('poison') * poolBalance.damage * (1 + poolBalance.damagePerBranch * this.branchLv('poison', '毒池', 'A'));
+        const ttl = poolBalance.duration + poolBalance.durationPerBranch * this.branchLv('poison', '毒池', 'B');
         this.groundDots = this.groundDots || [];
-        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: 1, seed: Math.random() * 100, color: '#1e8449', ring: this.game.run.relic3('poison_fen') });
+        this.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: poolBalance.stacksPerSecond, seed: Math.random() * 100, color: '#1e8449', ring: this.game.run.relic3('poison_fen') });
         this.fxRing(tgt.x, tgt.y, '#1e8449', pr, 0.8, 5);
         this.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
       }
@@ -2936,20 +2950,20 @@ class CombatSystem {
     const stick = this.lv('poison', '毒棒');
     if (stick > 0) {
       this.timers.stick = (this.timers.stick || 0) + dt;
-      const cd = Math.max(1.5, 4 - 0.5 * this.branchLv('poison', '毒棒', 'B')) * this._weakPeriod('poison');
+      const cd = Math.max(stickBalance.minPeriod, stickBalance.period - stickBalance.periodReduction * this.branchLv('poison', '毒棒', 'B')) * this._weakPeriod('poison');
       if (this.timers.stick >= cd) {
         this.timers.stick = 0;
         this.castEnergy('poison', '毒棒');
-        const n = 1 + this.branchLv('poison', '毒棒', 'A');
+        const n = stickBalance.count + this.branchLv('poison', '毒棒', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
         for (let i = 0; i < n; i++) {
           const near = alive[Math.floor(Math.random() * alive.length)];
           const px = near.x + (Math.random() - 0.5) * 60;
           const py = near.y + (Math.random() - 0.5) * 60;
-          const ttl = 10 + 2 * this.branchLv('poison', '毒棒', 'B');
+          const ttl = stickBalance.duration + stickBalance.durationPerBranch * this.branchLv('poison', '毒棒', 'B');
           this.poisonSticks = this.poisonSticks || [];
-          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: 1, r: 200, dmg: this.shotDmg('poison') * 0.24, targets: 1 + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+          this.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: this.shotDmg('poison') * stickBalance.damage, targets: stickBalance.targets + this.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
           this.fxRing(px, py, '#1e8449', 40, 0.5, 4);
           this.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
         }
@@ -2959,11 +2973,11 @@ class CombatSystem {
     const vine = this.lv('poison', '毒藤');
     if (vine > 0) {
       this.timers.vine = (this.timers.vine || 0) + dt;
-      if (this.timers.vine >= 6 * this._weakPeriod('poison')) {
+      if (this.timers.vine >= vineBalance.period * this._weakPeriod('poison')) {
         this.timers.vine = 0;
         this.castEnergy('poison', '毒藤');
-        const n = 1 + this.branchLv('poison', '毒藤', 'A');
-        const dur = 3 + this.branchLv('poison', '毒藤', 'B');
+        const n = vineBalance.targets + this.branchLv('poison', '毒藤', 'A');
+        const dur = vineBalance.duration + this.branchLv('poison', '毒藤', 'B');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('poison', e.x, e.y)).sort((a, b) => b.y - a.y);
         const picks = alive.slice(0, n);
         const mus = this.towerMuzzle('poison');
@@ -3010,17 +3024,17 @@ class CombatSystem {
     if (g.run.relic3('can_heavy') && this.lv('cannon', '重炮') > 0) dmg *= 1.5;
     // 普攻溅射（v1.16.12）：基础 100px 范围、40% 溅射伤害（v1.16.22 由 10% 上调）；学「重炮」后范围 +25%/级（A 扩爆 +15%/级、B 炸力 +15%/级）
     const heavy = this.lv('cannon', '重炮');
-    let r = 100 * (1 + 0.25 * heavy + 0.15 * this.branchLv('cannon', '重炮', 'A'));
+    let r = SKILL_NUM.cannon['重炮'].radius * (1 + SKILL_NUM.cannon['重炮'].radiusPerLevel * heavy + SKILL_NUM.cannon['重炮'].radiusPerBranch * this.branchLv('cannon', '重炮', 'A'));
     if (heavy > 0) r *= (1 + this.relicVal('can_heavy') / 100);   // v1.16.114 重爆1★/2★：爆炸范围 +30%/45%
     if (overheat) r *= 1.3;   // 过热弹爆炸半径 +30%
-    const splDmg = dmg * 0.40 * (1 + 0.15 * this.branchLv('cannon', '重炮', 'B'));
+    const splDmg = dmg * SKILL_NUM.cannon['重炮'].splashDamage * (1 + SKILL_NUM.cannon['重炮'].damagePerBranch * this.branchLv('cannon', '重炮', 'B'));
     // 协同（爆炸类 +50%）在 explode() 内按 SYNERGIES[1] 统一结算（v1.16.20 修正越界索引）
     // 震击（v1.16）：40%+20pp×B 概率击退 60×(1+0.4×A)px；C 迟滞被击退减速 1/1.5/2 秒（随等级）
     const shock = this.lv('cannon', '震击');
     let knock = 0, slowAfter = 0;
-    if (shock > 0 && Math.random() < 0.40 + 0.20 * this.branchLv('cannon', '震击', 'B')) {
-      knock = 60 * (1 + 0.4 * this.branchLv('cannon', '震击', 'A')) * (1 + this.relicVal('can_knock') / 100);   // v1.16.114 震烈1★/2★
-      slowAfter = 0.5 + 0.5 * this.branchLv('cannon', '震击', 'C');   // C1=1s / C2=1.5s / C3=2s
+    if (shock > 0 && Math.random() < SKILL_NUM.cannon['震击'].probability + SKILL_NUM.cannon['震击'].probabilityPerBranch * this.branchLv('cannon', '震击', 'B')) {
+      knock = SKILL_NUM.cannon['震击'].knockback * (1 + SKILL_NUM.cannon['震击'].knockbackPerBranch * this.branchLv('cannon', '震击', 'A')) * (1 + this.relicVal('can_knock') / 100);   // v1.16.114 震烈1★/2★
+      slowAfter = SKILL_NUM.cannon['震击'].slowDuration + SKILL_NUM.cannon['震击'].slowDurationPerBranch * this.branchLv('cannon', '震击', 'C');   // C1=1s / C2=1.5s / C3=2s
     }
     this.damage(e, dmg, 'cannon');
     // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
@@ -3035,9 +3049,9 @@ class CombatSystem {
     if (pierce > 0) {
       // v1.16.103 穿透3★：弹片贯穿改为贯穿路径上所有敌人（无人数上限），每多贯穿 1 名伤害 -10%（下限 40%）
       const pierceAll = g.run.relic3('can_pierce');
-      const n = pierceAll ? Infinity : 2 + this.branchLv('cannon', '贯穿弹', 'A') + this.relicVal('can_pierce');   // v1.16.114 穿透1★/2★
-      const pDmg0 = dmg * 0.7 * (1 + 0.20 * this.branchLv('cannon', '贯穿弹', 'B'));
-      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < 60 && Math.abs(o.x - e.x) < 85)
+      const n = pierceAll ? Infinity : SKILL_NUM.cannon['贯穿弹'].targets + this.branchLv('cannon', '贯穿弹', 'A') + this.relicVal('can_pierce');   // v1.16.114 穿透1★/2★
+      const pDmg0 = dmg * SKILL_NUM.cannon['贯穿弹'].damage * (1 + SKILL_NUM.cannon['贯穿弹'].damagePerBranch * this.branchLv('cannon', '贯穿弹', 'B'));
+      const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.abs(o.y - e.y) < SKILL_NUM.cannon['贯穿弹'].targetHalfHeight && Math.abs(o.x - e.x) < SKILL_NUM.cannon['贯穿弹'].targetHalfWidth)
         .sort((a, b) => b.y - a.y);
       // v1.16.103 火线3★：贯穿路径留下火线 1.5 秒，每秒 15% 伤害
       const fireline = g.run.relic3('can_fireline');
@@ -3052,7 +3066,7 @@ class CombatSystem {
         }
         // v1.16.42 C 贯透档位式：被贯穿敌人减速 15%/30%/45%
         const pierceC = this.branchLv('cannon', '贯穿弹', 'C');
-        if (pierceC > 0) this.applySlow(hitT, SKILL_NUM.cannon['贯穿弹'].slow[pierceC], 1);
+        if (pierceC > 0) this.applySlow(hitT, SKILL_NUM.cannon['贯穿弹'].slow[pierceC], SKILL_NUM.cannon['贯穿弹'].slowDuration);
         this.fxParticle(hitT.x, hitT.y, '#d89e63', 3, 22, 0.3, 90, 4);
       }
     }
@@ -3068,13 +3082,13 @@ class CombatSystem {
     const support = this.lv('cannon', '炮火支援');
     if (support > 0) {
       this.timers.support = (this.timers.support || 0) + dt;
-      if (this.timers.support >= 12 * this._weakPeriod('cannon')) {
+      if (this.timers.support >= SKILL_NUM.cannon['炮火支援'].period * this._weakPeriod('cannon')) {
         this.timers.support = 0;
         this.castEnergy('cannon', '炮火支援');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (alive.length) {
-          const n = 3 + this.branchLv('cannon', '炮火支援', 'A');
-          const dmg = this.shotDmg('cannon') * 0.60 * (1 + 0.4 * this.branchLv('cannon', '炮火支援', 'B'));
+          const n = SKILL_NUM.cannon['炮火支援'].count + this.branchLv('cannon', '炮火支援', 'A');
+          const dmg = this.shotDmg('cannon') * SKILL_NUM.cannon['炮火支援'].damage * (1 + SKILL_NUM.cannon['炮火支援'].damagePerBranch * this.branchLv('cannon', '炮火支援', 'B'));
           const mus = this.towerMuzzle('cannon');
           for (let i = 0; i < n; i++) {
             const t = alive[Math.floor(Math.random() * alive.length)];
@@ -3084,8 +3098,8 @@ class CombatSystem {
             // 炮弹：升空 0.3s → 高点悬停至 1.0s → 0.3s 垂直落下（总 1.3s + 偏移）
             g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, t: 0, dur: 1.3 + off, offset: off, seed: Math.random() * 100 });
             // 炮击圈：落地前 0.5s 出现（显示至落地爆炸，时长 0.8s）
-            g.fx.push({ type: 'strike', x: px, y: py, r: 130, t: 0, dur: 0.8 + off, offset: off, seed: Math.random() * 100 });
-            this.delayed.push({ x: px, y: py, r: 130, dmg, delay: 1.3 + off, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
+            g.fx.push({ type: 'strike', x: px, y: py, r: SKILL_NUM.cannon['炮火支援'].radius, t: 0, dur: 0.8 + off, offset: off, seed: Math.random() * 100 });
+            this.delayed.push({ x: px, y: py, r: SKILL_NUM.cannon['炮火支援'].radius, dmg, delay: 1.3 + off, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: this.branchLv('cannon', '炮火支援', 'C') });
           }
         }
       }
@@ -3095,10 +3109,10 @@ class CombatSystem {
     const mineLv = this.lv('cannon', '地雷阵');
     if (mineLv > 0) {
       this.timers.mine = (this.timers.mine || 0) + dt;
-      if (this.timers.mine >= 6 * this._weakPeriod('cannon')) {
+      if (this.timers.mine >= SKILL_NUM.cannon['地雷阵'].period * this._weakPeriod('cannon')) {
         this.timers.mine = 0;
         this.castEnergy('cannon', '地雷阵');
-        const n = 3 + 2 * this.branchLv('cannon', '地雷阵', 'A');
+        const n = SKILL_NUM.cannon['地雷阵'].count + SKILL_NUM.cannon['地雷阵'].countPerBranch * this.branchLv('cannon', '地雷阵', 'A');
         // 塔口坐标（v1.16.37 统一 towerMuzzle）
         const ly = this.ly();
         const mz = this.towerMuzzle('cannon');
@@ -3125,13 +3139,13 @@ class CombatSystem {
           const dist = Math.hypot(tx - fx0, ty - fy0);
           this.mines = this.mines || [];
           this.mines.push({
-            x: fx0, y: fy0, r: 100,
-            dmg: this.shotDmg('cannon') * 1.2 * (1 + 0.5 * this.branchLv('cannon', '地雷阵', 'B')),
-            armed: 0, ttl: 20, chain: this.branchLv('cannon', '地雷阵', 'C'),
+            x: fx0, y: fy0, r: SKILL_NUM.cannon['地雷阵'].radius,
+            dmg: this.shotDmg('cannon') * SKILL_NUM.cannon['地雷阵'].damage * (1 + SKILL_NUM.cannon['地雷阵'].damagePerBranch * this.branchLv('cannon', '地雷阵', 'B')),
+            armed: 0, ttl: SKILL_NUM.cannon['地雷阵'].duration, chain: this.branchLv('cannon', '地雷阵', 'C'),
             fly: { sx: fx0, sy: fy0, tx, ty, t: 0 },
           });
           const flyDur = dist / 200;   // 200px/s
-          g.fx.push({ type: 'mine', x: tx, y: ty, t: 0, dur: flyDur + 20, seed: Math.random() * 100, fly: { sx: fx0, sy: fy0, tx, ty, dur: flyDur } });
+          g.fx.push({ type: 'mine', x: tx, y: ty, t: 0, dur: flyDur + SKILL_NUM.cannon['地雷阵'].duration, seed: Math.random() * 100, fly: { sx: fx0, sy: fy0, tx, ty, dur: flyDur } });
           this.fxParticle(fx0, fy0 - 8, '#b5651d', 4, 22, 0.3, 90, 4);
         }
       }
@@ -3140,20 +3154,20 @@ class CombatSystem {
     const turret = this.lv('cannon', '炮台');
     if (turret > 0) {
       this.timers.turret = (this.timers.turret || 0) + dt;
-      const cd = Math.max(4, 10 - this.branchLv('cannon', '炮台', 'B')) * this._weakPeriod('cannon');
+      const cd = Math.max(SKILL_NUM.cannon['炮台'].minPeriod, SKILL_NUM.cannon['炮台'].period - SKILL_NUM.cannon['炮台'].periodReductionPerBranch * this.branchLv('cannon', '炮台', 'B')) * this._weakPeriod('cannon');
       if (this.timers.turret >= cd) {
         this.timers.turret = 0;
         this.castEnergy('cannon', '炮台');
-        const n = 1 + this.branchLv('cannon', '炮台', 'A');
+        const n = SKILL_NUM.cannon['炮台'].count + this.branchLv('cannon', '炮台', 'A');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('cannon', e.x, e.y));
         if (!alive.length) return;   // v1.16.18 没有敌人时不部署炮台
         for (let i = 0; i < n; i++) {
           const near = alive[Math.floor(Math.random() * alive.length)];
           const px = near.x + (Math.random() - 0.5) * 90;
           const py = near.y + (Math.random() - 0.5) * 90;
-          const ttl = 8 + 2 * this.branchLv('cannon', '炮台', 'B');
+          const ttl = SKILL_NUM.cannon['炮台'].duration + SKILL_NUM.cannon['炮台'].durationPerBranch * this.branchLv('cannon', '炮台', 'B');
           this.turrets = this.turrets || [];
-          this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: 0.9, dmg: this.shotDmg('cannon') * 0.68, r: 100 * (1 + 0.3 * this.branchLv('cannon', '炮台', 'C')) });
+          this.turrets.push({ x: px, y: py, ttl, atkT: 0, atkI: SKILL_NUM.cannon['炮台'].attackInterval, dmg: this.shotDmg('cannon') * SKILL_NUM.cannon['炮台'].damage, r: SKILL_NUM.cannon['炮台'].radius * (1 + SKILL_NUM.cannon['炮台'].radiusPerBranch * this.branchLv('cannon', '炮台', 'C')) });
           g.fx.push({ type: 'turret', x: px, y: py, t: 0, dur: ttl, seed: Math.random() * 100 });
           this.fxRing(px, py, '#b5651d', 40, 0.5, 3.5);
         }
@@ -3172,9 +3186,9 @@ class CombatSystem {
     const markLv = this.lv('boomerang', '猎手标记');
     let v = dmg;
     if (markLv > 0) {
-      const cap = 3 + 2 * this.branchLv('boomerang', '猎手标记', 'B');
+      const cap = SKILL_NUM.boomerang['猎手标记'].stackCap + SKILL_NUM.boomerang['猎手标记'].stacksPerBranch * this.branchLv('boomerang', '猎手标记', 'B');
       e._mark = Math.min(cap, (e._mark || 0) + 1);
-      e._markT = 5;   // v1.16.42 标记持续 5 秒（每次命中刷新）
+      e._markT = SKILL_NUM.boomerang['猎手标记'].markDur;   // v1.16.42 标记持续 5 秒（每次命中刷新）
       // 标记视觉：目标头顶紫色标记计数
       this.fxParticle(e.x, e.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
     }
@@ -3184,9 +3198,9 @@ class CombatSystem {
     // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
     const fold = this.lv('boomerang', '折返增伤');
     if (fold > 0) {
-      const foldDmg = v * 0.65 * (1 + 0.25 * this.branchLv('boomerang', '折返增伤', 'A'));
+      const foldDmg = v * SKILL_NUM.boomerang['折返增伤'].damage * (1 + SKILL_NUM.boomerang['折返增伤'].damagePerBranch * this.branchLv('boomerang', '折返增伤', 'A'));
       this.damage(e, foldDmg, 'boomerang');
-      if (this.branchLv('boomerang', '折返增伤', 'B') > 0) this.applySlow(e, 0.20, 1);
+      if (this.branchLv('boomerang', '折返增伤', 'B') > 0) this.applySlow(e, SKILL_NUM.boomerang['折返增伤'].slow, SKILL_NUM.boomerang['折返增伤'].slowDuration);
       // 折返视觉：紫色小回环
       this.fxRing(e.x, e.y, '#c39bd3', 34, 0.3, 2.5);
     }
@@ -3195,9 +3209,9 @@ class CombatSystem {
 
   /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
   applyBleed(e, dmg) {
-    e.bleedT = 4 + 1 * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
+    e.bleedT = SKILL_NUM.boomerang['放血'].duration + SKILL_NUM.boomerang['放血'].durationPerBranch * this.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
     const cLv = this.branchLv('boomerang', '放血', 'C');
-    e._bleedDmg = dmg * (0.40 + 0.20 * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
+    e._bleedDmg = dmg * (SKILL_NUM.boomerang['放血'].damage + SKILL_NUM.boomerang['放血'].damagePerBranch * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
     e._bleedDist = 0;
     e._bleedLastY = e.y;
     // 流血视觉：暗红血珠粒子
@@ -3206,22 +3220,23 @@ class CombatSystem {
 
   tickBoomerang(dt) {
     const g = this.game;
+    const stormBalance=SKILL_NUM.boomerang['风暴镖'], bounceBalance=SKILL_NUM.boomerang['弹力镖'];
     // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖 10% 伤害，命中即消失；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
     const cyclone = this.lv('boomerang', '风暴镖');
     if (cyclone > 0) {
       this.timers.storm = (this.timers.storm || 0) + dt;
-      if (this.timers.storm >= 12 * this._weakPeriod('boomerang')) {
+      if (this.timers.storm >= stormBalance.period * this._weakPeriod('boomerang')) {
         this.timers.storm = 0;
         this.castEnergy('boomerang', '风暴镖');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         if (alive.length) {
           const t = alive[Math.floor(Math.random() * alive.length)];
           // 三圈角速度不同：内圈 2.6 顺时针 / 中圈 2.0 逆时针 / 外圈 2.4 顺时针（A 疾旋统一 +25%/级）
-          const rings = [{ r: 40, base: 2.6 }, { r: 80, base: -2.0 }, { r: 120, base: 2.4 }];
-          const baseN = [4, 6, 8];
+          const rings = stormBalance.rings;
+          const baseN = stormBalance.ringCounts;
           const nAdd = this.branchLv('boomerang', '风暴镖', 'C');
-          const perDmg = this.shotDmg('boomerang') * 0.10 * (1 + 0.2 * this.branchLv('boomerang', '风暴镖', 'B'));
-          const spdMul = 1 + 0.25 * this.branchLv('boomerang', '风暴镖', 'A');
+          const perDmg = this.shotDmg('boomerang') * stormBalance.damage * (1 + stormBalance.damagePerBranch * this.branchLv('boomerang', '风暴镖', 'B'));
+          const spdMul = 1 + stormBalance.speedPerBranch * this.branchLv('boomerang', '风暴镖', 'A');
           const darts = [];
           rings.forEach((rc, ri) => {
             const n = baseN[ri] + nAdd;
@@ -3230,7 +3245,7 @@ class CombatSystem {
           });
           this.storms = this.storms || [];
           // v1.16.102 旋风3★：风暴镖持续时间翻倍（3→6 秒）
-          const cyclTtl = this.game.run.relic3('boo_cyclone') ? 6 : 3;
+          const cyclTtl = this.game.run.relic3('boo_cyclone') ? stormBalance.duration * 2 : stormBalance.duration;
           const sto = { x: t.x, y: t.y, r: 120, ttl: cyclTtl, darts, perDmg };
           const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: cyclTtl, darts };
           sto.fx = fxo;                    // v1.16.38 风暴镖 fx 引用（同步清除）
@@ -3243,14 +3258,14 @@ class CombatSystem {
     const ringN = this.lv('boomerang', '弹力镖');
     if (ringN > 0) {
       this.timers.ringN = (this.timers.ringN || 0) + dt;
-      if (this.timers.ringN >= 8 * this._weakPeriod('boomerang')) {
+      if (this.timers.ringN >= bounceBalance.period * this._weakPeriod('boomerang')) {
         this.timers.ringN = 0;
         this.castEnergy('boomerang', '弹力镖');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
         const mus = this.towerMuzzle('boomerang');
-        const n = 2 + 1 * this.branchLv('boomerang', '弹力镖', 'A');
-        const perDmg = this.shotDmg('boomerang') * 0.60 * (1 + 0.25 * this.branchLv('boomerang', '弹力镖', 'B'));
-        const maxB = 10 + 5 * this.branchLv('boomerang', '弹力镖', 'C');
+        const n = bounceBalance.count + 1 * this.branchLv('boomerang', '弹力镖', 'A');
+        const perDmg = this.shotDmg('boomerang') * bounceBalance.damage * (1 + bounceBalance.damagePerBranch * this.branchLv('boomerang', '弹力镖', 'B'));
+        const maxB = bounceBalance.bounces + bounceBalance.bouncesPerBranch * this.branchLv('boomerang', '弹力镖', 'C');
         // 初始方向：射程内随机存活敌人方向 ± 散射（无敌人则全随机）
         let baseAng = Math.random() * Math.PI * 2;
         if (alive.length) {
@@ -3258,10 +3273,10 @@ class CombatSystem {
           baseAng = Math.atan2(t.y - mus.y, t.x - mus.x);
         }
         for (let i = 0; i < n; i++) {
-          const ang = baseAng + (i - (n - 1) / 2) * 0.5;
-          const d = { key: 'boomerang', dmg: perDmg, t: 0, dur: 8, x: mus.x, y: mus.y, ang, speed: 400, bounce: true, bounces: 0, maxB, hitR: 30, hitIds: {} };
+          const ang = baseAng + (i - (n - 1) / 2) * bounceBalance.spreadStep;
+          const d = { key: 'boomerang', dmg: perDmg, t: 0, dur: bounceBalance.duration, x: mus.x, y: mus.y, ang, speed: bounceBalance.speed, bounce: true, bounces: 0, maxB, hitR: bounceBalance.hitRadius, hitIds: {} };
           this.shots.push(d);
-          const fxo = { type: 'shot', kind: 'bounce', ref: d, t: 0, dur: 8, color: '#c39bd3' };
+          const fxo = { type: 'shot', kind: 'bounce', ref: d, t: 0, dur: bounceBalance.duration, color: '#c39bd3' };
           d.fx = fxo;                    // v1.16.38 弹力镖 fx 引用（提前结束同步清除）
           g.fx.push(fxo);
         }
@@ -3281,7 +3296,7 @@ class CombatSystem {
     // v1.16.98 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
     if (this.game.run.relic3('ice_glacier')) {
       const n = ((e.slow && e.slow.ttl > 0) ? 1 : 0) + (e.frozen > 0 ? 1 : 0) + ((e._vineT || 0) > 0 ? 1 : 0);
-      if (n > 0) mult = Math.min(0.9, mult * (1 + 0.08 * n));
+      if (n > 0) mult = Math.min(COMBAT_BALANCE.glacierSlowCap, mult * (1 + 0.08 * n));
     }
     if (!e.slow || e.slow.ttl <= 0) e.slow = { mult: 1, ttl };
     else e.slow.ttl = Math.max(e.slow.ttl, ttl);
@@ -3292,7 +3307,7 @@ class CombatSystem {
 
   /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
   freezeE(e, dur) {
-    const d = (e.isBoss ? dur * 0.6 : dur) + this.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
+    const d = (e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + this.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
     const prev = e.frozen || 0;
     e.frozen = Math.max(prev, d);
     // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）

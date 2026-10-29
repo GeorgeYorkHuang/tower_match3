@@ -243,9 +243,8 @@ class Meta {
   /* ---------- 技能解锁（v5.3c） ---------- */
   skillUnlocked(slot, id) {
     const un = this.skillUnlocks[slot];
-    if (un && un.length) return un.includes(id);
     const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
-    return defs.includes(id);
+    return defs.includes(id) || !!(un && un.includes(id));
   }
   /** 解锁技能：金币购买；成功返回 { ok:true }，失败 { ok:false, reason:'gold'|'owned' } */
   unlockSkill(slot, id) {

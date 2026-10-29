@@ -104,9 +104,8 @@ function createSkillLoadout(deps = {}) {
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定）——纯函数，不读写存档 */
   function skillOwned(s, slot, id) {
     const un = (s.skillUnlocks && s.skillUnlocks[slot]) || [];
-    if (un.length) return un.includes(id);
     const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
-    return defs.includes(id);
+    return defs.includes(id) || un.includes(id);
   }
 
   /** v1.17 视觉验收：面板高度随候选行数自适应——候选少（高连4/连消2/全局末页4）不再拖出大片空洞。

@@ -1430,14 +1430,14 @@ class GameMain {
             ? (GlobalSkills.get(id) || {})
             : (CONFIG.MATCH_SKILL[slot].find((d) => d.id === id) || {});
           const nm = def.name || id;
+          let purchased = false;
           if (!this.meta.skillUnlocked(slot, id)) {
             const res = this.meta.unlockSkill(slot, id);
             if (!res.ok) {
               if (res.reason === 'gold') this.toast('金币不足，可去商店或打怪获取', '#ff6b6b');
               return;
             }
-            this.save.save();
-            this.toast(`购买解锁 · ${nm}`, '#7ef0a3');
+            purchased = true;
           }
           if (slot === 'global') {
             const index = Number(this.menuPanel.index || 0);
@@ -1445,11 +1445,11 @@ class GameMain {
             const other = 1 - index;
             if (slots[other] === id) { slots[other] = slots[index]; }
             slots[index] = id; this.meta.globalSkills = { slots };
-            this.save.save(); this.toast('已配置 · '+nm, '#f4cb79'); return;
+            this.save.save(); this.toast((purchased ? '已解锁并配置 · ' : '已配置 · ')+nm, '#f4cb79'); return;
           }
           this.meta.matchSkills[slot] = id;
           this.save.save();
-          this.toast(`已配置 · ${nm}`, '#a86bff');
+          this.toast(`${purchased ? '已解锁并配置' : '已配置'} · ${nm}`, '#a86bff');
           return;
         }
       }

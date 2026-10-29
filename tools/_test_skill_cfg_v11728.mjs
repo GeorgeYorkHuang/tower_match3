@@ -202,7 +202,7 @@ tapKey('mSkill', (d) => d.id === 'cross');
 eq(game.meta.gold, 5000 - crossPrice, `购买扣除 ${crossPrice} 金币`);
 ok(game.meta.skillUnlocked('match4', 'cross'), '购买后已解锁');
 eq(game.meta.matchSkills.match4, 'cross', '购买后自动配置到该槽');
-ok(game.toasts.some((t) => t.text.indexOf('购买解锁') >= 0), '提示「购买解锁」（随后再提示「已配置」）', game.toasts.map((t) => t.text).join(' / '));
+ok(game.toasts.filter((t) => t.text.indexOf('已解锁并配置') >= 0).length === 1, '购买自动配置只产生一条合并成功提示', game.toasts.map((t) => t.text).join(' / '));
 
 // 重复点已配置的同一技能 → 无副作用
 const goldBefore = game.meta.gold;
@@ -220,7 +220,7 @@ game.meta.globalSkills = { slots: ['shuffle', 'refill'] };
 resetMeta();
 game.meta.globalSkills = { slots: ['shuffle', 'refill'] };
 let R1 = renderMenu({ type: 'globalCfg', index: 1, page: 0 });
-ok(has(R1.texts, '当前槽位 · 待解锁'), '（发现）槽 2 默认装备 refill 但默认解锁集无 refill → 状态条显示「当前槽位 · 待解锁」');
+ok(has(R1.texts, '✓ 已配置'), '默认补给免费解锁，正确显示已配置');
 game.meta.gold = 9999;
 // 先解锁 refill
 renderMenu({ type: 'globalCfg', index: 0, page: 0 });
