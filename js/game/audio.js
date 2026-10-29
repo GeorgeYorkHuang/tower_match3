@@ -9,9 +9,9 @@
 // 后续新增音效一律放 assets/audio/，不要再在根目录建 audio/。
 const AUDIO = {
   bgm: 'assets/audio/bgm.mp3', shot: 'assets/audio/bullet.mp3', boom: 'assets/audio/boom.mp3',
-  // v1.17.29 三消消除音效分层（合成短音）
-  match3: 'assets/audio/match3.wav', match4: 'assets/audio/match4.wav',
-  match5: 'assets/audio/match5.wav', combo: 'assets/audio/combo.wav', special: 'assets/audio/special.wav',
+  // v1.17.30 三消消除音效分层（mp3 与主音频格式统一，规避 IDE 模拟器对 wav 扩展名的加载问题）
+  match3: 'assets/audio/match3.mp3', match4: 'assets/audio/match4.mp3',
+  match5: 'assets/audio/match5.mp3', combo: 'assets/audio/combo.mp3', special: 'assets/audio/special.mp3',
 };
 
 function createAudio(src, loop, vol) {
