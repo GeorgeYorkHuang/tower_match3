@@ -35,7 +35,7 @@ game.newRun(true);
 
 const { boardX, boardY, cell } = game.ly;
 /* 逻辑坐标 → 真机逻辑像素坐标（windowWidth/Height 系） */
-const toClient = (lx, ly) => ({ x: lx * 375 / LOGIC_W, y: ly * 667 / LOGIC_H });
+const toClient = (lx, ly) => ({ x: lx * game.scale / 3, y: ly * game.scale / 3 });
 const center = (r, c) => toClient(boardX + c * cell + cell / 2, boardY + r * cell + cell / 2);
 
 function tap(r, c) {
@@ -93,11 +93,10 @@ t('wx 通道滑动：正常触发滑动交换', () => {
   assert.deepStrictEqual(lastSwap, [0, 0, 0, 1], '滑动应交换 (0,0)→(0,1)');
 });
 
-t('toLogic 物理像素坐标自适应（canvas 坐标源兜底）', () => {
-  // canvas.width=1125（dpr3）；取超出逻辑宽 375 的物理坐标触发自适应分支
-  const p = game.toLogic(1000, 1800);
-  assert.strictEqual(Math.round(p.x), Math.round(1000 * LOGIC_W / 1125), '物理像素 x 应按 canvas 宽归一化');
-  assert.strictEqual(Math.round(p.y), Math.round(1800 * LOGIC_H / 2001), '物理像素 y 应按 canvas 高归一化');
+t('toLogic 使用wx逻辑坐标与绘制缩放的逆变换', () => {
+  const p = game.toLogic(300, 500);
+  assert.strictEqual(Math.round(p.x), Math.round(300 * 3 / game.scale));
+  assert.strictEqual(Math.round(p.y), Math.round(500 * 3 / game.scale));
 });
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);

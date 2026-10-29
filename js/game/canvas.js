@@ -18,16 +18,16 @@ function getMainCanvas() {
 }
 
 function ensureCanvasSize(c) {
-  if (c && (!c.width || !c.height)) {
-    // canvas 尺寸为 0（部分环境/真机异常）时按系统屏幕信息初始化
-    try {
-      const info = (typeof wx !== 'undefined' && wx.getSystemInfoSync) ? wx.getSystemInfoSync() : null;
-      if (info) {
-        c.width = info.windowWidth * (info.pixelRatio || 1);
-        c.height = info.windowHeight * (info.pixelRatio || 1);
-      }
-    } catch (e) {}
-  }
+  if (!c) return c;
+  try {
+    const info = typeof wx !== 'undefined' && (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync ? wx.getSystemInfoSync() : null);
+    if (info && info.windowWidth > 0 && info.windowHeight > 0) {
+      const ratio = Number(info.pixelRatio) > 0 ? Number(info.pixelRatio) : 1;
+      const width = Math.round(info.windowWidth * ratio), height = Math.round(info.windowHeight * ratio);
+      if (c.width !== width) c.width = width;
+      if (c.height !== height) c.height = height;
+    }
+  } catch (e) {}
   return c;
 }
 

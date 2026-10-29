@@ -2059,6 +2059,7 @@ class GameMain {
     // 且其坐标可能为 canvas 物理像素系；故优先使用 wx 通道，canvas 仅作回退。
     if (typeof wx !== 'undefined' && wx.onTouchStart) {
       try {
+        this._touchSpace = 'window';
         wx.onTouchStart(onStart);
         wx.onTouchMove(onMove);
         wx.onTouchEnd(onEnd);
@@ -2066,6 +2067,7 @@ class GameMain {
       } catch (e) { /* 回退 canvas 通道 */ }
     }
     if (!c || !c.addEventListener) return;
+    this._touchSpace = 'canvas';
     c.addEventListener('touchstart', onStart);
     c.addEventListener('touchmove', onMove);
     c.addEventListener('touchend', onEnd);
@@ -2076,25 +2078,24 @@ class GameMain {
   }
 
   toLogic(cx, cy) {
-    // 真机坐标单位自适应：wx 全局触摸事件为逻辑像素（与 windowWidth 同尺度）；
-    // canvas 事件的坐标则可能是 canvas 物理像素（宽 = windowWidth×pixelRatio）。
-    // 用坐标范围判定坐标源，统一归一化到 [0,1] 再映射 750×1334 逻辑画布。
-    if (typeof wx !== 'undefined' && wx.getSystemInfoSync) {
-      try {
-        const info = wx.getSystemInfoSync();
-        const w = info.windowWidth || info.screenWidth;
-        const h = info.windowHeight || info.screenHeight;
-        if (w > 0 && h > 0) {
-          const cw = (_c && _c.canvas && _c.canvas.width) || 0;
-          const ch = (_c && _c.canvas && _c.canvas.height) || 0;
-          if (cw > 0 && cx > w) { // 坐标超出逻辑宽 → 按 canvas 物理像素归一化
-            return { x: cx * LOGIC_W / cw, y: cy * LOGIC_H / (ch || cw) };
-          }
-          return { x: cx * LOGIC_W / w, y: cy * LOGIC_H / h };
-        }
-      } catch (e) {}
+    const c = _c.canvas;
+    const scale = this.scale > 0 ? this.scale : 1;
+    // Inverse of render's setTransform(scale,0,0,scale,0,0), including unused screen space.
+    if (this._touchSpace === 'canvas' && c.getBoundingClientRect) {
+      const rect = c.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return {
+        x: (cx - rect.left) * c.width / rect.width / scale,
+        y: (cy - rect.top) * c.height / rect.height / scale,
+      };
     }
-    return { x: cx / this.scale, y: cy / this.scale };
+    try {
+      const info = typeof wx !== 'undefined' && (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync ? wx.getSystemInfoSync() : null);
+      if (info && info.windowWidth > 0 && info.windowHeight > 0) return {
+        x: cx * c.width / info.windowWidth / scale,
+        y: cy * c.height / info.windowHeight / scale,
+      };
+    } catch (e) {}
+    return { x: cx / scale, y: cy / scale };
   }
 
   /** 塔位命中检测：返回槽位索引（-1=不在塔位区） */
