@@ -240,10 +240,8 @@ function mergeCross(h, v) {
   }
   const merged = groups.map((g) => {
     const size = g.cells.length;
-    // 复合组（含横+纵交叉）= L/T 形：5 格 → L5，6+ → 6+，4 格复合组归入四消（v5.6.7 修复"自然四消不播种"）
-    const shape = (g.dir === 'x')
-      ? (size === 5 ? 'L5' : (size >= 6 ? '6+' : String(size)))
-      : (size >= 6 ? '6+' : String(size));
+    // 复合组（含横+纵交叉）= L/T 形一律算五消（L5，4/5 格复合组均归此）；直线组按长度分类（4消只有直4）
+    const shape = (g.dir === 'x') ? (size >= 6 ? '6+' : 'L5') : (size >= 6 ? '6+' : String(size));
     return { size, cells: g.cells, shape };
   });
   // 彩虹组：shape 按组格数（3 格 → '3'），保留配对色
