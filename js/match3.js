@@ -33,7 +33,7 @@ class Match3Controller {
     const first = steps[0];
     g.anim = {
       phase: 'swap', swap: [r1, c1, r2, c2], swapGrid,
-      progress: 0, durSwap: 0.16,
+      progress: 0, durSwap: 0.46,   // v5.6.2 交换动画统一放缓 +0.3s（原 0.16）
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
@@ -80,9 +80,9 @@ class Match3Controller {
     }
   }
 
-  /** 每级下落动画时长：固定 0.5s（全局统一速度 840px/s = (行数+1)×格宽/0.5，恢复原节奏） */
+  /** 每级下落+消除动画时长：固定 0.8s（v5.6.2 由 0.5s 统一放缓 +0.3s，全局速度 525px/s 适配） */
   _stepDur() {
-    return 0.5;
+    return 0.8;
   }
 
   /** 第 idx 级连锁的消除收益提示（直4 / L5 / 直5 / 获得塔） */
@@ -122,7 +122,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialBlast', s: b.s, sub: b.sub,
         x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
-        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.5, cell,
+        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.8, cell,   // v5.6.2 引爆动画 +0.3s（原 0.5）
         parts: i === 0 ? this._blastParts(b.s) : null,
       });
     });
@@ -130,11 +130,11 @@ class Match3Controller {
       g.fx.push({
         type: 'specialSpawn', s: p.s, sub: p.sub,
         x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
-        color: p.color, t: 0, dur: 0.6, cell,
+        color: p.color, t: 0, dur: 0.9, cell,   // v5.6.2 生成降临动画 +0.3s（原 0.6）
       });
     });
     if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
-    if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.14 });
+    if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.24 });   // v5.6.2 全屏爆闪仅 +0.1s（0.14→0.24，超过 0.3s 会长时间白屏伤观感）
   }
 
   /** v5.6 主爆粒子参数：按分型生成飞散碎片（渲染层按 t 推进） */
@@ -157,7 +157,7 @@ class Match3Controller {
     return parts;
   }
 
-  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.32s，渲染层绘制） */
+  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.62s，v5.6.2 原 0.32s，渲染层绘制） */
   _burst(cells, matches) {
     const g = this.game;
     const { boardX, boardY, cell } = g.ly;
@@ -174,7 +174,7 @@ class Match3Controller {
         x: boardX + c * cell + cell / 2,
         y: boardY + r * cell + cell / 2,
         color,
-        t: 0, dur: 0.32,
+        t: 0, dur: 0.62,   // v5.6.2 消除迸发 +0.3s（原 0.32）
       });
     });
   }
