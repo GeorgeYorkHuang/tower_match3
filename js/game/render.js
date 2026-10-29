@@ -275,7 +275,12 @@ const FX_HANDLERS = {
   floatText: 'fxFloatText',   // v1.16.113 3★ 触发确认飘字
   specialSpawn: 'fxSpecialSpawn',   // v1.17.29 特殊块生成彩环
   specialBlast: 'fxSpecialBlast',   // v1.17.29 特殊块引爆分型特效
-  screenFlash: 'fxScreenFlash'      // v5.6 特殊块引爆全屏爆闪
+  screenFlash: 'fxScreenFlash',     // v5.6 特殊块引爆全屏爆闪（支持 color/alpha）
+  rainbowSpawn: 'fxRainbowSpawn',   // v5.6.8 五消·彩虹生成七色光柱
+  scanSweep: 'fxScanSweep',         // v5.6.8 五消·自动扫描金色光幕
+  recolorWave: 'fxRecolorWave',     // v5.6.8 五消·染色涟漪
+  seedStar: 'fxSeedStar',           // v5.6.8 五消·随机播种星光
+  rainParticle: 'fxRainParticle'    // v5.6.8 五消·彩虹全消粒子雨
 };
 
 class Renderer {
@@ -3024,12 +3029,164 @@ class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6 全屏爆闪：特殊块引爆瞬间整屏白闪（0.14s 渐隐） */
+  /** v5.6 全屏爆闪：特殊块引爆瞬间整屏闪（0.14s 渐隐；v5.6.8 支持自定义颜色/强度，用于五消金色爆闪） */
   fxScreenFlash(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.14));
-    ctx.globalAlpha = (1 - p) * 0.14;
-    ctx.fillStyle = '#ffffff';
+    const col = f.color || '#ffffff';
+    const a = f.alpha != null ? f.alpha : 0.14;
+    ctx.globalAlpha = (1 - p) * a;
+    ctx.fillStyle = col;
     ctx.fillRect(0, 0, CONFIG.DESIGN.W, CONFIG.DESIGN.H);
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6.8 五消·彩虹生成：七色旋转光柱 + 光环升腾（0.55s） */
+  fxRainbowSpawn(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.55));
+    const e = 1 - p;
+    const R = f.cell || 46;
+    const COLORS = ['#ff6174', '#ffad54', '#ffe36a', '#7ee4a1', '#78c8ff', '#c09aff'];
+    // 光环：七色分段圆弧旋转 + 收缩
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(p * 2.4);
+    const rr = R * (0.55 + e * 0.55);
+    COLORS.forEach((cc, i) => {
+      ctx.strokeStyle = cc; ctx.lineWidth = 3 + e * 3;
+      ctx.globalAlpha = (1 - p) * 0.95;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr, (i / 6) * Math.PI * 2, (i / 6 + 0.42) * Math.PI * 2);
+      ctx.stroke();
+    });
+    // 升腾光柱（上细下粗）
+    ctx.globalAlpha = (1 - p) * 0.6;
+    const rise = Math.min(1, p * 1.5);
+    const grad = ctx.createLinearGradient(0, R * 0.5, 0, -R * (1.2 + rise * 0.8));
+    grad.addColorStop(0, '#ffe36a');
+    grad.addColorStop(1, 'rgba(255,227,106,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.18, R * 0.5);
+    ctx.lineTo(R * 0.18, R * 0.5);
+    ctx.lineTo(R * 0.06, -R * (1.1 + rise * 0.8));
+    ctx.lineTo(-R * 0.06, -R * (1.1 + rise * 0.8));
+    ctx.closePath();
+    ctx.fill();
+    // 中心白点脉冲
+    ctx.globalAlpha = (1 - p) * 0.9;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0, 0, 3 + e * 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6.8 五消·自动扫描：金色光幕从棋盘顶扫到底，扫过格金色描边高亮（0.5s） */
+  fxScanSweep(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.5));
+    const { w, h, cell } = f;
+    const sy = f.y + p * h;   // 光幕前沿 y
+    // 光幕主体：横向渐亮带
+    const band = 34;
+    const grad = ctx.createLinearGradient(0, sy - band, 0, sy);
+    grad.addColorStop(0, 'rgba(255,217,77,0)');
+    grad.addColorStop(1, 'rgba(255,217,77,0.5)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(f.x, sy - band, w, band);
+    // 前沿线
+    ctx.strokeStyle = '#ffe36a'; ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.moveTo(f.x, sy); ctx.lineTo(f.x + w, sy); ctx.stroke();
+    // 已扫过格子金色描边（间隔闪烁，增强"扫过"感）
+    ctx.globalAlpha = 0.5 * (1 - p * 0.5);
+    ctx.strokeStyle = '#ffd94d'; ctx.lineWidth = 1.2;
+    const rows = Math.max(1, Math.floor((sy - f.y) / cell));
+    for (let r = 0; r < rows && r < h / cell; r++) {
+      for (let c = 0; c < w / cell; c++) {
+        if ((r + c) % 2) continue;
+        ctx.strokeRect(f.x + c * cell + 2, f.y + r * cell + 2, cell - 4, cell - 4);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6.8 五消·染色：该色涟漪两圈扩散 + 染色格水波闪光 */
+  fxRecolorWave(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.4));
+    const cell = f.cell || 46;
+    const col = (f.color && COLOR_FILL[f.color]) || '#7ee4a1';
+    ctx.globalAlpha = (1 - p) * 0.85;
+    ctx.strokeStyle = col; ctx.lineCap = 'round';
+    for (let k = 0; k < 2; k++) {
+      const ph = (p * 1.4 + k * 0.5) % 1;
+      const r = cell * (0.4 + ph * 3.2);
+      ctx.lineWidth = 3 * (1 - ph) + 1;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.stroke();
+    }
+    // 染色格水波闪光（命中格按距离扩散期渐现）
+    (f.cells || []).forEach(([gx, gy], i) => {
+      const s = 1 - Math.min(1, Math.max(0, (p * 2.2 - i * 0.07)));
+      if (s <= 0) return;
+      ctx.globalAlpha = s * 0.65;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(gx, gy, 3 + (1 - s) * 8, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.globalAlpha = s * 0.3;
+      ctx.beginPath(); ctx.arc(gx, gy, cell * 0.32 * s, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6.8 五消·随机播种：星光从五消中心射向播种格 + 落地闪光环 */
+  fxSeedStar(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.5));
+    const q = Math.max(0, p);
+    const x = f.x + (f.tx - f.x) * q;
+    const y = f.y + (f.ty - f.y) * q;
+    // 星光本体（十字芒 + 光点）
+    ctx.globalAlpha = q < 0.98 ? 1 : (1 - p) * 1;
+    ctx.strokeStyle = '#ffe36a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y); ctx.lineTo(x + 8, y);
+    ctx.moveTo(x, y - 8); ctx.lineTo(x, y + 8);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    // 轨迹拖尾
+    ctx.strokeStyle = 'rgba(255,227,106,0.5)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(f.x + (f.tx - f.x) * Math.max(0, q - 0.14), f.y + (f.ty - f.y) * Math.max(0, q - 0.14)); ctx.lineTo(x, y); ctx.stroke();
+    // 落地闪光环
+    if (q >= 0.92) {
+      const lp = (q - 0.92) / 0.08;
+      ctx.globalAlpha = (1 - lp) * 0.9;
+      ctx.strokeStyle = '#ffd94d'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(f.tx, f.ty, 4 + lp * 16, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = (1 - lp) * 0.7;
+      ctx.beginPath(); ctx.arc(f.tx, f.ty, 8 * (1 - lp) + 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6.8 五消·彩虹全消粒子雨：目标色方块碎裂粒子从棋盘格升腾下落 */
+  fxRainParticle(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.8));
+    const cell = f.cell || 46;
+    const col = (f.color && COLOR_FILL[f.color]) || '#ffffff';
+    ctx.globalAlpha = (1 - p) * 0.9;
+    const n = 6;
+    for (let i = 0; i < n; i++) {
+      const s = (i / n + p * 0.3) % 1;
+      const dx = Math.sin(i * 2.4 + p * 5) * cell * 0.4;
+      const dy = -cell * 0.5 * s + Math.cos(i * 3.1) * cell * 0.12;
+      const sz = 3 + (1 - s) * 3;
+      ctx.fillStyle = col;
+      ctx.save();
+      ctx.translate(f.x + dx, f.y + dy);
+      ctx.rotate(p * 4 + i);
+      ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+      ctx.restore();
+    }
     ctx.globalAlpha = 1;
   }
 

@@ -139,6 +139,49 @@ class Match3Controller {
     });
     if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
     if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.24 });   // v5.6.2 全屏爆闪仅 +0.1s（0.14→0.24，超过 0.3s 会长时间白屏伤观感）
+    this._match5Show(st);
+  }
+
+  /** v5.6.8 五消技能演出：金色爆闪 + 震屏 + 类型弹字 + 按高连技专属特效（彩虹光柱/扫描光幕/染色涟漪/播种星光） */
+  _match5Show(st) {
+    const g = this.game;
+    if (!g || !g.fx || !st.m5) return;
+    const { boardX, boardY, cell } = g.ly;
+    const m5 = st.m5;
+    const cx = boardX + m5.center[1] * cell + cell / 2;
+    const cy = boardY + m5.center[0] * cell + cell / 2;
+    // 通用：金色全屏闪 + 震屏 + 类型弹字
+    g.fx.push({ type: 'screenFlash', t: 0, dur: 0.3, color: '#ffd94d', alpha: 0.2 });
+    if (g.vibrate) g.vibrate(2);
+    const TITLE = { rainbow: '彩虹方块!', scan: '自动扫描!', recolor: '染色!', seed: '随机播种!' };
+    g.fx.push({ type: 'floatText', text: TITLE[m5.op] || '五消!', x: cx, y: cy - cell * 0.9, t: 0, dur: 1.3, size: 34, color: '#ffd94d' });
+    if (m5.op === 'rainbow') {
+      // 七色旋转光柱（生成位）+ 该色全消粒子雨（blasts 中 rainbow 波及格）
+      g.fx.push({ type: 'rainbowSpawn', x: cx, y: cy, t: 0, dur: 0.55, cell });
+      (st.blasts || []).filter((b) => b.s === 'rainbow').forEach((b) => {
+        g.fx.push({
+          type: 'rainParticle', x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
+          t: 0, dur: 0.8, color: b.color || m5.color, cell,
+        });
+      });
+    } else if (m5.op === 'scan') {
+      // 金色扫描光幕：棋盘顶 → 底，扫过格高亮
+      g.fx.push({ type: 'scanSweep', x: boardX, y: boardY, t: 0, dur: 0.5, w: g.ly.cols * cell, h: g.ly.rows * cell, cell });
+    } else if (m5.op === 'recolor') {
+      // 该色涟漪扩散 + 染色格水波闪光
+      g.fx.push({
+        type: 'recolorWave', x: cx, y: cy, t: 0, dur: 0.4, cell,
+        cells: (st.recolorCells || []).map(([r, c]) => [boardX + c * cell + cell / 2, boardY + r * cell + cell / 2]),
+      });
+    } else if (m5.op === 'seed') {
+      // 星光轨迹：从五消中心依次射向播种格 + 落地闪光
+      (st.seedCells || []).forEach(([r, c], i) => {
+        g.fx.push({
+          type: 'seedStar', x: cx, y: cy, tx: boardX + c * cell + cell / 2, ty: boardY + r * cell + cell / 2,
+          t: i * 0.12, dur: 0.5, cell,
+        });
+      });
+    }
   }
 
   /** v5.6 主爆粒子参数：按分型生成飞散碎片（渲染层按 t 推进） */

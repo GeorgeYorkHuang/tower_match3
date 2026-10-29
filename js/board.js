@@ -277,6 +277,9 @@ Board.prototype.resolve = function resolve() {
     const matchCells = new Set();
     const stepPlanted = [];
     const blastList = [], blastSet = new Set();
+    // v5.6.8 高连技演出数据：本步首个五消组信息 / 染色格 / 播种格（供 match3 五消演出）
+    let m5Info = null;
+    const recolorCells = [], seedCells = [];
     matches.forEach((m) => m.cells.forEach(([r, c]) => matchCells.add(r + ',' + c)));
     // v5.6.7 彩虹块触发组色映射（彩虹格 → 配对色）：被爆炸波及的无色彩虹块则随机选一色
     const rainbowColorOf = new Map();
@@ -399,9 +402,11 @@ Board.prototype.resolve = function resolve() {
         }
       } else if (shape !== '3' && this.hooks.onMatch5) {
         const op = this.hooks.onMatch5(m.cells, m.color, shape, steps - 1);
+        // v5.6.8 记录首个五消组演出信息（rainbow/scan/recolor/seed）
+        if (!m5Info) m5Info = { op, color: m.color, center: this._centerCell(m.cells) };
         if (op === 'rainbow') {
           // 组中心格转彩虹块（不进清除）
-          const center = this._centerCell(m.cells);
+          const center = m5Info.center;
           toClear[center[0]][center[1]] = false;
           plants.push({ r: center[0], c: center[1], v: this._makeSpecial(null, 'rainbow', false) });
         } else if (op === 'scan') {
@@ -409,7 +414,8 @@ Board.prototype.resolve = function resolve() {
           this._scanAllColors(matches, toClear);
         } else if (op === 'recolor') {
           // 染色：随机 10 个非该色普通块变该色（避开清除区），染色后该色新产生的匹配并入本步
-          this._recolorBoard(m.color, toClear);
+          const rc = this._recolorBoard(m.color, toClear);
+          rc.forEach((p) => recolorCells.push(p));
           const extra = this.findMatches().filter((mm) => !mm.rainbow
             && cellColor(this.grid[mm.cells[0][0]][mm.cells[0][1]]) === m.color);
           extra.forEach((mm) => {
@@ -419,7 +425,13 @@ Board.prototype.resolve = function resolve() {
           });
         } else if (op === 'seed') {
           // 随机播种：随机 4 个普通块变特殊爆炸块（5 款随机，避开清除区）
-          this._seedSpecials(m.color, toClear);
+          const sc = this._seedSpecials(m.color, toClear);
+          sc.forEach((p) => seedCells.push(p));
+          // 播种特殊块纳入生成特效（stepPlanted / specialSpawn 演出）
+          sc.forEach(([r, c]) => {
+            const v = this.grid[r][c];
+            if (isSpecial(v)) plants.push({ r, c, v });
+          });
         }
       }
     }
@@ -435,7 +447,7 @@ Board.prototype.resolve = function resolve() {
         if (toClear[r][c]) { this.grid[r][c] = null; cleared++; clearedCells.push([r, c]); }
     this._movedCell = null;   // 交互落格仅对第一步四消生效
     this.gravity();
-    stepList.push({ matches, clearedCells, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList });
+    stepList.push({ matches, clearedCells, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells });
     all.push(...matches);
   }
   this.stats.cascadeTotal += steps;
@@ -470,33 +482,39 @@ Board.prototype._scanAllColors = function _scanAllColors(matches, toClear) {
   }
 };
 
-/** 高连技·染色：随机 n 个非该色普通块变为该色（避开清除区） */
+/** 高连技·染色：随机 n 个非该色普通块变为该色（避开清除区），返回被染色格列表 */
 Board.prototype._recolorBoard = function _recolorBoard(color, toClear) {
   const cands = [];
   for (let r = 0; r < this.rows; r++)
     for (let c = 0; c < this.cols; c++)
       if (!toClear[r][c] && !isSpecial(this.grid[r][c]) && cellColor(this.grid[r][c]) !== color) cands.push([r, c]);
   const n = Math.min(CONFIG.MATCH_SKILL.recolorCount, cands.length);
+  const out = [];
   for (let i = 0; i < n; i++) {
     const idx = Math.floor(Math.random() * cands.length);
     const [r, c] = cands.splice(idx, 1)[0];
     this.grid[r][c] = color;
+    out.push([r, c]);
   }
+  return out;
 };
 
-/** 高连技·随机播种：随机 n 个普通块变为随机特殊爆炸块（5 款随机抽取，避开清除区） */
+/** 高连技·随机播种：随机 n 个普通块变为随机特殊爆炸块（5 款随机抽取，避开清除区），返回播种格列表 */
 Board.prototype._seedSpecials = function _seedSpecials(color, toClear) {
   const cands = [];
   for (let r = 0; r < this.rows; r++)
     for (let c = 0; c < this.cols; c++)
       if (!toClear[r][c] && !isSpecial(this.grid[r][c])) cands.push([r, c]);
   const n = Math.min(CONFIG.MATCH_SKILL.seedCount, cands.length);
+  const out = [];
   for (let i = 0; i < n; i++) {
     const idx = Math.floor(Math.random() * cands.length);
     const [r, c] = cands.splice(idx, 1)[0];
     const base = cellColor(this.grid[r][c]);
     this.grid[r][c] = this._makeSpecial(base || color, this._randomSpecialId(), false);
+    out.push([r, c]);
   }
+  return out;
 };
 
 /** 取组几何中心格（彩虹块生成位）：按行列排序取中位 */
