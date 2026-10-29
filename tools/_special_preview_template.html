@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <base href="../">
-<title>特殊方块染色贴图 · 实机渲染验收（v1.17.35）</title>
+<title>底板×图案两层方块皮肤 · 实机渲染验收（v1.17.44）</title>
 <style>
   html, body { margin: 0; background: #17121f; color: #d8d2e4;
     font: 13px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
@@ -15,7 +15,7 @@
 </head>
 <body>
 <div id="wrap">
-  <p id="hint">全部图形由 js/game/render.js 真实 drawCell/board 绘制（非复刻）；贴图来自 assets/images/board/special/。</p>
+  <p id="hint">全部图形由 js/game/render.js 真实 drawCell/board 绘制（非复刻）；贴图来自 assets/images/board2/（底板 6 + 普通 6 + 染色特殊 42）。</p>
   <canvas id="cv"></canvas>
   <pre id="err"></pre>
 </div>
@@ -57,7 +57,7 @@ function makeRequire(from) {
 const reqRoot = makeRequire('preview.js');
 
 const renderMod = reqRoot('js/game/render.js');
-const chipMod = reqRoot('js/game/icons/special-chip.js');
+const chipMod = reqRoot('js/game/icons/chip-skin.js');
 const Renderer = renderMod.Renderer;
 const R = Object.create(Renderer.prototype);
 R.ly = renderMod.layout();
@@ -78,11 +78,11 @@ const INK = '#e9e4f2', DIM = '#9a92ab', ACC = '#ff9a5c', GOOD = '#7ee4a1';
 const SHAPES = [
   { name: 'row',   label: '行爆', desc: '扁横条 + 横双头箭' },
   { name: 'col',   label: '列爆', desc: '竖条 + 竖双头箭' },
-  { name: 'cross', label: '十字爆', desc: '方头十字 + 圆核四裂纹' },
-  { name: 'split', label: '父雷', desc: '八角轮廓 + 四角星' },
-  { name: 'sub',   label: '子雷', desc: '长尖头十字 + 实心黑菱形' },
-  { name: 'rand',  label: '乱数', desc: '菱形 + 骰面五点' },
-  { name: 'rainbow', label: '彩虹', desc: '六角星 + 六色环（不染色）' },
+  { name: 'cross', label: '十字爆', desc: '横竖双头箭交叉 + 圆核' },
+  { name: 'split', label: '父雷', desc: '金色徽章 + 四角连线' },
+  { name: 'sub',   label: '子雷', desc: '父雷中心徽章（金色）' },
+  { name: 'rand',  label: '乱数', desc: '菱形骰面五点' },
+  { name: 'rainbow', label: '彩虹', desc: '六色星（不染色）' },
 ];
 const COLORS = [
   { key: 'red', label: '火', hex: '#ff6b6b' },
@@ -183,16 +183,16 @@ function paint() {
   const sB = 2.1;
   ctx.drawImage(B.cv, PAD, y, B.w * sB, B.h * sB);
   const bx = PAD + B.w * sB + 30;
-  label(bx, y + 20, '十字爆 / 父雷 / 子雷 三者同色时：', INK, '600 13px system-ui');
-  label(bx, y + 42, '· 十字爆 = 方头十字 + 圆核四裂纹', DIM);
-  label(bx, y + 62, '· 父雷 = 八角轮廓 + 四角星（体型最厚）', DIM);
-  label(bx, y + 82, '· 子雷 = 长尖头十字 + 实心黑菱形', DIM);
+  label(bx, y + 20, '父雷 / 子雷 / 十字爆 同色时：', INK, '600 13px system-ui');
+  label(bx, y + 42, '· 父雷 = 金色徽章 + 四条对角连线 + 端点', DIM);
+  label(bx, y + 62, '· 子雷 = 父雷中心徽章（同体量，无四角线）', DIM);
+  label(bx, y + 82, '· 十字爆 = 横竖双头箭 + 圆核', DIM);
   label(bx, y + 108, '三者靠「轮廓」区分，不依赖颜色。', ACC);
   y += B.h * sB + 30;
 
   /* —— C 新旧对照 —— */
   ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
-  ctx.fillText('C · 新旧对照（左：v5.2 底图 + 矢量徽记　右：v1.17.35 染色贴图）', PAD, y); y += 24;
+  ctx.fillText('C · 新旧对照（左：旧整图 + 矢量徽记　右：v1.17.44 底板×图案）', PAD, y); y += 24;
   const CCELL = 56, CGAP = 18, CROW = 96;
   const colX = (i) => PAD + i * (CCELL * 2 + 46);
   COLORS.forEach((col, i) => {
@@ -230,14 +230,14 @@ function paint() {
   y += 34;
 
   /* —— E 结论 —— */
-  const ready = SHAPES.every((sh) => chipMod.specialChip(pieceOf(sh.name, 'red')) !== null);
+  const ready = loadedCount >= ASSETS.length;
   ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
   ctx.fillText('E · 自检', PAD, y); y += 24;
   const lines = [
-    ['贴图合成状态', ready ? '就绪（13 张已加载）' : '未就绪（回退矢量徽记）', ready ? GOOD : '#ff8a8a'],
-    ['组合缓存', chipMod.cachedKeys().length + ' / 37', '#d8d2e4'],
-    ['绘制路径', 'drawCell → 单次 drawImage（离屏合成位图）', '#d8d2e4'],
-    ['回退路径', '图未加载 / 不支持 source-atop → 旧「底图 + 矢量徽记」', '#d8d2e4'],
+    ['贴图加载', ready ? ('就绪（' + loadedCount + ' / ' + ASSETS.length + ' 张）') : ('未就绪（' + loadedCount + ' / ' + ASSETS.length + '）'), ready ? GOOD : '#ff8a8a'],
+    ['绘制路径', 'drawCell → 两次 drawImage（底板 → 图案），纯查表无运行时合成', '#d8d2e4'],
+    ['特殊块图案', '随来源色染色 tint/<色>/<形>.png；父雷金色、子雷金色徽章、rainbow 不染', '#d8d2e4'],
+    ['回退路径', '底板未就绪 → 旧整图（自带符号）；全未就绪 → 色块 + 矢量徽记', '#d8d2e4'],
     ['数值影响', '无：仅渲染层，combat/config/棋盘数据零改动', GOOD],
   ];
   lines.forEach(([k, v, c], i) => {
@@ -250,14 +250,22 @@ function paint() {
 }
 
 /* ============ 启动：先等贴图，再画 ============ */
+let ASSETS = [], loadedCount = 0;
 function boot() {
   window.addEventListener('error', (e) => {
     document.getElementById('err').textContent += '\n[global] ' + e.message + ' @' + (e.filename || '') + ':' + e.lineno;
   });
   chipMod.preload();
+  ASSETS = chipMod.assets();
+  ASSETS.forEach((p) => {
+    const im = new Image();
+    im.onload = () => { loadedCount++; };
+    im.onerror = () => { loadedCount++; };
+    im.src = p;
+  });
   const t0 = Date.now();
   const tick = () => {
-    const ready = SHAPES.every((sh) => chipMod.specialChip(pieceOf(sh.name, 'red')) !== null);
+    const ready = loadedCount >= ASSETS.length;
     if (!ready && Date.now() - t0 < 8000) { setTimeout(tick, 60); return; }
     if (!ready) document.getElementById('err').textContent = '警告：部分贴图未加载，面板将显示回退效果';
     size();
@@ -276,7 +284,7 @@ function size() {
   cv.style.height = Math.ceil(used + 12) + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   paint();
-  document.title = '特殊方块验收 · ' + chipMod.cachedKeys().length + ' 组合';
+  document.title = '两层方块皮肤验收 · ' + loadedCount + '/' + ASSETS.length;
   } catch (e) {
     document.title = 'ERR';
     document.getElementById('err').textContent = String(e.stack || e);

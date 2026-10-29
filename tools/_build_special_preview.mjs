@@ -21,7 +21,7 @@ const MODULES = [
   'js/game/screens/skill-loadout.js',
   'js/game/icons/skills.js',
   'js/game/icons/special-blocks.js',
-  'js/game/icons/special-chip.js',
+  'js/game/icons/chip-skin.js',
   'js/game/ui.js',
   'js/config.js',
   'js/global-skills.js',
