@@ -512,7 +512,7 @@ class Renderer {
     ctx.fillRect(x + 20, y + 8, w - 40, 3);
     ctx.globalAlpha = 1;
     // 标题：塔名 + 塔自身等级（v1.16.70 下移至 y+64，上方留白更多）
-    text(ctx, `${info.name}塔 · 等级 Lv.${info.level}`, x + w / 2, y + 64, 34, '#ffffff', 'center');
+    text(ctx, `${String(info.name || '').replace(/（[^）]*）|\([^)]*\)/g, '').replace(/塔+$/, '塔')} · 等级 Lv.${info.level}`, x + w / 2, y + 64, 34, '#ffffff', 'center');
     // 攻击 / 攻击间隔 / DPS / 弹药（v1.16.70：外框 648×200 边框 5px；标题标签 17 号下沿贴胶囊上沿；数值 29 号；图标 29 号同强调色）
     const statW = 300, statH = 56, colGap = 20, rowGap = 26;
     const sx0 = x + (w - (statW * 2 + colGap)) / 2;
@@ -1677,6 +1677,7 @@ class Renderer {
   }
 
   fxShot(ctx, f) {
+    if (f.projectile && f.projectile.finished) return;
       // 塔攻击弹道：line=直线弹（火球/冰锥/毒液，按塔 key 区分形状）、bolt=闪电折线（电）、
       // arc=往返弧线回旋镖（回旋镖）、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
       // v1.5：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
@@ -3242,27 +3243,6 @@ class Renderer {
       for (let i = 0; i < s.length; i += max) arr.push(s.slice(i, i + max));
       return arr.length ? arr : [''];
     };
-    // v1.17.2 面板顶部「三选一」候选名行：三个候选名并排，系统推荐项（group.target）高亮金色胶囊，其余两个普通显示
-    {
-      const rowY = y + 8, rowH = 28;
-      const selIdx = group.candidates.findIndex((ef) => ef.type !== 'branch' && ef.name === group.target);
-      const names = group.candidates.map((ef) => ef.name);
-      const cells = names.map((nm) => ({ nm, nW: txtW(nm, 20) + 34 }));
-      const totalW = cells.reduce((acc, c) => acc + c.nW, 0);
-      let nx = (750 - totalW) / 2;
-      cells.forEach((c, i) => {
-        if (i === selIdx) {
-          fillRoundRect(ctx, nx, rowY, c.nW, rowH, 14, 'rgba(247,201,72,0.22)');
-          strokeRoundRect(ctx, nx, rowY, c.nW, rowH, 14, '#f7c948', 1.5);
-          text(ctx, c.nm, nx + c.nW / 2, rowY + rowH / 2 + 1, 20, '#f7c948', 'center');
-        } else {
-          text(ctx, c.nm, nx + c.nW / 2, rowY + rowH / 2 + 1, 20, 'rgba(255,255,255,0.45)', 'center');
-        }
-        nx += c.nW;
-      });
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(x + 24, rowY + rowH + 6, w - 48, 1);
-    }
     group.candidates.forEach((ef, i) => {
       // v1.11 两级候选：技能卡（未激活，选中=激活）与分支卡（已激活技能分支，选中=分支 Lv+1）
       const isBranch = ef.type === 'branch';

@@ -323,8 +323,7 @@ class CombatSystem {
     const dur = cfg.shot.dur;
     // 每枚独立寻敌：主目标上方 40px 截面带内随机敌人（带内无其他敌人则回退主目标），避免所有子弹打向同一个敌人
     const target = this.pickAltTarget(key, main);
-    this.shots.push({ key, target, dmg, t: 0, dur, sx: x, sy: y });
-    g.fx.push({ type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur, key });
+    this.addProjectile({ key, target, dmg, t: 0, dur, sx: x, sy: y }, { type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur, key });
     g.playSfx('shot', 0.25);
     // 消除格迸发小闪光（连消触发反馈）
     this.fxFlash(x, y, tint);
@@ -387,7 +386,7 @@ class CombatSystem {
 
     // 1. 飞行弹道推进与命中结算（回旋镖 sweep：沿途扫过伤害；散射 scatter：无目标沿途碰撞；其余：终点单体命中）
     for (let i = this.shots.length - 1; i >= 0; i--) {
-      if (!this.stepShot(this.shots[i], dt)) this.shots.splice(i, 1);
+      if (!this.stepShot(this.shots[i], dt)) { this.shots[i].finished = true; this.shots.splice(i, 1); }
     }
     // 2. 延迟爆炸（炮引信/炮火支援落点）
     this.updateDelayed(dt);
@@ -427,6 +426,12 @@ class CombatSystem {
   /* ---------- 弹道与召唤物推进（v1.16.43 重构：主循环子方法） ---------- */
 
   /** 单枚飞行弹道推进一帧；返回 false 表示命中结算/耗尽，应移除 */
+  addProjectile(shot, visual) {
+    shot.visual = visual; visual.projectile = shot;
+    this.shots.push(shot); this.game.fx.push(visual);
+    return shot;
+  }
+
   stepShot(s, dt) {
     const g = this.game;
     s.t += dt;
@@ -1389,8 +1394,7 @@ class CombatSystem {
     if (volley && volley[key]) {
       delete volley[key]; dmg *= 0.5;
       for (let i=1;i<=2;i++) {
-        this.shots.push({key,target,dmg,t:-i*0.12,dur,sx,sy});
-        g.fx.push({type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*0.12,key});
+        this.addProjectile({key,target,dmg,t:-i*0.12,dur,sx,sy}, {type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*0.12,key});
       }
     }
     // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
@@ -1475,8 +1479,7 @@ class CombatSystem {
         const dist = Math.hypot(dx, dy) || 1;
         const k = Math.min(1, maxD / dist);
         const ex = sx + dx * k, ey = sy + dy * k;
-        this.shots.push({ key, dmg: perDmg, t: 0, dur: bDur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') });
-        g.fx.push({ type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key, fold: this.lv('boomerang', '折返增伤') > 0 });
+        this.addProjectile({ key, dmg: perDmg, t: 0, dur: bDur, sx, sy, tx: ex, ty: ey, sweep: true, hitIds: {}, windLv: this.lv('boomerang', '风痕') }, { type: 'shot', kind: 'arc', color: tint, x: sx, y: sy, tx: ex, ty: ey, t: 0, dur: bDur, key, fold: this.lv('boomerang', '折返增伤') > 0 });
       }
     } else if (!fireMulti && !iceMulti) {
       this.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
@@ -1505,15 +1508,19 @@ class CombatSystem {
 
   /** 散射弹道（无目标）沿途碰撞检测（v1.13.13）：按 t/dur 线性插值当前位置，命中半径内敌人返回该敌，未命中返回 null */
   scatterCheck(s) {
-    const p = Math.min(1, s.t / s.dur);
-    const bx = s.sx + (s.tx - s.sx) * p;
-    const by = s.sy + (s.ty - s.sy) * p;
-    const r = s.hitR || 42;
-    for (const e of this.enemies()) {
-      if (e.hp <= 0) continue;
-      if (Math.hypot(e.x - bx, e.y - by) <= r) return e;
+    const p = Math.max(0, Math.min(1, s.t / s.dur));
+    const prev = Math.max(0, Math.min(1, s._collisionP || 0));
+    const ax=s.sx+(s.tx-s.sx)*prev, ay=s.sy+(s.ty-s.sy)*prev;
+    const bx=s.sx+(s.tx-s.sx)*p, by=s.sy+(s.ty-s.sy)*p;
+    const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy,r=s.hitR||42;
+    s._collisionP=p;
+    let first=null, at=Infinity;
+    for(const e of this.enemies()) {
+      if(e.hp<=0 || e===s.ignoreTarget) continue;
+      const u=len2?Math.max(0,Math.min(1,((e.x-ax)*dx+(e.y-ay)*dy)/len2)):0;
+      if(Math.hypot(e.x-ax-u*dx,e.y-ay-u*dy)<=r && u<at){first=e;at=u;}
     }
-    return null;
+    return first;
   }
 
   /** 回旋镖轨迹点（v1.9）：椭圆大弧——镖从塔出发，划弧越过投掷方向最远点后继续绕回塔（非原路径折返） */
@@ -1777,8 +1784,7 @@ class CombatSystem {
           const tx = mz.x + dx * cos - dy * sin;
           const ty = mz.y + dx * sin + dy * cos;
           const st = (o) => this._fireImpact(o, dmg, off);
-          this.shots.push({ key: 'fire', scatter: true, dmg, t: 0, dur: durF, sx: mz.x, sy: mz.y, tx, ty, hitR: 45, onHit: st });
-          g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: durF, key: 'fire', aim: true, scale: 1.15, tx, ty });
+          this.addProjectile({ key: 'fire', scatter: true, dmg, t: 0, dur: durF, sx: mz.x, sy: mz.y, tx, ty, hitR: 45, onHit: st }, { type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: durF, key: 'fire', aim: true, scale: 1.15, tx, ty });
         }
         this.fxRing(e.x, e.y, '#ff9f43', 60, 0.5, 4);
         if (g.fx) g.fx.push({ type: 'floatText', text: '焰雨·三连！', x: e.x, y: e.y - 46, t: 0, dur: 0.9, size: 22, color: '#ffd24a' });   // v1.16.113 触发确认飘字
@@ -1824,8 +1830,7 @@ class CombatSystem {
           if (ft) ft.energy = Math.min(ft.energy + 1, run.armoryEnergyMax());
         }
       };
-      this.shots.push({ key: 'fire', scatter: true, dmg, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz.x, sy: mz.y, tx, ty, hitR: 42, onHit: fbStrike });
-      g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx, ty });
+      this.addProjectile({ key: 'fire', scatter: true, dmg, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz.x, sy: mz.y, tx, ty, hitR: 42, onHit: fbStrike }, { type: 'shot', kind: 'line', color: '#ff7043', x: mz.x, y: mz.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx, ty });
     }
   }
 
@@ -1879,8 +1884,7 @@ class CombatSystem {
             this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
             this.tryAttackDebuff('fire', m2, dmg);   // v1.16.53 分裂小火球属普攻强化：统一灼烧判定（吃点燃技能加成）
           };
-          this.shots.push({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
-          g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+          this.addProjectile({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
         }
       }
       // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
@@ -1911,16 +1915,17 @@ class CombatSystem {
     const aim0 = aimOf(e, 0);
     const baseAng = Math.atan2(aim0.ty - fsy, aim0.tx - fsx);
     const strikeCenter = (o) => strike(o, perDmg, baseAng);
-    this.shots.push({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter });
-    g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, scale: 1.35, tx: e.x, ty: e.y });
+    this.addProjectile({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, scale: 1.35, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
     const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
     for (let i = 0; i < n - 1; i++) {
       const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
       const ap = aimOf(e, off);
+      const rayLen=Math.hypot(ap.tx-fsx,ap.ty-fsy)||1;
+      const reach=this.range('fire');
+      ap.tx=fsx+(ap.tx-fsx)*reach/rayLen; ap.ty=fsy+(ap.ty-fsy)*reach/rayLen;
       const strikeSide = (o) => strike(o, perDmg, Math.atan2(ap.ty - fsy, ap.tx - fsx));
-      this.shots.push({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide });
-      g.fx.push({ type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
+      this.addProjectile({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
     }
   }
 
@@ -1948,8 +1953,7 @@ class CombatSystem {
           const off0 = (Math.random() * 2 - 1) * 0.20;
           const tx0 = mz0.x + Math.sin(off0) * R0, ty0 = mz0.y - Math.cos(off0) * R0;
           const st0 = (o) => this._fireImpact(o, rr, off0);
-          this.shots.push({ key: 'fire', scatter: true, dmg: rr, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz0.x, sy: mz0.y, tx: tx0, ty: ty0, hitR: hitR0, onHit: st0 });
-          g.fx.push({ type: 'shot', kind: 'line', color: '#ff7043', x: mz0.x, y: mz0.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx: tx0, ty: ty0 });
+          this.addProjectile({ key: 'fire', scatter: true, dmg: rr, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, sx: mz0.x, sy: mz0.y, tx: tx0, ty: ty0, hitR: hitR0, onHit: st0 }, { type: 'shot', kind: 'line', color: '#ff7043', x: mz0.x, y: mz0.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur, key: 'fire', aim: true, scale: 1.0, tx: tx0, ty: ty0 });
         }
       }
     }
@@ -2006,8 +2010,7 @@ class CombatSystem {
           this.tryAttackDebuff('fire', m2, d);
           this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
         };
-        this.shots.push({ key: 'fire', scatter: true, dmg: d * 0.25, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike });
-        g.fx.push({ type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+        this.addProjectile({ key: 'fire', scatter: true, dmg: d * 0.25, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: CONFIG.TOWERS.fire.shot.dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
       }
     }
     // 大火球爆炸（含爆核1★/2★ 半径扩大）
@@ -2288,8 +2291,7 @@ class CombatSystem {
       const targets = this.enemies().filter((o) => o.hp > 0 && this.inTowerRange('ice', o.x, o.y));
       for (let i = 0; i < n; i++) {
         const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
-        this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike });
-        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+        this.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
       }
       // 主目标也受一枚小冰锥伤害（增殖时无直瞄主目标概念，主目标被环形索敌覆盖）
       this.damage(e, perDmg, 'ice');
@@ -2316,16 +2318,17 @@ class CombatSystem {
     // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
     const aim0 = aimOf(e, 0);
     const strikeCenter = (o) => strike(o, perDmg);
-    this.shots.push({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter });
-    g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
+    this.addProjectile({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
     const maxOff = (n - 2) * 0.08;
     for (let i = 0; i < n - 1; i++) {
       const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
       const ap = aimOf(e, off);
+      const rayLen=Math.hypot(ap.tx-msx,ap.ty-msy)||1;
+      const reach=this.range('ice');
+      ap.tx=msx+(ap.tx-msx)*reach/rayLen; ap.ty=msy+(ap.ty-msy)*reach/rayLen;
       const strikeSide = (o) => strike(o, perDmg);
-      this.shots.push({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide });
-      g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
+      this.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
     }
   }
 
@@ -2347,8 +2350,7 @@ class CombatSystem {
           this.iceHitFx(o, dmg);
           this.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
         };
-        this.shots.push({ key: 'ice', scatter: true, dmg, t: 0, dur: durI, sx: mzI.x, sy: mzI.y, tx: txI, ty: tyI, hitR: 45, onHit: stI });
-        this.game.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: mzI.x, y: mzI.y, t: 0, dur: durI, key: 'ice', aim: true, scale: 1.15, tx: txI, ty: tyI });
+        this.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur: durI, sx: mzI.x, sy: mzI.y, tx: txI, ty: tyI, hitR: 45, onHit: stI }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: mzI.x, y: mzI.y, t: 0, dur: durI, key: 'ice', aim: true, scale: 1.15, tx: txI, ty: tyI });
       }
     }
     // v1.13.27 普攻命中打击特效：冰锥撞击爆冰晶（白屑 + 蓝屑 + 小环 + 微闪）
@@ -2419,8 +2421,7 @@ class CombatSystem {
         const a = baseA + off;
         const tx = sx + Math.cos(a) * R;
         const ty = sy + Math.sin(a) * R;
-        this.shots.push({ key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, onHit: strike });
-        g.fx.push({ type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale: 0.85, tx, ty });
+        this.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale: 0.85, tx, ty });
       }
     }
     // 冰穿刺（v1.16.21 重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）

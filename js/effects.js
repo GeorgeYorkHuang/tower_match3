@@ -119,7 +119,8 @@ class TowerBuild {
         if (raised.length) {
           // 已定路线（v5.4 解锁）：随机一个未满分支出卡——已定分支与未选分支均等机会，
           //   玩家既可延续专精也可扩展其他分支，三选一始终可能出现 B/C 分支卡
-          const br = unmaxed[Math.floor(Math.random() * unmaxed.length)];
+          const br = raised[0];
+          if (ef.branches[br] >= CONFIG.EFFECT.maxLevel) return;
           const brk = br.toLowerCase();
           cands.push({
             name: ef.name, icon: cfg.icon, color: cfg.color,
@@ -207,13 +208,17 @@ class TowerBuild {
       if (!host._activated(poolEf)) return { ok: false };
       const br = ef.branch;
       if (!BRANCH_KEYS.includes(br)) return { ok: false };
+      const locked = BRANCH_KEYS.find(b => poolEf.branches[b] > 0);
+      if ((locked && locked !== br) || poolEf.branches[br] >= CONFIG.EFFECT.maxLevel) return { ok: false };
       poolEf.branches[br] = Math.min(poolEf.branches[br] + 1, CONFIG.EFFECT.maxLevel);
       host.picked.add(poolEf.name);   // 分支升级 = 三选一获取（详情展示）
       res.leveled = true;
     } else {
       // 技能卡：激活（防御：若已激活则随机未满分支升级，v1.17.10e 不再固定 A）
       if (host._activated(poolEf)) {
-        const brs = BRANCH_KEYS.filter((b) => poolEf.branches[b] < CONFIG.EFFECT.maxLevel);
+        const locked = BRANCH_KEYS.find(b => poolEf.branches[b] > 0);
+        const brs = BRANCH_KEYS.filter((b) => (!locked || b === locked) && poolEf.branches[b] < CONFIG.EFFECT.maxLevel);
+        if (!brs.length) return { ok: false };
         const br = brs.length ? brs[Math.floor(Math.random() * brs.length)] : 'A';
         poolEf.branches[br] = Math.min(poolEf.branches[br] + 1, CONFIG.EFFECT.maxLevel);
         host.picked.add(poolEf.name);
