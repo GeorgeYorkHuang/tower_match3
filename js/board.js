@@ -178,39 +178,8 @@ Board.prototype.findMatches = function findMatches() {
       r = end + 1;
     }
   }
-  // 彩虹块：配任意颜色（相邻两同色格）成组——每彩虹格至多一组，命中即记录
-  for (let r = 0; r < this.rows; r++) {
-    for (let c = 0; c < this.cols; c++) {
-      const v0 = this.grid[r][c];
-      if (specialType(v0) !== 'rainbow') continue;
-      const pair = this._rainbowPair(r, c);
-      if (!pair) continue;
-      const { cells, color } = pair;
-      h.push({ cells, color, rainbow: true });
-      c += 2; // 跳过该彩虹格已用掉的配对（本行继续）
-    }
-  }
+  // 彩虹块不参与任何自动匹配（v5.6.7：仅玩家交换彩虹块+色块触发全消，或爆炸波及随机色）
   return mergeCross(h, v);
-};
-
-/** 彩虹块配对：返回 {cells:[彩虹格, 两同色格], color} 或 null（同列/同行 三种相邻形态） */
-Board.prototype._rainbowPair = function _rainbowPair(r, c) {
-  const same = (x, y) => {
-    const v = this.grid[x] && this.grid[x][y];
-    if (v === null || isSpecial(v)) return null;
-    return cellColor(v);
-  };
-  const colC = same(r, c - 1), colD = same(r, c - 2);
-  if (colC && colC === colD) return { cells: [[r, c], [r, c - 1], [r, c - 2]], color: colC };
-  const colA = same(r, c + 1), colB = same(r, c + 2);
-  if (colA && colA === colB) return { cells: [[r, c], [r, c + 1], [r, c + 2]], color: colA };
-  if (colC && colC === colA) return { cells: [[r, c], [r, c - 1], [r, c + 1]], color: colC };
-  const rowC = same(r - 1, c), rowD = same(r - 2, c);
-  if (rowC && rowC === rowD) return { cells: [[r, c], [r - 1, c], [r - 2, c]], color: rowC };
-  const rowA = same(r + 1, c), rowB = same(r + 2, c);
-  if (rowA && rowA === rowB) return { cells: [[r, c], [r + 1, c], [r + 2, c]], color: rowA };
-  if (rowC && rowC === rowA) return { cells: [[r, c], [r - 1, c], [r + 1, c]], color: rowC };
-  return null;
 };
 
 
