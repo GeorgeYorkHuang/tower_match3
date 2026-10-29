@@ -9,12 +9,12 @@ OUT = 'F:/workspace/towerdefence/art/special_blocks_v2'
 TOL = 45
 
 JOBS = [
-    ('row',   '2D_match_3_game_tile__a_single_2026-10-29T15-56-25.png', '行爆'),
-    ('col',   '2D_match_3_game_tile__a_single_2026-10-29T15-56-38.png', '列爆'),
-    ('cross', '2D_match_3_game_tile__a_single_2026-10-29T15-56-52.png', '十字爆'),
-    ('split', '2D_match_3_game_tile__a_single_2026-10-29T15-59-17.png', '父雷'),
-    ('sub',   '2D_match_3_game_tile__a_single_2026-10-29T15-57-41.png', '子雷'),
-    ('rand',  '2D_match_3_game_tile__a_single_2026-10-29T15-57-52.png', '乱数'),
+    ('row',   'red2', '2D_match_3_game_tile__a_single_2026-10-29T15-56-25.png', '行爆'),
+    ('col',   'red2', '2D_match_3_game_tile__a_single_2026-10-29T15-56-38.png', '列爆'),
+    ('cross', 'red2', '2D_match_3_game_tile__a_single_2026-10-29T15-56-52.png', '十字爆'),
+    ('split', 'red3', '2D_match_3_game_tile__a_single_2026-10-29T16-11-00.png', '父雷'),
+    ('sub',   'red3', '2D_match_3_game_tile__a_single_2026-10-29T16-11-14.png', '子雷'),
+    ('rand',  'red2', '2D_match_3_game_tile__a_single_2026-10-29T15-57-52.png', '乱数'),
 ]
 NORMAL = 'F:/workspace/towerdefence/assets/images/board/fire.png'   # 普通块风格对照
 
@@ -147,8 +147,8 @@ except Exception:
 
 chips = {}
 print('%-6s %-10s %s' % ('shape', 'corners', 'bbox256'))
-for name, fn, label in JOBS:
-    m = to256(crop_main(islands_clean(keyout(os.path.join(SRC, fn)))))
+for name, sub, fn, label in JOBS:
+    m = to256(crop_main(islands_clean(keyout(os.path.join(os.path.dirname(SRC), sub, fn)))))
     chips[name] = m
     print('%-6s ok          %s' % (name, m.getbbox()))
     m.save(os.path.join(OUT, 'chip2_%s_red.png' % name), optimize=True)
@@ -156,8 +156,8 @@ for name, fn, label in JOBS:
 C = 200; G = 12
 sheet = Image.new('RGBA', (6 * C + 7 * G, C + 3 * G + 26), (23, 18, 31, 255))
 d = ImageDraw.Draw(sheet)
-d.text((G, 6), 'v2.1 冰晶风 · 火色 6 款（抠底后 256，与普通方块同风格）', font=font, fill=(214, 205, 228, 255))
-for i, (name, _, label) in enumerate(JOBS):
+d.text((G, 6), 'v2.2 冰晶风 + 原版图案 · 火色 6 款（父雷金色、子雷三角警示回原版）', font=font, fill=(214, 205, 228, 255))
+for i, (name, _, _, label) in enumerate(JOBS):
     sheet.alpha_composite(chips[name].resize((C, C), Image.LANCZOS), (G + i * (C + G), 26))
     d.text((G + i * (C + G) + C // 2 - 14, 26 + C + 2), label, font=font, fill=(196, 186, 210, 255))
 
@@ -165,7 +165,7 @@ row = Image.new('RGBA', (7 * 56 + 8 * 10, 56 + 2 * 10 + 18), (23, 18, 31, 255))
 d2 = ImageDraw.Draw(row)
 d2.text((10, 2), '56px 实尺（最左 = 现有普通火块对照）', font=font_s, fill=(160, 152, 176, 255))
 row.alpha_composite(Image.open(NORMAL).convert('RGBA').resize((56, 56), Image.LANCZOS), (10, 20))
-for i, (name, _, label) in enumerate(JOBS):
+for i, (name, _, _, label) in enumerate(JOBS):
     row.alpha_composite(chips[name].resize((56, 56), Image.LANCZOS), (10 + (i + 1) * 66, 20))
 
 final = Image.new('RGBA', (max(sheet.width, row.width * 3), sheet.height + row.height * 3 + 10), (23, 18, 31, 255))
