@@ -1,3 +1,4 @@
+const GS_BALANCE = require('../config/global-balance.js');
 /**
  * main.js —— 游戏主循环与状态机（渲染层入口）
  * 状态机：fighting（波内消除+战斗）→ 波末结算 → picking（三选一）→ 下一波 / gameover
@@ -517,7 +518,7 @@ class GameMain {
         // 毒·瘴气 C：瘴内中毒敌人攻击力降低（-20%/-35%/-50%，v1.15）；v1.16.78 减伤护符：城墙受伤 -N%（按星级）
         const guard = this.run.relicNum('cm_guard');
         const atkDmg = e.attack * (e._miasmaAtkMult || 1) * (guard > 0 ? (1 - guard / 100) : 1);
-        if (this.run.gsState && this.run.gsState.reflect > 0) this.combat.damage(e, atkDmg * 0.6, 'global');
+        if (this.run.gsState && this.run.gsState.reflect > 0) this.combat.damage(e, atkDmg * GS_BALANCE.reflect.damageRatio, 'global');
         const iw = this.combat.iceWall;
         if (iw && iw.ttl > 0) {
           // 冰墙：先吸收伤害；溢出部分扣城墙；反伤攻击者；迟缓（减速40% + 攻击间隔 +0.5s·持续2s）
@@ -934,7 +935,7 @@ class GameMain {
         * KD.goldLevelMult(e.genLv)
         * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
         * (field.goldMult || 1));
-      const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? 2 : 1);
+      const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? GS_BALANCE.gold.multiplier : 1);
       this.run.gold += earned;
       if (earned > kg) this.fx.push({type:'floatText',text:'+'+earned,x:e.x,y:e.y,t:0,dur:0.8,size:20,color:'#ffe17c'});
     }

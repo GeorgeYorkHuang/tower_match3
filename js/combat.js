@@ -25,74 +25,8 @@ const GlobalSkills = require('./global-skills.js');
  * 展示文案在 config.js EFFECT_POOLS（desc/a/b/c）；此处是**行为数值**单源，
  * combat 内一律经 SKILL_NUM 取数，禁止散落魔法数组。
  * ===================================================================== */
-const SKILL_NUM = {
-  fire: {
-    '灼烧':   { burst: [0, 0.15, 0.30, 0.50],      // B 燃尽：每跳爆炸概率
-                trueFire: [0, 0.10, 0.20, 0.30],   // C 真火：每层灼烧目标受伤加成
-                burnRadius: [0, 30, 60, 90] },     // B 燃尽：爆炸范围
-    '点燃':   { emberDmg: [0, 0.20, 0.40, 0.60],   // C 余烬：灼烧伤害加成
-                heatTtl: [0, 2, 3, 4],             // B 炽热：灼烧时长
-                emberTtlCut: [0, 0.5, 1, 1.5] },   // C 余烬：灼烧时长缩减
-    '爆燃':   { radius: [0, 0.2, 0.4, 0.6],        // B 扩张：爆炸范围
-                dmg: [0, 0.3, 0.6, 0.9] },         // A 爆裂：爆炸伤害
-    '多重火球': { condense: [0, 0.15, 0.30, 0.50], // B 凝火：火球增伤
-                scatterSplit: [0, 3, 4, 5] },      // C 散射：分裂小火球数
-    '烈焰墙': { range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
-                dmg: [0, 0.2, 0.4, 0.6],           // A 神火：墙伤害
-                slow: [0, 0.1, 0.2, 0.3] },        // C 迟滞：墙内减速
-    '火雨':   { radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
-                segDmg: [0, 0.4, 0.8, 1.2] },      // B 猛烈：每段伤害
-  },
-  ice: {
-    '寒霜':   { slowMult: [0, 0.1, 0.2, 0.3],      // C 深寒：减速幅度
-                ttl: [0, 1, 2, 3] },               // B 凝结：冰缓时长
-    '冰冻':   { prob: [0, 0.15, 0.30, 0.45],       // A 冻结：冰冻概率
-                dur: [0, 1, 1.5, 2],               // B 深结：冻结时长
-                shatter: [0, 0.30, 0.40, 0.50] },  // C 碎冰：击杀爆炸伤害
-    '冰穿刺': { pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
-                cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害
-    '多重冰锥': { swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
-    '碎冰':   { dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
-                frz: [0, 0.05, 0.10, 0.15] },      // C 冻结：命中冻结概率
-    '冰花':   { n: [0, 1, 2, 3],                   // C 繁花：冰花数量
-                dmg: [0, 0.2, 0.4, 0.6],           // B 霜力：冰花伤害
-                radius: [0, 0.2, 0.4, 0.6] },      // A 扩张：爆炸范围
-    '冬珠':   { slowMult: [0, 0.2, 0.3, 0.4],      // A 寒域：范围减速
-                radius: [0, 0.2, 0.4, 0.6],        // B 扩张：范围
-                tickI: [0, 0.7, 0.55, 0.4] },      // C 凝华：伤害频率
-    '冰墙':   { ttl: [0, 2, 4, 6],                 // A 凝壁：冰盾持续
-                reflect: [0, 0.3, 0.6, 0.9],       // B 霜反：反伤
-                heal: [0, 50, 100, 150] },         // C 融暖：结束回血
-  },
-  poison: {
-    '剧毒':   { freq: [0, 0.1, 0.2, 0.3] },        // C 频发：每跳间隔缩减
-    '毒性强化': { ttlAdd: [0, 2, 4, 6] },          // B 延毒：中毒时长
-    '瘟疫':   { iv: [0, 2, 1.7, 1.5, 1.3],         // A 快疫：传染判定间隔
-                prob: [0, 0.30, 0.45, 0.60] },     // C 强疫：传染概率
-    '瘴气':   { dotMult: [0, 1.2, 1.3, 1.4],       // B 浓瘴：中毒 DoT 伤害倍率
-                atkCut: [0, 0.2, 0.35, 0.5] },     // C 弱化：瘴内中毒敌攻击削减
-    '毒爆':   { inherit: [0, 0.30, 0.40, 0.50],    // B 继承：附带死亡层数概率
-                swampTtl: [0, 4, 5, 6],            // C 毒沼：持续时间
-                swampR: 60, swampSlow: 0.25,       // C 毒沼：半径 / 泥沼减速
-                spreadP: 0.30 },                   // 基础：传染 30% 概率
-  },
-  electric: {
-    '极光电击': { period: 8 },                     // 周期固定 8s（v1.16.51 分叉范围/数量由 A/C 分支内联）
-    '过载':   { deton: [0, 0.20, 0.30, 0.40] },    // A 弹载：消耗层数伤害
-    '麻痹':   { cond: [0, 0.20, 0.30, 0.40] },     // C 导电：邻近传导概率
-  },
-  boomerang: {
-    '接镖':   { catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（v1.16.42）
-    '猎手标记': { markDur: 5,                      // 基础：标记持续秒
-                deep: [0, 0.08, 0.16, 0.24] },     // A 深镖：受标记敌人受伤加成
-    '风痕':   { slow: [0, 0.10, 0.20, 0.30] },     // C 卷痕：风痕内减速
-  },
-  cannon: {
-    '贯穿弹': { slow: [0, 0.15, 0.30, 0.45] },     // C 贯透：被贯穿减速
-    '地雷阵': { shards: [0, 5, 6, 7],              // C 碎雷：弹片数
-                shardR: 130, shardDmg: 0.30, shardSpeed: 500 }, // C 碎雷：范围/每片伤害/飞行速度
-  },
-};
+const SKILL_NUM = require('./config/tower-skills.js');
+const GS_BALANCE = require('./config/global-balance.js');
 
 /** 敌人状态初始化（wave.pushEnemy 时调用） */
 function initEnemyState(e) {
@@ -215,7 +149,7 @@ class CombatSystem {
     if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
-    return Math.max(0.15, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? 1.4 : 1));
+    return Math.max(0.15, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1));
   }
 
   /** 塔当前射程（射程/技能叠加） */
@@ -253,7 +187,7 @@ class CombatSystem {
   shotDmg(key, isSkill) {
     const dps = this.game.run.effects.towerDps(key);
     const iv = CONFIG.TOWERS[key].atkInterval;
-    let dmg = dps * iv * (this.game.run.gsState && this.game.run.gsState.forge > 0 ? 1.25 : 1);
+    let dmg = dps * iv * (this.game.run.gsState && this.game.run.gsState.forge > 0 ? GS_BALANCE.forge.damageMultiplier : 1);
     // v1.16.77 局内商店·攻击强化：+20%/层（本局临时）
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { atk: 0 };
     if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
@@ -1392,9 +1326,9 @@ class CombatSystem {
     let dmg = this.shotDmg(key);
     const volley = g.run.gsState && g.run.gsState.volley;
     if (volley && volley[key]) {
-      delete volley[key]; dmg *= 0.5;
-      for (let i=1;i<=2;i++) {
-        this.addProjectile({key,target,dmg,t:-i*0.12,dur,sx,sy}, {type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*0.12,key});
+      delete volley[key]; dmg *= GS_BALANCE.volley.damagePerShot;
+      for (let i=1;i<GS_BALANCE.volley.count;i++) {
+        this.addProjectile({key,target,dmg,t:-i*GS_BALANCE.volley.shotDelay,dur,sx,sy}, {type:'shot',kind:cfg.shot.kind,color:tint,x:sx,y:sy,tx:target.x,ty:target.y,t:0,dur:dur+i*GS_BALANCE.volley.shotDelay,key});
       }
     }
     // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）

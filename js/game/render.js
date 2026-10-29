@@ -1,3 +1,9 @@
+const FirewallFx = require('./fx/firewall.js');
+const FirepillarFx = require('./fx/firepillar.js');
+const { createSkillLoadout } = require('./screens/skill-loadout.js');
+const { skillIcon } = require('./icons/skills.js');
+const { specialBlockMark, COLOR_FILL } = require('./icons/special-blocks.js');
+const GS_BALANCE = require('../config/global-balance.js');
 /**
  * render.js —— 主界面渲染（设计稿 750×1626 逻辑坐标，定版 v7：iPhone 15 比例）
  * 分区：状态条 72 / 行动区 700×970（入口带 68、城墙 24）/ 塔位区 122 / 棋盘区 462
@@ -32,10 +38,7 @@ function drawFlameTongue(ctx, x, y, w, h, sway, color, alpha) {
 }
 
 /* 棋盘 6 色 */
-const COLOR_FILL = {
-  red: '#e74c3c', blue: '#3498db', green: '#2ecc71',
-  yellow: '#f1c40f', purple: '#9b59b6', orange: '#b5651d', // 橙=焦糖棕橙（与红黄区分）
-};
+
 /* 塔位配色（含未解锁空位） */
 const TOWER_TINT = {
   fire: '#e74c3c', ice: '#5dade2', poison: '#52be80',
@@ -83,19 +86,19 @@ const IMG_SRC = {
   towerRow: 'assets/images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
   boardBg: 'assets/images/ui/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
   // v1.17.17 火墙技能 4 帧动画（512×160 黑底，加法混合 lighter；12fps 循环）
-  firewall1: 'assets/images/fx/firewall/anim_firewall_01.png',
-  firewall2: 'assets/images/fx/firewall/anim_firewall_02.png',
-  firewall3: 'assets/images/fx/firewall/anim_firewall_03.png',
-  firewall4: 'assets/images/fx/firewall/anim_firewall_04.png',
+  firewall1: FirewallFx.ASSETS[1],
+  firewall2: FirewallFx.ASSETS[2],
+  firewall3: FirewallFx.ASSETS[3],
+  firewall4: FirewallFx.ASSETS[4],
   // v1.17.25 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
-  firepillar1: 'assets/images/fx/firepillar/anim_firepillar_01.png',
-  firepillar2: 'assets/images/fx/firepillar/anim_firepillar_02.png',
-  firepillar3: 'assets/images/fx/firepillar/anim_firepillar_03.png',
-  firepillar4: 'assets/images/fx/firepillar/anim_firepillar_04.png',
-  firepillar5: 'assets/images/fx/firepillar/anim_firepillar_05.png',
-  firepillar6: 'assets/images/fx/firepillar/anim_firepillar_06.png',
-  firepillar7: 'assets/images/fx/firepillar/anim_firepillar_07.png',
-  firepillar8: 'assets/images/fx/firepillar/anim_firepillar_08.png',
+  firepillar1: FirepillarFx.ASSETS[1],
+  firepillar2: FirepillarFx.ASSETS[2],
+  firepillar3: FirepillarFx.ASSETS[3],
+  firepillar4: FirepillarFx.ASSETS[4],
+  firepillar5: FirepillarFx.ASSETS[5],
+  firepillar6: FirepillarFx.ASSETS[6],
+  firepillar7: FirepillarFx.ASSETS[7],
+  firepillar8: FirepillarFx.ASSETS[8],
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -286,6 +289,7 @@ const FX_HANDLERS = {
 class Renderer {
   constructor() {
     this.ly = layout();
+    this._getSkillLoadout();
   }
 
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
@@ -395,7 +399,7 @@ class Renderer {
       fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, 5, barCol);
     }
     if (shield > 0) {
-      fillRoundRect(ctx,AREA_X,by-8,AREA_W*Math.min(1,shield/1200),5,2,'#86caff');
+      fillRoundRect(ctx,AREA_X,by-8,AREA_W*Math.min(1,shield/GS_BALANCE.barrier.shield),5,2,'#86caff');
       text(ctx,'护盾 '+Math.ceil(shield),AREA_X+AREA_W-5,by-18,16,'#a6e8ff','right');
     }
     // 血量数字（血条内居中）
@@ -774,13 +778,21 @@ class Renderer {
     const font = ctx.font || '';
     ctx.font = `bold ${size}px sans-serif`;
     let cur = '';
+    const tokens = [];
+    const closing = /[，。！？；：、,.!?;:）】》」』”’％%]/u;
+    const opening = /[（【《「『“‘]/u;
+    let prefix = '';
     for (const ch of String(str)) {
-      const t = cur + ch;
-      if (cur && ctx.measureText(t).width > maxW) {
-        lines.push(cur); cur = ch;
-      } else {
-        cur = t;
-      }
+      if (opening.test(ch)) { prefix += ch; continue; }
+      if (closing.test(ch) && tokens.length && !prefix) tokens[tokens.length - 1] += ch;
+      else { tokens.push(prefix + ch); prefix = ''; }
+    }
+    if (prefix) tokens.push(prefix);
+    for (const token of tokens) {
+      if (token === '\n') { lines.push(cur); cur = ''; continue; }
+      const next = cur + token;
+      if (cur && ctx.measureText(next).width > maxW) { lines.push(cur); cur = token; }
+      else cur = next;
     }
     if (cur) lines.push(cur);
     if (font) ctx.font = font;
@@ -1011,50 +1023,7 @@ class Renderer {
 
   /** Special pieces share a dark medallion and bright border; shape encodes function independently of hue. */
   _specialBlockMark(ctx, x, y, size, piece) {
-    ctx.save(); ctx.translate(x + size / 2, y + size / 2); ctx.scale(size / 56, size / 56);
-    strokeRoundRect(ctx,-26,-26,52,52,9,'#172035',4);
-    strokeRoundRect(ctx,-24,-24,48,48,8,piece.s==='rainbow'?'#ffe8a5':(piece.s==='split'&&piece.sub?'#ff4d5e':'#ffffff'),2);
-    fillRoundRect(ctx,-20,-20,40,40,10,'rgba(9,18,35,0.87)');
-    const glyphColor = piece.s === 'rainbow' ? '#ffffff' : ({ red: '#ff6578', blue: '#69caff', green: '#74ed9c', yellow: '#ffe36a', purple: '#c69aff', orange: '#ffad58' })[piece.c || piece.tint] || '#ffffff';
-    ctx.strokeStyle=glyphColor; ctx.fillStyle=glyphColor; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.lineJoin='round';
-    const line=(a,b,c,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke();};
-    const dot=(a,b,r)=>{ctx.beginPath();ctx.arc(a,b,r,0,Math.PI*2);ctx.fill();};
-    const arrow=(vertical)=>{
-      ctx.save(); if(vertical)ctx.rotate(Math.PI/2);
-      line(-15,0,15,0);line(-15,0,-9,-6);line(-15,0,-9,6);line(15,0,9,-6);line(15,0,9,6);ctx.restore();
-    };
-    if(piece.s==='row') { arrow(false);line(-10,-12,10,-12);line(-10,12,10,12); }
-    else if(piece.s==='col') { arrow(true);line(-12,-10,-12,10);line(12,-10,12,10); }
-    else if(piece.s==='cross') { arrow(false);arrow(true);dot(0,0,4); }
-    else if(piece.s==='split') {
-      if(piece.sub){
-        // 子分裂雷：红警风格（红框红底 + 三角警示 + 爆炸对角标），一眼区分父雷；爆炸效果与父一致
-        fillRoundRect(ctx,-18,-18,36,36,8,'rgba(58,8,14,0.92)');
-        ctx.strokeStyle='#ff9aa5'; ctx.lineWidth=2.5;
-        ctx.beginPath(); ctx.moveTo(0,-9); ctx.lineTo(9,6); ctx.lineTo(-9,6); ctx.closePath(); ctx.stroke();
-        dot(0,1,2.6);
-        ctx.strokeStyle='#ff4d5e'; ctx.lineWidth=3;
-        line(-11,-11,11,11); line(11,-11,-11,11);
-      } else {
-        // 父分裂雷：金色中心十字 + 四角连线大圆点
-        ctx.strokeStyle='#ffd24a'; ctx.lineWidth=3;
-        dot(0,0,6);
-        line(-10,0,10,0); line(0,-10,0,10);
-        [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*14,dy*14);dot(dx*16,dy*16,4);}));
-      }
-    } else if(piece.s==='rand') {
-      ctx.save();ctx.rotate(Math.PI/4);strokeRoundRect(ctx,-13,-13,26,26,4,glyphColor,2);ctx.restore();
-      [[-7,-7],[7,-7],[0,0],[-7,7],[7,7]].forEach(([a,b])=>dot(a,b,2.6));
-    } else if(piece.s==='rainbow') {
-      const colors=['#ff6174','#ffad54','#ffe36a','#7ee4a1','#78c8ff','#c09aff'];
-      colors.forEach((col,i)=>{ctx.strokeStyle=col;ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,15,i*Math.PI/3+0.04,(i+1)*Math.PI/3-0.04);ctx.stroke();});
-      ctx.fillStyle=glyphColor;ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(3,-3);ctx.lineTo(9,0);ctx.lineTo(3,3);ctx.lineTo(0,9);ctx.lineTo(-3,3);ctx.lineTo(-9,0);ctx.lineTo(-3,-3);ctx.closePath();ctx.fill();
-    }
-    // Keep the piece's source hue visible even when the center emblem covers its artwork.
-    const hue=piece.s === 'rainbow' ? null : COLOR_FILL[piece.c || piece.tint];
-    if(hue){ctx.fillStyle=hue;ctx.strokeStyle='#ffffff';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(18,18,5,0,Math.PI*2);ctx.fill();ctx.stroke();}
-    if(piece.sub){ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.moveTo(-25,-25);ctx.lineTo(-12,-25);ctx.lineTo(-25,-12);ctx.closePath();ctx.fill();}
-    ctx.restore();
+    return specialBlockMark(ctx, x, y, size, piece);
   }
 
   /** 计算最终格子 (r,c) 在下落动画中的来源行：继承格返回旧行，新落格返回 -1 */
@@ -2537,24 +2506,16 @@ class Renderer {
       const t = Math.min(f.t, f.dur), dur = f.dur;
       const cx = f.x, cy = f.y, R = f.r || 120, seed = f.seed || 0;
       // 判定提示细环（0~0.6s 由 0 扩到 R，之后短暂渐隐；仅 1.5px 细线不填充，精确标伤害范围）
-      if (t < 1.0) {
-        const k = Math.min(1, t / 0.6);
-        const fade = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
-        ctx.globalAlpha = 0.35 * fade;
+      const ring = FirepillarFx.warnRing(t, R);
+      if (ring) {
+        ctx.globalAlpha = 0.35 * ring.fade;
         ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(cx, cy, 10 + k * (R - 10), 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, ring.radius, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      // 8 帧时间轴（秒）——与 docs/深窟远征-火柱技能帧动画设计稿.md §4 一致
-      const TL = [0, 0.18, 0.60, 0.78, 1.08, 1.36, 1.68, 1.97, dur];
-      let fi = 8;
-      for (let i = 0; i < 8; i++) { if (t < TL[i + 1]) { fi = i + 1; break; } }
-      for (let i = 1; i <= 8; i++) loadImg(IMG_SRC['firepillar' + i]);   // 首绘一次性拉起 8 张
-      // 显示：宽 = 2R×1.10（R=120→264px，正好还原旧柱高 330），高 = 宽×1.25（512×640 比例）
-      // 锚定：贴图内火圈椭圆中心约在 0.74H 处，对齐落点 (cx, cy)；燎原分支放大 R 时圈柱同比放大
-      const FP_AR = 640 / 512, FP_ANCHOR = 0.74;
-      const W = Math.max(24, R * 2.2), H = W * FP_AR;
-      const bx = cx - W / 2, by = cy - H * FP_ANCHOR;
+      const fi = FirepillarFx.frameIndex(t, dur);
+      for (let i = 1; i <= FirepillarFx.N; i++) loadImg(IMG_SRC['firepillar' + i]);
+      const { W, H, bx, by } = FirepillarFx.layout(cx, cy, R);
       const drawn = drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
       if (drawn) {
         ctx.save();
@@ -2563,18 +2524,11 @@ class Renderer {
         drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
         ctx.restore();
         // 上升火星（代码层粒子，0.6s 起与柱体伴生）
-        if (t > 0.6) {
-          const k = (t - 0.6) / (dur - 0.6);
-          for (let i = 0; i < 6; i++) {
-            const s = ((i * 6173 + seed * 9) % 89) / 89;
-            const sx = cx + (s - 0.5) * W * 0.14;
-            const sy = cy - (0.1 + s * 0.75) * H * 0.5 - Math.sin(t * 22 + i + seed) * 8;
-            ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-            ctx.globalAlpha = (1 - k) * (0.4 + s * 0.4);
-            ctx.beginPath(); ctx.arc(sx, sy, 2 + s * 3, 0, Math.PI * 2); ctx.fill();
-          }
-          ctx.globalAlpha = 1;
+        for (const spark of FirepillarFx.sparkSpec(cx, cy, dur, seed, W, H, t)) {
+          ctx.fillStyle = spark.color; ctx.globalAlpha = spark.alpha;
+          ctx.beginPath(); ctx.arc(spark.x, spark.y, spark.r, 0, Math.PI * 2); ctx.fill();
         }
+        ctx.globalAlpha = 1;
         return;
       }
       this._fxPillarProc(ctx, cx, cy, R, seed, t / dur);
@@ -2655,7 +2609,7 @@ class Renderer {
       //           代码层保留地面红晕与上升火花；贴图未加载完成时回退 v1.16.21 程序化绘制，不出现空墙。
       const p = Math.min(1, f.t / f.dur);
       const cx = f.x, cy = f.y, w = f.w || 100, h = f.h || 30, seed = f.seed || 0;
-      const fade = p < 0.1 ? p / 0.1 : (p > 0.85 ? (1 - p) / 0.15 : 1);
+      const fade = FirewallFx.fade(p);
       // 地面红晕（墙体底缘）
       ctx.globalAlpha = 0.25 * fade;
       ctx.fillStyle = 'rgba(255,112,67,0.4)';
@@ -2664,12 +2618,9 @@ class Renderer {
       // 4 帧贴图：12fps 循环，按 seed 错相（同屏多面火墙不同步）；底边贴地面线，宽=墙宽，高按 512:160
       // v1.17.18：透明底帧，主体 source-over 保住卡通描边与暗红底色（加法会发白），
       //           再叠一遍 45% lighter 做辉光——暗色战场有熔光感，亮草地也不冲淡
-      const FW_N = 4, FW_FPS = 12, FW_AR = 160 / 512;
-      for (let i = 1; i <= FW_N; i++) loadImg(IMG_SRC['firewall' + i]);   // 首帧一次性拉起 4 张
-      const fi = (Math.floor(f.t * FW_FPS + seed * 1.7) % FW_N + FW_N) % FW_N + 1;
-      const FW = Math.max(24, w);
-      const FH = Math.round(FW * FW_AR);
-      const bx = cx - FW / 2, by = cy + h / 2 - FH;
+      for (let i = 1; i <= FirewallFx.N; i++) loadImg(IMG_SRC['firewall' + i]);
+      const fi = FirewallFx.frameIndex(f.t, seed);
+      const { FW, FH, bx, by } = FirewallFx.layout(cx, cy, w, h);
       ctx.globalAlpha = fade;
       const drawn = drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
       if (drawn) {
@@ -2681,13 +2632,9 @@ class Renderer {
       }
       if (!drawn) this._fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade);
       // 上升火花（代码层粒子，与贴图层叠加：贴图给形，粒子给活）
-      for (let i = 0; i < 5; i++) {
-        const s = ((i * 8191 + seed * 7) % 89) / 89;
-        const ex = cx - w / 2 + (s - 0.2) * w * 0.9;
-        const ey = cy + h / 2 - (0.2 + s * 0.8) * h * 1.4 - Math.sin(p * 22 + i * 1.3) * 6;
-        ctx.fillStyle = s < 0.6 ? '#ff7043' : '#ffd24a';
-        ctx.globalAlpha = (0.3 + s * 0.5) * fade;
-        ctx.beginPath(); ctx.arc(ex, ey, 1.6 + s * 2.4, 0, Math.PI * 2); ctx.fill();
+      for (const spark of FirewallFx.sparkSpec(cx, cy, seed, w, h, p, fade)) {
+        ctx.fillStyle = spark.color; ctx.globalAlpha = spark.alpha;
+        ctx.beginPath(); ctx.arc(spark.x, spark.y, spark.r, 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalAlpha = 1;
   }
@@ -3196,7 +3143,7 @@ class Renderer {
   pickLayer(ctx, group, pending, onPick) {
     const w = L.pickLayer.w, h = L.pickLayer.h;
     // v1.16.56：面板整体上移 110px（y≈373，面板底 1033 在塔位区顶 1042 上方）——露出下方防御塔区，暂停时可点击查看塔详情
-    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 110;
+    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 160;
     // v1.16.7 入场动效：面板淡入 + 三卡错峰上浮（首次渲染锁定时间基准）
     if (!group._pickT0) group._pickT0 = Date.now();
     const now = Date.now();
@@ -4331,7 +4278,7 @@ class Renderer {
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
-    // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 3 卡（洗牌/补给/空槽）
+    // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 2 卡（按双槽装备显示）
     this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
     this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
@@ -4751,118 +4698,38 @@ class Renderer {
   /** v5.3c 主页技能卡片行：左标签胶囊 + 3 张技能卡（图标 + 技能名 + 状态），点击卡片打开配置面板 */
   // Shared canvas-native emblems: distinct silhouettes without additional asset loading.
   _skillIcon(ctx, id, x, y, size, color) {
-    ctx.save(); ctx.translate(x, y); ctx.scale(size / 64, size / 64);
-    const grad = ctx.createLinearGradient(-30, -30, 30, 30);
-    grad.addColorStop(0, color); grad.addColorStop(1, '#17253e');
-    fillRoundRect(ctx, -30, -30, 60, 60, 15, grad);
-    strokeRoundRect(ctx, -30, -30, 60, 60, 15, '#a9c7e8', 1);
-    ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    const line = (x1,y1,x2,y2) => { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); };
-    const dot = (dx,dy,r) => { ctx.beginPath(); ctx.arc(dx,dy,r,0,Math.PI*2); ctx.fill(); };
-    if (id === 'row' || id === 'col' || id === 'cross') {
-      if (id !== 'col') { line(-19,0,19,0); line(-19,0,-11,-7); line(19,0,11,7); }
-      if (id !== 'row') { line(0,-19,0,19); line(0,-19,7,-11); line(0,19,-7,11); }
-    } else if (id === 'rainbow') {
-      ['#ff7d87','#ffd166','#82e6a2','#79caff','#ca9aff'].forEach((c,i)=>{ ctx.strokeStyle=c; ctx.beginPath(); ctx.arc(0,10,22-i*4,Math.PI,0); ctx.stroke(); });
-    } else if (id === 'scan') {
-      ctx.beginPath(); ctx.arc(0,0,19,0,Math.PI*2); ctx.stroke(); line(-23,0,23,0); line(0,-23,0,23); dot(0,0,4);
-    } else if (id === 'split') {
-      dot(0,0,6); [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*17,dy*17);dot(dx*19,dy*19,4);}));
-    } else if (id === 'seed') {
-      line(0,20,0,-6); ctx.beginPath(); ctx.ellipse(-8,-3,7,13,-0.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(9,-11,7,13,0.8,0,Math.PI*2); ctx.fill();
-    } else if (id === 'recolor') {
-      ctx.beginPath(); ctx.moveTo(0,-22); ctx.bezierCurveTo(-30,9,-14,24,0,21); ctx.bezierCurveTo(23,20,21,4,0,-22); ctx.fill();
-    } else if (id === 'attack') {
-      [-12,0,12].forEach(yy=>{line(-18,yy,17,yy);line(17,yy,9,yy-5);});
-    } else if (id === 'skill') {
-      ctx.beginPath(); ctx.moveTo(5,-23); ctx.lineTo(-13,3); ctx.lineTo(0,3); ctx.lineTo(-5,23); ctx.lineTo(16,-5); ctx.lineTo(3,-5); ctx.closePath(); ctx.fill();
-    } else if (id === 'refill') {
-      strokeRoundRect(ctx,-15,-19,30,40,5,'#ffffff',3); line(-6,-23,6,-23); line(-8,0,8,0); line(0,-8,0,8);
-    } else if (id === 'shuffle') {
-      line(-20,-13,18,13); line(-20,13,18,-13); line(18,-13,8,-14); line(18,-13,17,-3); line(18,13,8,14); line(18,13,17,3);
-    } else if (GlobalSkills.get(id)) {
-      const glyphs={forge:'⚔',haste:'»',volley:'⋙',resonance:'✧',barrier:'⬡',heal:'+',reflect:'↶',freeze:'❄',tide:'≋',pull:'◎',chainstorm:'ϟ',twins:'Ⅱ',charge:'↟',gold:'$'};
-      // Geometric category silhouettes plus distinct central marks.
-      const def=GlobalSkills.get(id), n=3+(def.glyph%5);
-      ctx.beginPath();for(let i=0;i<n;i++){const a=-Math.PI/2+i*Math.PI*2/n;const px=Math.cos(a)*24,py=Math.sin(a)*24;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();ctx.globalAlpha=0.35;ctx.stroke();ctx.globalAlpha=1;
-      text(ctx,glyphs[id]||'✧',0,1,32,'#ffffff','center');
-    } else {
-      [[-12,-12],[12,-12],[0,0],[-12,12],[12,12]].forEach(([dx,dy])=>dot(dx,dy,4));
-    }
-    ctx.restore();
+    return skillIcon(ctx, id, x, y, size, color);
+  }
+
+  _getSkillLoadout() {
+    if (!this._skillLoadout) this._skillLoadout = createSkillLoadout({
+      panelShell: this._menuPanelShell.bind(this),
+      skillIcon: this._skillIcon.bind(this),
+      wrapText: this.wrapText.bind(this),
+    });
+    return this._skillLoadout;
   }
 
   _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) {
-    const tint = isMatch ? '#b896ff' : '#f4cb79';
-
-    const keys = isMatch ? ['match4','match5','chain'] : GlobalSkills.slots(cfg);
-    const labels = ['四连技能','高连技能','连消技能'];
-    const gap=18, ch=Math.min(h,200), cw=ch*3/4;
-    const left=x+90;
-    const labelStep=28, labelTop=y+(ch-(label.length-1)*labelStep)/2;
-    Array.from(label).forEach((letter,i)=>text(ctx,letter,x+30,labelTop+i*labelStep,23,tint,'center'));
-    keys.forEach((key,i)=>{
-      const id=isMatch?((cfg&&cfg[key])||CONFIG.MATCH_SKILL.default[key]):key;
-      const def=isMatch?(CONFIG.MATCH_SKILL[key].find(d=>d.id===id)||{id:'random',name:'随机抽取'}):GlobalSkills.get(id);
-      const bx=left+i*(cw+gap), color=def.color||tint;
-      text(ctx,isMatch?labels[i]:'全局槽位 '+(i+1),bx+cw/2,y-17,19,'#b4c6df','center');
-      const grad=ctx.createLinearGradient(bx,y,bx+cw,y+ch);grad.addColorStop(0,'#27374e');grad.addColorStop(1,'#101b2c');
-      fillRoundRect(ctx,bx,y,cw,ch,20,grad);strokeRoundRect(ctx,bx,y,cw,ch,20,color,1.8);
-      fillRoundRect(ctx,bx+12,y+12,cw-24,4,2,color);
-      this._skillIcon(ctx,id,bx+cw/2,y+64,72,color);
-      text(ctx,def.name,bx+cw/2,y+124,21,'#f0f5ff','center');
-      text(ctx,isMatch?'三消触发':def.category,bx+cw/2,y+153,15,color,'center');
-      text(ctx,'点击更换  ›',bx+cw/2,y+ch-21,16,'#8fa6c2','center');
-      push(isMatch?'matchCfg':'globalCfg',isMatch?{slot:key}:{index:i},bx,y,cw,ch);
-    });
+    return this._getSkillLoadout().skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch);
   }
 
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */
   _skillOwned(s, slot, id) {
-    const un = (s.skillUnlocks && s.skillUnlocks[slot]) || [];
-    if (un.length) return un.includes(id);
-    const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
-    return defs.includes(id);
+    return this._getSkillLoadout().skillOwned(s, slot, id);
   }
 
   /** v5.3c 三消技能配置面板：三行（四连 5 / 高连 4 / 连消 2），已解锁点选配置，未解锁点卡购买 */
   _skillChoiceCards(ctx, s, push, title, slot, items, current, tint) {
-    const oy = this._menuPanelShell(ctx,s,push,title,1060);
-    text(ctx,'仅显示当前槽位可用技能 · 点击卡片配置',375,oy+84,18,'#9cacc2','center');
-    const gap=18, cw=291, ch=252;
-    items.forEach((it,i)=>{
-      const x=75+(i%2)*(cw+gap), y=oy+120+Math.floor(i/2)*(ch+16);
-      const owned=this._skillOwned(s,slot,it.id), selected=it.id===current;
-      fillRoundRect(ctx,x,y,cw,ch,18,selected?'#26344a':'#141f30');
-      strokeRoundRect(ctx,x,y,cw,ch,18,selected?'#f4cb79':(owned?tint:'#685640'),selected?2.5:1.2);
-      this._skillIcon(ctx,it.id,x+cw/2,y+46,60,it.color||tint);
-      text(ctx,it.name,x+cw/2,y+94,23,'#f1f5ff','center');
-      this.wrapText(ctx,it.desc||'',cw-36,18).forEach((ln,j)=>text(ctx,ln,x+18,y+126+j*24,18,'#adbed3','left'));
-      fillRoundRect(ctx,x+14,y+ch-42,cw-28,29,10,selected?'#665432':'#223249');
-      const status=selected?(owned?'✓ 已配置':'当前槽位 · 待解锁'):(owned?'点击配置':'解锁 · '+CONFIG.SKILL_UNLOCK.price[slot]+' 金币');
-      text(ctx,status,x+cw/2,y+ch-27,16,selected?'#ffe0a0':'#b9cee7','center');
-      push('mSkill',{slot,id:it.id},x,y,cw,ch);
-    });
+    return this._getSkillLoadout().skillChoiceCards(ctx, s, push, title, slot, items, current, tint);
   }
 
   menuMatchCfg(ctx, s, push) {
-    const slot=(s.panel && s.panel.slot)||'match4';
-    const names={match4:'四连技',match5:'高连技',chain:'连消技'};
-    if (!CONFIG.MATCH_SKILL[slot] || !names[slot]) return;
-    const items=CONFIG.MATCH_SKILL[slot].slice();
-    if(slot==='match4') items.unshift({id:'random',name:'随机抽取',desc:'每次触发四消时，从五种四连技能中随机抽取一种。'});
-    this._skillChoiceCards(ctx,s,push,names[slot]+' · 技能选择',slot,items,(s.matchSkills&&s.matchSkills[slot])||CONFIG.MATCH_SKILL.default[slot],'#b896ff');
+    return this._getSkillLoadout().menuMatchCfg(ctx, s, push);
   }
 
   menuGlobalCfg(ctx, s, push) {
-    const index=Number(s.panel.index||0), slots=GlobalSkills.slots(s.globalSkills);
-    const page=Math.max(0,Math.min(2,s.panel.page||0));
-    const items=GlobalSkills.POOL.slice(page*6,page*6+6);
-    this._skillChoiceCards(ctx,s,push,'全局槽位 '+(index+1)+' · 技能选择','global',items,slots[index],'#f4cb79');
-    text(ctx,'装备与另一槽相同的技能时，自动交换两个槽位',375,1197,16,'#9cacc2','center');
-    if(page>0){button(ctx,80,1150,130,36,'‹ 上一页');push('globalPage',page-1,80,1150,130,36);}
-    text(ctx,(page+1)+' / 3',375,1168,20,'#f4cb79','center');
-    if(page<2){button(ctx,540,1150,130,36,'下一页 ›');push('globalPage',page+1,540,1150,130,36);}
+    return this._getSkillLoadout().menuGlobalCfg(ctx, s, push);
   }
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */

@@ -1,5 +1,8 @@
 // v1.16.114 焰雨3★ 三连重构行为验证：门控 + 命中计数 + 三连=3 条真实火球弹道（命中走完整结算）
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { CombatSystem } = require('../js/combat.js');
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -26,6 +29,7 @@ function makeCtx(owned) {
     towerMuzzle: () => ({ x: 100, y: 900 }),
     range: () => 200,
     shots: [],
+    addProjectile: CombatSystem.prototype.addProjectile,
     _fireImpact: (o, d, ang) => impacts.push({ o, d, ang }),
     _impacts: impacts,
     _hits: impacts,

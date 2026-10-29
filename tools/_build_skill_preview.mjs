@@ -17,6 +17,8 @@ const ROOT = resolve(HERE, '..');
 /** 需要内联的模块（相对项目根）；顺序无关，按需 require */
 const MODULES = [
   'js/game/render.js',
+  'js/game/fx/firewall.js',
+  'js/game/fx/firepillar.js',
   'js/game/screens/skill-loadout.js',
   'js/game/icons/skills.js',
   'js/game/icons/special-blocks.js',

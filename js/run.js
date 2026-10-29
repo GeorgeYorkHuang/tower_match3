@@ -1,3 +1,4 @@
+const GS_BALANCE = require('./config/global-balance.js');
 /**
  * run.js —— 对局（run）层：三消 → 经验 → 塔升级 → 波末三选一 → 战斗结算
  * =====================================================================
@@ -471,12 +472,12 @@ class Run {
     // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
     this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
     const settled = [], settledByStep = [];
-    const chainStart = this.gsState.chainstorm ? 2 : CONFIG.MATCH_SKILL.chainStart;
+    const chainStart = this.gsState.chainstorm ? GS_BALANCE.chainstorm.startGroup : CONFIG.MATCH_SKILL.chainStart;
     this.gsState.chainstorm = false;
     if (this.gsState.charge) {
       const colors = ret.resolved.matches.map(m=>m.color);
-      const ordered = [...new Set(colors.map(c=>CONFIG.COLORS[c] && CONFIG.COLORS[c].tower).concat(this.slotOrder))].filter(k=>this.slotOrder.includes(k)).slice(0,2);
-      ordered.forEach(k=>{const t=this.effects.tower(k);t.energy=Math.min(this.armoryEnergyMax(),t.energy+10);});
+      const ordered = [...new Set(colors.map(c=>CONFIG.COLORS[c] && CONFIG.COLORS[c].tower).concat(this.slotOrder))].filter(k=>this.slotOrder.includes(k)).slice(0,GS_BALANCE.charge.towerCount);
+      ordered.forEach(k=>{const t=this.effects.tower(k);t.energy=Math.min(this.armoryEnergyMax(),t.energy+GS_BALANCE.charge.energy);});
       this.gsState.charge=false;
     }
     ret.resolved.stepList.forEach((st, si) => {
