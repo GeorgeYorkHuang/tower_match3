@@ -577,7 +577,7 @@ class GameMain {
     if (typeof wx !== 'undefined' && wx.vibrateShort) {
       try { wx.vibrateShort({ type: level >= 2 ? 'heavy' : 'medium' }); } catch (e) {}
     }
-    this._shake = { t: Date.now(), dur: 0.18, amp: level >= 2 ? 5 : 3 };
+    this._shake = { t: Date.now(), dur: 0.18, amp: level >= 2 ? 6 : 3.5 };   // v5.6 重震振幅加大
   }
 
   waveEnd() {

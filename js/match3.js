@@ -110,26 +110,51 @@ class Match3Controller {
     if (msgs.length) g.toast(msgs.join(' '), got.length ? '#7ef0a3' : '#f7c948');
   }
 
-  /** v1.17.29 特殊块特效：引爆分型（blasts 每格小闪 + 首格主爆）+ 生成彩环（planted）+ 消除震动 */
+  /** v5.6 特殊块特效：引爆分型级联（主爆优先，波及格按距中心棋盘距离延迟）+ 生成降临 + 全屏爆闪 + 震动 */
   _specialsFx(st) {
     const g = this.game;
     if (!g || !g.fx) return;
     const { boardX, boardY, cell } = g.ly;
-    (st.blasts || []).forEach((b, i) => {
+    const blasts = st.blasts || [];
+    const main = blasts[0] || null;
+    blasts.forEach((b, i) => {
+      const dist = main ? Math.max(Math.abs(b.r - main.r), Math.abs(b.c - main.c)) : 0;
       g.fx.push({
         type: 'specialBlast', s: b.s, sub: b.sub,
         x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
-        color: b.color, main: i === 0, t: 0, dur: 0.45,
+        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.5, cell,
+        parts: i === 0 ? this._blastParts(b.s) : null,
       });
     });
     (st.planted || []).forEach((p) => {
       g.fx.push({
         type: 'specialSpawn', s: p.s, sub: p.sub,
         x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
-        color: p.color, t: 0, dur: 0.5,
+        color: p.color, t: 0, dur: 0.6, cell,
       });
     });
-    if (st.blasts && st.blasts.length && g.vibrate) g.vibrate(st.blasts.length >= 6 ? 2 : 1);
+    if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
+    if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.14 });
+  }
+
+  /** v5.6 主爆粒子参数：按分型生成飞散碎片（渲染层按 t 推进） */
+  _blastParts(s) {
+    const n = { row: 16, col: 16, cross: 20, split: 20, rand: 12, rainbow: 24 }[s] || 14;
+    const base = s === 'rainbow'
+      ? ['#ff6174', '#ffad54', '#ffe36a', '#7ee4a1', '#78c8ff', '#c09aff']
+      : s === 'rand' ? '#c69aff' : s === 'split' ? '#ff4d5e'
+        : s === 'cross' ? '#ffd24a' : '#ff8a4d';
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 70 + Math.random() * 150;
+      parts.push({
+        dx: Math.cos(a), dy: Math.sin(a), sp,
+        col: Array.isArray(base) ? base[i % base.length] : base,
+        sz: 3 + Math.random() * 4, rot: Math.random() * Math.PI,
+      });
+    }
+    return parts;
   }
 
   /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.32s，渲染层绘制） */

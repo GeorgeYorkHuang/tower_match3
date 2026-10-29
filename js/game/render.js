@@ -274,7 +274,8 @@ const FX_HANDLERS = {
   match: 'fxMatch',
   floatText: 'fxFloatText',   // v1.16.113 3★ 触发确认飘字
   specialSpawn: 'fxSpecialSpawn',   // v1.17.29 特殊块生成彩环
-  specialBlast: 'fxSpecialBlast'    // v1.17.29 特殊块引爆分型特效
+  specialBlast: 'fxSpecialBlast',   // v1.17.29 特殊块引爆分型特效
+  screenFlash: 'fxScreenFlash'      // v5.6 特殊块引爆全屏爆闪
 };
 
 class Renderer {
@@ -2872,35 +2873,79 @@ class Renderer {
       ctx.beginPath(); ctx.arc(f.x, f.y, 3 + (1 - p) * 4, 0, Math.PI * 2); ctx.fill();
   }
 
-  /** v1.17.29 特殊块生成提示：类型色环收缩 + 光柱（子分裂雷用红环更小） */
+  /** v5.6 特殊块生成"降临"：地面光圈 + 升空光柱 + 类型符号旋转放大定格 */
   fxSpecialSpawn(ctx, f) {
-    const p = Math.min(1, f.t / (f.dur || 0.5));
-    const e = 1 - Math.min(1, p * 1.6);   // 收缩系数
-    const r0 = (f.sub ? 13 : 21) * (1 + e * 1.1);
+    const p = Math.min(1, f.t / (f.dur || 0.6));
+    const e = 1 - Math.min(1, p * 1.5);   // 收缩系数
+    const cell = f.cell || 46;
+    const r0 = f.sub ? 12 : 20;
     const col = f.sub ? '#ff5566'
       : (f.color && COLOR_FILL[f.color] ? COLOR_FILL[f.color]
         : (f.s === 'rainbow' ? '#ffe8a5' : '#ffffff'));
-    ctx.globalAlpha = (1 - p) * 0.85;
-    ctx.strokeStyle = col; ctx.lineWidth = 3 + e * 2; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(f.x, f.y, r0, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(f.x, f.y - r0 * 1.35); ctx.lineTo(f.x, f.y + r0 * 1.35); ctx.stroke();
+    // 地面光圈（类型色渐扩）
+    ctx.globalAlpha = (1 - p) * 0.9;
+    ctx.strokeStyle = col; ctx.lineWidth = 2 + e * 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(f.x, f.y, r0 * (1.6 - e * 0.6), 0, Math.PI * 2); ctx.stroke();
+    // 升空光柱
     ctx.globalAlpha = (1 - p) * 0.55;
+    ctx.strokeStyle = col; ctx.lineWidth = 3;
+    const rise = 1 - Math.min(1, p * 1.8);
+    ctx.beginPath();
+    ctx.moveTo(f.x, f.y + r0 * 1.4);
+    ctx.lineTo(f.x, f.y - r0 * (0.5 + rise * 1.1));
+    ctx.stroke();
+    // 类型符号：旋转 + 缩放定格
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate((1 - e) * 0.8);
+    const sc = 0.6 + e * 0.7;
+    ctx.scale(sc, sc);
+    ctx.globalAlpha = (1 - p) * 0.95;
+    ctx.strokeStyle = col; ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (f.s === 'row') { ctx.moveTo(-r0, 0); ctx.lineTo(r0, 0); }
+    else if (f.s === 'col') { ctx.moveTo(0, -r0); ctx.lineTo(0, r0); }
+    else if (f.s === 'cross') { ctx.moveTo(-r0, 0); ctx.lineTo(r0, 0); ctx.moveTo(0, -r0); ctx.lineTo(0, r0); }
+    else if (f.s === 'split') { ctx.moveTo(-r0 * 0.6, 0); ctx.lineTo(r0 * 0.6, 0); ctx.moveTo(0, -r0 * 0.6); ctx.lineTo(0, r0 * 0.6); }
+    else if (f.s === 'rand') { ctx.moveTo(0, -r0); ctx.lineTo(r0 * 0.5, r0 * 0.4); ctx.lineTo(-r0 * 0.4, 0); ctx.lineTo(r0 * 0.3, -r0 * 0.5); }
+    else { ctx.arc(0, 0, r0 * 0.55, 0, Math.PI * 2); }   // rainbow 环形
+    ctx.stroke();
+    ctx.restore();
+    // 中心白点
+    ctx.globalAlpha = (1 - p) * 0.8;
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(f.x, f.y, 3 + (1 - p) * 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(f.x, f.y, 2 + (1 - p) * 4, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
 
-  /** v1.17.29 特殊块引爆特效：波及格十字小闪 + 首格主爆分型（行刃/列刃/十字波/分裂/紫电/彩虹涟漪） */
+  /** v5.6 特殊块引爆：预告警示（前 25%）→ 多层爆环 + 放射线 + 粒子迸发（级联延迟由 f.t<0 控制） */
   fxSpecialBlast(ctx, f) {
-    const p = Math.min(1, f.t / (f.dur || 0.45));
+    const dur = f.dur || 0.5;
+    const p = Math.min(1, f.t / dur);
+    const cell = f.cell || 46;
     const col = f.s === 'rand' ? '#c69aff'
       : (f.s === 'rainbow' ? '#ffffff'
         : (f.color && COLOR_FILL[f.color] ? COLOR_FILL[f.color] : '#ffffff'));
-    ctx.globalAlpha = (1 - p) * 0.9;
+    // 预告帧（前 25%）：波及格红框警示闪烁 / 主块白闪蓄力
+    if (p < 0.25) {
+      const q = p / 0.25;
+      ctx.globalAlpha = (0.3 + 0.5 * Math.abs(Math.sin(q * Math.PI * 3))) * (1 - q * 0.5);
+      ctx.strokeStyle = f.main ? '#ffffff' : '#ff4d5e';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(f.x - cell / 2 + 3, f.y - cell / 2 + 3, cell - 6, cell - 6);
+      if (f.main) {
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = (1 - q) * 0.5;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 4 + q * 8, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+    const bp = (p - 0.25) / 0.75;   // 爆炸段 0..1
+    ctx.globalAlpha = (1 - bp) * 0.9;
     ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     // 波及格小闪：十字星 + 外扩环
-    const r = 5 + p * 10;
+    const r = 5 + bp * 10;
     ctx.beginPath();
     ctx.moveTo(f.x - r, f.y); ctx.lineTo(f.x + r, f.y);
     ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x, f.y + r);
@@ -2908,9 +2953,9 @@ class Renderer {
     ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(f.x, f.y, r * 0.5, 0, Math.PI * 2); ctx.stroke();
     if (f.main) {
-      // 主爆分型
-      const R = 30 + p * 44;
-      ctx.lineWidth = 5;
+      // 主爆：类型刃线 + 第二层爆环 + 放射线 + 中心白闪 + 粒子
+      const R = 30 + bp * 46;
+      ctx.lineWidth = 5.5;
       ctx.beginPath();
       if (f.s === 'row') { ctx.moveTo(f.x - R, f.y); ctx.lineTo(f.x + R, f.y); }
       else if (f.s === 'col') { ctx.moveTo(f.x, f.y - R); ctx.lineTo(f.x, f.y + R); }
@@ -2929,7 +2974,7 @@ class Renderer {
         for (let i = 0; i <= 4; i++) {
           const q = i / 4;
           const xx = f.x + (i % 2 ? -1 : 1) * R * 0.42;
-          const yy = f.y + (q - 0.5) * R * 1.25 + (Math.random() * 9 - 4.5);
+          const yy = f.y + (q - 0.5) * R * 1.25 + Math.sin(i * 3 + f.t * 9) * 6;
           if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
         }
       } else if (f.s === 'rainbow') {
@@ -2937,16 +2982,53 @@ class Renderer {
         colors.forEach((cc, i) => {
           ctx.strokeStyle = cc; ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(f.x, f.y, 8 + p * 24 + i * 3.2, (i * Math.PI) / 3, (i * Math.PI) / 3 + 1.5);
+          ctx.arc(f.x, f.y, 10 + bp * 30 + i * 4, (i * Math.PI) / 3, (i * Math.PI) / 3 + 1.6);
           ctx.stroke();
         });
         ctx.strokeStyle = '#ffffff';
       }
       ctx.stroke();
+      // 第二层类型色爆环
+      ctx.globalAlpha = (1 - bp) * 0.55;
+      ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(f.x, f.y, R * 0.55 + bp * 14, 0, Math.PI * 2); ctx.stroke();
+      // 放射线
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + bp * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(f.x + Math.cos(a) * R * 0.6, f.y + Math.sin(a) * R * 0.6);
+        ctx.lineTo(f.x + Math.cos(a) * R * 0.9, f.y + Math.sin(a) * R * 0.9);
+        ctx.stroke();
+      }
       // 中心白闪
       ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 5 + (1 - p) * 8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(f.x, f.y, 6 + (1 - bp) * 10, 0, Math.PI * 2); ctx.fill();
+      // 粒子迸发
+      if (f.parts) {
+        f.parts.forEach((pt) => {
+          const qq = bp * 0.75;
+          const px = f.x + pt.dx * pt.sp * qq;
+          const py = f.y + pt.dy * pt.sp * qq;
+          ctx.globalAlpha = (1 - bp) * 0.95;
+          ctx.fillStyle = pt.col;
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(pt.rot + bp * 2);
+          ctx.fillRect(-pt.sz / 2, -pt.sz / 2, pt.sz, pt.sz);
+          ctx.restore();
+        });
+      }
     }
+    ctx.globalAlpha = 1;
+  }
+
+  /** v5.6 全屏爆闪：特殊块引爆瞬间整屏白闪（0.14s 渐隐） */
+  fxScreenFlash(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.14));
+    ctx.globalAlpha = (1 - p) * 0.14;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, CONFIG.DESIGN.W, CONFIG.DESIGN.H);
     ctx.globalAlpha = 1;
   }
 

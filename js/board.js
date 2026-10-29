@@ -283,6 +283,13 @@ Board.prototype.resolve = function resolve() {
       blastSet.add(k);
       blastList.push({ r: rr, c: cc, s, color: color || null });
     };
+    // 主块格强制记录（引爆中心，置于 blasts 首位供特效优先展示主爆；匹配组内的特殊块被 markBlast 跳过，需绕过）
+    const pushBlast = (rr, cc, s, color) => {
+      const k = rr + ',' + cc;
+      if (blastSet.has(k)) return;
+      blastSet.add(k);
+      blastList.push({ r: rr, c: cc, s, color: color || null });
+    };
     while (queue.length) {
       const [r, c] = queue.shift();
       const v = this.inRange(r, c) ? this.grid[r][c] : null;
@@ -296,8 +303,8 @@ Board.prototype.resolve = function resolve() {
         if (color) rainbowClear.push(color);
       } else if (st === 'split') {
         // 3×3 十字 5 格（中心 + 上下左右）；次级分裂雷不再派生四角分裂雷
-        const offs = CONFIG.MATCH_SKILL.splitCells.concat([[0, 0]]);
-        offs.forEach(([dr, dc]) => {
+        pushBlast(r, c, 'split', cellColor(v));   // 主块格（引爆中心）优先
+        CONFIG.MATCH_SKILL.splitCells.forEach(([dr, dc]) => {
           const rr = r + dr, cc = c + dc;
           if (!this.inRange(rr, cc)) return;
           toClear[rr][cc] = true;
@@ -325,12 +332,15 @@ Board.prototype.resolve = function resolve() {
         }
       } else if (st === 'row' || st === 'col') {
         if (st === 'row') {
+          pushBlast(r, c, 'row', cellColor(v));   // 主块格优先
           for (let cc = 0; cc < this.cols; cc++) { toClear[r][cc] = true; markBlast(r, cc, 'row', cellColor(v)); queue.push([r, cc]); }
         } else {
+          pushBlast(r, c, 'col', cellColor(v));   // 主块格优先
           for (let rr = 0; rr < this.rows; rr++) { toClear[rr][c] = true; markBlast(rr, c, 'col', cellColor(v)); queue.push([rr, c]); }
         }
       } else if (st === 'cross') {
         // 5×5 十字 13 格
+        pushBlast(r, c, 'cross', cellColor(v));   // 主块格优先
         CONFIG.MATCH_SKILL.crossCells.forEach(([dr, dc]) => {
           const rr = r + dr, cc = c + dc;
           if (!this.inRange(rr, cc)) return;
