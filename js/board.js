@@ -53,6 +53,19 @@ Board.prototype._randomSpecialId = function _randomSpecialId() {
   return ids[Math.floor(Math.random() * ids.length)];
 };
 
+/** v5.6.7 从棋盘现存普通颜色中随机选一色（彩虹块被爆炸波及时的清色目标） */
+Board.prototype._randomBoardColor = function _randomBoardColor() {
+  const seen = new Set();
+  for (let r = 0; r < this.rows; r++)
+    for (let c = 0; c < this.cols; c++) {
+      const v = this.grid[r][c];
+      if (v !== null && !isSpecial(v)) seen.add(v);
+    }
+  const arr = [...seen];
+  if (arr.length) return arr[Math.floor(Math.random() * arr.length)];
+  return (this.activeColors && this.activeColors.length) ? this.activeColors[0] : null;
+};
+
 
 /* ---------- 工具 ---------- */
 
@@ -201,8 +214,11 @@ Board.prototype._rainbowPair = function _rainbowPair(r, c) {
 };
 
 
-/** 相交合并：横/纵组共享格 → 合并为复合组（L/T 形），并标形状 */
+/** 相交合并：横/纵组共享格 → 合并为复合组（L/T 形），并标形状；彩虹组独立保留（不参与合并，v5.6.7） */
 function mergeCross(h, v) {
+  // 分离彩虹组（保持 rainbow/color 语义，不参与 L/T 合并）
+  const rainbows = h.filter((g) => g.rainbow);
+  h = h.filter((g) => !g.rainbow);
   const groups = h.map((g) => ({ cells: g.cells.slice(), dir: 'h' }))
     .concat(v.map((g) => ({ cells: g.cells.slice(), dir: 'v' })));
   let changed = true;
@@ -222,12 +238,17 @@ function mergeCross(h, v) {
       }
     }
   }
-  return groups.map((g) => {
+  const merged = groups.map((g) => {
     const size = g.cells.length;
-    // 复合组（含横+纵交叉）= L/T 形；直线组按长度分类
-    const shape = (g.dir === 'x') ? (size >= 6 ? '6+' : 'L5') : (size >= 6 ? '6+' : String(size));
+    // 复合组（含横+纵交叉）= L/T 形：5 格 → L5，6+ → 6+，4 格复合组归入四消（v5.6.7 修复"自然四消不播种"）
+    const shape = (g.dir === 'x')
+      ? (size === 5 ? 'L5' : (size >= 6 ? '6+' : String(size)))
+      : (size >= 6 ? '6+' : String(size));
     return { size, cells: g.cells, shape };
   });
+  // 彩虹组：shape 按组格数（3 格 → '3'），保留配对色
+  rainbows.forEach((g) => merged.push({ size: g.cells.length, cells: g.cells, shape: String(g.cells.length), rainbow: true, color: g.color }));
+  return merged;
 }
 
 /** 两个格组是否共享至少一个格子 */
@@ -260,9 +281,22 @@ Board.prototype.resolve = function resolve() {
   const stepList = [];
   for (;;) {
     const matches = this.findMatches();
+    // v5.6.7 彩虹块交换：玩家把彩虹块与任意色块交换 → 该色全盘清除（并入本步匹配，走正常清除/结算/特效）
+    if (this._rainbowSwapColor) {
+      const color = this._rainbowSwapColor;
+      this._rainbowSwapColor = null;
+      const cells = [];
+      for (let rr = 0; rr < this.rows; rr++)
+        for (let cc = 0; cc < this.cols; cc++)
+          if (!isSpecial(this.grid[rr][cc]) && cellColor(this.grid[rr][cc]) === color) cells.push([rr, cc]);
+      if (cells.length) {
+        matches.unshift({ cells, color, shape: cells.length >= 6 ? '6+' : String(cells.length), rainbow: true, _noPlant: true, _rainbowSwap: true });
+      }
+    }
     if (!matches.length) break;
     steps++;
-    matches.forEach((m) => { m.color = cellColor(this.grid[m.cells[0][0]][m.cells[0][1]]); });
+    // v5.6.7 彩虹组保留配对色（findMatches 已按相邻同色记录 color），其余组按组首格取色
+    matches.forEach((m) => { if (!m.rainbow) m.color = cellColor(this.grid[m.cells[0][0]][m.cells[0][1]]); });
     const toClear = this._markMatrix(false);
     matches.forEach((m) => m.cells.forEach(([r, c]) => { toClear[r][c] = true; }));
 
@@ -277,6 +311,12 @@ Board.prototype.resolve = function resolve() {
     const stepPlanted = [];
     const blastList = [], blastSet = new Set();
     matches.forEach((m) => m.cells.forEach(([r, c]) => matchCells.add(r + ',' + c)));
+    // v5.6.7 彩虹块触发组色映射（彩虹格 → 配对色）：被爆炸波及的无色彩虹块则随机选一色
+    const rainbowColorOf = new Map();
+    matches.forEach((m) => {
+      if (!m.rainbow || !m.color) return;
+      m.cells.forEach(([r, c]) => { if (specialType(this.grid[r][c]) === 'rainbow') rainbowColorOf.set(r + ',' + c, m.color); });
+    });
     const markBlast = (rr, cc, s, color) => {
       const k = rr + ',' + cc;
       if (matchCells.has(k) || blastSet.has(k)) return;
@@ -298,8 +338,8 @@ Board.prototype.resolve = function resolve() {
       const st = v.s;
       const sub = v.sub === true;
       if (st === 'rainbow') {
-        // 配任意色消除：清全盘该色普通块
-        const color = cellColor(v);
+        // 配任意色消除 → 清该色全盘；被爆炸波及（无配对色）→ 随机选棋盘现存一色清除（v5.6.7）
+        const color = rainbowColorOf.get(r + ',' + c) || this._randomBoardColor();
         if (color) rainbowClear.push(color);
       } else if (st === 'split') {
         // 3×3 十字 5 格（中心 + 上下左右）；次级分裂雷不再派生四角分裂雷
@@ -542,13 +582,23 @@ Board.prototype.trySwap = function trySwap(r1, c1, r2, c2) {
   const a = this.grid[r1][c1], b = this.grid[r2][c2];
   if (a === null || b === null) return { ok: false };
   this.grid[r1][c1] = b; this.grid[r2][c2] = a;
+  // v5.6.7 彩虹块与任意色块交换 → 该色全盘清除（无需形成普通三消组，resolve 消费 _rainbowSwapColor）
+  const sa = this.grid[r1][c1], sb = this.grid[r2][c2];
+  const ra = specialType(sa) === 'rainbow', rb = specialType(sb) === 'rainbow';
+  let rainbowSwapColor = null;
+  if (ra || rb) {
+    const other = ra ? sb : sa;
+    const color = cellColor(other);
+    if (color) rainbowSwapColor = color;
+  }
   const matches = this.findMatches();
-  if (!matches.length) {
+  if (!matches.length && !rainbowSwapColor) {
     this.grid[r1][c1] = a; this.grid[r2][c2] = b; // 回滚
     return { ok: false };
   }
   this.stats.swapCount++;
   this._movedCell = [r1, c1];   // v5.2 交互四消保留格：玩家落格优先（resolve 内消费后置 null）
+  this._rainbowSwapColor = rainbowSwapColor;   // 彩虹交换清色（可为 null）
   const resolved = this.resolve();
   return { ok: true, resolved };
 };
