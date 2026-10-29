@@ -3,6 +3,7 @@ const FirepillarFx = require('./fx/firepillar.js');
 const { createSkillLoadout } = require('./screens/skill-loadout.js');
 const { skillIcon } = require('./icons/skills.js');
 const { specialBlockMark, COLOR_FILL } = require('./icons/special-blocks.js');
+const SpecialChip = require('./icons/special-chip.js');   // v1.17.35 特殊方块染色贴图（body+mark 双层）
 const GS_BALANCE = require('../config/global-balance.js');
 /**
  * render.js —— 主界面渲染（设计稿 750×1626 逻辑坐标，定版 v7：iPhone 15 比例）
@@ -153,6 +154,17 @@ function drawImg(ctx, src, x, y, w, h) {
   }
   return false;
 }
+/* v1.17.35 离屏画布（特殊方块染色合成用）：主画布已被 canvas.js 缓存，此处拿到的是离屏画布 */
+function createOffscreen() {
+  if (typeof wx !== 'undefined' && wx.createCanvas) {
+    try { return wx.createCanvas(); } catch (e) { return null; }
+  }
+  if (typeof document !== 'undefined' && document.createElement) {
+    try { return document.createElement('canvas'); } catch (e) { return null; }
+  }
+  return null;
+}
+SpecialChip.configure({ loadImage: loadImg, createCanvas: createOffscreen });
 
 /* v1.16.27 技能图标（美术资源 assets/images/skillicons/<塔>/<文件名>.png，缺失时回退 emoji） */
 const SKILL_ICON = {
@@ -898,6 +910,7 @@ class Renderer {
   }
 
   board(ctx, grid, selected, anim, shake) {
+    SpecialChip.preload();   // v1.17.35 特殊方块贴图一次性预载（避免首帧回退矢量徽记）
     const { boardX, boardY, cell, boardRows, boardCols } = this.ly;
     // v1.17.29 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
     let shP = -1;
@@ -956,7 +969,11 @@ class Renderer {
             const sz = (cell - 4) * (1 - fade * 0.35);
             const inset = (cell - 4 - sz) / 2;
             ctx.globalAlpha = 1 - fade;
-            if (!drawImg(ctx, BOARD_IMG[cBase], x + inset, y + inset, sz, sz)) {
+            // v1.17.35 特殊块淡出同样用染色贴图，形状不在消除瞬间「变回」普通块
+            const chip = (typeof color === 'object') ? SpecialChip.specialChip(color) : null;
+            if (chip) {
+              ctx.drawImage(chip, x + inset, y + inset, sz, sz);
+            } else if (!drawImg(ctx, BOARD_IMG[cBase], x + inset, y + inset, sz, sz)) {
               fillRoundRect(ctx, x + inset, y + inset, sz, sz, 8, COLOR_FILL[cBase] || '#333');
             }
             ctx.globalAlpha = 1;
@@ -1002,17 +1019,21 @@ class Renderer {
     if (shP >= 0 && shP < 1) ctx.restore();
   }
 
-  /** 单格绘制（方块图片优先，回退色块+底部暗条；含选中框；v5.2 特殊块叠加类型符号） */
+  /** 单格绘制（方块图片优先，回退色块+底部暗条；含选中框；v5.2 特殊块叠加类型符号；
+   *   v1.17.35 特殊块改用「染色 body + mark」贴图，未就绪时回退 v5.2 矢量徽记） */
   drawCell(ctx, x, y, cell, color, r, c, selected) {
     const size = cell - 4;
     const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
     const base = isObj ? (color.s === 'rainbow' ? null : (color.c || color.tint || null)) : color;
-    if (!drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
+    const chip = isObj ? SpecialChip.specialChip(color) : null;
+    if (chip) {
+      ctx.drawImage(chip, x, y, size, size);   // 双层贴图已含玻璃质感 + 描边刻印
+    } else if (!drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.fillRect(x, y + size - 6, size, 6);
     }
-    if (isObj) {
+    if (isObj && !chip) {
       this._specialBlockMark(ctx, x, y, size, color);
     }
 

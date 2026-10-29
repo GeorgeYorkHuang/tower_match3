@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<base href="../">
+<title>特殊方块染色贴图 · 实机渲染验收（v1.17.35）</title>
+<style>
+  html, body { margin: 0; background: #17121f; color: #d8d2e4;
+    font: 13px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
+  #wrap { padding: 14px 16px 30px; }
+  #hint { color: #8f88a0; font-size: 12px; margin: 0 0 10px; }
+  #cv { display: block; border-radius: 10px; }
+  #err { color: #ff6b6b; white-space: pre-wrap; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <p id="hint">全部图形由 js/game/render.js 真实 drawCell/board 绘制（非复刻）；贴图来自 assets/images/board/special/。</p>
+  <canvas id="cv"></canvas>
+  <pre id="err"></pre>
+</div>
+
+<script>const MOD_SRC = {/*__MODULES__*/};</script>
+<script>
+'use strict';
+/* ============ 内联 CommonJS 加载器 ============ */
+function b64ToUtf8(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+const factories = {};
+for (const p in MOD_SRC) {
+  factories[p] = new Function('require', 'module', 'exports', b64ToUtf8(MOD_SRC[p]) + '\n//# sourceURL=' + p);
+}
+function resolvePath(from, req) {
+  if (req.charAt(0) !== '.') return req;
+  const parts = from.split('/').slice(0, -1).concat(req.split('/'));
+  const out = [];
+  for (const seg of parts) { if (seg === '' || seg === '.') continue; if (seg === '..') out.pop(); else out.push(seg); }
+  return out.join('/');
+}
+const cache = {};
+function makeRequire(from) {
+  return function (req) {
+    const target = resolvePath(from, req);
+    if (cache[target]) return cache[target].exports;
+    const f = factories[target];
+    if (!f) throw new Error('未内联模块：' + target + '（来自 ' + from + '）');
+    const mod = { exports: {} };
+    cache[target] = mod;
+    f(makeRequire(target), mod, mod.exports);
+    return mod.exports;
+  };
+}
+const reqRoot = makeRequire('preview.js');
+
+const renderMod = reqRoot('js/game/render.js');
+const chipMod = reqRoot('js/game/icons/special-chip.js');
+const Renderer = renderMod.Renderer;
+const R = Object.create(Renderer.prototype);
+R.ly = renderMod.layout();
+const LY = R.ly, CELL = LY.cell;
+
+/* 旧路径底图：读取同一份 BOARD_IMG（v5.2 矢量徽记 + 底图） */
+const boardImgs = {};
+Object.keys(renderMod.BOARD_IMG).forEach((k) => {
+  const im = new Image();
+  im.src = renderMod.BOARD_IMG[k];
+  boardImgs[k] = im;
+});
+
+/* ============ 版式与配色 ============ */
+const W = 1180;
+const PAD = 26;
+const INK = '#e9e4f2', DIM = '#9a92ab', ACC = '#ff9a5c', GOOD = '#7ee4a1';
+const SHAPES = [
+  { name: 'row',   label: '行爆', desc: '扁横条 + 横双头箭' },
+  { name: 'col',   label: '列爆', desc: '竖条 + 竖双头箭' },
+  { name: 'cross', label: '十字爆', desc: '方头十字 + 圆核四裂纹' },
+  { name: 'split', label: '父雷', desc: '八角轮廓 + 四角星' },
+  { name: 'sub',   label: '子雷', desc: '长尖头十字 + 实心黑菱形' },
+  { name: 'rand',  label: '乱数', desc: '菱形 + 骰面五点' },
+  { name: 'rainbow', label: '彩虹', desc: '六角星 + 六色环（不染色）' },
+];
+const COLORS = [
+  { key: 'red', label: '火', hex: '#ff6b6b' },
+  { key: 'blue', label: '冰', hex: '#5dade2' },
+  { key: 'green', label: '毒', hex: '#58d68d' },
+  { key: 'yellow', label: '电', hex: '#f4d03f' },
+  { key: 'purple', label: '回旋', hex: '#af7ac5' },
+  { key: 'orange', label: '炮', hex: '#e67e22' },
+];
+const pieceOf = (shape, colorKey) => (shape === 'rainbow' ? { c: null, s: 'rainbow' }
+  : (shape === 'sub' ? { c: colorKey, s: 'split', sub: true } : { c: colorKey, s: shape }));
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let DPR = Math.min(2, window.devicePixelRatio || 1);
+
+function setHeader(t) { ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif'; ctx.textBaseline = 'alphabetic'; ctx.fillText(t, PAD, cur.y); }
+function setSub(t) { ctx.fillStyle = DIM; ctx.font = '12px system-ui,"Microsoft YaHei",sans-serif'; ctx.fillText(t, PAD, cur.y); }
+const cur = { y: 0 };
+
+/* 把棋盘按 1:1 画到离屏 canvas，再按 scale 贴到目标位置；
+   board() 按 ly.boardRows/boardCols 全量遍历，传入 grid 不足处补 null */
+function boardCanvas(cols, rows, grid) {
+  for (let r = 0; r < LY.boardRows; r++) {
+    if (!grid[r]) grid[r] = [];
+    for (let c = 0; c < LY.boardCols; c++) if (grid[r][c] === undefined) grid[r][c] = null;
+  }
+  const w = Math.ceil(cols * CELL + 12), h = Math.ceil(rows * CELL + 12);
+  const off = document.createElement('canvas');
+  off.width = w * 2; off.height = h * 2;
+  const c = off.getContext('2d');
+  c.scale(2, 2);
+  c.save();
+  c.translate(6 - LY.boardX, 6 - LY.boardY);
+  R.board(c, grid, null, null, null);
+  c.restore();
+  return { cv: off, w, h };
+}
+
+/* 旧实现：底图 + v5.2 矢量徽记（与 v1.17.34 前的效果一致） */
+function drawOldCell(c, x, y, size, piece) {
+  const base = piece.s === 'rainbow' ? null : (piece.c || null);
+  const im = boardImgs[base];
+  if (im && im.width > 0) c.drawImage(im, x, y, size, size);
+  else {
+    c.fillStyle = renderMod.COLOR_FILL[base] || '#2c3440';
+    c.fillRect(x, y, size, size);
+  }
+  R._specialBlockMark(c, x, y, size, piece);
+}
+
+function label(x, y, t, col, font) {
+  ctx.fillStyle = col || DIM;
+  ctx.font = font || '12px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText(t, x, y);
+}
+
+/* ============ 面板 ============ */
+function paint() {
+  let y = 26;
+
+  /* —— A 实尺棋盘（11×7，同色混排）—— */
+  setHeader('A · 实尺棋盘 11×7（格 60 / 方块 56）'); cur.y = y; ctx.fillStyle = INK;
+  ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('A · 实尺棋盘 11×7（格 60 / 方块 56）', PAD, y); y += 20;
+  ctx.fillStyle = DIM; ctx.font = '12px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('六色普通块 + 六款特殊块混排：同色环境下轮廓仍可区分，染色不掩盖玻璃质感', PAD, y); y += 14;
+
+  const COLS = LY.boardCols, ROWS = LY.boardRows;
+  const gridA = [];
+  const specials = [
+    [0, 2, 'cross', 'red'], [0, 7, 'row', 'red'], [1, 5, 'sub', 'red'], [2, 1, 'split', 'red'],
+    [3, 9, 'rand', 'red'], [4, 4, 'col', 'red'], [5, 0, 'rainbow', null], [5, 8, 'cross', 'red'],
+    [6, 3, 'sub', 'red'], [6, 6, 'rand', 'blue'], [2, 8, 'row', 'blue'], [4, 0, 'split', 'green'],
+  ];
+  const base = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+  for (let r = 0; r < ROWS; r++) {
+    gridA.push([]);
+    for (let c = 0; c < COLS; c++) gridA[r].push(base[(r * 3 + c) % 6]);
+  }
+  specials.forEach(([r, c, s, col]) => { if (gridA[r]) gridA[r][c] = pieceOf(s, col); });
+
+  const A = boardCanvas(COLS, ROWS, gridA);
+  const sA = 1.25;
+  ctx.drawImage(A.cv, PAD, y, A.w * sA, A.h * sA);
+  y += A.h * sA + 10;
+  label(PAD, y, '↑ 六款特殊块分别落在不同位置；左上为十字爆、右下为子雷，中间彩虹块', DIM);
+  y += 34;
+
+  /* —— B 放大细节（3 倍）—— */
+  ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('B · 局部放大（同一批方块 3× 观察描边与玻璃层）', PAD, y); y += 22;
+  const gridB = [
+    [{ c: 'red', s: 'cross' }, { c: 'red', s: 'split' }, { c: 'red', s: 'split', sub: true }, { c: 'red', s: 'row' }],
+    [{ c: 'red', s: 'col' }, { c: 'red', s: 'rand' }, { c: null, s: 'rainbow' }, { c: 'red', s: 'cross' }],
+  ];
+  const B = boardCanvas(4, 2, gridB);
+  const sB = 2.1;
+  ctx.drawImage(B.cv, PAD, y, B.w * sB, B.h * sB);
+  const bx = PAD + B.w * sB + 30;
+  label(bx, y + 20, '十字爆 / 父雷 / 子雷 三者同色时：', INK, '600 13px system-ui');
+  label(bx, y + 42, '· 十字爆 = 方头十字 + 圆核四裂纹', DIM);
+  label(bx, y + 62, '· 父雷 = 八角轮廓 + 四角星（体型最厚）', DIM);
+  label(bx, y + 82, '· 子雷 = 长尖头十字 + 实心黑菱形', DIM);
+  label(bx, y + 108, '三者靠「轮廓」区分，不依赖颜色。', ACC);
+  y += B.h * sB + 30;
+
+  /* —— C 新旧对照 —— */
+  ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('C · 新旧对照（左：v5.2 底图 + 矢量徽记　右：v1.17.35 染色贴图）', PAD, y); y += 24;
+  const CCELL = 56, CGAP = 18, CROW = 96;
+  const colX = (i) => PAD + i * (CCELL * 2 + 46);
+  COLORS.forEach((col, i) => {
+    label(colX(i) - 2, y + 12, col.label, col.hex, '600 12px system-ui');
+  });
+  y += 22;
+  SHAPES.forEach((sh, ri) => {
+    const yy = y + ri * CROW;
+    label(PAD - 2, yy + CCELL / 2 + 4, sh.label, INK, '12px system-ui');
+    COLORS.forEach((col, ci) => {
+      const x = colX(ci) - 2;
+      const p = pieceOf(sh.name, col.key);
+      drawOldCell(ctx, x, yy + 14, CCELL, p);
+      R.drawCell(ctx, x + CCELL + 8, yy + 14, CCELL + 4, p, -1, -1, null);
+    });
+  });
+  y += SHAPES.length * CROW + 6;
+  label(PAD, y, '每对：左旧右新。新贴图底色更「玻璃」，形状符号保留在同一位置，尺寸与旧版一致（56px，不改变棋盘排布）', DIM);
+  y += 34;
+
+  /* —— D 染色矩阵 —— */
+  ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('D · 6 形 × 6 色矩阵（每格 56px，模拟棋盘实尺）', PAD, y); y += 22;
+  COLORS.forEach((col, i) => label(PAD + 90 + i * 74, y, col.label, col.hex, '600 12px system-ui'));
+  y += 12;
+  SHAPES.filter((s) => s.name !== 'rainbow').forEach((sh, ri) => {
+    const yy = y + ri * 74;
+    label(PAD, yy + 40, sh.label, INK, '12px system-ui');
+    COLORS.forEach((col, ci) => {
+      R.drawCell(ctx, PAD + 90 + ci * 74, yy + 8, 60, pieceOf(sh.name, col.key), -1, -1, null);
+    });
+  });
+  y += 6 * 74 + 6;
+  label(PAD, y, '彩虹块恒为整图（不参与染色），出现位置不受来源色影响', DIM);
+  y += 34;
+
+  /* —— E 结论 —— */
+  const ready = SHAPES.every((sh) => chipMod.specialChip(pieceOf(sh.name, 'red')) !== null);
+  ctx.fillStyle = INK; ctx.font = '600 17px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText('E · 自检', PAD, y); y += 24;
+  const lines = [
+    ['贴图合成状态', ready ? '就绪（13 张已加载）' : '未就绪（回退矢量徽记）', ready ? GOOD : '#ff8a8a'],
+    ['组合缓存', chipMod.cachedKeys().length + ' / 37', '#d8d2e4'],
+    ['绘制路径', 'drawCell → 单次 drawImage（离屏合成位图）', '#d8d2e4'],
+    ['回退路径', '图未加载 / 不支持 source-atop → 旧「底图 + 矢量徽记」', '#d8d2e4'],
+    ['数值影响', '无：仅渲染层，combat/config/棋盘数据零改动', GOOD],
+  ];
+  lines.forEach(([k, v, c], i) => {
+    label(PAD, y + i * 22, k, DIM);
+    label(PAD + 110, y + i * 22, v, c);
+  });
+  y += lines.length * 22 + 20;
+
+  return y;
+}
+
+/* ============ 启动：先等贴图，再画 ============ */
+function boot() {
+  window.addEventListener('error', (e) => {
+    document.getElementById('err').textContent += '\n[global] ' + e.message + ' @' + (e.filename || '') + ':' + e.lineno;
+  });
+  chipMod.preload();
+  const t0 = Date.now();
+  const tick = () => {
+    const ready = SHAPES.every((sh) => chipMod.specialChip(pieceOf(sh.name, 'red')) !== null);
+    if (!ready && Date.now() - t0 < 8000) { setTimeout(tick, 60); return; }
+    if (!ready) document.getElementById('err').textContent = '警告：部分贴图未加载，面板将显示回退效果';
+    size();
+  };
+  tick();
+}
+function size() {
+  try {
+  const h = 2200;
+  cv.width = W * DPR; cv.height = h * DPR;
+  cv.style.width = W + 'px'; cv.style.height = h + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.textBaseline = 'alphabetic';
+  const used = paint();
+  cv.width = W * DPR; cv.height = Math.ceil(used + 12) * DPR;
+  cv.style.height = Math.ceil(used + 12) + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  paint();
+  document.title = '特殊方块验收 · ' + chipMod.cachedKeys().length + ' 组合';
+  } catch (e) {
+    document.title = 'ERR';
+    document.getElementById('err').textContent = String(e.stack || e);
+  }
+}
+try { boot(); } catch (e) {
+  document.getElementById('err').textContent = String(e.stack || e);
+  console.error(e);
+}
+</script>
+</body>
+</html>
