@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>主界面布局 · 实际页面验收</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0a0e14; color: #c9d6e4; overflow: hidden;
+    font: 13px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex: none;
+    padding: 10px 18px; border-bottom: 1px solid #1d2836; background: #0d131b;
+  }
+  header h1 { margin: 0; font-size: 15px; color: #eaf2ff; }
+  header .sub { color: #5d7186; font-size: 12px; }
+  .badge { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    background: #14212f; border: 1px solid #23364a; color: #8fa6c2; }
+  .badge.warn { background: #2a1f10; border-color: #6b4a1a; color: #ffc46b; }
+  main { display: flex; flex: 1; min-height: 0; }
+  .stage { flex: none; display: flex; align-items: flex-start; justify-content: center;
+    padding: 14px 10px; overflow: auto; background: #0a0e14; }
+  .vp { position: relative; overflow: hidden; border-radius: 8px; background: #0d1522;
+    box-shadow: 0 0 0 1px #22303f, 0 12px 40px #000a; }
+  .vp canvas { display: block; }
+  .ov { position: absolute; inset: 0; pointer-events: none; }
+  .panel { flex: 1; min-width: 0; border-left: 1px solid #1d2836; overflow-y: auto; padding: 14px 18px; }
+  .panel h2 { font-size: 11px; letter-spacing: .9px; text-transform: uppercase; color: #56697e;
+    margin: 18px 0 8px; font-weight: 700; }
+  .panel h2:first-child { margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #18222e; }
+  th { color: #6d8298; font-weight: 500; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; color: #d5e3f2; }
+  tr.warn td { color: #ffc46b; }
+  tr.bad td { color: #ff8a96; }
+  tr.ok td:last-child::after { content: " ✓"; color: #4dff9e; }
+  .note { color: #5d7186; font-size: 11px; line-height: 1.6; margin-top: 6px; }
+  label.row { display: flex; align-items: center; gap: 7px; color: #a9bdd2; cursor: pointer; margin-bottom: 5px; }
+  label.row input { accent-color: #3a6ea5; }
+  .lg { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: #8fa6c2; margin-top: 8px; }
+  .lg i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>主界面布局 · 实际页面验收</h1>
+  <span class="sub">真实坐标 · 技能区真渲染 · 区块重叠与对齐自动审计</span>
+  <span class="badge" id="status">—</span>
+</header>
+<main>
+  <section class="stage">
+    <div class="vp" id="vp"><canvas id="cv" width="750" height="1626"></canvas><div class="ov" id="ov"></div></div>
+  </section>
+  <aside class="panel">
+    <h2>显示</h2>
+    <label class="row"><input type="checkbox" id="showBlocks" checked>区块标注</label>
+    <label class="row"><input type="checkbox" id="showOverlap" checked>重叠区斜纹标红</label>
+    <label class="row"><input type="checkbox" id="showRuler" checked>右侧 y 标尺</label>
+    <label class="row"><input type="checkbox" id="fadeBlocks">淡化区块（只看真渲染）</label>
+    <div class="lg" id="legend"></div>
+
+    <h2>垂直间距（相邻区块）</h2>
+    <table id="gaps"><thead><tr><th>上块 → 下块</th><th class="num">间距</th><th>判定</th></tr></thead><tbody></tbody></table>
+
+    <h2>重叠检测</h2>
+    <table id="overlaps"><thead><tr><th>区块对</th><th class="num">重叠高</th><th class="num">面积</th></tr></thead><tbody></tbody></table>
+
+    <h2>水平边距 / 宽度</h2>
+    <table id="margins"><thead><tr><th>区块</th><th class="num">左</th><th class="num">右</th><th class="num">宽</th></tr></thead><tbody></tbody></table>
+
+    <h2>技能行实际占位</h2>
+    <table id="rows"><thead><tr><th>行</th><th class="num">卡数</th><th class="num">卡区右界</th><th class="num">行内空余</th></tr></thead><tbody></tbody></table>
+    <div class="note">
+      数据来源：主界面 render.js 真实坐标（战场卡 80/400/590×392、进入战斗 75/850/600×80、
+      技能区 55/990 与 55/1254 640×200、页签光束 tabY-70、页签 31/1504 163×100 间距 12）。
+      技能区卡片由 <code>screens/skill-loadout.js</code> 真渲染，其余区块按真实坐标画标注框。
+    </div>
+  </aside>
+</main>
+
+<script>const MOD_SRC = {/*__MODULES__*/};</script>
+<script>
+'use strict';
+window.addEventListener('error', (e) => {
+  const el = document.getElementById('status');
+  if (el) { el.textContent = 'JS 错误：' + e.message; el.className = 'badge warn'; }
+  document.body.insertAdjacentHTML('beforeend',
+    '<pre style="color:#ff8a96;font:12px/1.5 monospace;white-space:pre-wrap;padding:8px 18px">' +
+    (e.stack || e.message) + '</pre>');
+});
+
+/* ---------- 内联 CommonJS 加载器 ---------- */
+function b64ToUtf8(b64) {
+  const bin = atob(b64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+const factories = {};
+for (const p in MOD_SRC) {
+  factories[p] = new Function('require', 'module', 'exports',
+    b64ToUtf8(MOD_SRC[p]) + '\n//# sourceURL=' + p);
+}
+function resolvePath(from, req) {
+  if (req.charAt(0) !== '.') return req;
+  const parts = from.split('/').slice(0, -1).concat(req.split('/'));
+  const out = [];
+  for (const seg of parts) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') out.pop(); else out.push(seg);
+  }
+  return out.join('/');
+}
+const cache = {};
+function makeRequire(from) {
+  return function (req) {
+    const t = resolvePath(from, req);
+    if (cache[t]) return cache[t].exports;
+    const f = factories[t];
+    if (!f) throw new Error('未内联模块：' + t);
+    const mod = { exports: {} };
+    cache[t] = mod;
+    f(makeRequire(t), mod, mod.exports);
+    return mod.exports;
+  };
+}
+const reqRoot = makeRequire('preview.js');
+const Renderer = reqRoot('js/game/render.js').Renderer;
+const createSkillLoadout = reqRoot('js/game/screens/skill-loadout.js').createSkillLoadout;
+const skillIcon = reqRoot('js/game/icons/skills.js').skillIcon;
+const UI = reqRoot('js/game/ui.js');
+
+const L = createSkillLoadout({
+  panelShell: Renderer.prototype._menuPanelShell,
+  skillIcon,
+  wrapText: Renderer.prototype.wrapText,
+});
+
+/* ---------- 真实坐标区块表 ---------- */
+const MENU_TABS = [['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴']];
+const TAB_THEME = {
+  battle: { main: '#e8603c', dark: '#8c2f18' },
+  shop: { main: '#e0a92f', dark: '#8a6212' },
+  relic: { main: '#a86bff', dark: '#5c33a8' },
+  codex: { main: '#4d8fd6', dark: '#26517e' },
+};
+
+const BLOCKS = [
+  { id: 'currency', name: '货币胶囊', x: 18, y: 110, w: 372, h: 52, color: '#f7c948' },
+  { id: 'title', name: '游戏名弧标题', x: 0, y: 300, w: 750, h: 100, color: '#e8c98a' },
+  { id: 'stage', name: '战场卡', x: 80, y: 400, w: 590, h: 392, color: '#79caff' },
+  { id: 'enter', name: '进入战斗按钮', x: 75, y: 850, w: 600, h: 80, color: '#ff9f43' },
+  { id: 'skill1', name: '技能行1 三消', x: 55, y: 973, w: 640, h: 217, color: '#b896ff' },
+  { id: 'skill2', name: '技能行2 全局', x: 55, y: 1254, w: 640, h: 200, color: '#f4cb79' },
+  { id: 'beam', name: '页签向上光束', x: 31, y: 1434, w: 667, h: 70, color: '#5dade2' },
+  { id: 'tabbar', name: '底部分页标签', x: 31, y: 1504, w: 667, h: 100, color: '#58d68d' },
+];
+
+/* ---------- 绘制 ---------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function drawBackground() {
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, 750, 1626);
+  const g = ctx.createLinearGradient(0, 0, 0, 236);
+  g.addColorStop(0, 'rgba(58,26,32,0.9)');
+  g.addColorStop(1, 'rgba(13,17,23,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 750, 236);
+}
+
+function drawEnterButton() {
+  const ey = 850, eh = 80;
+  const t = TAB_THEME.battle;
+  const bg = ctx.createLinearGradient(0, ey, 0, ey + eh);
+  bg.addColorStop(0, t.main); bg.addColorStop(1, t.dark);
+  ctx.fillStyle = bg;
+  UI.roundRect(ctx, 100, ey, 550, eh, 22); ctx.fill();
+  UI.strokeRoundRect(ctx, 100, ey, 550, eh, 22, 'rgba(255,255,255,0.4)', 2);
+  UI.fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, 'rgba(255,255,255,0.18)');
+  UI.text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
+}
+
+function drawTabBar() {
+  const tabY = 1504, tabH = 100, tabW = 163, tabGap = 12, x0 = 31;
+  const t = TAB_THEME.battle;
+  const ag = ctx.createLinearGradient(0, tabY - 70, 0, tabY);
+  ag.addColorStop(0, 'rgba(232,96,60,0)');
+  ag.addColorStop(1, t.main + '55');
+  ctx.fillStyle = ag;
+  ctx.fillRect(x0, tabY - 70, tabW * 4 + tabGap * 3, 70);
+  MENU_TABS.forEach(([key, icon, label], i) => {
+    const tx = x0 + i * (tabW + tabGap);
+    const active = key === 'battle';
+    const th = TAB_THEME[key];
+    if (active) {
+      const tg = ctx.createLinearGradient(0, tabY, 0, tabY + tabH);
+      tg.addColorStop(0, th.main); tg.addColorStop(1, th.dark);
+      ctx.beginPath();
+      ctx.moveTo(tx, tabY + tabH); ctx.lineTo(tx, tabY + 16);
+      ctx.arcTo(tx, tabY, tx + 16, tabY, 16);
+      ctx.lineTo(tx + tabW - 16, tabY);
+      ctx.arcTo(tx + tabW, tabY, tx + tabW, tabY + 16, 16);
+      ctx.lineTo(tx + tabW, tabY + tabH);
+      ctx.closePath(); ctx.fillStyle = tg; ctx.fill();
+      UI.fillRoundRect(ctx, tx + 34, tabY, tabW - 68, 4, 2, 'rgba(255,255,255,0.5)');
+      UI.text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + 56, 30, '#ffffff', 'center');
+    } else {
+      UI.fillRoundRect(ctx, tx, tabY, tabW, tabH, 16, 'rgba(20,26,36,0.92)');
+      UI.strokeRoundRect(ctx, tx, tabY, tabW, tabH, 16, '#2b3648', 1);
+      UI.text(ctx, icon + ' ' + label, tx + tabW / 2, tabY + tabH / 2, 26, '#8ea3b8', 'center');
+    }
+  });
+}
+
+let hits = [];
+
+function drawSkills() {
+  const s = {
+    matchSkills: { match4: 'row', match5: 'rainbow', chain: 'attack' },
+    globalSkills: { slots: ['shuffle', 'refill'] },
+    skillUnlocks: {},
+    panel: {},
+  };
+  hits = [];
+  const push = (key, data, x, y, w, h) => hits.push({ key, data, x, y, w, h });
+  L.skillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
+  L.skillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
+}
+
+function overlaps() {
+  const out = [];
+  for (let i = 0; i < BLOCKS.length; i++) {
+    for (let j = i + 1; j < BLOCKS.length; j++) {
+      const a = BLOCKS[i], b = BLOCKS[j];
+      const ox = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const oy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      if (ox > 0 && oy > 0) out.push({ a, b, ox, oy, area: ox * oy });
+    }
+  }
+  return out;
+}
+
+function drawOverlapHatch() {
+  const list = overlaps().filter((o) => o.a.id !== 'title' && o.b.id !== 'title');
+  ctx.save();
+  for (const o of list) {
+    const x = Math.max(o.a.x, o.b.x), y = Math.max(o.a.y, o.b.y);
+    const w = o.ox, h = o.oy;
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,60,90,0.9)';
+    ctx.lineWidth = 2;
+    for (let k = -h; k < w; k += 10) {
+      ctx.beginPath(); ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); ctx.stroke();
+    }
+    ctx.restore(); ctx.save();
+  }
+  ctx.restore();
+}
+
+function drawBlocks(fade) {
+  const alpha = fade ? 0.04 : 0.10;
+  for (const b of BLOCKS) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.globalAlpha = fade ? 0.25 : 0.85;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+    ctx.restore();
+    if (!fade) {
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      UI.text(ctx, b.id, b.x + 6, b.y + 12, 15, b.color, 'left');
+      ctx.restore();
+    }
+  }
+}
+
+function drawRuler() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(120,150,180,0.35)';
+  ctx.lineWidth = 1;
+  ctx.font = 'bold 13px monospace';
+  ctx.fillStyle = 'rgba(150,180,210,0.75)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  for (let y = 0; y <= 1626; y += 100) {
+    ctx.beginPath(); ctx.moveTo(700, y); ctx.lineTo(750, y); ctx.stroke();
+    if (y) ctx.fillText(String(y), 706, y + 8);
+  }
+  ctx.restore();
+}
+
+function render(redraw) {
+  const showBlocks = document.getElementById('showBlocks').checked;
+  const showOverlap = document.getElementById('showOverlap').checked;
+  const showRuler = document.getElementById('showRuler').checked;
+  const fade = document.getElementById('fadeBlocks').checked;
+
+  if (redraw !== false) {
+    drawBackground();
+  }
+  drawSkills();
+  drawEnterButton();
+  drawTabBar();
+  if (showOverlap) drawOverlapHatch();
+  if (showBlocks) drawBlocks(fade);
+  if (showRuler) drawRuler();
+}
+
+/* ---------- 审计 ---------- */
+function audit() {
+  /* 垂直间距 */
+  const tb = document.querySelector('#gaps tbody');
+  tb.innerHTML = '';
+  const seq = ['currency', 'stage', 'enter', 'skill1', 'skill2', 'tabbar'];
+  let tight = 0, neg = 0;
+  for (let i = 0; i < seq.length - 1; i++) {
+    const a = BLOCKS.find((b) => b.id === seq[i]);
+    const b = BLOCKS.find((x) => x.id === seq[i + 1]);
+    const gap = b.y - (a.y + a.h);
+    const cls = gap < 0 ? 'bad' : (gap < 24 ? 'warn' : 'ok');
+    if (gap < 0) neg++; else if (gap < 24) tight++;
+    tb.insertAdjacentHTML('beforeend',
+      '<tr class="' + cls + '"><td>' + a.name + ' → ' + b.name + '</td><td class="num">' +
+      gap + '</td><td>' + (gap < 0 ? '重叠 ' + (-gap) + 'px' : (gap < 24 ? '偏紧' : '正常')) + '</td></tr>');
+  }
+
+  /* 重叠（排除弧标题这一粗估区域） */
+  const to = document.querySelector('#overlaps tbody');
+  to.innerHTML = '';
+  const ov = overlaps().filter((o) => o.a.id !== 'title' && o.b.id !== 'title');
+  if (!ov.length) to.insertAdjacentHTML('beforeend', '<tr class="ok"><td>无重叠</td><td class="num">—</td><td class="num">—</td><td></td></tr>');
+  for (const o of ov) {
+    to.insertAdjacentHTML('beforeend',
+      '<tr class="bad"><td>' + o.a.name + ' × ' + o.b.name + '</td><td class="num">' + o.oy +
+      '</td><td class="num">' + o.area.toLocaleString() + '</td></tr>');
+  }
+
+  /* 水平边距 */
+  const tm = document.querySelector('#margins tbody');
+  tm.innerHTML = '';
+  for (const b of BLOCKS) {
+    if (b.id === 'title') continue;
+    tm.insertAdjacentHTML('beforeend',
+      '<tr><td>' + b.name + '</td><td class="num">' + b.x + '</td><td class="num">' +
+      (750 - b.x - b.w) + '</td><td class="num">' + b.w + '</td></tr>');
+  }
+
+  /* 技能行实际占位 */
+  const tr = document.querySelector('#rows tbody');
+  tr.innerHTML = '';
+  const rows = [
+    { name: '行1 三消', key: 'matchCfg', box: BLOCKS.find((b) => b.id === 'skill1') },
+    { name: '行2 全局', key: 'globalCfg', box: BLOCKS.find((b) => b.id === 'skill2') },
+  ];
+  for (const r of rows) {
+    const cards = hits.filter((h) => h.key === r.key);
+    const right = cards.length ? Math.max(...cards.map((c) => c.x + c.w)) : r.box.x;
+    const used = right - r.box.x;
+    const rest = r.box.w - used;
+    const cls = rest > 120 ? 'warn' : 'ok';
+    tr.insertAdjacentHTML('beforeend',
+      '<tr class="' + cls + '"><td>' + r.name + '</td><td class="num">' + cards.length +
+      '</td><td class="num">' + Math.round(right) + '</td><td class="num">' + Math.round(rest) +
+      (rest > 120 ? ' ⚠' : '') + '</td></tr>');
+  }
+
+  /* 顶部徽章 */
+  const badge = document.getElementById('status');
+  const msgs = [];
+  if (ov.length) msgs.push(ov.length + ' 处区块重叠');
+  if (neg) msgs.push(neg + ' 处负间距');
+  if (msgs.length) { badge.textContent = msgs.join(' · '); badge.className = 'badge warn'; }
+  else { badge.textContent = '无重叠 · 间距正常'; badge.className = 'badge'; }
+}
+
+/* ---------- 交互 ---------- */
+const vp = document.getElementById('vp');
+const SCALE = 0.52;
+cv.style.width = (750 * SCALE) + 'px';
+cv.style.height = (1626 * SCALE) + 'px';
+vp.style.width = (750 * SCALE) + 'px';
+vp.style.height = (1626 * SCALE) + 'px';
+
+document.getElementById('legend').innerHTML = BLOCKS
+  .filter((b) => b.id !== 'title')
+  .map((b) => '<span><i style="background:' + b.color + '"></i>' + b.id + '</span>').join('');
+
+['showBlocks', 'showOverlap', 'showRuler', 'fadeBlocks'].forEach((id) => {
+  document.getElementById(id).onchange = () => render(true);
+});
+
+render(true);
+audit();
+</script>
+</body>
+</html>
