@@ -348,6 +348,32 @@ class Run {
     return { tower: target ? target.key : null, gotTower, penalized, exp, shape, ammoGain, shuffleGain, refillGain };
   }
 
+  /** v5.6.6 爆炸波及格按块奖励：每格按颜色充能对应塔（已激活 +2 能量；未激活色 → 充全局技能；塔激活以三消为准） */
+  _blastReward(st) {
+    const per = CONFIG.MATCH_SKILL.blastBlockEnergy;
+    if (!per || !st || !st.blasts || !st.blasts.length) return 0;
+    const matchSet = new Set();
+    (st.matches || []).forEach((m) => (m.cells || []).forEach(([r, c]) => matchSet.add(r + ',' + c)));
+    let gain = 0;
+    st.blasts.forEach((b) => {
+      if (!b || !b.color) return;
+      if (matchSet.has(b.r + ',' + b.c)) return; // 匹配组内格（含主爆特殊块格）已由 applyMatch 结算
+      const t = this.effects.tower(CONFIG.COLORS[b.color] ? CONFIG.COLORS[b.color].tower : null);
+      if (!t) return;
+      if (t.level > 0) {
+        const before = t.energy;
+        t.energy = Math.min(before + per, this.armoryEnergyMax());
+        gain += t.energy - before;
+      } else {
+        // 未激活色：充能全局技能（激活以三消为准，爆炸格不激活塔）
+        const skill = this._globalSkillOf(b.color);
+        if (skill === 'shuffle') this._chargeAmmo('shuffle', per);
+        else if (skill === 'refill') this._chargeAmmo('refill', per);
+      }
+    });
+    return gain;
+  }
+
   /** 剩余 2 色的全局技能归属（本局随机分配，不固定颜色）；4 塔未满时返回 null */
   _globalSkillOf(color) {
     if (!this._globalMap) this._initGlobalMap();
@@ -460,6 +486,9 @@ class Run {
         // 组色已在 resolve 清空前记录，避免连锁后棋盘移动取错色
         if (m.color) stepSettled.push(this.applyMatch(m.color, m.shape, m.size));
       });
+      // v5.6.6 爆炸波及格按块计入奖励：每格充能对应颜色塔（匹配组内格已由 applyMatch 按形状结算，跳过避免双算）
+      const blastGain = this._blastReward(st);
+      if (blastGain > 0) stepSettled.push({ tower: null, gotTower: false, penalized: false, shape: null, exp: 0, ammoGain: blastGain, shuffleGain: 0, refillGain: 0 });
       // v5.2 连消技：第 4 组起，连锁 3 消 → 连锁攻击（生成塔子弹）/ 连锁技能（随机释放周期技）
       if (isChain && this.combatRef) {
         this._chainBonus(st, si + 1);

@@ -102,6 +102,7 @@ module.exports = {
     default: { match4: 'random', match5: 'rainbow', chain: 'attack' },  // 旧档 / 未配置默认（match4 随机 5 款抽取）
     chainStart: 4,            // 连续消除从第 4 组起算连锁
     chainEnergy: 5,           // 连锁技能兜底：未配置周期技 → 对应塔 +5 能量
+    blastBlockEnergy: 2,      // v5.6.6 爆炸波及格按块充能：每格给对应颜色塔充能点数（塔激活以三消为准）
     seedCount: 4,             // 随机播种数量
     recolorCount: 10,         // 染色数量
     randCount: 5,             // 乱数方块：随机消除数量

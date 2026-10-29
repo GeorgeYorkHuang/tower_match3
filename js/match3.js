@@ -37,7 +37,7 @@ class Match3Controller {
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
-      durClear: 0.15, durWait: 0.2, durFall: 0.3,   // v5.6.5 消除淡出 0.15s → 等待 0.2s → 下落 0.3s 串行
+      durClear: 0.15, durWait: 0.1, durFall: 0.3,   // v5.6.6 消除淡出 0.15s → 等待 0.1s → 下落 0.3s 串行
       cascade: { steps, index: 0, settledByStep: ret.settledByStep },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
@@ -77,7 +77,7 @@ class Match3Controller {
         a.base = cs.steps[cs.index - 1].gridAfter;
         a.cleared = new Set(st.clearedCells.map(([r, c]) => r + ',' + c));
         a.final = st.gridAfter;
-        a.durClear = 0.15; a.durWait = 0.2; a.durFall = 0.3;
+        a.durClear = 0.15; a.durWait = 0.1; a.durFall = 0.3;
         a.progress = 0;
         a.phase = 'clear'; // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效
@@ -126,7 +126,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialBlast', s: b.s, sub: b.sub,
         x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
-        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.8, cell,   // 特殊块引爆 0.8s（预告25%+爆发75%）
+        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.25, cell,   // v5.6.6 爆炸动画 0.25s（与消除淡出同时进行）
         parts: i === 0 ? this._blastParts(b.s) : null,
       });
     });
@@ -134,7 +134,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialSpawn', s: p.s, sub: p.sub,
         x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
-        color: p.color, t: 0, dur: 0.4, cell,   // v5.6.3 特殊块生成降临 0.4s（原 0.9）
+        color: p.color, t: 0, dur: 0.1, cell,   // v5.6.6 特殊块生成降临 0.1s（原 0.4）
       });
     });
     if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
