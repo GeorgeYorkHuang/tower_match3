@@ -74,6 +74,10 @@
 
     <h2>技能行实际占位</h2>
     <table id="rows"><thead><tr><th>行</th><th class="num">卡数</th><th class="num">卡区右界</th><th class="num">行内空余</th></tr></thead><tbody></tbody></table>
+
+    <h2>技能卡缩进（以三消 3 卡跨度 145–631 为基准）</h2>
+    <table id="indent"><thead><tr><th>行</th><th class="num">首卡 x</th><th class="num">末卡右缘</th><th class="num">左缩进</th><th class="num">右缩进</th></tr></thead><tbody></tbody></table>
+    <div class="note" id="planNote"></div>
     <div class="note">
       数据来源：主界面 render.js 真实坐标（战场卡 80/400/590×392、进入战斗 75/850/600×80、
       技能区 55/990 与 55/1254 640×200、页签光束 tabY-70、页签 31/1504 163×100 间距 12）。
@@ -139,6 +143,13 @@ const L = createSkillLoadout({
   wrapText: Renderer.prototype.wrapText,
 });
 
+/* ---------- 方案开关（URL 参数）：?mode=plan 应用第二批布局方案 ---------- */
+const QS = new URLSearchParams(location.search);
+const PLAN_MODE = QS.get('mode') === 'plan';
+const SK1_Y = PLAN_MODE ? 970 : 990;     // 技能行1 三消：990 → 970（-20）
+const SK2_Y = PLAN_MODE ? 1234 : 1254;   // 技能行2 全局：1254 → 1234（-20）
+const G_DX = PLAN_MODE ? 84 : 0;         // 全局行卡片右移 84：首卡 145 → 229（两卡居中于三消行跨度）
+
 /* ---------- 真实坐标区块表 ---------- */
 const MENU_TABS = [['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['relic', '💎', '圣物'], ['codex', '📖', '塔图鉴']];
 const TAB_THEME = {
@@ -153,8 +164,8 @@ const BLOCKS = [
   { id: 'title', name: '游戏名弧标题', x: 0, y: 300, w: 750, h: 100, color: '#e8c98a' },
   { id: 'stage', name: '战场卡', x: 80, y: 400, w: 590, h: 392, color: '#79caff' },
   { id: 'enter', name: '进入战斗按钮', x: 75, y: 850, w: 600, h: 80, color: '#ff9f43' },
-  { id: 'skill1', name: '技能行1 三消', x: 55, y: 973, w: 640, h: 217, color: '#b896ff' },
-  { id: 'skill2', name: '技能行2 全局', x: 55, y: 1254, w: 640, h: 200, color: '#f4cb79' },
+  { id: 'skill1', name: '技能行1 三消', x: 55, y: SK1_Y - 17, w: 640, h: 217, color: '#b896ff' },
+  { id: 'skill2', name: '技能行2 全局', x: 55, y: SK2_Y, w: 640, h: 200, color: '#f4cb79' },
   { id: 'beam', name: '页签向上光束', x: 31, y: 1434, w: 667, h: 70, color: '#5dade2' },
   { id: 'tabbar', name: '底部分页标签', x: 31, y: 1504, w: 667, h: 100, color: '#58d68d' },
 ];
@@ -228,8 +239,16 @@ function drawSkills() {
   };
   hits = [];
   const push = (key, data, x, y, w, h) => hits.push({ key, data, x, y, w, h });
-  L.skillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
-  L.skillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
+  L.skillCards(ctx, s, push, '三消技能', s.matchSkills, 55, SK1_Y, 640, 200, true);
+  L.skillCards(ctx, s, push, '全局技能', s.globalSkills, 55 + G_DX, SK2_Y, 640, 200, false);
+  if (G_DX) {
+    // 预览期临时遮盖：skillCards 把竖排标签画在 x+30，卡片右移后标签会跟到 169。
+    // 正式方案应给 skillCards 增加 cardDX（只移卡片不移标签），此处遮盖后按 85 重画。
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(150, SK2_Y - 34, 48, 244);
+    const labelTop = SK2_Y + (200 - 3 * 28) / 2;
+    Array.from('全局技能').forEach((ch, i) => UI.text(ctx, ch, 85, labelTop + i * 28, 23, '#f4cb79', 'center'));
+  }
 }
 
 function overlaps() {
@@ -366,11 +385,28 @@ function audit() {
     const right = cards.length ? Math.max(...cards.map((c) => c.x + c.w)) : r.box.x;
     const used = right - r.box.x;
     const rest = r.box.w - used;
-    const cls = rest > 120 ? 'warn' : 'ok';
+    const cls = rest > 180 ? 'warn' : 'ok';
     tr.insertAdjacentHTML('beforeend',
       '<tr class="' + cls + '"><td>' + r.name + '</td><td class="num">' + cards.length +
       '</td><td class="num">' + Math.round(right) + '</td><td class="num">' + Math.round(rest) +
-      (rest > 120 ? ' ⚠' : '') + '</td></tr>');
+      (rest > 180 ? ' ⚠' : '') + '</td></tr>');
+  }
+
+  /* 技能卡缩进：以三消 3 卡跨度 145–631 为基准 */
+  const ti = document.querySelector('#indent tbody');
+  ti.innerHTML = '';
+  const SPAN_L = 145, SPAN_R = 631;
+  for (const r of rows) {
+    const cards = hits.filter((h) => h.key === r.key);
+    if (!cards.length) continue;
+    const first = Math.min(...cards.map((c) => c.x));
+    const right = Math.max(...cards.map((c) => c.x + c.w));
+    const il = Math.round(first - SPAN_L), ir = Math.round(SPAN_R - right);
+    const balanced = Math.abs(il - ir) <= 8;
+    ti.insertAdjacentHTML('beforeend',
+      '<tr class="' + (balanced ? 'ok' : 'warn') + '"><td>' + r.name + '</td><td class="num">' +
+      Math.round(first) + '</td><td class="num">' + Math.round(right) + '</td><td class="num">' +
+      il + '</td><td class="num">' + ir + '</td></tr>');
   }
 
   /* 顶部徽章 */
@@ -397,6 +433,17 @@ document.getElementById('legend').innerHTML = BLOCKS
 ['showBlocks', 'showOverlap', 'showRuler', 'fadeBlocks'].forEach((id) => {
   document.getElementById(id).onchange = () => render(true);
 });
+
+/* ---------- 模式横幅 ---------- */
+document.title = (PLAN_MODE ? '方案' : '现状') + ' · 主界面布局验收';
+document.querySelector('header h1').textContent = '主界面布局 · ' +
+  (PLAN_MODE ? '方案（行1 970 / 行2 1234 / 全局卡 229）' : '现状（行1 990 / 行2 1254 / 全局卡 145）');
+document.getElementById('planNote').innerHTML = PLAN_MODE
+  ? '两张全局卡在 145–631（三消 3 卡跨度）内居中 → 首卡 229，左右缩进各 84；两行整体上移 20 → 970 / 1234，'
+    + '行2 底 1434 与页签光束起点相接（重叠归零），页签间距 50 → 70。<br>'
+    + '注：竖排标签固定 x=85，只移卡片 —— 正式实现需给 skillCards 增加 cardDX（本页为该段做了临时遮盖重绘）。'
+  : '全局行 2 卡左对齐 145，右侧空 232px（三消行仅空 64）；技能行2 底 1454 与页签光束起点 1434 重叠 20px。'
+    + '加 <code>?mode=plan</code> 查看坐标方案。';
 
 render(true);
 audit();

@@ -282,11 +282,11 @@ cvB.width = 750; cvB.height = 1626;
 const ctxB = cvB.getContext('2d');
 
 let curScreen = SCREENS[0];
-/* 支持 #screen=match4 直达某屏 */
+/* 支持 #screen=match4&state=bought 直达某屏与某玩家状态 */
 const hashSc = (location.hash.match(/screen=(\w+)/) || [])[1];
 const hashTarget = SCREENS.find((s) => s.id === hashSc);
 if (hashTarget) curScreen = hashTarget;
-let curStateKey = 'fresh';
+let curStateKey = STATES[(location.hash.match(/state=(\w+)/) || [])[1]] ? (location.hash.match(/state=(\w+)/) || [])[1] : 'fresh';
 let lastHits = [];
 
 function drawInto(context, impl, screen, stateKey) {
@@ -428,6 +428,8 @@ document.getElementById('zoom').oninput = (e) => {
 };
 
 buildScreenList();
+const stateSel = document.getElementById('stateSel');
+if (stateSel && STATES[curStateKey]) stateSel.value = curStateKey;
 document.getElementById('stateNote').textContent = STATES[curStateKey].note;
 render();
 </script>
