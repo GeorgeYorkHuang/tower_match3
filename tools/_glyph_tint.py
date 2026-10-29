@@ -72,10 +72,10 @@ def tint_all():
         # 父雷：可选保留金色
         src = Image.open(os.path.join(GLYPH_OUT, 'glyph_split.png'))
         made[(color, 'split')] = src if SPLIT_GOLD_KEEP else made[(color, 'split')]
-        # 子雷：三角主体染色，红叉保留
+        # 子雷：v1.17.42 起为父雷中心徽章（金色，与父雷同族），不染来源色
         src = Image.open(os.path.join(GLYPH_OUT, 'glyph_sub.png'))
-        made[(color, 'sub')] = tint_sub(src, tint, hi, dark)
-        made[(color, 'sub')].save(os.path.join(d, 'sub.png'))
+        made[(color, 'sub')] = src
+        src.save(os.path.join(d, 'sub.png'))
         # rainbow 不染
         sh = Image.open(os.path.join(GLYPH_OUT, 'glyph_rainbow.png'))
         sh.save(os.path.join(d, 'rainbow.png'))
