@@ -37,7 +37,7 @@ class Match3Controller {
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
-      durClear: 0.5, durFall: 0.4,   // v5.6.3 消除段 0.5s 串行下落段 0.4s
+      durClear: 0.2, durWait: 0.3, durFall: 0.4,   // v5.6.4 消除淡出 0.2s → 等待 0.3s → 下落 0.4s 串行
       cascade: { steps, index: 0, settledByStep: ret.settledByStep },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
@@ -50,30 +50,34 @@ class Match3Controller {
     }
   }
 
-  /** 每帧推进动画状态机：交换 → 消除 → 下落 → 逐级连锁，直到棋盘稳定
-   *  v5.6.3 消除与下落拆为串行两段：clear 0.5s 淡出 → fall 0.4s 匀速下落 */
+  /** 每帧推进动画状态机：交换 → 消除淡出 → 等待 → 下落 → 逐级连锁，直到棋盘稳定
+   *  v5.6.4 消除过程拆两段：clear 0.2s 淡出 → wait 0.3s 停留（消除感呈现）→ fall 0.4s 匀速下落 */
   update(dt) {
     const g = this.game;
     if (!g.anim) return;
     const a = g.anim;
-    a.progress += dt / (a.phase === 'swap' ? a.durSwap : (a.phase === 'clear' ? a.durClear : a.durFall));
+    a.progress += dt / (a.phase === 'swap' ? a.durSwap
+      : (a.phase === 'clear' ? a.durClear : (a.phase === 'wait' ? a.durWait : a.durFall)));
     if (a.phase === 'swap' && a.progress >= 1) {
       a.phase = 'clear';
       a.progress = 0;
       if (!a.cleared.size) g.anim = null; // 无消除：交换完即结束
     } else if (a.phase === 'clear' && a.progress >= 1) {
-      a.phase = 'fall'; // 消除淡出完成 → 进入下落段
+      a.phase = 'wait'; // 消除淡出完成 → 等待段（空位停留，特效呈现）
+      a.progress = 0;
+    } else if (a.phase === 'wait' && a.progress >= 1) {
+      a.phase = 'fall'; // 等待结束 → 进入下落段
       a.progress = 0;
     } else if (a.phase === 'fall' && a.progress >= 1) {
       const cs = a.cascade;
       cs.index++;
       if (cs.index < cs.steps.length) {
-        // 下落稳定 → 进入下一级连锁：重新消除 + 重新下落
+        // 下落稳定 → 进入下一级连锁：重新消除 + 等待 + 重新下落
         const st = cs.steps[cs.index];
         a.base = cs.steps[cs.index - 1].gridAfter;
         a.cleared = new Set(st.clearedCells.map(([r, c]) => r + ',' + c));
         a.final = st.gridAfter;
-        a.durClear = 0.5; a.durFall = 0.4;
+        a.durClear = 0.2; a.durWait = 0.3; a.durFall = 0.4;
         a.progress = 0;
         a.phase = 'clear'; // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效

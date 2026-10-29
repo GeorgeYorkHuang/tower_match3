@@ -965,7 +965,7 @@ class Renderer {
       if (srcRow === -1) return colDrop[c]; // 新补方块：随整列下移 colDrop 格
       return colClearedRows[c].filter((cr) => cr > srcRow).length; // 未消除格：其下方消除格数
     };
-    const inClear = !!(anim && anim.phase === 'clear');
+    const inClear = !!(anim && (anim.phase === 'clear' || anim.phase === 'wait'));   // v5.6.4 等待段保持消除后原位（空位停留），fall 段才下落
     for (let r = 0; r < boardRows; r++) {
       for (let c = 0; c < boardCols; c++) {
         let color = inClear ? (g0[r][c] || null) : g1[r][c];   // v5.6.3 clear 段画原位，fall 段画最终布局
