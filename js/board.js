@@ -272,6 +272,17 @@ Board.prototype.resolve = function resolve() {
     const handled = new Set();
     const splitSeeds = [];      // 分裂雷占位 {r, c, color}
     const rainbowClear = [];    // 彩虹块待清颜色
+    // v1.17.29 特效数据透传：匹配组自身格 / 本步遗留特殊块（生成特效）/ 特殊块引爆波及格（爆炸特效）
+    const matchCells = new Set();
+    const stepPlanted = [];
+    const blastList = [], blastSet = new Set();
+    matches.forEach((m) => m.cells.forEach(([r, c]) => matchCells.add(r + ',' + c)));
+    const markBlast = (rr, cc, s, color) => {
+      const k = rr + ',' + cc;
+      if (matchCells.has(k) || blastSet.has(k)) return;
+      blastSet.add(k);
+      blastList.push({ r: rr, c: cc, s, color: color || null });
+    };
     while (queue.length) {
       const [r, c] = queue.shift();
       const v = this.inRange(r, c) ? this.grid[r][c] : null;
@@ -290,6 +301,7 @@ Board.prototype.resolve = function resolve() {
           const rr = r + dr, cc = c + dc;
           if (!this.inRange(rr, cc)) return;
           toClear[rr][cc] = true;
+          markBlast(rr, cc, 'split', cellColor(v));
           queue.push([rr, cc]);
         });
         if (!sub) {
@@ -309,12 +321,13 @@ Board.prototype.resolve = function resolve() {
           const idx = Math.floor(Math.random() * cands.length);
           const [rr, cc] = cands.splice(idx, 1)[0];
           toClear[rr][cc] = true;
+          markBlast(rr, cc, 'rand', null);
         }
       } else if (st === 'row' || st === 'col') {
         if (st === 'row') {
-          for (let cc = 0; cc < this.cols; cc++) { toClear[r][cc] = true; queue.push([r, cc]); }
+          for (let cc = 0; cc < this.cols; cc++) { toClear[r][cc] = true; markBlast(r, cc, 'row', cellColor(v)); queue.push([r, cc]); }
         } else {
-          for (let rr = 0; rr < this.rows; rr++) { toClear[rr][c] = true; queue.push([rr, c]); }
+          for (let rr = 0; rr < this.rows; rr++) { toClear[rr][c] = true; markBlast(rr, c, 'col', cellColor(v)); queue.push([rr, c]); }
         }
       } else if (st === 'cross') {
         // 5×5 十字 13 格
@@ -322,6 +335,7 @@ Board.prototype.resolve = function resolve() {
           const rr = r + dr, cc = c + dc;
           if (!this.inRange(rr, cc)) return;
           toClear[rr][cc] = true;
+          markBlast(rr, cc, 'cross', cellColor(v));
           queue.push([rr, cc]);
         });
       }
@@ -332,6 +346,7 @@ Board.prototype.resolve = function resolve() {
         for (let cc = 0; cc < this.cols; cc++)
           if (!toClear[rr][cc] && !isSpecial(this.grid[rr][cc]) && cellColor(this.grid[rr][cc]) === color) {
             toClear[rr][cc] = true;
+            markBlast(rr, cc, 'rainbow', color);
           }
     });
     // 分裂雷落位（四角：有其他特殊块则跳过，普通块被替换，空位直接放；占位格取消清除）
@@ -340,6 +355,7 @@ Board.prototype.resolve = function resolve() {
       if (isSpecial(this.grid[r][c])) return;
       this.grid[r][c] = this._makeSpecial(color, 'split', true);
       toClear[r][c] = false;
+      stepPlanted.push({ r, c, s: 'split', color, sub: true });
     });
 
     // —— 播种：四消遗留（先消先留）与高连面板/彩虹块 ——
@@ -391,7 +407,10 @@ Board.prototype.resolve = function resolve() {
       }
     }
     // 播种落位（清空前原地替换，清空过程跳过这些格）
-    plants.forEach(({ r, c, v }) => { this.grid[r][c] = v; });
+    plants.forEach(({ r, c, v }) => {
+      this.grid[r][c] = v;
+      stepPlanted.push({ r, c, s: v.s, color: v.c, sub: v.sub === true });
+    });
 
     const clearedCells = [];
     for (let r = 0; r < this.rows; r++)
@@ -399,7 +418,7 @@ Board.prototype.resolve = function resolve() {
         if (toClear[r][c]) { this.grid[r][c] = null; cleared++; clearedCells.push([r, c]); }
     this._movedCell = null;   // 交互落格仅对第一步四消生效
     this.gravity();
-    stepList.push({ matches, clearedCells, gridAfter: this.grid.map((row) => row.slice()) });
+    stepList.push({ matches, clearedCells, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList });
     all.push(...matches);
   }
   this.stats.cascadeTotal += steps;

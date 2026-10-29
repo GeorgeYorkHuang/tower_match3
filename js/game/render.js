@@ -272,7 +272,9 @@ const FX_HANDLERS = {
   beam: 'fxBeamFx',
   beamp: 'fxBeamp',
   match: 'fxMatch',
-  floatText: 'fxFloatText'   // v1.16.113 3★ 触发确认飘字
+  floatText: 'fxFloatText',   // v1.16.113 3★ 触发确认飘字
+  specialSpawn: 'fxSpecialSpawn',   // v1.17.29 特殊块生成彩环
+  specialBlast: 'fxSpecialBlast'    // v1.17.29 特殊块引爆分型特效
 };
 
 class Renderer {
@@ -365,8 +367,8 @@ class Renderer {
     this.towerRow(ctx, s);
     // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
     this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
-    // 棋盘
-    this.board(ctx, s.grid, s.selected, s.anim);
+    // 棋盘（v1.17.29 传入 _shake 支持消除抖动）
+    this.board(ctx, s.grid, s.selected, s.anim, s._shake);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
     // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
@@ -877,8 +879,18 @@ class Renderer {
     return { key, x: bx, y: by, w: bw, h: bh };
   }
 
-  board(ctx, grid, selected, anim) {
+  board(ctx, grid, selected, anim, shake) {
     const { boardX, boardY, cell, boardRows, boardCols } = this.ly;
+    // v1.17.29 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
+    let shP = -1;
+    if (shake && shake.t) {
+      shP = (Date.now() - shake.t) / shake.dur;
+      if (shP < 1) ctx.save();
+    }
+    if (shP >= 0 && shP < 1) {
+      const amp = shake.amp * (1 - shP);
+      ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
+    }
     // 三消棋盘区背景图（浅色魔法石台）；加载失败回退深色底板
     if (!drawImg(ctx, IMG_SRC.boardBg, 0, boardY, 750, L.boardArea.h)) {
       fillRoundRect(ctx, boardX - 6, boardY - 6, boardCols * cell + 12, boardRows * cell + 12, 10, '#1a2028');
@@ -906,6 +918,7 @@ class Renderer {
           this.drawCell(ctx, x, y, cell, color, r, c, selected);
         }
       }
+      if (shP >= 0 && shP < 1) ctx.restore();
       return;
     }
 
@@ -967,6 +980,7 @@ class Renderer {
         this.drawCell(ctx, boardX + c * cell + 2, y, cell, color, r, c, selected);
       }
     }
+    if (shP >= 0 && shP < 1) ctx.restore();
   }
 
   /** 单格绘制（方块图片优先，回退色块+底部暗条；含选中框；v5.2 特殊块叠加类型符号） */
@@ -992,7 +1006,7 @@ class Renderer {
   _specialBlockMark(ctx, x, y, size, piece) {
     ctx.save(); ctx.translate(x + size / 2, y + size / 2); ctx.scale(size / 56, size / 56);
     strokeRoundRect(ctx,-26,-26,52,52,9,'#172035',4);
-    strokeRoundRect(ctx,-24,-24,48,48,8,piece.s==='rainbow'?'#ffe8a5':'#ffffff',2);
+    strokeRoundRect(ctx,-24,-24,48,48,8,piece.s==='rainbow'?'#ffe8a5':(piece.s==='split'&&piece.sub?'#ff4d5e':'#ffffff'),2);
     fillRoundRect(ctx,-20,-20,40,40,10,'rgba(9,18,35,0.87)');
     const glyphColor = piece.s === 'rainbow' ? '#ffffff' : ({ red: '#ff6578', blue: '#69caff', green: '#74ed9c', yellow: '#ffe36a', purple: '#c69aff', orange: '#ffad58' })[piece.c || piece.tint] || '#ffffff';
     ctx.strokeStyle=glyphColor; ctx.fillStyle=glyphColor; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.lineJoin='round';
@@ -1006,8 +1020,21 @@ class Renderer {
     else if(piece.s==='col') { arrow(true);line(-12,-10,-12,10);line(12,-10,12,10); }
     else if(piece.s==='cross') { arrow(false);arrow(true);dot(0,0,4); }
     else if(piece.s==='split') {
-      dot(0,0,piece.sub?5:6);
-      [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*12,dy*12);dot(dx*15,dy*15,piece.sub?2:3.5);}));
+      if(piece.sub){
+        // 子分裂雷：红警风格（红框红底 + 三角警示 + 爆炸对角标），一眼区分父雷；爆炸效果与父一致
+        fillRoundRect(ctx,-18,-18,36,36,8,'rgba(58,8,14,0.92)');
+        ctx.strokeStyle='#ff9aa5'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.moveTo(0,-9); ctx.lineTo(9,6); ctx.lineTo(-9,6); ctx.closePath(); ctx.stroke();
+        dot(0,1,2.6);
+        ctx.strokeStyle='#ff4d5e'; ctx.lineWidth=3;
+        line(-11,-11,11,11); line(11,-11,-11,11);
+      } else {
+        // 父分裂雷：金色中心十字 + 四角连线大圆点
+        ctx.strokeStyle='#ffd24a'; ctx.lineWidth=3;
+        dot(0,0,6);
+        line(-10,0,10,0); line(0,-10,0,10);
+        [-1,1].forEach(dx=>[-1,1].forEach(dy=>{line(dx*7,dy*7,dx*14,dy*14);dot(dx*16,dy*16,4);}));
+      }
     } else if(piece.s==='rand') {
       ctx.save();ctx.rotate(Math.PI/4);strokeRoundRect(ctx,-13,-13,26,26,4,glyphColor,2);ctx.restore();
       [[-7,-7],[7,-7],[0,0],[-7,7],[7,7]].forEach(([a,b])=>dot(a,b,2.6));
@@ -2825,7 +2852,7 @@ class Renderer {
   }
 
   fxMatch(ctx, f) {
-      // 三消消除反馈：彩色星芒迸发（十字线 + 中心白点，随进度扩散淡出）
+      // 三消消除反馈：彩色星芒迸发（十字线 + 中心白点，随进度扩散淡出）+ v1.17.29 环形冲击波
       const p = Math.min(1, f.t / f.dur);
       const r = 6 + p * 16;
       const col = (f.color && COLOR_FILL[f.color]) ? COLOR_FILL[f.color] : '#ffffff';
@@ -2836,8 +2863,91 @@ class Renderer {
       ctx.moveTo(f.x - r, f.y); ctx.lineTo(f.x + r, f.y);
       ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x, f.y + r);
       ctx.stroke();
+      // v1.17.29 外扩冲击波环
+      ctx.globalAlpha = (1 - p) * 0.4;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r + 3 + p * 10, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(f.x, f.y, 3 + (1 - p) * 4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /** v1.17.29 特殊块生成提示：类型色环收缩 + 光柱（子分裂雷用红环更小） */
+  fxSpecialSpawn(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.5));
+    const e = 1 - Math.min(1, p * 1.6);   // 收缩系数
+    const r0 = (f.sub ? 13 : 21) * (1 + e * 1.1);
+    const col = f.sub ? '#ff5566'
+      : (f.color && COLOR_FILL[f.color] ? COLOR_FILL[f.color]
+        : (f.s === 'rainbow' ? '#ffe8a5' : '#ffffff'));
+    ctx.globalAlpha = (1 - p) * 0.85;
+    ctx.strokeStyle = col; ctx.lineWidth = 3 + e * 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(f.x, f.y, r0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(f.x, f.y - r0 * 1.35); ctx.lineTo(f.x, f.y + r0 * 1.35); ctx.stroke();
+    ctx.globalAlpha = (1 - p) * 0.55;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(f.x, f.y, 3 + (1 - p) * 5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /** v1.17.29 特殊块引爆特效：波及格十字小闪 + 首格主爆分型（行刃/列刃/十字波/分裂/紫电/彩虹涟漪） */
+  fxSpecialBlast(ctx, f) {
+    const p = Math.min(1, f.t / (f.dur || 0.45));
+    const col = f.s === 'rand' ? '#c69aff'
+      : (f.s === 'rainbow' ? '#ffffff'
+        : (f.color && COLOR_FILL[f.color] ? COLOR_FILL[f.color] : '#ffffff'));
+    ctx.globalAlpha = (1 - p) * 0.9;
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // 波及格小闪：十字星 + 外扩环
+    const r = 5 + p * 10;
+    ctx.beginPath();
+    ctx.moveTo(f.x - r, f.y); ctx.lineTo(f.x + r, f.y);
+    ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x, f.y + r);
+    ctx.stroke();
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(f.x, f.y, r * 0.5, 0, Math.PI * 2); ctx.stroke();
+    if (f.main) {
+      // 主爆分型
+      const R = 30 + p * 44;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      if (f.s === 'row') { ctx.moveTo(f.x - R, f.y); ctx.lineTo(f.x + R, f.y); }
+      else if (f.s === 'col') { ctx.moveTo(f.x, f.y - R); ctx.lineTo(f.x, f.y + R); }
+      else if (f.s === 'cross') {
+        ctx.moveTo(f.x - R, f.y); ctx.lineTo(f.x + R, f.y);
+        ctx.moveTo(f.x, f.y - R); ctx.lineTo(f.x, f.y + R);
+      } else if (f.s === 'split') {
+        ctx.moveTo(f.x - R * 0.7, f.y); ctx.lineTo(f.x + R * 0.7, f.y);
+        ctx.moveTo(f.x, f.y - R * 0.7); ctx.lineTo(f.x, f.y + R * 0.7);
+        ctx.stroke();
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(f.x - R * 0.7, f.y - R * 0.7); ctx.lineTo(f.x + R * 0.7, f.y + R * 0.7);
+        ctx.moveTo(f.x + R * 0.7, f.y - R * 0.7); ctx.lineTo(f.x - R * 0.7, f.y + R * 0.7);
+      } else if (f.s === 'rand') {
+        for (let i = 0; i <= 4; i++) {
+          const q = i / 4;
+          const xx = f.x + (i % 2 ? -1 : 1) * R * 0.42;
+          const yy = f.y + (q - 0.5) * R * 1.25 + (Math.random() * 9 - 4.5);
+          if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+      } else if (f.s === 'rainbow') {
+        const colors = ['#ff6174', '#ffad54', '#ffe36a', '#7ee4a1', '#78c8ff', '#c09aff'];
+        colors.forEach((cc, i) => {
+          ctx.strokeStyle = cc; ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, 8 + p * 24 + i * 3.2, (i * Math.PI) / 3, (i * Math.PI) / 3 + 1.5);
+          ctx.stroke();
+        });
+        ctx.strokeStyle = '#ffffff';
+      }
+      ctx.stroke();
+      // 中心白闪
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(f.x, f.y, 5 + (1 - p) * 8, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
 

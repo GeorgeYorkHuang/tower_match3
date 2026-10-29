@@ -572,6 +572,14 @@ class GameMain {
     this.sfx.play(kind, minGap);
   }
 
+  /** v1.17.29 消除震动：真机 vibrateShort（级别≥2 重震）+ 棋盘画布抖动（IDE 无震动能力时仅抖动） */
+  vibrate(level) {
+    if (typeof wx !== 'undefined' && wx.vibrateShort) {
+      try { wx.vibrateShort({ type: level >= 2 ? 'heavy' : 'medium' }); } catch (e) {}
+    }
+    this._shake = { t: Date.now(), dur: 0.18, amp: level >= 2 ? 5 : 3 };
+  }
+
   waveEnd() {
     // 真实战斗路径：城墙血已由「怪物攻城」实时扣减，跳过抽象漏怪模型扣血（skipLeak=true）
     const res = this.run.endWave(true);

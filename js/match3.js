@@ -41,6 +41,7 @@ class Match3Controller {
       cascade: { steps, index: 0, settledByStep: ret.settledByStep },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
+    this._specialsFx(first); // v1.17.29 特殊块生成/引爆特效 + 震动
     this._burst(first.clearedCells, first.matches); // 消除迸发反馈
     // 无解重排
     if (!g.run.board.isSolvable()) {
@@ -70,6 +71,7 @@ class Match3Controller {
         a.final = st.gridAfter;
         a.durClear = this._stepDur();
         a.progress = 0;
+        this._specialsFx(st); // v1.17.29 连锁级特殊块特效
         this.cascadeToast(cs.index);
         this._burst(st.clearedCells, st.matches); // 连锁级消除反馈
       } else {
@@ -90,6 +92,14 @@ class Match3Controller {
     if (!a || !a.cascade) return;
     const step = a.cascade.steps[idx];
     if (!step) return;
+    // v1.17.29 消除音效分层：连消 / 5消+ / 4消 / 普通3消
+    if (g.playSfx) {
+      const shapes = (step.matches || []).map((m) => m.shape);
+      if (idx + 1 >= CONFIG.MATCH_SKILL.chainStart) g.playSfx('combo', 0.35);
+      else if (shapes.some((s) => s === '5' || s === '6+' || s === 'L5')) g.playSfx('match5', 0.35);
+      else if (shapes.some((s) => s === '4')) g.playSfx('match4', 0.35);
+      else g.playSfx('match3', 0.12);
+    }
     const ss = a.cascade.settledByStep[idx] || [];
     const msgs = [];
     const SHAPE_NAME = { '4': '直4', L5: 'L5', '5': '直5', '6+': '大消' };
@@ -98,6 +108,28 @@ class Match3Controller {
     const got = ss.filter((s) => s.gotTower);
     if (got.length) msgs.push(`获得 ${got.map((s) => CONFIG.COLORS[CONFIG.TOWERS[s.tower].color].name).join('、')}`);
     if (msgs.length) g.toast(msgs.join(' '), got.length ? '#7ef0a3' : '#f7c948');
+  }
+
+  /** v1.17.29 特殊块特效：引爆分型（blasts 每格小闪 + 首格主爆）+ 生成彩环（planted）+ 消除震动 */
+  _specialsFx(st) {
+    const g = this.game;
+    if (!g || !g.fx) return;
+    const { boardX, boardY, cell } = g.ly;
+    (st.blasts || []).forEach((b, i) => {
+      g.fx.push({
+        type: 'specialBlast', s: b.s, sub: b.sub,
+        x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
+        color: b.color, main: i === 0, t: 0, dur: 0.45,
+      });
+    });
+    (st.planted || []).forEach((p) => {
+      g.fx.push({
+        type: 'specialSpawn', s: p.s, sub: p.sub,
+        x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
+        color: p.color, t: 0, dur: 0.5,
+      });
+    });
+    if (st.blasts && st.blasts.length && g.vibrate) g.vibrate(st.blasts.length >= 6 ? 2 : 1);
   }
 
   /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.32s，渲染层绘制） */

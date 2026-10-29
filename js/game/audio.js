@@ -7,7 +7,12 @@
 // 时序依赖：SfxManager 由 Game 构造函数创建，而 Game 在 wx.loadSubpackage('assets')
 // success 之后才 new（见 js/loading.js），故此处引用分包内音频文件时分包必已加载完成。
 // 后续新增音效一律放 assets/audio/，不要再在根目录建 audio/。
-const AUDIO = { bgm: 'assets/audio/bgm.mp3', shot: 'assets/audio/bullet.mp3', boom: 'assets/audio/boom.mp3' };
+const AUDIO = {
+  bgm: 'assets/audio/bgm.mp3', shot: 'assets/audio/bullet.mp3', boom: 'assets/audio/boom.mp3',
+  // v1.17.29 三消消除音效分层（合成短音）
+  match3: 'assets/audio/match3.wav', match4: 'assets/audio/match4.wav',
+  match5: 'assets/audio/match5.wav', combo: 'assets/audio/combo.wav', special: 'assets/audio/special.wav',
+};
 
 function createAudio(src, loop, vol) {
   if (typeof wx === 'undefined' || !wx.createInnerAudioContext) return null;
@@ -23,9 +28,14 @@ class SfxManager {
     this.bgm = createAudio(AUDIO.bgm, true, 0.3);
     this.fxShot = createAudio(AUDIO.shot, false, 0.12);
     this.fxBoom = createAudio(AUDIO.boom, false, 0.4);
+    // v1.17.29 三消消除音效（分层：3消/4消/5消/连消/特殊爆）
+    this.fxMatch3 = createAudio(AUDIO.match3, false, 0.12);
+    this.fxMatch4 = createAudio(AUDIO.match4, false, 0.15);
+    this.fxMatch5 = createAudio(AUDIO.match5, false, 0.17);
+    this.fxCombo = createAudio(AUDIO.combo, false, 0.16);
+    this.fxSpecial = createAudio(AUDIO.special, false, 0.2);
     this._bgmStarted = false;
-    this._lastShotSfx = 0;
-    this._lastBoomSfx = 0;
+    this._lastFx = {};   // kind → 最近播放时间戳（统一防抖表）
     this.enabled = true;   // v1.16.107 声音总开关（设置弹层可切换）
   }
 
@@ -35,16 +45,19 @@ class SfxManager {
     if (!this.enabled) this.stopBgm();
   }
 
-  /** 播放一次性音效（minGap 秒内防抖；kind 目前支持 shot / boom） */
+  /** 播放一次性音效（minGap 秒内防抖；kind：shot/boom/match3/match4/match5/combo/special） */
   play(kind, minGap) {
     if (!this.enabled) return;   // v1.16.107 声音关闭不播放
     const now = Date.now();
-    const last = kind === 'shot' ? this._lastShotSfx : this._lastBoomSfx;
-    if (now - last < minGap * 1000) return;
-    const a = kind === 'shot' ? this.fxShot : this.fxBoom;
+    const last = this._lastFx[kind] || 0;
+    if (now - last < (minGap || 0.1) * 1000) return;
+    const a = kind === 'shot' ? this.fxShot : kind === 'boom' ? this.fxBoom
+      : kind === 'match3' ? this.fxMatch3 : kind === 'match4' ? this.fxMatch4
+      : kind === 'match5' ? this.fxMatch5 : kind === 'combo' ? this.fxCombo
+      : kind === 'special' ? this.fxSpecial : null;
     if (!a) return;
     try { a.stop(); a.play(); } catch (e) {}
-    if (kind === 'shot') this._lastShotSfx = now; else this._lastBoomSfx = now;
+    this._lastFx[kind] = now;
   }
 
   startBgm() {
