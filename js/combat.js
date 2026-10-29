@@ -1045,7 +1045,7 @@ class CombatSystem {
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
         // v1.16.42 毒爆重做：中毒目标死亡时传染 3+A 个目标，每个目标 30% 几率造成 1 层中毒；
         //   B 继承：30%/40%/50% 概率传播时附带死亡时所有层数；C 毒沼：留下 60px 毒沼 4/5/6 秒每秒叠 1 层并减速 25%
-        const n = 3 + this.branchLv('poison', '毒爆', 'A');
+        const n = SKILL_NUM.ice['碎冰'].count + this.branchLv('poison', '毒爆', 'A');
         const bLv = this.branchLv('poison', '毒爆', 'B');
         const r = 200;
         const cands = this.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= r)
@@ -1532,8 +1532,8 @@ class CombatSystem {
     if (key === 'fire') {
       // 灼烧（v1.16.21）：基础 20%；学「点燃」+25%（A 炽焰每级再 +15%）
       const ignite = this.lv('fire', '点燃');
-      let burnProb = 0.20;
-      if (ignite > 0) burnProb += 0.25 + 0.15 * this.branchLv('fire', '点燃', 'A');
+      let burnProb = SKILL_NUM.fire['点燃'].baseProbability;
+      if (ignite > 0) burnProb += SKILL_NUM.fire['点燃'].learnedProbability + SKILL_NUM.fire['点燃'].probabilityPerBranch * this.branchLv('fire', '点燃', 'A');
       burnProb += this.relicVal('fire_fuel') / 100;   // v1.16.114 薪柴1★/2★：普攻灼烧概率 +20%/30%
       // v1.16.96 薪柴3★：灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害（失败部分累积，上限 +50%）
       if (this.game.run.relic3('fire_fuel') && burnProb >= 0.8) {
@@ -1543,13 +1543,13 @@ class CombatSystem {
     } else if (key === 'ice') {
       // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
       const frost = this.lv('ice', '寒霜');
-      const probSlow = 0.20 + (frost > 0 ? 0.25 + 0.15 * this.branchLv('ice', '寒霜', 'A') : 0) + this.relicVal('ice_extreme') / 100;   // v1.16.114 极寒1★/2★
+      const probSlow = SKILL_NUM.ice['寒霜'].baseProbability + (frost > 0 ? SKILL_NUM.ice['寒霜'].learnedProbability + SKILL_NUM.ice['寒霜'].probabilityPerBranch * this.branchLv('ice', '寒霜', 'A') : 0) + this.relicVal('ice_extreme') / 100;   // v1.16.114 极寒1★/2★
       // v1.16.99 极寒3★：冰缓概率触顶（≥80%）时，多余判定转为 0.3 秒冻结
       const ext = this.game.run.relic3('ice_extreme') && probSlow >= 0.8;
       const slowOK = ext ? Math.random() < 0.8 : Math.random() < probSlow;
       if (slowOK) {
-        const mult = 0.30 + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')] + this.relicVal('ice_spike') / 100;   // v1.16.114 霜刺1★/2★
-        const ttl = 3 + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
+        const mult = SKILL_NUM.ice['寒霜'].baseSlow + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')] + this.relicVal('ice_spike') / 100;   // v1.16.114 霜刺1★/2★
+        const ttl = SKILL_NUM.ice['寒霜'].duration + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
         this.applySlow(o, mult, ttl);
         this.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
       } else if (ext) {
@@ -1558,9 +1558,9 @@ class CombatSystem {
       // 冰冻（v1.16.21）：学技能后 20% 概率冻结 + A 档位；B 深结 时长 +1/1.5/2s
       const frzLv = this.lv('ice', '冰冻');
       if (frzLv > 0) {
-        const prob = 0.20 + SKILL_NUM.ice['冰冻'].prob[this.branchLv('ice', '冰冻', 'A')];
+        const prob = SKILL_NUM.ice['冰冻'].baseProbability + SKILL_NUM.ice['冰冻'].prob[this.branchLv('ice', '冰冻', 'A')];
         if (Math.random() < prob) {
-          const dur = 2 + SKILL_NUM.ice['冰冻'].dur[this.branchLv('ice', '冰冻', 'B')];
+          const dur = SKILL_NUM.ice['冰冻'].baseDuration + SKILL_NUM.ice['冰冻'].dur[this.branchLv('ice', '冰冻', 'B')];
           o.frozen = Math.max(o.frozen || 0, dur);
           this.fxFlash(o.x, o.y, '#d6f0ff', 0.28);
           this.fxRing(o.x, o.y, '#7fd4ff', 46, 0.4, 4);
@@ -1783,11 +1783,12 @@ class CombatSystem {
    *   解决原"普攻先命中再从目标处散射"的割裂感 */
   _fireMultiShot(e, dmg) {
     const g = this.game;
+    const balance = SKILL_NUM.fire['多重火球'];
     const big = this.lv('fire', '大火球');
     const mz = this.towerMuzzle('fire');
     const fsx = mz.x, fsy = mz.y;
-    const n = 5 + this.branchLv('fire', '多重火球', 'A') + this.relicVal('fire_rain');   // v1.16.114 焰雨1★/2★：每次攻击火球数量 +2/+3
-    const perDmg = dmg * 0.44 * (1 + SKILL_NUM.fire['多重火球'].condense[this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
+    const n = balance.count + this.branchLv('fire', '多重火球', 'A') + this.relicVal('fire_rain');   // v1.16.114 焰雨1★/2★：每次攻击火球数量 +2/+3
+    const perDmg = dmg * balance.damage * (1 + SKILL_NUM.fire['多重火球'].condense[this.branchLv('fire', '多重火球', 'B')]);   // 凝火 +15/30/50%
     const dur = CONFIG.TOWERS.fire.shot.dur;
     const tint = '#ff7043';
     // 以主目标方向为基准旋转 off 角度 → 扇形轨迹终点（中心弹 off=0 即锁定主目标）
@@ -1797,7 +1798,7 @@ class CombatSystem {
       return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
     };
     const R = this.range('fire');                 // 射界半径（= 塔射程）
-    const hitR = 45;                              // 散射火球碰撞半径（弹体较大）
+    const hitR = balance.hitRadius;                              // 散射火球碰撞半径（弹体较大）
     const cLv = this.branchLv('fire', '多重火球', 'C');
     const strike = (o, d, ang) => {
       this.damage(o, d, 'fire');
@@ -1814,18 +1815,18 @@ class CombatSystem {
           const da = off + (ang || 0);
           const tx2 = o.x + Math.cos(da) * R, ty2 = o.y + Math.sin(da) * R;
           const mStrike = (m2) => {
-            this.damage(m2, dmg * 0.25, 'fire');
+            this.damage(m2, dmg * balance.splitDamage, 'fire');
             this.fxParticle(m2.x, m2.y, '#ffd24a', 4, 30, 0.3, 110, 4);
             this.tryAttackDebuff('fire', m2, dmg);   // v1.16.53 分裂小火球属普攻强化：统一灼烧判定（吃点燃技能加成）
           };
-          this.addProjectile({ key: 'fire', scatter: true, dmg: dmg * 0.25, t: 0, dur: dur * 0.8, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: 30, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * 0.8, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
+          this.addProjectile({ key: 'fire', scatter: true, dmg: dmg * balance.splitDamage, t: 0, dur: dur * balance.splitDurationRatio, sx: o.x, sy: o.y, tx: tx2, ty: ty2, hitR: balance.splitHitRadius, onHit: mStrike }, { type: 'shot', kind: 'line', color: '#ffd24a', x: o.x, y: o.y, t: 0, dur: dur * balance.splitDurationRatio, key: 'fire', aim: true, scale: 0.9, tx: tx2, ty: ty2 });
         }
       }
       // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
       if (big > 0) {
-        const bgr = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);   // v1.16.114 爆核1★/2★
-        const bgs = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
-        const bgIgnite = 0.50 * this.branchLv('fire', '大火球', 'C');
+        const bgr = SKILL_NUM.fire['大火球'].radius * (1 + SKILL_NUM.fire['大火球'].radiusPerBranch * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);   // v1.16.114 爆核1★/2★
+        const bgs = dmg * SKILL_NUM.fire['大火球'].splashDamage * (1 + SKILL_NUM.fire['大火球'].damagePerBranch * this.branchLv('fire', '大火球', 'B'));
+        const bgIgnite = SKILL_NUM.fire['大火球'].ignitePerBranch * this.branchLv('fire', '大火球', 'C');
         this.enemies().forEach((o2) => {
           if (o2 === o || o2.hp <= 0) return;
           const d2 = Math.hypot(o2.x - o.x, o2.y - o.y);
@@ -1851,7 +1852,7 @@ class CombatSystem {
     const strikeCenter = (o) => strike(o, perDmg, baseAng);
     this.addProjectile({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, scale: 1.35, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
-    const maxOff = (n - 2) * 0.08;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
+    const maxOff = (n - 2) * balance.fanStep;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
     for (let i = 0; i < n - 1; i++) {
       const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
       const ap = aimOf(e, off);
@@ -1870,7 +1871,7 @@ class CombatSystem {
     this.tryAttackDebuff('fire', e, dmg);
     // 大火球：主目标 120%
     const big = this.lv('fire', '大火球');
-    const mainMult = big > 0 ? 1.1 : 1;
+    const mainMult = big > 0 ? SKILL_NUM.fire['大火球'].mainDamage : 1;
     const multi = this.lv('fire', '多重火球');
     // v1.16.130 多重火球发射已移至 attackOnce _fireMultiShot（一次普攻从塔口扇形飞出 n 枚，中心锁定主目标）；
     //   此处仅保留单发路径（无多重火球技能时的普攻命中）
@@ -1898,9 +1899,9 @@ class CombatSystem {
 
   /** v1.16.114 单发大火球爆炸（普攻单发 / 焰雨追加火球共用；含爆核1★/2★ 半径扩大与 3★ 边缘击退点燃） */
   _fireSingleBlast(e, dmg) {
-    const r0 = 130 * (1 + 0.30 * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);
-    const splDmg = dmg * 0.48 * (1 + 0.20 * this.branchLv('fire', '大火球', 'B'));
-    const igniteProb = 0.50 * this.branchLv('fire', '大火球', 'C');
+    const r0 = SKILL_NUM.fire['大火球'].radius * (1 + SKILL_NUM.fire['大火球'].radiusPerBranch * this.branchLv('fire', '大火球', 'A')) * (1 + this.relicVal('fire_nuke') / 100);
+    const splDmg = dmg * SKILL_NUM.fire['大火球'].splashDamage * (1 + SKILL_NUM.fire['大火球'].damagePerBranch * this.branchLv('fire', '大火球', 'B'));
+    const igniteProb = SKILL_NUM.fire['大火球'].ignitePerBranch * this.branchLv('fire', '大火球', 'C');
     this.enemies().forEach((o) => {
       if (o === e || o.hp <= 0) return;
       const d2 = Math.hypot(o.x - e.x, o.y - e.y);
@@ -1956,16 +1957,16 @@ class CombatSystem {
     const cLv = this.branchLv('fire', '点燃', 'C');       // 余烬：伤害 +20/40/60%、时长 -0.5/1/1.5s、结束爆炸
     const stackCap = this.branchLv('fire', '灼烧', 'A');  // 业火：叠层上限 +1/级
     const hasBurn = this.lv('fire', '灼烧');
-    const maxStack = hasBurn > 0 ? 2 + stackCap : 1;      // 学「灼烧」后基础上限 +2 层
+    const maxStack = hasBurn > 0 ? SKILL_NUM.fire['灼烧'].baseStackCap + stackCap : 1;      // 学「灼烧」后基础上限 +2 层
     let dot = e.dots.find((d) => d.type === 'burn');
-    const tickI = 0.5;
+    const tickI = SKILL_NUM.fire['点燃'].tickInterval;
     const cBoost = cLv > 0 ? SKILL_NUM.fire['点燃'].emberDmg[cLv] : 0;
     // v1.16.96 薪柴3★：灼烧概率溢出（≥80%）转灼烧伤害加成
     const fuelBoost = this.game.run._fuelBoost || 0;
-    const dps = dmg * 0.20 * (1 + cBoost) * (1 + fuelBoost / 100);
-    let ttl = 3 + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0);
+    const dps = dmg * SKILL_NUM.fire['点燃'].damagePerSecond * (1 + cBoost) * (1 + fuelBoost / 100);
+    let ttl = SKILL_NUM.fire['点燃'].duration + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0);
     if (cLv > 0) ttl -= SKILL_NUM.fire['点燃'].emberTtlCut[cLv];
-    if (ttl < 0.5) ttl = 0.5;
+    ttl = Math.max(ttl, SKILL_NUM.fire['点燃'].minDuration);
     if (!dot) {
       e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI });
       dot = e.dots[e.dots.length - 1];
@@ -1987,7 +1988,7 @@ class CombatSystem {
     if (burnLv > 0 && dot.stack >= maxStack) {
       dot.stack = 1;
       const rB = SKILL_NUM.fire['灼烧'].burnRadius[burnLv];
-      this.explode(e.x, e.y, rB, dmg * 0.6, 'fire');
+      this.explode(e.x, e.y, rB, dmg * SKILL_NUM.fire['灼烧'].burstDamage, 'fire');
       this.fxRing(e.x, e.y, '#ff7043', rB, 0.4, 4);
       this.fxFlash(e.x, e.y, '#ff9f43');
     }
@@ -1997,12 +1998,13 @@ class CombatSystem {
 
   tickFire(dt) {
     const g = this.game;
+    const pillarBalance = SKILL_NUM.fire['火柱'];
     // 火·火柱：每 10 秒（触发间隔保持原值，v1.13.10）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
     // v1.13.9：伤害延迟到地面圈画完（约 0.6s）后结算，动画与伤害节奏一致
     const pillar = this.lv('fire', '火柱');
     if (pillar > 0) {
       this.timers.firePillar = (this.timers.firePillar || 0) + dt;
-      if (this.timers.firePillar >= 10 * this._weakPeriod('fire')) {
+      if (this.timers.firePillar >= pillarBalance.period * this._weakPeriod('fire')) {
         this.timers.firePillar = 0;
         this.castEnergy('fire', '火柱');
         // v1.16.96 焚天3★：火柱施放后 3 秒内全塔攻速 +25%
@@ -2010,14 +2012,14 @@ class CombatSystem {
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('fire', e.x, e.y));
         if (alive.length) {
           const tgt = alive[Math.floor(Math.random() * alive.length)];
-          const pDmg = this.shotDmg('fire', true) * 1.2 * (1 + 0.30 * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
-          const pR = 120 * (1 + 0.20 * this.branchLv('fire', '火柱', 'B'));                            // 燎原 20%/级
+          const pDmg = this.shotDmg('fire', true) * pillarBalance.damage * (1 + pillarBalance.damagePerBranch * this.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
+          const pR = pillarBalance.radius * (1 + pillarBalance.radiusPerBranch * this.branchLv('fire', '火柱', 'B'));                            // 燎原 20%/级
           const emberLv = this.branchLv('fire', '火柱', 'C');
           this.pillarWaves = this.pillarWaves || [];
           // v1.16.96 熔心3★：火柱结算时给中心目标上「火伤+15% 标记」（5s，叠2层）
-          this.pillarWaves.push({ t: 0.6, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt });
+          this.pillarWaves.push({ t: pillarBalance.delay, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt });
           // 火柱视觉：地上火圈标记 → 冲天圆柱火柱（帧动画，dur 2.4s 放慢一倍）
-          g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: 2.4, seed: Math.random() * 100 });
+          g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: pillarBalance.effectDuration, seed: Math.random() * 100 });
           this.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
         }
       }
@@ -2035,7 +2037,7 @@ class CombatSystem {
             }
             if (wv.ember > 0) {
               this.groundDots = this.groundDots || [];
-              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: 3, dps: this.shotDmg('fire', true) * 0.15 * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
+              this.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: this.shotDmg('fire', true) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
             }
           } else {
             remaining.push(wv);
@@ -2046,10 +2048,11 @@ class CombatSystem {
     }
     // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长180px·宽45px·持续6s）
     //   释放瞬间对墙区域敌人造成 50% 攻击伤害（A 神火 +20/40/60%）；墙持续期间每 0.5s 灼烧 + C 迟滞减速 10/20/30%
+    const wallBalance = SKILL_NUM.fire['烈焰墙'];
     const wall = this.lv('fire', '烈焰墙');
     if (wall > 0) {
       this.timers.fireWall = (this.timers.fireWall || 0) + dt;
-      if (this.timers.fireWall >= 15 * this._weakPeriod('fire')) {
+      if (this.timers.fireWall >= wallBalance.period * this._weakPeriod('fire')) {
         this.timers.fireWall = 0;
         this.castEnergy('fire', '烈焰墙');
         // v1.16.96 焚天3★：火墙施放后 3 秒内全塔攻速 +25%
@@ -2060,9 +2063,9 @@ class CombatSystem {
           const aLv = this.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
           const bLv = this.branchLv('fire', '烈焰墙', 'B');   // 引燃 范围 +20/40/60%
           const cLv = this.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
-          const w = 180 * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
-          const h = 45 * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
-          const wDmg = this.shotDmg('fire', true) * 0.50 * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]);
+          const w = wallBalance.width * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
+          const h = wallBalance.height * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
+          const wDmg = this.shotDmg('fire', true) * wallBalance.impactDamage * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]);
           // v1.16.96 火舌3★：火墙命中塔攻击范围外的敌人时，伤害 ×1.5
           const tongue = g.run.relic3('fire_tongue') ? 1.5 : 1;
           this.enemies().forEach((o) => {
@@ -2072,8 +2075,8 @@ class CombatSystem {
             }
           });
           this.fireWalls = this.fireWalls || [];
-          this.fireWalls.push({ x: tgt.x, y: tgt.y, w, h, ttl: 6, cLv, tick: 0 });
-          g.fx.push({ type: 'fireWall', x: tgt.x, y: tgt.y, w, h, t: 0, dur: 6, seed: Math.random() * 100 });
+          this.fireWalls.push({ x: tgt.x, y: tgt.y, w, h, ttl: wallBalance.duration, cLv, tick: 0 });
+          g.fx.push({ type: 'fireWall', x: tgt.x, y: tgt.y, w, h, t: 0, dur: wallBalance.duration, seed: Math.random() * 100 });
         }
       } else {
         // 墙持续（触发帧不扣 ttl，从下一帧开始计时）：每 0.5s 对墙内敌人灼烧；C 迟滞减速（10/20/30%）
@@ -2084,7 +2087,7 @@ class CombatSystem {
             wl.tick -= dt;
             if (wl.ttl <= 0) continue;
             if (wl.tick <= 0) {
-              wl.tick = 0.5;
+              wl.tick = wallBalance.tickInterval;
               this.enemies().forEach((o) => {
                 if (o.hp <= 0) return;
                 if (Math.abs(o.x - wl.x) <= wl.w / 2 && o.y >= wl.y - wl.h / 2 && o.y <= wl.y + wl.h / 2) {
@@ -2094,7 +2097,7 @@ class CombatSystem {
                   this.applyBurn(o, this.shotDmg('fire', true) * (out && g.run.relic3('fire_tongue') ? 1.5 : 1), 'fire');
                   if (wl.cLv > 0) {
                     const sm = 1 - SKILL_NUM.fire['烈焰墙'].slow[wl.cLv];
-                    if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: 0.6 };
+                    if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: wallBalance.slowDuration };
                   }
                 }
               });
@@ -2108,10 +2111,11 @@ class CombatSystem {
     // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨
     // v1.16.21 机制重做：分 3 波结算伤害，每 0.5s 一波，每波对火雨圈内敌人造成 24% 伤害（B 猛烈 +40/80/120%·档位）；
     //   C 由「引燃」改为「扩张」范围 +20/40/60%；波内动画保留（3 批×2-5 颗独立落下），伤害在整波落地后结算一次并灼烧
+    const rainBalance = SKILL_NUM.fire['火雨'];
     const fireRain = this.lv('fire', '火雨');
     if (fireRain > 0) {
       this.timers.fireRain = (this.timers.fireRain || 0) + dt;
-      if (this.timers.fireRain >= 12 * this._weakPeriod('fire')) {
+      if (this.timers.fireRain >= rainBalance.period * this._weakPeriod('fire')) {
         this.timers.fireRain = 0;
         this.castEnergy('fire', '火雨');
         // v1.16.96 焚天3★：火雨施放后 3 秒内全塔攻速 +25%
@@ -2120,12 +2124,12 @@ class CombatSystem {
         if (alive.length) {
           const bLv = this.branchLv('fire', '火雨', 'B');
           const cLv = this.branchLv('fire', '火雨', 'C');
-          const segR = 140 * (1 + SKILL_NUM.fire['火雨'].radius[cLv]);       // 火雨圈半径（C 扩张 +20/40/60%）
+          const segR = rainBalance.baseRadius * (1 + SKILL_NUM.fire['火雨'].radius[cLv]);       // 火雨圈半径（C 扩张 +20/40/60%）
           const perR = 80;                                        // 火雨点视觉落点半径
-          const segDmg = this.shotDmg('fire', true) * 0.24 * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]);   // 每波 24% 伤害（B +40/80/120%）
-          const waves = 3 + this.branchLv('fire', '火雨', 'A');   // 基础 3 波，A 波次 +1
-          const gap = 0.5;                                        // 每 0.5s 一波
-          const FALL = 0.5;                                        // 单颗下落时长（与 render raindrop 同步）
+          const segDmg = this.shotDmg('fire', true) * rainBalance.waveDamage * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]);   // 每波 24% 伤害（B +40/80/120%）
+          const waves = rainBalance.baseWaves + this.branchLv('fire', '火雨', 'A');   // 基础 3 波，A 波次 +1
+          const gap = rainBalance.waveGap;                                        // 每 0.5s 一波
+          const FALL = rainBalance.fallDuration;                                        // 单颗下落时长（与 render raindrop 同步）
           const tgt = alive[Math.floor(Math.random() * alive.length)];
           const px = tgt.x + (Math.random() - 0.5) * 20;
           const py = tgt.y + (Math.random() - 0.5) * 20;
@@ -2133,7 +2137,7 @@ class CombatSystem {
           for (let w = 0; w < waves; w++) {
             const w0 = w * gap;
             // 区域圈 fx：整波持续（生成 0.1s + 下落 0.5s + 落地余焰）
-            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w0, dur: 0.1 + FALL + 0.25, seed: Math.random() * 100 });
+            g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w0, dur: rainBalance.spawnWindow + FALL + 0.25, seed: Math.random() * 100 });
             // 波内视觉：3 批，0.1s 内随机时刻生成，每批 2-5 颗，独立落下（伤害按整波在最后落地时刻结算一次）
             for (let b = 0; b < 3; b++) {
               const cnt = 2 + Math.floor(Math.random() * 4);   // 2-5 颗
@@ -2142,13 +2146,13 @@ class CombatSystem {
                 const rr = Math.sqrt(Math.random()) * segR * 0.95;  // 圈内均匀采样
                 const dx = px + Math.cos(ang) * rr;
                 const dy = py + Math.sin(ang) * rr;
-                const s = Math.random() * 0.1;            // 0.1s 内随机生成时刻
+                const s = Math.random() * rainBalance.spawnWindow;            // 0.1s 内随机生成时刻
                 g.fx.push({ type: 'raindrop', x: dx, y: dy - 260, tx: dx, ty: dy, t: -(w0 + s), dur: FALL + 0.25, r: perR, seed: Math.random() * 100 });
               }
             }
-            // 每波一次结算：全部颗落地后（t = w0 + 0.1 + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
+            // 每波一次结算：全部颗落地后（t = w0 + rainBalance.spawnWindow + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
             // v1.16.96 天火3★：火雨最后一波升级为天火一击（单点 120% 伤害）
-            this.rainWaves.push({ t: w0 + 0.1 + FALL, px, py, r: segR, dmg: segDmg, skyfire: g.run.relic3('fire_skyfire') && w === waves - 1 });
+            this.rainWaves.push({ t: w0 + rainBalance.spawnWindow + FALL, px, py, r: segR, dmg: segDmg, skyfire: g.run.relic3('fire_skyfire') && w === waves - 1 });
           }
           this.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
         }
@@ -2203,6 +2207,7 @@ class CombatSystem {
    *   C 增殖分支保留：10/14/18 枚超小型冰锥各自索敌独立飞行 */
   _iceMultiShot(e, dmg) {
     const g = this.game;
+    const balance = SKILL_NUM.ice['多重冰锥'];
     const mz = this.towerMuzzle('ice');
     const msx = mz.x, msy = mz.y;
     const aLv = this.branchLv('ice', '多重冰锥', 'A');
@@ -2213,8 +2218,8 @@ class CombatSystem {
     if (cLv > 0) {
       // C 增殖：超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
       const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
-      const perDmg = dmg * 0.10 * (1 + 0.15 * bLv);
-      const hitR = 30;                             // 超小冰锥碰撞半径更小
+      const perDmg = dmg * balance.swarmDamage * (1 + balance.damagePerBranch * bLv);
+      const hitR = balance.swarmHitRadius;                             // 超小冰锥碰撞半径更小
       const strike = (o, d) => {
         this.damage(o, d, 'ice');
         this.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
@@ -2232,9 +2237,9 @@ class CombatSystem {
       this.fxFlash(e.x, e.y, '#7fd4ff', 0.2);
       return;
     }
-    const n = 3 + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
-    const perDmg = dmg * 0.55 * (1 + 0.15 * bLv);
-    const hitR = 45;                                     // 散射冰锥碰撞半径
+    const n = balance.count + aLv + this.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
+    const perDmg = dmg * balance.damage * (1 + balance.damagePerBranch * bLv);
+    const hitR = balance.hitRadius;                                     // 散射冰锥碰撞半径
     const strike = (o, d) => {                           // 命中结算（中心直瞄与散射弹道共用）
       this.damage(o, d, 'ice');
       this.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
@@ -2254,7 +2259,7 @@ class CombatSystem {
     const strikeCenter = (o) => strike(o, perDmg);
     this.addProjectile({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
     // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
-    const maxOff = (n - 2) * 0.08;
+    const maxOff = (n - 2) * balance.fanStep;
     for (let i = 0; i < n - 1; i++) {
       const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
       const ap = aimOf(e, off);
@@ -2324,13 +2329,13 @@ class CombatSystem {
       const msx = mz.x, msy = mz.y;
       const len = Math.hypot(e.x - msx, e.y - msy) || 1;
       const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
-      const n = 3 + this.branchLv('ice', '碎冰', 'A');
-      const dmg = this.shotDmg('ice') * 0.45 * (1 + SKILL_NUM.ice['碎冰'].dmg[this.branchLv('ice', '碎冰', 'B')]);
+      const n = SKILL_NUM.ice['碎冰'].count + this.branchLv('ice', '碎冰', 'A');
+      const dmg = this.shotDmg('ice') * SKILL_NUM.ice['碎冰'].baseDamage * (1 + SKILL_NUM.ice['碎冰'].dmg[this.branchLv('ice', '碎冰', 'B')]);
       const frzP = SKILL_NUM.ice['碎冰'].frz[this.branchLv('ice', '碎冰', 'C')];
-      const sx = e.x + dx * 55, sy = e.y + dy * 55;   // 越过主目标，避免立即重复命中
+      const sx = e.x + dx * SKILL_NUM.ice['碎冰'].spawnOffset, sy = e.y + dy * SKILL_NUM.ice['碎冰'].spawnOffset;   // 越过主目标，避免立即重复命中
       const R = this.range('ice');
       const dur = CONFIG.TOWERS.ice.shot.dur;
-      const hitR = 45;
+      const hitR = SKILL_NUM.ice['碎冰'].hitRadius;
       const strike = (o, d) => {
         // v1.16.98 碎冰强化3★：碎冰命中已有冰缓的敌人时伤害 ×1.5
         if (this.game.run.relic3('ice_shard') && o.slow && o.slow.ttl > 0) d *= 1.5;
@@ -2343,13 +2348,13 @@ class CombatSystem {
         this.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
         // C 冻结：命中 5%/10%/15% 几率冻结 2s
         if (frzP > 0 && Math.random() < frzP) {
-          o.frozen = Math.max(o.frozen || 0, 2);
+          o.frozen = Math.max(o.frozen || 0, SKILL_NUM.ice['碎冰'].freezeDuration);
           this.fxFlash(o.x, o.y, '#d6f0ff', 0.3);
           this.fxRing(o.x, o.y, '#7fd4ff', 40, 0.35, 3);
         }
       };
       const baseA = Math.atan2(dy, dx);
-      const spread = Math.PI / 6;   // 60° 总散射角（±30°）
+      const spread = SKILL_NUM.ice['碎冰'].halfAngle;   // 60° 总散射角（±30°）
       for (let i = 0; i < n; i++) {
         const off = n > 1 ? (i / (n - 1) - 0.5) * 2 * spread : 0;
         const a = baseA + off;
@@ -2406,17 +2411,18 @@ class CombatSystem {
     const g = this.game;
     // 冰·冰花（v1.13.23 原霜星改周期技；v1.16.21 分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
     //     A 扩张 范围 +20/40/60%、B 霜力 伤害 +20/40/60%、C 繁花 数量 +1/+2/+3；原 A 碎散传染移除）
+    const flowerBalance = SKILL_NUM.ice['冰花'];
     const flower = this.lv('ice', '冰花');
     if (flower > 0) {
       this.timers.iceFlower = (this.timers.iceFlower || 0) + dt;
-      if (this.timers.iceFlower >= 8 * this._weakPeriod('ice')) {
+      if (this.timers.iceFlower >= flowerBalance.period * this._weakPeriod('ice')) {
         this.timers.iceFlower = 0;
         this.castEnergy('ice', '冰花');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
-          const n = 1 + SKILL_NUM.ice['冰花'].n[this.branchLv('ice', '冰花', 'C')];
-          const dmg = this.shotDmg('ice') * 0.8 * (1 + SKILL_NUM.ice['冰花'].dmg[this.branchLv('ice', '冰花', 'B')]);
-          const r = 100 * (1 + SKILL_NUM.ice['冰花'].radius[this.branchLv('ice', '冰花', 'A')]);
+          const n = flowerBalance.baseCount + SKILL_NUM.ice['冰花'].n[this.branchLv('ice', '冰花', 'C')];
+          const dmg = this.shotDmg('ice') * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[this.branchLv('ice', '冰花', 'B')]);
+          const r = flowerBalance.baseRadius * (1 + SKILL_NUM.ice['冰花'].radius[this.branchLv('ice', '冰花', 'A')]);
           const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
           targets.forEach((tgt) => {
             // v1.16.9 伤害改为延迟到冰花第 3 帧动画末尾（dur 1.1s ÷ 4 帧 ≈ 0.275s/帧 → 0.825s≈0.8s）结算，
@@ -2461,24 +2467,25 @@ class CombatSystem {
     }
     // 冰·冬珠（v1.13.23 原冻结率改持续球；v1.16.21 分支重做）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
     //     A 寒域 范围减速 20%/30%/40%；B 扩张 范围 +20/40/60%；C 凝华 伤害频率 0.7/0.55/0.4 秒一跳（原数量+1 移除）
+    const orbBalance = SKILL_NUM.ice['冬珠'];
     const orbSkill = this.lv('ice', '冬珠');
     if (orbSkill > 0) {
       this.timers.frostOrb = (this.timers.frostOrb || 0) + dt;
-      if (this.timers.frostOrb >= 10 * this._weakPeriod('ice')) {
+      if (this.timers.frostOrb >= orbBalance.period * this._weakPeriod('ice')) {
         this.timers.frostOrb = 0;
         this.castEnergy('ice', '冬珠');
         const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('ice', e.x, e.y));
         if (alive.length) {
-          const r = 110 * (1 + SKILL_NUM.ice['冬珠'].radius[this.branchLv('ice', '冬珠', 'B')]);
+          const r = orbBalance.baseRadius * (1 + SKILL_NUM.ice['冬珠'].radius[this.branchLv('ice', '冬珠', 'B')]);
           const cLv = this.branchLv('ice', '冬珠', 'C');
-          const tickI = cLv > 0 ? SKILL_NUM.ice['冬珠'].tickI[cLv] : 0.8;
+          const tickI = cLv > 0 ? SKILL_NUM.ice['冬珠'].tickI[cLv] : orbBalance.defaultTickInterval;
           const slowMult = SKILL_NUM.ice['冬珠'].slowMult[this.branchLv('ice', '冬珠', 'A')];
-          const dmg = this.shotDmg('ice') * 0.44;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
-          const spots = alive.sort((a, b) => b.y - a.y).slice(0, 1);   // 最近 1 个敌人位置落球（C 不再增加数量）
+          const dmg = this.shotDmg('ice') * orbBalance.damage;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
+          const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbBalance.targetCount);   // 最近 1 个敌人位置落球（C 不再增加数量）
           this.frostOrbs = this.frostOrbs || [];
           spots.forEach((sp) => {
-            this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: 5, tickT: 0, tickI, dmg, slowMult });
-            this.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: 5 });
+            this.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: orbBalance.duration, tickT: 0, tickI, dmg, slowMult });
+            this.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: orbBalance.duration });
             // v1.13.27 冬珠浮现光效：冰球凝现闪光 + 冰雾
             this.fxFlash(sp.x, sp.y, '#d6f0ff', 0.3);
             this.fxParticle(sp.x, sp.y, '#b8e6ff', 8, 70, 0.5, 140, 5);
@@ -2497,7 +2504,7 @@ class CombatSystem {
             this.enemies().forEach((o) => {
               if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
               this.damage(o, ob.dmg, 'ice');
-              if (ob.slowMult > 0) this.applySlow(o, ob.slowMult, 1);
+              if (ob.slowMult > 0) this.applySlow(o, ob.slowMult, orbBalance.slowDuration);
               // v1.16.98 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
               if (this.game.run.relic3('ice_domain') && o.slow && o.slow.ttl > 0 && !(o._domainCd > 0)) {
                 o._domainCd = 3;
@@ -2514,6 +2521,7 @@ class CombatSystem {
     // 冰墙（v1.13.25 原永冻改，驻场城墙护盾；v1.16.21 数值重做）：每 20 秒为城墙附魔冰盾，持续 10s，
     //     抵御 300 伤害；攻击冰墙的敌人减速 40% + 攻击间隔 +0.5s（由 main.js 攻城段结算吸收/反伤/迟缓）
     //     A 凝壁 持续 +2/+4/+6s（档位式）；B 霜反 反伤 30%/60%/90%；C 融暖 结束回血 +50/+100/+150
+    const iceWallBalance = SKILL_NUM.ice['冰墙'];
     const wallSkill = this.lv('ice', '冰墙');
     if (wallSkill > 0) {
       this.timers.iceWall = (this.timers.iceWall || 0) + dt;
@@ -2540,12 +2548,12 @@ class CombatSystem {
           this.iceWall = null;
         }
       }
-      if (this.timers.iceWall >= 20 * this._weakPeriod('ice')) {
+      if (this.timers.iceWall >= iceWallBalance.period * this._weakPeriod('ice')) {
         this.timers.iceWall = 0;
         this.castEnergy('ice', '冰墙');
         this.iceWall = {
-          ttl: 10 + SKILL_NUM.ice['冰墙'].ttl[this.branchLv('ice', '冰墙', 'A')],   // 基础 10s + A 档位 +2/+4/+6s
-          absorb: 300,   // v1.16.21：基础抵御 300 点伤害
+          ttl: iceWallBalance.duration + SKILL_NUM.ice['冰墙'].ttl[this.branchLv('ice', '冰墙', 'A')],   // 基础 10s + A 档位 +2/+4/+6s
+          absorb: iceWallBalance.absorb,   // v1.16.21：基础抵御 300 点伤害
           reflect: SKILL_NUM.ice['冰墙'].reflect[this.branchLv('ice', '冰墙', 'B')],   // B 反伤 30%/60%/90%
           heal: SKILL_NUM.ice['冰墙'].heal[this.branchLv('ice', '冰墙', 'C')],      // C 融暖结束回血 +50/+100/+150
         };

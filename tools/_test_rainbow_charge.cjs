@@ -1,0 +1,4 @@
+const assert=require('assert');const Board=require('../js/board.js');const {Run}=require('../js/run.js');
+const b=new Board({rows:3,cols:4,difficulty:6});const rainbow={c:null,s:'rainbow'};b.grid=[[rainbow,'red','blue','green'],['blue','green','red','yellow'],['green','yellow','blue','red']];b.gravity=()=>{};const out=b.trySwap(0,0,0,1);assert(out.ok);assert(!b.grid.flat().includes(rainbow));assert(out.resolved.stepList[0].clearedCells.some(([r,c])=>r===0&&c===1));
+const run=new Run({difficulty:6});const t=run.effects.tower('fire');t.unlock();run.slotOrder=['fire'];t.energy=0;run.armory=()=>({lv:1,a:1,b:0});assert.equal(run._energyGain('4',4),10);const st={clearedDetails:[{r:0,c:0,color:'red'},{r:0,c:1,color:'red'},{r:0,c:1,color:'red'}]};assert.equal(run._blastReward(st),5);assert.equal(t.energy,5);assert.equal(run._energyGain('3',1),2.5);
+console.log('PASS rainbow consumed once; actual clear dedup; 2 energy per block; fractional bonus retained.');

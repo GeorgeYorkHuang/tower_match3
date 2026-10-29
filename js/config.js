@@ -68,6 +68,7 @@ module.exports = {
     weakPeriod: 1.5,            // 能量耗尽弱化态：周期技能释放间隔 ×1.5
     chargePerUse: 30,           // v1.12.4：每补充 30 点充能 → 全局技能可释放 1 次
     energyMaxGS: 90,            // 全局技能充能上限（3 次 = 90 点）
+    energyPerBlock: 2, // 所有真实清除：每块基础能量，可保留小数加成
     energyShape: { '3': 6, '4': 12, '5': 20, 'L5': 20 }, // 消除供能：3消+6/4消+12/5消+20；6+(x块)=20+6(x-5)
     shuffleSkill: { name: '全局洗牌', icon: '🔀', color: '#ff8c42' },  // 打乱棋盘所有方块
     refillSkill: { name: '能量补给', icon: '🔋', color: '#7ef0a3' },   // 全场所有塔补充能量（替换全局冰冻）

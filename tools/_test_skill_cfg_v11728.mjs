@@ -100,8 +100,8 @@ eq(gHits.length, 2, '全局技能行注册 2 个 globalCfg 命中区（双槽，
 eq(gHits.map((h) => h.data.index).join(','), '0,1', '双槽 index 0/1');
 ok(mHits.every((h) => h.rect.w === 150 && h.rect.h === 200), '技能卡 3:4 尺寸 150x200', mHits.map((h) => fmt(h.rect)).join(' '));
 eq(mHits[0].rect.x, 145, '三消首卡 x=145（标签列右缘 + 55）');
-eq(mHits[0].rect.y, 990, '三消行 y=990');
-eq(gHits[0].rect.y, 1254, '全局行 y=1254（行距 264）');
+eq(mHits[0].rect.y, 970, '三消行 y=970');
+eq(gHits[0].rect.y, 1234, '全局行 y=1234（行距 264）');
 eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 18, '全局双卡间距 18');
 ok(has(R.texts, '四连技能') && has(R.texts, '高连技能') && has(R.texts, '连消技能'), '三槽顶部标签文案齐全');
 ok(has(R.texts, '全局槽位 1') && has(R.texts, '全局槽位 2'), '全局双槽标签「全局槽位 1/2」');
@@ -275,5 +275,6 @@ ok(!!close, 'panelClose 存在');
 ok(pc.every((r) => r.y > close.rect.y), '候选卡在标题下方');
 
 /* ===================================================================== */
+eq(gHits[0].rect.x, 229, '全局首卡 x=229，保持标签原左缘');
 console.log(`\n================ ${pass} PASS / ${fail} FAIL ================`);
 process.exit(fail ? 1 : 0);

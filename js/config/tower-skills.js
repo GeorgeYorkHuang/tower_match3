@@ -1,40 +1,42 @@
 // 技能分支行为数值。数组下标为分支等级0~3；单位沿用原实现。
 module.exports = {
   fire: {
-    '灼烧':   { burst: [0, 0.15, 0.30, 0.50],      // B 燃尽：每跳爆炸概率
+    '大火球': { mainDamage:1.1, radius:130, radiusPerBranch:0.30, splashDamage:0.48, damagePerBranch:0.20, ignitePerBranch:0.50 },
+    '火柱': { period:10, damage:1.2, damagePerBranch:0.30, radius:120, radiusPerBranch:0.20, delay:0.6, effectDuration:2.4, emberDuration:3, emberDamagePerBranch:0.15 },
+    '灼烧':   { baseStackCap:2, burstDamage:0.6, burst: [0, 0.15, 0.30, 0.50],      // B 燃尽：每跳爆炸概率
                 trueFire: [0, 0.10, 0.20, 0.30],   // C 真火：每层灼烧目标受伤加成
                 burnRadius: [0, 30, 60, 90] },     // B 燃尽：爆炸范围
-    '点燃':   { emberDmg: [0, 0.20, 0.40, 0.60],   // C 余烬：灼烧伤害加成
+    '点燃':   { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, damagePerSecond:0.20, duration:3, minDuration:0.5, tickInterval:0.5, emberDmg: [0, 0.20, 0.40, 0.60],   // C 余烬：灼烧伤害加成
                 heatTtl: [0, 2, 3, 4],             // B 炽热：灼烧时长
                 emberTtlCut: [0, 0.5, 1, 1.5] },   // C 余烬：灼烧时长缩减
     '爆燃':   { radius: [0, 0.2, 0.4, 0.6],        // B 扩张：爆炸范围
                 dmg: [0, 0.3, 0.6, 0.9] },         // A 爆裂：爆炸伤害
-    '多重火球': { condense: [0, 0.15, 0.30, 0.50], // B 凝火：火球增伤
+    '多重火球': { count:5, damage:0.44, hitRadius:45, fanStep:0.08, splitDamage:0.25, splitDurationRatio:0.8, splitHitRadius:30, condense: [0, 0.15, 0.30, 0.50], // B 凝火：火球增伤
                 scatterSplit: [0, 3, 4, 5] },      // C 散射：分裂小火球数
-    '烈焰墙': { range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
+    '烈焰墙': { period:15, width:180, height:45, impactDamage:0.50, duration:6, tickInterval:0.5, slowDuration:0.6, range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
                 dmg: [0, 0.2, 0.4, 0.6],           // A 神火：墙伤害
                 slow: [0, 0.1, 0.2, 0.3] },        // C 迟滞：墙内减速
-    '火雨':   { radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
+    '火雨':   { period:12, baseRadius:140, waveDamage:0.24, baseWaves:3, waveGap:0.5, fallDuration:0.5, spawnWindow:0.1, radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
                 segDmg: [0, 0.4, 0.8, 1.2] },      // B 猛烈：每段伤害
   },
   ice: {
-    '寒霜':   { slowMult: [0, 0.1, 0.2, 0.3],      // C 深寒：减速幅度
+    '寒霜':   { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, baseSlow:0.30, duration:3, slowMult: [0, 0.1, 0.2, 0.3],      // C 深寒：减速幅度
                 ttl: [0, 1, 2, 3] },               // B 凝结：冰缓时长
-    '冰冻':   { prob: [0, 0.15, 0.30, 0.45],       // A 冻结：冰冻概率
+    '冰冻':   { baseProbability:0.20, baseDuration:2, prob: [0, 0.15, 0.30, 0.45],       // A 冻结：冰冻概率
                 dur: [0, 1, 1.5, 2],               // B 深结：冻结时长
                 shatter: [0, 0.30, 0.40, 0.50] },  // C 碎冰：击杀爆炸伤害
     '冰穿刺': { pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
                 cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害
-    '多重冰锥': { swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
-    '碎冰':   { dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
+    '多重冰锥': { count:3, damage:0.55, damagePerBranch:0.15, hitRadius:45, swarmDamage:0.10, swarmHitRadius:30, fanStep:0.08, swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
+    '碎冰':   { count:3, baseDamage:0.45, spawnOffset:55, hitRadius:45, freezeDuration:2, halfAngle:Math.PI/6, dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
                 frz: [0, 0.05, 0.10, 0.15] },      // C 冻结：命中冻结概率
-    '冰花':   { n: [0, 1, 2, 3],                   // C 繁花：冰花数量
+    '冰花':   { period:8, baseCount:1, baseDamage:0.8, baseRadius:100, n: [0, 1, 2, 3],                   // C 繁花：冰花数量
                 dmg: [0, 0.2, 0.4, 0.6],           // B 霜力：冰花伤害
                 radius: [0, 0.2, 0.4, 0.6] },      // A 扩张：爆炸范围
-    '冬珠':   { slowMult: [0, 0.2, 0.3, 0.4],      // A 寒域：范围减速
+    '冬珠':   { period:10, baseRadius:110, defaultTickInterval:0.8, damage:0.44, duration:5, targetCount:1, slowDuration:1, slowMult: [0, 0.2, 0.3, 0.4],      // A 寒域：范围减速
                 radius: [0, 0.2, 0.4, 0.6],        // B 扩张：范围
                 tickI: [0, 0.7, 0.55, 0.4] },      // C 凝华：伤害频率
-    '冰墙':   { ttl: [0, 2, 4, 6],                 // A 凝壁：冰盾持续
+    '冰墙':   { period:20, duration:10, absorb:300, attackerSlow:0.4, attackerSlowDuration:2, attackDelay:0.5, ttl: [0, 2, 4, 6],                 // A 凝壁：冰盾持续
                 reflect: [0, 0.3, 0.6, 0.9],       // B 霜反：反伤
                 heal: [0, 50, 100, 150] },         // C 融暖：结束回血
   },

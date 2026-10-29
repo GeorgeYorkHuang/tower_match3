@@ -1,6 +1,6 @@
 // 火冰参数「改参生效性」验证（W策划 · 第二批）
 // 原则：只读源码、不改任何文件；仅在运行时改 tower-skills 配置对象的值，跑完立刻还原。
-// 目的：把字典里「这个参数真的能改出效果」变成可执行断言，并把 P1（两个字段未接入）钉成反向证明。
+// 目的：把字典里「这个参数真的能改出效果」变成可执行断言，并把 P1（两个字段未接入）钉成改参验证。
 //
 // 用法：node tools/_verify_fire_ice_params.mjs
 import { createRequire } from 'module';
@@ -81,7 +81,7 @@ console.log('\n— 火柱：伤害 / 半径 / 延迟 —');
   ok(t0 && t1 && Math.abs((t1.t - t0.t) - 1.4) < 1e-6, '③ delay 0.6→2.0：结算延迟同步 +1.4s', `${t0 && t0.t.toFixed(2)} / ${t1 && t1.t.toFixed(2)}`);
 }
 
-console.log('\n— 火柱余烬：P1 字段未接入（反向证明）—');
+console.log('\n— 火柱余烬：P1 已接入（改参验证）—');
 {
   // C3 → ember=3，落地后生成 groundDots：dps = 100 × 0.15 × 3 = 45，ttl = 3（硬编码）
   const settle = (extra) => {
@@ -93,10 +93,10 @@ console.log('\n— 火柱余烬：P1 字段未接入（反向证明）—');
   const s0 = settle().groundDots && settle().groundDots[0];
   const sDur = withParam('fire.火柱.emberDuration', 10, () => settle((c) => c.groundDots && c.groundDots[0]));
   const sDps = withParam('fire.火柱.emberDamagePerBranch', 1.0, () => settle((c) => c.groundDots && c.groundDots[0]));
-  ok(!!s0 && s0.ttl === 3 && sDur && sDur.ttl === 3,
-    '④ emberDuration 3→10：余烬时长仍为 3（P1 字段未接入）', `${s0 && s0.ttl} / ${sDur && sDur.ttl}`);
-  ok(!!s0 && s0.dps === 45 && sDps && sDps.dps === 45,
-    '⑤ emberDamagePerBranch 0.15→1.0：余烬 DPS 仍为 45（P1 字段未接入）', `${s0 && s0.dps} / ${sDps && sDps.dps}`);
+  ok(!!s0 && s0.ttl === 3 && sDur && sDur.ttl === 10,
+    '④ emberDuration 3→10：余烬时长变为 10（P1 已接入）', `${s0 && s0.ttl} / ${sDur && sDur.ttl}`);
+  ok(!!s0 && s0.dps === 45 && sDps && sDps.dps === 300,
+    '⑤ emberDamagePerBranch 0.15→1.0：余烬 DPS 变为 300（P1 已接入）', `${s0 && s0.dps} / ${sDps && sDps.dps}`);
 }
 
 console.log('\n— 多重火球：数量 / 单枚伤害 —');

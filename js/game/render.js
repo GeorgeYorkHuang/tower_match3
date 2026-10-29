@@ -4279,8 +4279,8 @@ class Renderer {
     fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
     // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 2 卡（按双槽装备显示）
-    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
-    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
+    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 970, 640, 200, true);
+    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1234, 640, 200, false, 84);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
 
@@ -4710,8 +4710,8 @@ class Renderer {
     return this._skillLoadout;
   }
 
-  _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) {
-    return this._getSkillLoadout().skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch);
+  _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX = 0) {
+    return this._getSkillLoadout().skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX);
   }
 
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */

@@ -251,11 +251,13 @@ Board.prototype.resolve = function resolve() {
     // v5.6.7 彩虹块交换：玩家把彩虹块与任意色块交换 → 该色全盘清除（并入本步匹配，走正常清除/结算/特效）
     if (this._rainbowSwapColor) {
       const color = this._rainbowSwapColor;
+      const consumed = this._rainbowSwapCell; this._rainbowSwapCell = null;
       this._rainbowSwapColor = null;
       const cells = [];
       for (let rr = 0; rr < this.rows; rr++)
         for (let cc = 0; cc < this.cols; cc++)
           if (!isSpecial(this.grid[rr][cc]) && cellColor(this.grid[rr][cc]) === color) cells.push([rr, cc]);
+      if (consumed) cells.push(consumed);
       if (cells.length) {
         matches.unshift({ cells, color, shape: cells.length >= 6 ? '6+' : String(cells.length), rainbow: true, _noPlant: true, _rainbowSwap: true });
       }
@@ -441,13 +443,13 @@ Board.prototype.resolve = function resolve() {
       stepPlanted.push({ r, c, s: v.s, color: v.c, sub: v.sub === true });
     });
 
-    const clearedCells = [];
+    const clearedCells = [], clearedDetails = [];
     for (let r = 0; r < this.rows; r++)
       for (let c = 0; c < this.cols; c++)
-        if (toClear[r][c]) { this.grid[r][c] = null; cleared++; clearedCells.push([r, c]); }
+        if (toClear[r][c]) { clearedDetails.push({r,c,color:cellColor(this.grid[r][c]) || rainbowColorOf.get(r + ',' + c)}); this.grid[r][c] = null; cleared++; clearedCells.push([r, c]); }
     this._movedCell = null;   // 交互落格仅对第一步四消生效
     this.gravity();
-    stepList.push({ matches, clearedCells, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells });
+    stepList.push({ matches, clearedCells, clearedDetails, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells });
     all.push(...matches);
   }
   this.stats.cascadeTotal += steps;
@@ -583,6 +585,7 @@ Board.prototype.trySwap = function trySwap(r1, c1, r2, c2) {
   }
   this.stats.swapCount++;
   this._movedCell = [r1, c1];   // v5.2 交互四消保留格：玩家落格优先（resolve 内消费后置 null）
+  this._rainbowSwapCell = rainbowSwapColor ? (ra ? [r1,c1] : [r2,c2]) : null;
   this._rainbowSwapColor = rainbowSwapColor;   // 彩虹交换清色（可为 null）
   const resolved = this.resolve();
   return { ok: true, resolved };

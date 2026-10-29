@@ -1,3 +1,4 @@
+const ICE_WALL_BALANCE = require('../config/tower-skills.js').ice['冰墙'];
 const GS_BALANCE = require('../config/global-balance.js');
 /**
  * main.js —— 游戏主循环与状态机（渲染层入口）
@@ -529,8 +530,8 @@ class GameMain {
           // v1.16.96 城墙受击统一入口：减伤护符3★ 大额截断 + 生命回复3★ 护盾优先抵扣
           if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= this.run.applyWallDamage(leak);
           if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
-          this.combat.applySlow(e, 0.4, 2);
-          e.atkSlowAdd = 0.5; e.atkSlowT = 2;
+          this.combat.applySlow(e, ICE_WALL_BALANCE.attackerSlow, ICE_WALL_BALANCE.attackerSlowDuration);
+          e.atkSlowAdd = ICE_WALL_BALANCE.attackDelay; e.atkSlowT = ICE_WALL_BALANCE.attackerSlowDuration;
           // 冰墙受击视觉：冰晶飞溅
           this.combat.fxParticle(e.x, e.y, '#b8e6ff', 5, 40, 0.35, 90, 4);
         } else {

@@ -279,7 +279,8 @@ class Run {
    * 全局技能充能（v1.12.4）：累计补充充能（剩余色消除 + 塔色溢出），每 30 点 → 可释放 1 次，上限 3 次（90 点）。
    * @returns {tower, gotTower, penalized, exp, shape, ammoGain, shuffleGain, refillGain}
    */
-  applyMatch(color, shape, size) {
+  applyMatch(color, shape, size, energyCells = size) {
+    const energyBonus = this.relicNum('cm_ammobox');
     const exp = expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
     // v1.16.78 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
@@ -306,17 +307,17 @@ class Run {
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
         // v1.16.37 激活塔能量 = 15 + 本次消除形状供能（4消/5消初次激活即有收益；上限能量上限）
         // v1.16.60 弹药箱：每次三消充能能量 +N（v1.16.78 按 desc 星级数值）
-        const gain = 15 + this._energyGain(shape, size) + this.relicNum('cm_ammobox');
+        const gain = 15 + this._energyGain(shape, energyCells) + energyBonus;
         t.energy = Math.min(gain, this.armoryEnergyMax());
         ammoGain = t.energy;
-        if (this.relicNum('cm_ammobox') > 0) this.relicFx('cm_ammobox', `能量 +${gain}`); // v1.17 生效提示
+        if (energyBonus > 0) this.relicFx('cm_ammobox', `能量 +${gain}`); // v1.17 生效提示
       } else {
         // 塔位满：该色未被选中 → 对应全局技能按能量口径充能（剩余 2 色动态分配）+ 半量经验
         // v1.16.60 全局充能 +N%、弹药箱 +N（v1.16.78 按星级数值）
         const skill = this._globalSkillOf(color);
-        const ammo = Math.round(this._energyGain(shape, size) * (1 + this.relicNum('cm_charge') / 100) + this.relicNum('cm_ammobox'));
+        const ammo = (this._energyGain(shape, energyCells) * (1 + this.relicNum('cm_charge') / 100) + energyBonus);
         if (this.relicNum('cm_charge') > 0) this.relicFx('cm_charge', `全局充能 +${this.relicNum('cm_charge')}%`); // v1.17 生效提示
-        if (this.relicNum('cm_ammobox') > 0) this.relicFx('cm_ammobox', `充能 +${ammo}`); // v1.17 生效提示
+        if (energyBonus > 0) this.relicFx('cm_ammobox', `充能 +${ammo}`); // v1.17 生效提示
         if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
         else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
         this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
@@ -324,7 +325,7 @@ class Run {
     } else {
       // 塔色：能量按形状供给 + 整体经验；能量满 → 溢出均分充能两个全局技能（能量口径）
       // v1.16.60 弹药箱：三消充能能量 +N（v1.16.78 按星级数值）
-      const gain = this._energyGain(shape, size) + this.relicNum('cm_ammobox');
+      const gain = this._energyGain(shape, energyCells) + energyBonus;
       const before = t.energy;
       t.energy = Math.min(before + gain, this.armoryEnergyMax());
       ammoGain = t.energy - before;
@@ -335,7 +336,7 @@ class Run {
           const room = 20 - this.energyBank;
           if (room > 0) this.energyBank += Math.min(over, room);
         }
-        const half = Math.floor(over / 2);
+        const half = over / 2;
         shuffleGain = this._chargeAmmo('shuffle', half);
         refillGain = this._chargeAmmo('refill', over - half);
       }
@@ -351,27 +352,26 @@ class Run {
 
   /** v5.6.6 爆炸波及格按块奖励：每格按颜色充能对应塔（已激活 +2 能量；未激活色 → 充全局技能；塔激活以三消为准） */
   _blastReward(st) {
-    const per = CONFIG.MATCH_SKILL.blastBlockEnergy;
-    if (!per || !st || !st.blasts || !st.blasts.length) return 0;
-    const matchSet = new Set();
-    (st.matches || []).forEach((m) => (m.cells || []).forEach(([r, c]) => matchSet.add(r + ',' + c)));
     let gain = 0;
-    st.blasts.forEach((b) => {
-      if (!b || !b.color) return;
-      if (matchSet.has(b.r + ',' + b.c)) return; // 匹配组内格（含主爆特殊块格）已由 applyMatch 结算
-      const t = this.effects.tower(CONFIG.COLORS[b.color] ? CONFIG.COLORS[b.color].tower : null);
-      if (!t) return;
+    const seen = new Set();
+    for (const cell of st.clearedDetails || []) {
+      const id = cell.r + ',' + cell.c;
+      if (seen.has(id)) continue; seen.add(id);
+      if (!cell.color) continue;
+      const t = this.effects.tower(CONFIG.COLORS[cell.color] && CONFIG.COLORS[cell.color].tower);
+      if (!t) continue;
+      const amount = this._energyGain('3', 1);
       if (t.level > 0) {
         const before = t.energy;
-        t.energy = Math.min(before + per, this.armoryEnergyMax());
+        t.energy = Math.min(before + amount, this.armoryEnergyMax());
         gain += t.energy - before;
+        const over = Math.max(0, before + amount - this.armoryEnergyMax());
+        if (over > 0) { this._chargeAmmo('shuffle',over/2); this._chargeAmmo('refill',over/2); }
       } else {
-        // 未激活色：充能全局技能（激活以三消为准，爆炸格不激活塔）
-        const skill = this._globalSkillOf(b.color);
-        if (skill === 'shuffle') this._chargeAmmo('shuffle', per);
-        else if (skill === 'refill') this._chargeAmmo('refill', per);
+        const which = this._globalSkillOf(cell.color);
+        if (which) this._chargeAmmo(which,amount * (1 + this.relicNum('cm_charge') / 100));
       }
-    });
+    }
     return gain;
   }
 
@@ -411,10 +411,9 @@ class Run {
 
   /** 塔色消除供能（v1.16.77 能量口径）：3消 +6 / 4消 +12 / 5消（L5/直5）+20 / 5消以上(x块) 20+6(x-5)；军火库 A +25%/级 */
   _energyGain(shape, size) {
-    const fixed = CONFIG.GLOBAL_SKILL.energyShape[shape];
-    let base = fixed !== undefined ? fixed : 20 + 6 * (size - 5);   // '6+'（x 块，x≥6）
+    let base = Math.max(0, size) * CONFIG.GLOBAL_SKILL.energyPerBlock;
     const a = this.armory();
-    if (a && a.lv > 0) base = Math.round(base * (1 + 0.25 * a.a));
+    if (a && a.lv > 0) base *= (1 + 0.25 * a.a);
     return base;
   }
 
@@ -424,7 +423,7 @@ class Run {
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
     const a = this.armory();
-    if (a && a.lv > 0) ammo = Math.round(ammo * (1 + 0.25 * a.b));
+    if (a && a.lv > 0) ammo = ammo * (1 + 0.25 * a.b);
     const before = this[key] || 0;
     this[key] = Math.min(before + ammo, GS.energyMaxGS);
     const got = this[key] - before;
@@ -485,7 +484,7 @@ class Run {
       const isChain = (si + 1) >= chainStart;   // 连续第 4 组起算连锁
       st.matches.forEach((m) => {
         // 组色已在 resolve 清空前记录，避免连锁后棋盘移动取错色
-        if (m.color) stepSettled.push(this.applyMatch(m.color, m.shape, m.size));
+        if (m.color) stepSettled.push(this.applyMatch(m.color, m.shape, m.size, 0));
       });
       // v5.6.6 爆炸波及格按块计入奖励：每格充能对应颜色塔（匹配组内格已由 applyMatch 按形状结算，跳过避免双算）
       const blastGain = this._blastReward(st);

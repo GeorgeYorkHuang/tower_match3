@@ -70,14 +70,14 @@ function createSkillLoadout(deps = {}) {
   const skillIcon = deps.skillIcon || fallbackSkillIcon;
   const wrapText = deps.wrapText || fallbackWrapText;
 
-  /** 主页技能卡一行（三消 3 卡 / 全局 3 槽）：150×200（4:3）+ 左侧竖排逐字标签
+  /** 主页技能卡一行（三消 3 卡 / 全局 2 槽）：150×200（4:3）+ 左侧竖排逐字标签
    *  原 render._menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) */
-  function skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) {
+  function skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX = 0) {
     const tint = isMatch ? '#b896ff' : '#f4cb79';
     const keys = isMatch ? ['match4', 'match5', 'chain'] : GlobalSkills.slots(cfg);
     const labels = ['四连技能', '高连技能', '连消技能'];
     const gap = 18, ch = Math.min(h, 200), cw = ch * 3 / 4;
-    const left = x + 90;
+    const left = x + 90 + cardDX;
     const labelStep = 28, labelTop = y + (ch - (label.length - 1) * labelStep) / 2;
     Array.from(label).forEach((letter, i) => text(ctx, letter, x + 30, labelTop + i * labelStep, 23, tint, 'center'));
     keys.forEach((key, i) => {

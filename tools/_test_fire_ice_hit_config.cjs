@@ -1,0 +1,5 @@
+const assert=require('assert'),{CombatSystem}=require('../js/combat.js'),B=require('../js/config/tower-skills.js');
+const c=Object.create(CombatSystem.prototype);c.game={run:{relic3:()=>false}};c.branchLv=()=>0;c.lv=()=>0;c.relicVal=()=>0;c.fxParticle=()=>{};c.fxFlash=()=>{};c.fxRing=()=>{};
+const burn=B.fire['点燃'],old={damage:burn.damagePerSecond,duration:burn.duration};try{burn.damagePerSecond=0.37;burn.duration=7;const e={dots:[]};c.applyBurn(e,100,'fire');assert.equal(e.dots[0].dps,37);assert.equal(e.dots[0].ttl,7);}finally{burn.damagePerSecond=old.damage;burn.duration=old.duration;}
+const frost=B.ice['寒霜'],orig=frost.baseProbability;const rand=Math.random;try{frost.baseProbability=1;Math.random=()=>0.99;let applied=null;c.applySlow=(e,n,t)=>applied={n,t};c.tryAttackDebuff('ice',{x:0,y:0},100);assert.deepEqual(applied,{n:frost.baseSlow,t:frost.duration});}finally{frost.baseProbability=orig;Math.random=rand;}
+console.log('PASS actual burn damage/duration and guaranteed frost probability read configuration.');
