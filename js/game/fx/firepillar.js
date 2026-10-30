@@ -14,7 +14,7 @@ const ASSETS = {
   5: 'assets/images/fx/firepillar/anim_firepillar_05.png',
   6: 'assets/images/fx/firepillar/anim_firepillar_06.png',
   7: 'assets/images/fx/firepillar/anim_firepillar_07.png',
-  8: 'assets/images/fx/firepillar/anim_firepillar_08.png',
+  // 8: 'assets/images/fx/firepillar/anim_firepillar_08.png',
 };
 
 /** v1.17.25 帧动画参数：8 帧 512×640 透明底贴图（75° 俯视） */
