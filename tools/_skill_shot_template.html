@@ -125,8 +125,11 @@ const hits = [];
 const push = (key, data, x, y, w, h) => hits.push({ key, data, x, y, w, h });
 
 if (screenId === 'home') {
-  L.skillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 990, 640, 200, true);
-  L.skillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1254, 640, 200, false);
+  // v1.17.46 主页整体（含「进入战斗」按钮 + 单行双分区技能行），用于核对上下留白
+  const R = Object.create(Renderer.prototype);
+  R.menuBattle(ctx, s, push);
+} else if (screenId === 'row') {
+  L.skillRow(ctx, s, push, 55, 1130, 640, 170);
 } else if (sc.panel.slot) {
   L.menuMatchCfg(ctx, s, push);
 } else {

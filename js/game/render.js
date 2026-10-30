@@ -4170,7 +4170,7 @@ class Renderer {
 
   /** 战斗主页：战场卡（v1.16.76 战场合约参数化：远古/熔岩/霜风/深渊/测试 5 战场共用一套卡片） */
   _getHomeScreen() {
-    if (!this._homeScreen) this._homeScreen = createHomeScreen({ drawImg, skillCards: this._menuSkillCards.bind(this) });
+    if (!this._homeScreen) this._homeScreen = createHomeScreen({ drawImg, skillRow: this._menuSkillRow.bind(this) });
     return this._homeScreen;
   }
 
@@ -4318,6 +4318,11 @@ class Renderer {
 
   _menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX = 0) {
     return this._getSkillLoadout().skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX);
+  }
+
+  /** v1.17.46 主页技能配置行：单行双分区（左全局 / 右三消），每区 2 卡，卡上无槽位文字 */
+  _menuSkillRow(ctx, s, push, x, y, w, ch) {
+    return this._getSkillLoadout().skillRow(ctx, s, push, x, y, w, ch);
   }
 
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */

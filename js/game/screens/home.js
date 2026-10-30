@@ -3,7 +3,7 @@ const CONFIG = require('../../config.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 
 // Presentation only: dependencies are shared helpers, never a player save.
-function createHomeScreen({ drawImg, skillCards }) {
+function createHomeScreen({ drawImg, skillRow }) {
   function menuBattle(ctx, s, push) {
     const sx = 80, sy = 400, sw = 590, sh = 392;   // 卡片几何不变
     const stage = s.stage || 'ancient';
@@ -110,8 +110,8 @@ function createHomeScreen({ drawImg, skillCards }) {
     strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
     fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.18)');
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
-    skillCards(ctx, s, push, '三消技能', s.matchSkills, 65, 1010, entryW, 200, true);
-    skillCards(ctx, s, push, '全局技能', s.globalSkills, 65, 1244, entryW, 200, false);
+    // v1.17.46 技能配置行：单行双分区（左「全局技能」/ 右「三消技能」），各 2 卡，卡片不带槽位文字
+    skillRow(ctx, s, push, 55, 1130, 640, 170);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
   return { menuBattle };

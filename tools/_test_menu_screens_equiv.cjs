@@ -1,8 +1,8 @@
 'use strict';
-// Fixed pre-extraction baseline, deliberately independent of the current Renderer wrappers.
-// v1.17.45: owner-directed shop UI change (连消技解锁组下架) invalidated the frozen 7331c49 shop
-// baseline — the shop section is now pinned by content hashes of the current implementation.
-// Regenerate after an intentional shop change: node tools/_test_menu_screens_equiv.cjs --update-shop
+// Home/header originally compared against a frozen 7331c49 baseline.
+// v1.17.46: owner-directed home layout change (技能配置行合并为单行双分区、卡片文字下架) makes the
+// frozen home slice obsolete — home is now pinned by content hashes of the current implementation,
+// same mechanism as the shop section. Regenerate: --update-home / --update-shop.
 const assert=require('assert'),vm=require('vm'),path=require('path'),crypto=require('crypto'),fs=require('fs');
 const {createRequire}=require('module');
 const {execFileSync}=require('child_process');
@@ -33,17 +33,6 @@ let cases=0;
 const realNow=Date.now;
 Date.now=()=>1761735600000;
 try {
- const globals=require('../js/global-skills.js');
- for(const stage of [...Object.keys(config.FIELDS),'unknown']) for(const bestWave of [0,999]) {
-  const state={stage,bestWave,matchSkills:{match4:'random',match5:'rainbow',chain:'energy'},globalSkills:['shuffle','refill']};
-  for(const custom of [false,true]) {
-   const s=JSON.parse(JSON.stringify(state));
-   if(custom) {s.globalSkills=['refill','shuffle'];s.matchSkills={};}
-   const snapshot=JSON.stringify(s);
-   assert.strictEqual(record(Before,'menuBattle',s),record(After,'menuBattle',s),'home '+stage+bestWave+custom);
-   assert.strictEqual(JSON.stringify(s),snapshot);cases++;
-  }
- }
 const relics=[...Object.values(config.RELIC_RUN.tower).flat(),...config.RELIC_RUN.common];
 // —— 商店段：内容哈希钉扎（有意 UI 变更后用 --update-shop 再生；哈希变化=商店渲染被改动） ——
 const SHOP_BASELINE = /* SHOP_HASHES_START */ {
@@ -86,7 +75,60 @@ const SHOP_BASELINE = /* SHOP_HASHES_START */ {
  } /* SHOP_HASHES_END */;
 const sha=(s)=>crypto.createHash('sha256').update(s).digest('hex').slice(0,16);
 const updateShop=process.argv.includes('--update-shop');
+const updateHome=process.argv.includes('--update-home');
 let shopUpdated=false;
+/** 用当前实现的哈希重写文件里的某个钉扎块 */
+function writeBlock(name,body){
+  const file=path.join(__dirname,'_test_menu_screens_equiv.cjs');
+  const src=fs.readFileSync(file,'utf8');
+  const json=JSON.stringify(body,null,2).split('\n').map((l,i)=>i?' '+l:l).join('\n');
+  const re=new RegExp('/\\* '+name+'_START \\*/[\\s\\S]*?/\\* '+name+'_END \\*/');
+  fs.writeFileSync(file,src.replace(re,'/* '+name+'_START */ '+json+' /* '+name+'_END */'));
+}
+const globals=require('../js/global-skills.js');
+// —— 主页段（战场所选卡 + 技能配置单行双分区）：内容哈希钉扎，--update-home 再生 ——
+const HOME_BASELINE = /* HOME_HASHES_START */ {
+   "ancient|0|false": "fee84d8e708b4447",
+   "ancient|0|true": "4e98546aa53c7ac0",
+   "ancient|999|false": "fee84d8e708b4447",
+   "ancient|999|true": "4e98546aa53c7ac0",
+   "lava|0|false": "3ff3cc0fb030a2b2",
+   "lava|0|true": "aa79e814f0eb8e2c",
+   "lava|999|false": "3ff3cc0fb030a2b2",
+   "lava|999|true": "aa79e814f0eb8e2c",
+   "frost|0|false": "d53a4a4973f0e3fa",
+   "frost|0|true": "d96fcc0bdb63060e",
+   "frost|999|false": "d53a4a4973f0e3fa",
+   "frost|999|true": "d96fcc0bdb63060e",
+   "abyss|0|false": "64b5df12d8cb172d",
+   "abyss|0|true": "0b0d0e20a385c199",
+   "abyss|999|false": "fd3d844038d159b0",
+   "abyss|999|true": "ff6461292afc2839",
+   "test|0|false": "145421d793fe8046",
+   "test|0|true": "7af659befb64e1ff",
+   "test|999|false": "145421d793fe8046",
+   "test|999|true": "7af659befb64e1ff",
+   "unknown|0|false": "d035d548b3a9128a",
+   "unknown|0|true": "fb5a8fdc9ab82e72",
+   "unknown|999|false": "d035d548b3a9128a",
+   "unknown|999|true": "fb5a8fdc9ab82e72"
+ } /* HOME_HASHES_END */;
+let homeUpdated=false;
+for(const stage of [...Object.keys(config.FIELDS),'unknown']) for(const bestWave of [0,999]) {
+  const state={stage,bestWave,matchSkills:{match4:'random',match5:'rainbow',chain:'energy'},globalSkills:['shuffle','refill']};
+  for(const custom of [false,true]) {
+    const s=JSON.parse(JSON.stringify(state));
+    if(custom) {s.globalSkills=['refill','shuffle'];s.matchSkills={};}
+    const snapshot=JSON.stringify(s);
+    const key=`${stage}|${bestWave}|${custom}`;
+    const h=sha(record(After,'menuBattle',s));
+    if (updateHome) { HOME_BASELINE[key]=h; homeUpdated=true; continue; }
+    assert.ok(HOME_BASELINE[key], 'home 基线缺失 '+key+'（先跑 --update-home）');
+    assert.strictEqual(h, HOME_BASELINE[key], 'home '+key+'（主页渲染被改动？有意变更请跑 --update-home 再生基线）');
+    assert.strictEqual(JSON.stringify(s),snapshot);cases++;
+  }
+}
+if (updateHome) { writeBlock('HOME_HASHES', HOME_BASELINE); console.log('home baseline updated: '+Object.keys(HOME_BASELINE).length+' cases'); }
 for(const count of [0,1,3,4]) for(const remaining of [undefined,0,1]) for(const unlocked of ['none','empty','defaults']) {
   const s={daily:{picks:relics.slice(0,count).map((r,i)=>({relic:r.id,price:100+i,shards:i+1}))},shopLeft:remaining===undefined?undefined:{blue:remaining,purple:remaining,gold:remaining},skillUnlocks:unlocked==='none'?undefined:(unlocked==='empty'?{}:config.SKILL_UNLOCK.defaults)};
   const key=`${count}|${String(remaining)}|${unlocked}`;

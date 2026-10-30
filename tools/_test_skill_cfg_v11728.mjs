@@ -89,24 +89,28 @@ const resetMeta = () => {
 };
 
 /* ===================================================================== */
-console.log('\n=== 1. 主页两行：三消双槽 + 双全局槽（v1.17.45 连消配置下架） ===');
+console.log('\n=== 1. 主页单行双分区：左「全局技能」2 卡 / 右「三消技能」2 卡（v1.17.46） ===');
 resetMeta();
 let R = renderMenu(null);
 const mHits = hitsOf(R.hits, 'matchCfg');
 const gHits = hitsOf(R.hits, 'globalCfg');
-eq(mHits.length, 2, '三消技能行注册 2 个 matchCfg 命中区（连消卡已下架）');
+eq(mHits.length, 2, '三消技能区注册 2 个 matchCfg 命中区（连消卡已下架）');
 eq(mHits.map((h) => h.data.slot).join(','), 'match4,match5', '双槽顺序 match4/match5');
-eq(gHits.length, 2, '全局技能行注册 2 个 globalCfg 命中区（双槽，无第三格）');
+eq(gHits.length, 2, '全局技能区注册 2 个 globalCfg 命中区（双槽，无第三格）');
 eq(gHits.map((h) => h.data.index).join(','), '0,1', '双槽 index 0/1');
-ok(mHits.every((h) => h.rect.w === 127.5 && h.rect.h === 170), '技能卡 3:4 尺寸 127.5x170', mHits.map((h) => fmt(h.rect)).join(' '));
-eq(mHits[0].rect.x, 155, '三消首卡 x=155（标签列右缘 + 55）');
-eq(mHits[0].rect.y, 1010, '三消行 y=1010');
-eq(gHits[0].rect.y, 1244, '全局行 y=1244（卡片边缘间距仍为64）');
-eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 185, '全局双卡间距 185');
-ok(has(R.texts, '四连技能') && has(R.texts, '高连技能'), '双槽顶部标签文案齐全');
-ok(!has(R.texts, '连消技能'), '「连消技能」标签已下架');
-ok(has(R.texts, '全局槽位 1') && has(R.texts, '全局槽位 2'), '全局双槽标签「全局槽位 1/2」');
-ok(!has(R.texts, '全局槽位 3'), '不存在第三全局槽标签');
+ok(mHits.concat(gHits).every((h) => h.rect.w === 127.5 && h.rect.h === 170), '技能卡 3:4 尺寸 127.5x170', mHits.concat(gHits).map((h) => fmt(h.rect)).join(' '));
+eq(gHits[0].rect.x, 55, '全局技能区（左）首卡 x=55');
+eq(mHits[0].rect.x, 399, '三消技能区（右）首卡 x=399（55+296+48）');
+eq(gHits[0].rect.y, 1130, '两区同一行，卡片上缘 y=1130');
+eq(mHits[0].rect.y, 1130, '三消卡与全局卡同高（单行合并）');
+eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 41, '区内双卡分散排布，缝 41');
+eq(mHits[1].rect.x - (mHits[0].rect.x + mHits[0].rect.w), 41, '三消区双卡同样分散');
+ok(mHits[1].rect.x + mHits[1].rect.w === 695 && gHits[0].rect.x === 55, '整行左右贴 55/695（640 宽）', fmt(mHits[1].rect));
+ok(has(R.texts, '全局技能') && has(R.texts, '三消技能'), '两区标题「全局技能」「三消技能」均在');
+ok(!has(R.texts, '四连技能') && !has(R.texts, '高连技能'), '卡片上「四连技能/高连技能」文字已下架');
+ok(!has(R.texts, '连消技能'), '「连消技能」已下架');
+ok(!has(R.texts, '全局槽位 1') && !has(R.texts, '全局槽位 2'), '卡片上「全局槽位 1/2」文字已下架');
+ok(!has(R.texts, '全局槽位 3'), '不存在第三全局槽位');
 
 // 行内 / 行间不重叠
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -301,6 +305,6 @@ ok(!!close, 'panelClose 存在');
 ok(pc.every((r) => r.y > close.rect.y), '候选卡在标题下方');
 
 /* ===================================================================== */
-eq(gHits[0].rect.x, 155, '全局首卡 x=155，保持标签原左缘');
+eq(gHits[0].rect.x, 55, '全局首卡仍贴整行左缘 x=55（左区）');
 console.log(`\n================ ${pass} PASS / ${fail} FAIL ================`);
 process.exit(fail ? 1 : 0);
