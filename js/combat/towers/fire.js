@@ -243,4 +243,205 @@ function _fireImpact(combat, o, d, ang) {
   if (combat.lv('fire', '大火球') > 0) combat._fireSingleBlast(o, d);
 }
 
-module.exports = { _attackFireOnHit, _fireAttackOnAttack, hitFire, _fireMultiShot, _fireAttackHit, _fireSingleBlast, _fireImpact };
+function tickFire(combat, dt) {
+  const g = combat.game;
+  const pillarBalance = SKILL_NUM.fire['火柱'];
+  // 火·火柱：每 10 秒（触发间隔保持原值，v1.13.10）随机 1 个敌人召唤火柱（150% 伤害·半径120；A 爆发+50%/级、B 扩展+40%/级、C 余烬地面 3 秒 30%/s）
+  // v1.13.9：伤害延迟到地面圈画完（约 0.6s）后结算，动画与伤害节奏一致
+  const pillar = combat.lv('fire', '火柱');
+  if (pillar > 0) {
+    combat.timers.firePillar = (combat.timers.firePillar || 0) + dt;
+    if (combat.timers.firePillar >= pillarBalance.period * combat._weakPeriod('fire')) {
+      combat.timers.firePillar = 0;
+      combat.castEnergy('fire', '火柱');
+      // v1.16.96 焚天3★：火柱施放后 3 秒内全塔攻速 +25%
+      if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      if (alive.length) {
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
+        const pDmg = combat.shotDmg('fire', true) * pillarBalance.damage * (1 + pillarBalance.damagePerBranch * combat.branchLv('fire', '火柱', 'A'));   // 深火 30%/级
+        const pR = pillarBalance.radius * (1 + pillarBalance.radiusPerBranch * combat.branchLv('fire', '火柱', 'B'));                            // 燎原 20%/级
+        const emberLv = combat.branchLv('fire', '火柱', 'C');
+        combat.pillarWaves = combat.pillarWaves || [];
+        // v1.16.96 熔心3★：火柱结算时给中心目标上「火伤+15% 标记」（5s，叠2层）
+        combat.pillarWaves.push({ t: pillarBalance.delay, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt });
+        // 火柱视觉：地上火圈标记 → 冲天圆柱火柱（帧动画，dur 2.4s 放慢一倍）
+        g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: pillarBalance.effectDuration, seed: Math.random() * 100 });
+        combat.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
+      }
+    }
+    // 延迟伤害结算：圈标记完成后火柱爆发
+    if (combat.pillarWaves && combat.pillarWaves.length) {
+      const remaining = [];
+      for (const wv of combat.pillarWaves) {
+        wv.t -= dt;
+        if (wv.t <= 0) {
+          combat.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
+          // v1.16.96 熔心3★：命中目标受火伤 +15%（5s，可叠 2 层）
+          if (g.run.relic3('fire_core') && wv.e && wv.e.hp > 0) {
+            const coreN = Math.min(2, ((wv.e._core && wv.e._core.n) || 0) + 1);
+            wv.e._core = { n: coreN, ttl: 5 };
+          }
+          if (wv.ember > 0) {
+            combat.groundDots = combat.groundDots || [];
+            combat.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: combat.shotDmg('fire', true) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
+          }
+        } else {
+          remaining.push(wv);
+        }
+      }
+      combat.pillarWaves = remaining;
+    }
+  }
+  // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长180px·宽45px·持续6s）
+  //   释放瞬间对墙区域敌人造成 50% 攻击伤害（A 神火 +20/40/60%）；墙持续期间每 0.5s 灼烧 + C 迟滞减速 10/20/30%
+  const wallBalance = SKILL_NUM.fire['烈焰墙'];
+  const wall = combat.lv('fire', '烈焰墙');
+  if (wall > 0) {
+    combat.timers.fireWall = (combat.timers.fireWall || 0) + dt;
+    if (combat.timers.fireWall >= wallBalance.period * combat._weakPeriod('fire')) {
+      combat.timers.fireWall = 0;
+      combat.castEnergy('fire', '烈焰墙');
+      // v1.16.96 焚天3★：火墙施放后 3 秒内全塔攻速 +25%
+      if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      if (alive.length) {
+        const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
+        const aLv = combat.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
+        const bLv = combat.branchLv('fire', '烈焰墙', 'B');   // 引燃 范围 +20/40/60%
+        const cLv = combat.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
+        const w = wallBalance.width * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
+        const h = wallBalance.height * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
+        const wDmg = combat.shotDmg('fire', true) * wallBalance.impactDamage * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]);
+        // v1.16.96 火舌3★：火墙命中塔攻击范围外的敌人时，伤害 ×1.5
+        const tongue = g.run.relic3('fire_tongue') ? 1.5 : 1;
+        combat.enemies().forEach((o) => {
+          if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) {
+            const out = !combat.inTowerRange('fire', o.x, o.y);
+            combat.damage(o, wDmg * (out ? tongue : 1), 'fire');
+          }
+        });
+        combat.fireWalls = combat.fireWalls || [];
+        combat.fireWalls.push({ x: tgt.x, y: tgt.y, w, h, ttl: wallBalance.duration, cLv, tick: 0 });
+        g.fx.push({ type: 'fireWall', x: tgt.x, y: tgt.y, w, h, t: 0, dur: wallBalance.duration, seed: Math.random() * 100 });
+      }
+    } else {
+      // 墙持续（触发帧不扣 ttl，从下一帧开始计时）：每 0.5s 对墙内敌人灼烧；C 迟滞减速（10/20/30%）
+      if (combat.fireWalls && combat.fireWalls.length) {
+        const rem = [];
+        for (const wl of combat.fireWalls) {
+          wl.ttl -= dt;
+          wl.tick -= dt;
+          if (wl.ttl <= 0) continue;
+          if (wl.tick <= 0) {
+            wl.tick = wallBalance.tickInterval;
+            combat.enemies().forEach((o) => {
+              if (o.hp <= 0) return;
+              if (Math.abs(o.x - wl.x) <= wl.w / 2 && o.y >= wl.y - wl.h / 2 && o.y <= wl.y + wl.h / 2) {
+                // v1.16.96 火舌3★：墙内射程外敌人灼烧伤害 ×1.5；火墙增烈3★：停留计时累积（伤害递增挂 damage 乘区）
+                const out = !combat.inTowerRange('fire', o.x, o.y);
+                if (g.run.relic3('fire_wall')) o._wallStay = (o._wallStay || 0) + 0.5;
+                combat.applyBurn(o, combat.shotDmg('fire', true) * (out && g.run.relic3('fire_tongue') ? 1.5 : 1), 'fire');
+                if (wl.cLv > 0) {
+                  const sm = 1 - SKILL_NUM.fire['烈焰墙'].slow[wl.cLv];
+                  if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: wallBalance.slowDuration };
+                }
+              }
+            });
+          }
+          rem.push(wl);
+        }
+        combat.fireWalls = rem;
+      }
+    }
+  }
+  // 火·火雨：每 12 秒（触发间隔保持原值，v1.13.10）在索敌区域降下火雨
+  // v1.16.21 机制重做：分 3 波结算伤害，每 0.5s 一波，每波对火雨圈内敌人造成 24% 伤害（B 猛烈 +40/80/120%·档位）；
+  //   C 由「引燃」改为「扩张」范围 +20/40/60%；波内动画保留（3 批×2-5 颗独立落下），伤害在整波落地后结算一次并灼烧
+  const rainBalance = SKILL_NUM.fire['火雨'];
+  const fireRain = combat.lv('fire', '火雨');
+  if (fireRain > 0) {
+    combat.timers.fireRain = (combat.timers.fireRain || 0) + dt;
+    if (combat.timers.fireRain >= rainBalance.period * combat._weakPeriod('fire')) {
+      combat.timers.fireRain = 0;
+      combat.castEnergy('fire', '火雨');
+      // v1.16.96 焚天3★：火雨施放后 3 秒内全塔攻速 +25%
+      if (g.run.relic3('fire_burnall')) g.run._burnallTtl = 3;
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      if (alive.length) {
+        const bLv = combat.branchLv('fire', '火雨', 'B');
+        const cLv = combat.branchLv('fire', '火雨', 'C');
+        const segR = rainBalance.baseRadius * (1 + SKILL_NUM.fire['火雨'].radius[cLv]);       // 火雨圈半径（C 扩张 +20/40/60%）
+        const perR = 80;                                        // 火雨点视觉落点半径
+        const segDmg = combat.shotDmg('fire', true) * rainBalance.waveDamage * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]);   // 每波 24% 伤害（B +40/80/120%）
+        const waves = rainBalance.baseWaves + combat.branchLv('fire', '火雨', 'A');   // 基础 3 波，A 波次 +1
+        const gap = rainBalance.waveGap;                                        // 每 0.5s 一波
+        const FALL = rainBalance.fallDuration;                                        // 单颗下落时长（与 render raindrop 同步）
+        const tgt = alive[Math.floor(Math.random() * alive.length)];
+        const px = tgt.x + (Math.random() - 0.5) * 20;
+        const py = tgt.y + (Math.random() - 0.5) * 20;
+        combat.rainWaves = combat.rainWaves || [];
+        for (let w = 0; w < waves; w++) {
+          const w0 = w * gap;
+          // 区域圈 fx：整波持续（生成 0.1s + 下落 0.5s + 落地余焰）
+          g.fx.push({ type: 'rain', x: px, y: py, r: segR, t: -w0, dur: rainBalance.spawnWindow + FALL + 0.25, seed: Math.random() * 100 });
+          // 波内视觉：3 批，0.1s 内随机时刻生成，每批 2-5 颗，独立落下（伤害按整波在最后落地时刻结算一次）
+          for (let b = 0; b < 3; b++) {
+            const cnt = 2 + Math.floor(Math.random() * 4);   // 2-5 颗
+            for (let k = 0; k < cnt; k++) {
+              const ang = Math.random() * Math.PI * 2;
+              const rr = Math.sqrt(Math.random()) * segR * 0.95;  // 圈内均匀采样
+              const dx = px + Math.cos(ang) * rr;
+              const dy = py + Math.sin(ang) * rr;
+              const s = Math.random() * rainBalance.spawnWindow;            // 0.1s 内随机生成时刻
+              g.fx.push({ type: 'raindrop', x: dx, y: dy - 260, tx: dx, ty: dy, t: -(w0 + s), dur: FALL + 0.25, r: perR, seed: Math.random() * 100 });
+            }
+          }
+          // 每波一次结算：全部颗落地后（t = w0 + rainBalance.spawnWindow + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
+          // v1.16.96 天火3★：火雨最后一波升级为天火一击（单点 120% 伤害）
+          combat.rainWaves.push({ t: w0 + rainBalance.spawnWindow + FALL, px, py, r: segR, dmg: segDmg, skyfire: g.run.relic3('fire_skyfire') && w === waves - 1 });
+        }
+        combat.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
+      }
+    }
+    // 延迟结算：每波在全部颗落地后对火雨圈内敌人结算 24% 伤害 + 灼烧（v1.16.21 由每颗结算改为每波结算）
+    if (combat.rainWaves && combat.rainWaves.length) {
+      const remaining = [];
+      for (const wv of combat.rainWaves) {
+        wv.t -= dt;
+        if (wv.t <= 0) {
+          // v1.16.96 天火3★：末波升级为天火一击——圈内最靠城墙敌人单点 120% 伤害（取代范围结算）
+          if (wv.skyfire) {
+            const top = combat.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r)
+              .sort((a, b) => b.y - a.y)[0];
+            if (top) {
+              combat.damage(top, combat.shotDmg('fire', true) * 1.2, 'fire');
+              combat.fxFlash(top.x, top.y, '#ffffff', 0.4);
+              combat.fxRing(top.x, top.y, '#ff7043', 90, 0.5, 6);
+              combat.fxParticle(top.x, top.y, '#ffd24a', 10, 80, 0.5, 180, 6);
+            }
+          } else {
+            combat.enemies().forEach((o) => {
+              if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r) {
+                combat.damage(o, wv.dmg, 'fire');
+                combat.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
+                // v1.16.96 燃尽加速3★：火雨每波落地时，灼烧状态敌人额外小爆炸（50% 伤害，半径 80 码）
+                if (g.run.relic3('fire_hasten') && combat.hasDot(o, 'burn')) {
+                  combat.explode(o.x, o.y, 80, combat.shotDmg('fire', true) * 0.5, 'fire');
+                }
+              }
+            });
+          }
+          // 落地余焰（轻量，替代 explode 重特效）
+          combat.fxParticle(wv.px, wv.py, '#ff7043', 5, wv.r * 0.5, 0.3, 120, 4);
+          combat.fxRing(wv.px, wv.py, '#ff9f43', wv.r, 0.35, 3);
+        } else {
+          remaining.push(wv);
+        }
+      }
+      combat.rainWaves = remaining;
+    }
+  }
+}
+
+module.exports = { tickFire, _attackFireOnHit, _fireAttackOnAttack, hitFire, _fireMultiShot, _fireAttackHit, _fireSingleBlast, _fireImpact };
