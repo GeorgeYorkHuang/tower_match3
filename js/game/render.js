@@ -3672,62 +3672,30 @@ class Renderer {
       ctx.beginPath(); ctx.moveTo(482, 528); ctx.lineTo(680, 528); ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    const cards = su.relicCards
-      || (su.relics || []).map((r) => ({ id: r && r.id, rarity: 'r', star: 0, shards: (su.shardDetail || {})[r && r.id] || 0 }));
-    const total = cards.length;
-    if (!total) {
-      const ep = this._goPh(T, TL.card0, 260);
-      if (ep > 0) {
-        ctx.globalAlpha = ep;
-        text(ctx, '本局未获得圣遗物', 375, 730, 22, '#6b7a8c', 'center');
-        ctx.globalAlpha = 1;
-      }
+    const cards = Object.entries(su.shardDetail || {}).filter(([, n]) => Number(n) > 0)
+      .map(([id, n]) => ({ id, shards: Number(n), rarity: CONFIG.relicRarity(id) }));
+    if (!cards.length) {
+      text(ctx, '本局未获得圣遗物碎片', 375, 730, 22, '#6b7a8c', 'center');
       return;
     }
-    const show = cards.slice(0, 3);
-    const CW = 220, CH = 340, GAP = 14, CY = 560;
-    const x0 = (750 - (show.length * CW + (show.length - 1) * GAP)) / 2;   // 1/2/3 张自动居中
-    show.forEach((c, i) => {
-      const pe = this._goPh(T, TL.card0 + i * TL.cardGap, 280);
-      if (pe <= 0) return;
-      const sc = Math.min(1.06, this._goEob(pe));
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, pe * 1.8);
-      const cx = x0 + i * (CW + GAP) + CW / 2, cy = CY + CH / 2;
-      ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
-      const X = x0 + i * (CW + GAP);
-      const rc = CONFIG.GO.RARITY[c.rarity] || CONFIG.GO.RARITY.r;
-      fillRoundRect(ctx, X, CY, CW, CH, 16, '#20262f');
-      strokeRoundRect(ctx, X, CY, CW, CH, 16, rc, c.rarity === 'ssr' ? 2.5 : 1.5);
-      // 图标 72（584–656）
-      this._goIcon(ctx, c.id, X + (CW - 72) / 2, 584, 72);
-      // 名字：≤5 字 26px，更长 20px，超 8 字截断（220 宽卡防溢出）
-      const def = c.id && CONFIG.relicRunDef ? CONFIG.relicRunDef(c.id) : null;
-      let name = def ? def.name : '?';
-      if (name.length > 8) name = name.slice(0, 7) + '…';
-      text(ctx, name, X + CW / 2, 690, name.length > 5 ? 20 : 26, '#eef3f8', 'center');
-      // 稀有度胶囊（702–732）：'SSR · 2★'，star 0 只显稀有度
-      const rl = { r: 'R', sr: 'SR', ssr: 'SSR' }[c.rarity] || 'R';
-      const cap = c.star > 0 ? rl + ' · ' + c.star + '★' : rl;
-      fillRoundRect(ctx, X + (CW - 116) / 2, 702, 116, 30, 15, 'rgba(0,0,0,0.35)');
-      text(ctx, cap, X + CW / 2, 717, 20, rc, 'center');
-      // 碎片条（772–814）：紫底胶囊 + 图标 28 + ×N（数字 0→n 滚动 300ms）
-      const roll = Math.floor((c.shards || 0) * this._goPh(T, TL.shardNum, 300));
-      fillRoundRect(ctx, X + 10, 772, CW - 20, 42, 21, 'rgba(168,107,255,0.16)');
-      strokeRoundRect(ctx, X + 10, 772, CW - 20, 42, 21, 'rgba(168,107,255,0.7)', 1.5);
-      this._goIcon(ctx, c.id, X + 24, 779, 28);
-      text(ctx, '×' + roll, X + CW / 2 + 16, 793, 26, '#c9a6ff', 'center');
-      ctx.restore();
+    const rows = Math.ceil(cards.length / 5), CW = 124, GAP = 12;
+    const stride = Math.min(185, 370 / rows), CH = stride - 30, CY = 560;
+    cards.forEach((c, i) => {
+      const row = Math.floor(i / 5), col = i % 5;
+      const count = Math.min(5, cards.length - row * 5);
+      const X = (750 - count * CW - (count - 1) * GAP) / 2 + col * (CW + GAP);
+      const Y = CY + row * stride;
+      const rc = CONFIG.GO.RARITY[c.rarity] || '#e8402f';
+      fillRoundRect(ctx, X, Y, CW, CH, 10, '#20262f');
+      strokeRoundRect(ctx, X, Y, CW, CH, 10, rc, 2);
+      const icon = Math.min(66, CH * 0.55);
+      this._goIcon(ctx, c.id, X + (CW - icon) / 2, Y + 8, icon);
+      const def = CONFIG.relicRunDef(c.id);
+      const name = def ? def.name : '?';
+      const font = Math.min(19, 110 / Math.max(1, name.length), CH * 0.24);
+      text(ctx, name, X + CW / 2, Y + CH - 16, font, '#eef3f8', 'center');
+      text(ctx, '收益 ' + c.shards + ' 张', X + CW / 2, Y + CH + 15, 18, '#c9a6ff', 'center');
     });
-    // 折叠提示（基线 934）
-    if (total > 3) {
-      const fp = this._goPh(T, TL.card0 + 3 * TL.cardGap, 220);
-      if (fp > 0) {
-        ctx.globalAlpha = fp;
-        text(ctx, '本局共 ' + total + ' 件', 375, 934, 22, '#8ea3b8', 'center');
-        ctx.globalAlpha = 1;
-      }
-    }
   }
 
   /** 账单区（960–1070）：左卡金币 / 右卡宝箱四态（340×110 gap30） */

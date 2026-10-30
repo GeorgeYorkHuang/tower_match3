@@ -723,12 +723,10 @@ class GameMain {
   /** v1.17.22 结算大卡数据：本局圣遗物 → [{id, rarity, star, shards}]，按 稀有度(ssr>sr>r) → 碎片数 降序；名字由渲染层按 id 取 */
   _buildRelicCards(detail) {
     const W = { ssr: 0, sr: 1, r: 2 };
-    return (this.battleRelics || []).map((r) => ({
-      id: r.id,
-      rarity: CONFIG.relicRarity(r.id),
-      star: this.meta.starOf(r.id) || 0,
-      shards: (detail && detail[r.id]) || 0,
-    })).sort((a, c) => (W[a.rarity] - W[c.rarity]) || (c.shards - a.shards));
+    return Object.keys(detail || {}).filter(id => Number(detail[id]) > 0).map(id => ({
+      id, rarity: CONFIG.relicRarity(id), star: this.meta.starOf(id) || 0,
+      shards: Number(detail[id]),
+    })).sort((a, c) => ((W[a.rarity] ?? -1) - (W[c.rarity] ?? -1)) || (c.shards - a.shards));
   }
 
   settleRunShards(ratio) {
