@@ -1,19 +1,9 @@
 // v1.16.114 焰雨3★ 三连重构行为验证：门控 + 命中计数 + 三连=3 条真实火球弹道（命中走完整结算）
-import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { CombatSystem } = require('../js/combat.js');
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-const here = fileURLToPath(new URL('.', import.meta.url));
-const src = readFileSync(join(here, '..', 'js', 'combat.js'), 'utf8');
-// 提取 _attackFireOnHit 方法体（到下一个 '  }' 顶层闭合）
-const m = src.match(/_attackFireOnHit\(e, dmg\) \{([\s\S]*?)\n  \}/);
-if (!m) { console.error('FAIL: _attackFireOnHit not found'); process.exit(1); }
-const body = m[1];
-// new Function 的作用域链是全局对象（非模块作用域），自由变量需挂 globalThis
-globalThis.CONFIG = { TOWERS: { fire: { shot: { dur: 0.5 } } } };
-const fn = new Function('ctx', 'e', 'dmg', body.replace(/\bthis\./g, 'ctx.'));
+// Exercise the actual compatibility entry and fire module; do not parse source method bodies.
+const fn = (ctx, e, dmg) => CombatSystem.prototype._attackFireOnHit.call(ctx, e, dmg);
 
 function makeCtx(owned) {
   const run = {
