@@ -1,3 +1,4 @@
+const MatchRelics = require('./relics/match-hooks.js');
 const GS_BALANCE = require('./config/global-balance.js');
 /**
  * run.js —— 对局（run）层：三消 → 经验 → 塔升级 → 波末三选一 → 战斗结算
@@ -235,9 +236,7 @@ class Run {
 
   /** v1.16.60 三消之力：每次三消获得的经验 +N%（v1.16.78 按星级数值）；v1.16.96 3★：连锁×2 以上时经验再 +50% */
   _relicExp(v) {
-    let e = Math.round(v * (1 + this.relicNum('cm_triple') / 100));
-    if (this._triple3) e = Math.round(e * 1.5);
-    return e;
+    return MatchRelics.experience(this, v);
   }
 
   /**
@@ -284,16 +283,7 @@ class Run {
     const exp = expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
     // v1.16.78 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
-    const comboN = this.relicNum('cm_combo');
-    if (comboN > 0 && size <= 3 && this.rng() < comboN / 100) {
-      shape = '4'; size = 4;
-      this.relicFx('cm_combo', `4连触发 +${comboN}%`); // v1.17 生效提示
-    }
-    // v1.16.96 力量符3★：4连及以上消除 → 全塔伤害永久 +0.5%（本局，上限15%）
-    if (this.relic3('cm_power') && (size >= 4 || shape === '4' || shape === 'L5' || shape === '5')) {
-      this.cmPower3 = Math.min(15, this.cmPower3 + 0.5);
-      this.relicFx('cm_power', `4连叠伤 +${this.cmPower3}%`); // v1.17 生效提示
-    }
+    ({ shape, size } = MatchRelics.beforeMatch(this, shape, size));
     const t = this.effects.tower(CONFIG.COLORS[color] ? CONFIG.COLORS[color].tower : null);
     let gotTower = false, penalized = false, target = null;
     let ammoGain = 0, shuffleGain = 0, refillGain = 0;
@@ -332,10 +322,7 @@ class Run {
       const over = Math.max(0, before + gain - this.armoryEnergyMax());
       if (over > 0) {
         // v1.16.96 弹药箱3★：能量溢出 50% 概率存入备用能量库（上限 20 点，普攻能量不足自动借用）
-        if (this.relic3('cm_ammobox') && this.rng() < 0.5) {
-          const room = 20 - this.energyBank;
-          if (room > 0) this.energyBank += Math.min(over, room);
-        }
+        MatchRelics.onTowerOverflow(this, over);
         const half = over / 2;
         shuffleGain = this._chargeAmmo('shuffle', half);
         refillGain = this._chargeAmmo('refill', over - half);
@@ -429,7 +416,7 @@ class Run {
     const got = this[key] - before;
     // v1.16.96 全局充能3★：充能溢出（已达上限）转为技能伤害加成（每溢出 +10%，上限50%）
     const over = Math.max(0, before + ammo - GS.energyMaxGS);
-    if (over > 0 && this.relic3('cm_charge')) this.chargeSkillBoost = Math.min(50, this.chargeSkillBoost + 10);
+    MatchRelics.onGlobalOverflow(this, over);
     return got;
   }
 
