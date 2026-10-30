@@ -3,7 +3,7 @@
  * _audit_domain_refs.cjs —— R10 数据所有权只读审计（不改任何文件、不写盘）
  *
  * 四项扫描：
- *   A. Meta.fromJSON 快照引用共享键（恢复边界无拷贝直接引用调用方对象的字段）→ R08 隔离修复范围参考
+ *   A. Meta.fromJSON 字段赋值候选（结合入口深拷贝核实，不能单凭赋值判共享）→ R08 隔离修复范围参考
  *   B. Meta 字段跨文件写入点（meta.js 之外的 meta.<field> = / game.meta.<field> = 赋值）
  *   C. 本地存储读写入口（wx.*StorageSync 全部出现位置）
  *   D. save() 调用点（game.save.save()）
@@ -34,13 +34,15 @@ console.log('== R10 数据所有权只读审计 ==\n');
 
 /* A. fromJSON 共享引用键 */
 const metaSrc = read(path.join(ROOT, 'js/meta.js'));
-console.log('[A] Meta.fromJSON 恢复边界——直接引用快照（无拷贝）的键：');
+const restoreCopiesInput = /d\s*=\s*copySaveData\(d\)/.test(metaSrc);
+console.log('[A] Meta.fromJSON 字段赋值候选（正则不追踪引用来源）：');
+if (restoreCopiesInput) console.log('  已检测到入口 d = copySaveData(d)：下列赋值来自内部副本，不构成与调用方共享引用的证据；请运行 _test_save_isolation.cjs 验证。');
 const shared = [];
 lines(metaSrc).forEach((l, i) => {
   const m = l.match(/m\.(\w+)\s*=\s*d\.(\w+)\s*(?:\|\|[^;]*)?;/);
   if (m && !/slice\(|Object\.assign|JSON\.parse/.test(l)) shared.push({ key: m[1], line: i + 1 });
 });
-shared.forEach((s) => console.log(`  meta.js:${s.line}  m.${s.key} = d.${s.key}...  ← 与调用方快照共享引用（R08 范围）`));
+shared.forEach((s) => console.log(`  meta.js:${s.line}  m.${s.key} = d.${s.key}...  ← ${restoreCopiesInput ? '入口复制后的内部字段赋值' : '待核实调用方引用共享风险'}`));
 console.log(`  小计 ${shared.length} 键\n`);
 
 /* B. Meta 字段跨文件写入点 */
