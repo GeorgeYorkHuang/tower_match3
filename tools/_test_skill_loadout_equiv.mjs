@@ -86,7 +86,7 @@ for (const isMatch of [true, false]) {
   const y = isMatch ? 990 : 1254;
   const oldRun = run((ctx, push) => renderer._menuSkillCards(ctx, s, push, label, cfg, 55, y, 640, 200, isMatch));
   const newRun = run((ctx, push) => SL.skillCards(ctx, s, push, label, cfg, 55, y, 640, 200, isMatch));
-  const wantHits = isMatch ? 3 : 2;   // 三消 3 槽；全局双槽（GlobalSkills.slots 固定 2 个）
+  const wantHits = isMatch ? 2 : 2;   // v1.17.45：三消双槽（连消卡下架）；全局双槽
   if (oldRun.calls.length < 30 || newRun.hits.length !== wantHits) {
     fail++; console.error(`FAIL skillCards/${label} 未真实绘制（calls=${oldRun.calls.length} hits=${newRun.hits.length}/${wantHits}）`);
   }
@@ -104,7 +104,7 @@ for (const isMatch of [true, false]) {
     run((ctx, push) => SL.skillCards(ctx, s, push, '全局技能', GlobalSkills.slots(s.globalSkills), 55, 1254, 640, 200, false)));
 }
 
-// 3. 三消三槽面板：默认槽 / 已解锁混合 / 已选中非默认
+// 3. 三消面板：默认槽 / 已解锁混合（v1.17.45 连消槽无面板，双方均为空绘制仍等价）
 for (const slot of ['match4', 'match5', 'chain']) {
   const s = mkState({ panel: { type: 'matchCfg', slot }, skillUnlocks: { [slot]: ['ice'] } });
   cmp(`menuMatchCfg/${slot}`,
@@ -158,9 +158,7 @@ for (const index of [0, 1]) {
   else { fail++; console.error(`FAIL 命中键序列：旧=[${keys(oldH)}] 新=[${keys(newH)}]`); }
 }
 
-// 8. v1.17 视觉验收：面板高度随候选行数自适应（绝对几何锁定）
-//    注：Codex 接入后 render 旧方法已委托本模块，第 3/4/7 节变成「自己比自己」，
-//    这里改用绝对坐标断言锁住新行为，防止以后回归。
+// 8. 面板几何（v1.17.45 更新）：match4/match5 自适应高度；连消无外壳；全局面板固定视口 956、无翻页键
 {
   const panelHOf = (r) => {
     for (const c of r.calls) {
@@ -168,20 +166,26 @@ for (const index of [0, 1]) {
     }
     return -1;
   };
-  const want = { match4: 956, match5: 688, chain: 420 };   // 卡区 120+rows*268-16 + 底留白 48（rows=3/2/1）
+  const want = { match4: 956, match5: 688 };   // 卡区 120+rows*268-16 + 底留白 48（rows=3/2）
   let bad = 0;
   for (const slot of Object.keys(want)) {
     const h = panelHOf(run((ctx, push) => SL.menuMatchCfg(ctx, mkState({ panel: { type: 'matchCfg', slot } }), push)));
     if (h !== want[slot]) { bad++; console.error(`FAIL 面板高度 ${slot}: got ${h}, want ${want[slot]}`); }
   }
-  // 全局：满页（6 条）保持旧几何 1060 / 翻页键 y=1150；末页（4 条）缩到 792 / 上一页键 y=882
-  const g0 = run((ctx, push) => SL.menuGlobalCfg(ctx, mkState({ panel: { type: 'globalCfg', index: 0, page: 0 } }), push));
-  const g2 = run((ctx, push) => SL.menuGlobalCfg(ctx, mkState({ panel: { type: 'globalCfg', index: 1, page: 2 } }), push));
-  const pagerY = (r) => { const h = r.hits.find((x) => x[0] === 'globalPage'); return h ? h[3] : -1; };
-  if (panelHOf(g0) !== 1060) { bad++; console.error(`FAIL 全局满页高度: ${panelHOf(g0)} (want 1060)`); }
-  if (pagerY(g0) !== 1150) { bad++; console.error(`FAIL 满页翻页键 y: ${pagerY(g0)} (want 1150)`); }
-  if (panelHOf(g2) !== 792) { bad++; console.error(`FAIL 全局末页高度: ${panelHOf(g2)} (want 792)`); }
-  if (pagerY(g2) !== 882) { bad++; console.error(`FAIL 末页翻页键 y: ${pagerY(g2)} (want 882)`); }
+  const chainH = panelHOf(run((ctx, push) => SL.menuMatchCfg(ctx, mkState({ panel: { type: 'matchCfg', slot: 'chain' } }), push)));
+  if (chainH !== -1) { bad++; console.error(`FAIL 连消面板应无外壳: got ${chainH}`); }
+  // 全局：固定视口（120 + 3 行 788 + 提示 48 = 956），无翻页键；返回视口与最大滚动量
+  const g0 = run((ctx, push) => SL.menuGlobalCfg(ctx, mkState({ panel: { type: 'globalCfg', index: 0, scrollY: 0 } }), push));
+  if (panelHOf(g0) !== 956) { bad++; console.error(`FAIL 全局面板高度: ${panelHOf(g0)} (want 956)`); }
+  if (g0.hits.some((h) => h[0] === 'globalPage')) { bad++; console.error('FAIL 全局面板仍注册 globalPage 翻页键'); }
+  const direct = createSkillLoadout({
+    panelShell: renderer._menuPanelShell.bind(renderer),
+    skillIcon: renderer._skillIcon.bind(renderer),
+    wrapText: renderer.wrapText.bind(renderer),
+  }).menuGlobalCfg(makeCtx([]), mkState({ panel: { type: 'globalCfg', index: 0, scrollY: 0 } }), () => {});
+  if (!direct || direct.maxScroll !== 1340 || !direct.viewport || direct.viewport.h !== 788) {
+    bad++; console.error(`FAIL 全局滚动元数据: ${JSON.stringify(direct)}`);
+  }
   if (bad) fail += bad; else pass++;
 }
 

@@ -252,6 +252,13 @@ class Meta {
     m.totalDiamondSpent = d.totalDiamondSpent || 0;
     // v5.2 三消技能三槽配置（旧档无字段 → 默认 cross/rainbow/attack）
     m.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, d.matchSkills || {});
+    // v1.17.45 随机抽取下架：旧档配置了已下架 id（match4 'random'）→ 归一到该槽默认技，防止运行时仍走随机
+    ['match4', 'match5', 'chain'].forEach((slot) => {
+      const cur = m.matchSkills[slot];
+      if (cur && !CONFIG.MATCH_SKILL[slot].some((def) => def.id === cur)) {
+        m.matchSkills[slot] = CONFIG.MATCH_SKILL.default[slot];
+      }
+    });
     m.globalSkills = { slots: GlobalSkills.slots(d.globalSkills) };
     m.skillUnlocks = d.skillUnlocks || {};
     m.shopDaily = d.shopDaily || null;

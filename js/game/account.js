@@ -29,7 +29,6 @@ function switchProfile(game, testing, preset) {
         list.forEach(d => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; m.shards[d.id] = 999; }));
       Object.keys(CONFIG.TOWERS).forEach(k => { m.towerCodex[k] = 1; });
       ['match4','match5','chain'].forEach(slot => { m.skillUnlocks[slot] = CONFIG.MATCH_SKILL[slot].map(d => d.id); });
-      m.skillUnlocks.match4.push('random');
       m.skillUnlocks.global = GlobalSkills.POOL.map(d => d.id);
     }
   }

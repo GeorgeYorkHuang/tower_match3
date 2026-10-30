@@ -13,7 +13,8 @@
  *   - 保留 Renderer 入口与原方法签名，子模块用显式依赖注入，避免复制上下文常量、避免循环 require；
  *   - 绘制层只画，不扣款、不发奖、不变更装备（装备与扣费仍由 main.js 处理）；
  *   - 命中区沿用 push(key, data, x, y, w, h)，键名与旧实现完全一致：
- *       matchCfg{slot} / globalCfg{index} / mSkill{slot,id} / globalPage{page} / panelClose（来自面板外壳）
+ *       matchCfg{slot} / globalCfg{index} / mSkill{slot,id} / panelClose（来自面板外壳）
+ *       （v1.17.45：globalPage 翻页键下架，全局面板改为视口内惯性滚动）
  *
  * 依赖注入（createSkillLoadout）：
  *   panelShell 必填：签名同 render._menuPanelShell(ctx, s, push, title, hgt, centered, pw) → 返回面板顶部 y
@@ -23,7 +24,7 @@
  */
 const CONFIG = require('../../config.js');
 const GlobalSkills = require('../../global-skills.js');
-const { fillRoundRect, strokeRoundRect, text, button } = require('../ui.js');
+const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 
 /** 兜底图标：圆形底 + 图标首字（仅在未注入 skillIcon 时使用，正式接入不允许走到这里） */
 function fallbackSkillIcon(ctx, id, x, y, size, color) {
@@ -70,12 +71,13 @@ function createSkillLoadout(deps = {}) {
   const skillIcon = deps.skillIcon || fallbackSkillIcon;
   const wrapText = deps.wrapText || fallbackWrapText;
 
-  /** 主页技能卡一行（三消 3 卡 / 全局 2 槽）：127.5×170（4:3）+ 左侧竖排逐字标签
+  /** 主页技能卡一行（三消 2 卡 / 全局 2 槽）：127.5×170（4:3）+ 左侧竖排逐字标签
+   *  v1.17.45：三消下架连消技配置槽（match4/match5 双卡，与全局双槽对齐）
    *  原 render._menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) */
   function skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX = 0) {
     const tint = isMatch ? '#b896ff' : '#f4cb79';
-    const keys = isMatch ? ['match4', 'match5', 'chain'] : GlobalSkills.slots(cfg);
-    const labels = ['四连技能', '高连技能', '连消技能'];
+    const keys = isMatch ? ['match4', 'match5'] : GlobalSkills.slots(cfg);
+    const labels = ['四连技能', '高连技能'];
     const ch = Math.min(h, 200) * 0.85, cw = ch * 3 / 4;
     const gap = keys.length > 1 ? (w - keys.length * cw) / (keys.length - 1) : 0;
     const left = x + 90 + cardDX;
@@ -84,7 +86,7 @@ function createSkillLoadout(deps = {}) {
     keys.forEach((key, i) => {
       const id = isMatch ? ((cfg && cfg[key]) || CONFIG.MATCH_SKILL.default[key]) : key;
       const def = isMatch
-        ? (CONFIG.MATCH_SKILL[key].find((d) => d.id === id) || { id: 'random', name: '随机抽取' })
+        ? (CONFIG.MATCH_SKILL[key].find((d) => d.id === id) || CONFIG.MATCH_SKILL[key][0])
         : GlobalSkills.get(id);
       const bx = left + i * (cw + gap), color = def.color || tint;
       text(ctx, isMatch ? labels[i] : '全局槽位 ' + (i + 1), bx + cw / 2, y - 17, 19, '#b4c6df', 'center');
@@ -143,28 +145,59 @@ function createSkillLoadout(deps = {}) {
     return oy + hgt;   // 面板底边（翻页区定位用）
   }
 
-  /** 三消技能槽选择面板（四连 5 + 随机 / 高连 4 / 连消 2），命中键 mSkill{slot,id} */
+  /** 三消技能槽选择面板（四连 5 / 高连 4），命中键 mSkill{slot,id}
+   *  v1.17.45：随机抽取（match4 虚拟选项）下架；连消技不再提供配置入口 */
   function menuMatchCfg(ctx, s, push) {
     const slot = (s.panel && s.panel.slot) || 'match4';
-    const names = { match4: '四连技', match5: '高连技', chain: '连消技' };
+    const names = { match4: '四连技', match5: '高连技' };
     if (!CONFIG.MATCH_SKILL[slot] || !names[slot]) return;
     const items = CONFIG.MATCH_SKILL[slot].slice();
-    if (slot === 'match4') items.unshift({ id: 'random', name: '随机抽取', desc: '每次触发四消时，从五种四连技能中随机抽取一种。' });
     skillChoiceCards(ctx, s, push, names[slot] + ' · 技能选择', slot, items,
       (s.matchSkills && s.matchSkills[slot]) || CONFIG.MATCH_SKILL.default[slot], '#b896ff');
   }
 
-  /** 全局技能槽选择面板（16 技能 / 3 页 / 双槽互换提示），命中键 mSkill{slot:'global',id} + globalPage{page}
-   *  v1.17 视觉验收：翻页区改锚定面板底边（bottom-90/-72/-43），满页时与旧绝对坐标 1150/1168/1197 逐像素一致 */
+  /** 全局技能选择面板（16 技能单列滚动 · 匀减速惯性，命中键 mSkill{slot:'global',id}）
+   *  v1.17.45：翻页下架 → 视口内下滑浏览全部技能（拖动跟手 + 松手惯性，运动参数复用 config/relic-scroll.js）
+   *  滚动态存 s.panel.scrollY（即 game.menuPanel，同一引用）；视口/最大滚动量经返回值交 render 存到
+   *  renderer._globalCfgViewport / _globalCfgMaxScroll，供 input/panel-scroll.js 命中与物理更新使用 */
   function menuGlobalCfg(ctx, s, push) {
     const index = Number(s.panel.index || 0), slots = GlobalSkills.slots(s.globalSkills);
-    const page = Math.max(0, Math.min(2, s.panel.page || 0));
-    const items = GlobalSkills.POOL.slice(page * 6, page * 6 + 6);
-    const bottom = skillChoiceCards(ctx, s, push, '全局槽位 ' + (index + 1) + ' · 技能选择', 'global', items, slots[index], '#f4cb79', { pager: true });
-    text(ctx, '装备与另一槽相同的技能时，自动交换两个槽位', 375, bottom - 43, 16, '#9cacc2', 'center');
-    if (page > 0) { button(ctx, 80, bottom - 90, 130, 36, '‹ 上一页'); push('globalPage', page - 1, 80, bottom - 90, 130, 36); }
-    text(ctx, (page + 1) + ' / 3', 375, bottom - 72, 20, '#f4cb79', 'center');
-    if (page < 2) { button(ctx, 540, bottom - 90, 130, 36, '下一页 ›'); push('globalPage', page + 1, 540, bottom - 90, 130, 36); }
+    const gap = 18, cw = 291, ch = 252, rowH = ch + 16;
+    const items = GlobalSkills.POOL;
+    const rows = Math.ceil(items.length / 2);
+    const contentH = rows * rowH - 16;
+    const viewportH = 3 * rowH - 16;                       // 视口可见 3 行
+    const hintH = 48;                                      // 底部固定提示带
+    const hgt = 120 + viewportH + hintH;
+    const oy = panelShell(ctx, s, push, '全局槽位 ' + (index + 1) + ' · 技能选择', hgt);
+    text(ctx, '仅显示当前槽位可用技能 · 上下滑动浏览', 375, oy + 84, 18, '#9cacc2', 'center');
+    const vy0 = oy + 120;
+    const maxScroll = Math.max(0, contentH - viewportH);
+    const scroll = Math.max(0, Math.min(s.panel.scrollY || 0, maxScroll));
+    s.panel.scrollY = scroll;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(55, vy0, 640, viewportH);
+    ctx.clip();
+    items.forEach((it, i) => {
+      const x = 75 + (i % 2) * (cw + gap), y = vy0 + Math.floor(i / 2) * rowH - scroll;
+      if (y + ch < vy0 - 4 || y > vy0 + viewportH + 4) return;   // 视口外跳过绘制
+      const owned = skillOwned(s, 'global', it.id), selected = it.id === slots[index];
+      fillRoundRect(ctx, x, y, cw, ch, 18, selected ? '#26344a' : '#141f30');
+      strokeRoundRect(ctx, x, y, cw, ch, 18, selected ? '#f4cb79' : (owned ? '#f4cb79' : '#685640'), selected ? 2.5 : 1.2);
+      skillIcon(ctx, it.id, x + cw / 2, y + 46, 60, it.color || '#f4cb79');
+      text(ctx, it.name, x + cw / 2, y + 94, 23, '#f1f5ff', 'center');
+      wrapText(ctx, it.desc || '', cw - 36, 18).forEach((ln, j) => text(ctx, ln, x + 18, y + 126 + j * 24, 18, '#adbed3', 'left'));
+      fillRoundRect(ctx, x + 14, y + ch - 42, cw - 28, 29, 10, selected ? '#665432' : '#223249');
+      const status = selected
+        ? (owned ? '✓ 已配置' : '当前槽位 · 待解锁')
+        : (owned ? '点击配置' : '解锁 · ' + CONFIG.SKILL_UNLOCK.price.global + ' 金币');
+      text(ctx, status, x + cw / 2, y + ch - 27, 16, selected ? '#ffe0a0' : '#b9cee7', 'center');
+      push('mSkill', { slot: 'global', id: it.id }, x, y, cw, ch);
+    });
+    ctx.restore();
+    text(ctx, '装备与另一槽相同的技能时，自动交换两个槽位', 375, oy + hgt - 24, 16, '#9cacc2', 'center');
+    return { viewport: { x: 55, y: vy0, w: 640, h: viewportH }, maxScroll };
   }
 
   return { skillCards, skillOwned, skillChoiceCards, menuMatchCfg, menuGlobalCfg };

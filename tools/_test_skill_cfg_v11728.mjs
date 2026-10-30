@@ -83,19 +83,19 @@ const clearToasts = () => { game.toasts.length = 0; };
 const resetMeta = () => {
   game.meta.gold = 0;
   game.meta.skillUnlocks = {};
-  game.meta.matchSkills = { match4: 'random', match5: 'rainbow', chain: 'attack' };
+  game.meta.matchSkills = { match4: 'row', match5: 'rainbow', chain: 'attack' };
   game.meta.globalSkills = { slots: ['shuffle', 'refill'] };
   clearToasts();
 };
 
 /* ===================================================================== */
-console.log('\n=== 1. 主页两行：三消三槽 + 双全局槽 ===');
+console.log('\n=== 1. 主页两行：三消双槽 + 双全局槽（v1.17.45 连消配置下架） ===');
 resetMeta();
 let R = renderMenu(null);
 const mHits = hitsOf(R.hits, 'matchCfg');
 const gHits = hitsOf(R.hits, 'globalCfg');
-eq(mHits.length, 3, '三消技能行注册 3 个 matchCfg 命中区');
-eq(mHits.map((h) => h.data.slot).join(','), 'match4,match5,chain', '三槽顺序 match4/match5/chain');
+eq(mHits.length, 2, '三消技能行注册 2 个 matchCfg 命中区（连消卡已下架）');
+eq(mHits.map((h) => h.data.slot).join(','), 'match4,match5', '双槽顺序 match4/match5');
 eq(gHits.length, 2, '全局技能行注册 2 个 globalCfg 命中区（双槽，无第三格）');
 eq(gHits.map((h) => h.data.index).join(','), '0,1', '双槽 index 0/1');
 ok(mHits.every((h) => h.rect.w === 127.5 && h.rect.h === 170), '技能卡 3:4 尺寸 127.5x170', mHits.map((h) => fmt(h.rect)).join(' '));
@@ -103,7 +103,8 @@ eq(mHits[0].rect.x, 155, '三消首卡 x=155（标签列右缘 + 55）');
 eq(mHits[0].rect.y, 1010, '三消行 y=1010');
 eq(gHits[0].rect.y, 1244, '全局行 y=1244（卡片边缘间距仍为64）');
 eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 185, '全局双卡间距 185');
-ok(has(R.texts, '四连技能') && has(R.texts, '高连技能') && has(R.texts, '连消技能'), '三槽顶部标签文案齐全');
+ok(has(R.texts, '四连技能') && has(R.texts, '高连技能'), '双槽顶部标签文案齐全');
+ok(!has(R.texts, '连消技能'), '「连消技能」标签已下架');
 ok(has(R.texts, '全局槽位 1') && has(R.texts, '全局槽位 2'), '全局双槽标签「全局槽位 1/2」');
 ok(!has(R.texts, '全局槽位 3'), '不存在第三全局槽标签');
 
@@ -116,7 +117,7 @@ for (let i = 0; i < R.hits.length; i++) for (let j = i + 1; j < R.hits.length; j
 eq(intraOverlap, 0, '主页 ' + R.hits.length + ' 个命中区两两不重叠');
 
 /* ===================================================================== */
-console.log('\n=== 2. 三消三槽面板：候选数与文案 ===');
+console.log('\n=== 2. 三消面板：候选数与文案（v1.17.45 随机抽取/连消下架） ===');
 const panelCase = (slot, expectN, expectTitle) => {
   resetMeta();
   const RR = renderMenu({ type: 'matchCfg', slot });
@@ -126,62 +127,87 @@ const panelCase = (slot, expectN, expectTitle) => {
   ok(RR.hits.some((h) => h.key === 'panelClose'), `${slot} 面板有 panelClose`);
   return { cards, RR };
 };
-let C4 = panelCase('match4', 6, '四连技 · 技能选择');
-ok(has(C4.RR.texts, '随机抽取'), '四连面板首张为「随机抽取」');
+let C4 = panelCase('match4', 5, '四连技 · 技能选择');
+ok(!has(C4.RR.texts, '随机抽取'), '「随机抽取」虚拟选项已下架');
 panelCase('match5', 4, '高连技 · 技能选择');
-panelCase('chain', 2, '连消技 · 技能选择');
+resetMeta();
+const chainRR = renderMenu({ type: 'matchCfg', slot: 'chain' });
+eq(hitsOf(chainRR.hits, 'mSkill').length, 0, '连消技不再提供配置面板（无候选卡）');
+ok(!chainRR.hits.some((h) => h.key === 'panelClose'), '连消技面板无外壳（入口已下架）');
 
-/** 状态条三分支 */
+/** 状态条三分支（改用 match5 验证，chain 面板已下架） */
 console.log('\n=== 3. 状态条三分支（✓已配置 / 点击配置 / 解锁价） ===');
 resetMeta();
-let RS = renderMenu({ type: 'matchCfg', slot: 'chain' });
+let RS = renderMenu({ type: 'matchCfg', slot: 'match5' });
 ok(has(RS.texts, '✓ 已配置'), '已配置且已解锁 → 「✓ 已配置」');
-ok(has(RS.texts, '解锁 · ' + CONFIG.SKILL_UNLOCK.price.chain + ' 金币'), '未解锁 → 「解锁 · N 金币」');
+ok(has(RS.texts, '解锁 · ' + CONFIG.SKILL_UNLOCK.price.match5 + ' 金币'), '未解锁 → 「解锁 · N 金币」');
 resetMeta();
-game.meta.skillUnlocks = { chain: ['attack', 'skill'] };   // 全部解锁，则另一张应为「点击配置」
-RS = renderMenu({ type: 'matchCfg', slot: 'chain' });
+game.meta.skillUnlocks = { match5: ['rainbow', 'scan', 'recolor', 'seed'] };   // 全部解锁，则另一张应为「点击配置」
+RS = renderMenu({ type: 'matchCfg', slot: 'match5' });
 ok(has(RS.texts, '点击配置'), '已解锁未选中 → 「点击配置」');
 ok(!has(RS.texts, '解锁 ·'), '全解锁后面板不再出现解锁价');
 
 /* ===================================================================== */
-console.log('\n=== 4. 全局面板：16 技能 / 3 页 / 翻页命中 ===');
-const gpCase = (page) => {
+console.log('\n=== 4. 全局面板：16 技能滚动浏览（v1.17.45 翻页下架） ===');
+const gpCase = (scrollY) => {
   resetMeta();
-  const RR = renderMenu({ type: 'globalCfg', index: 0, page });
+  const RR = renderMenu({ type: 'globalCfg', index: 0, scrollY });
   const cards = hitsOf(RR.hits, 'mSkill');
   const pager = hitsOf(RR.hits, 'globalPage');
   return { RR, cards, pager };
 };
-const gp0 = gpCase(0), gp1 = gpCase(1), gp2 = gpCase(2);
-eq(gp0.cards.length, 6, '第 1 页 6 张');
-eq(gp1.cards.length, 6, '第 2 页 6 张');
-eq(gp2.cards.length, 4, '第 3 页 4 张（16 池尾页）');
-ok(has(gp0.RR.texts, '1 / 3') && has(gp1.RR.texts, '2 / 3') && has(gp2.RR.texts, '3 / 3'), '页码文案 1/3、2/3、3/3');
-eq(gp0.pager.map((h) => h.data).join(','), '1', '第 1 页只有「下一页 → 1」');
-eq(gp1.pager.map((h) => h.data).sort().join(','), '0,2', '第 2 页「上一页 0 / 下一页 2」都在');
-eq(gp2.pager.map((h) => h.data).join(','), '1', '第 3 页只有「上一页 → 1」');
-ok(has(gp0.RR.texts, '下一页 ›') && !has(gp2.RR.texts, '下一页 ›'), '末页无「下一页」按钮');
-ok(has(gp2.RR.texts, '‹ 上一页') && !has(gp0.RR.texts, '‹ 上一页'), '首页无「上一页」按钮');
+const gp0 = gpCase(0);
+eq(gp0.cards.length, 6, '视口可见 6 张（3 行 × 2 列）');
+eq(gp0.pager.length, 0, '翻页命中键已下架（无 globalPage）');
+ok(!has(gp0.RR.texts, '下一页 ›') && !has(gp0.RR.texts, '‹ 上一页'), '翻页按钮文案不再出现');
 ok(has(gp0.RR.texts, '装备与另一槽相同的技能时，自动交换两个槽位'), '互换提示文案存在');
-// 翻页按钮与卡片不重叠、且在面板内
-const cardRects = gp0.cards.map((h) => h.rect);
-ok(gp0.pager.every((p) => cardRects.every((c) => !overlap(p.rect, c))), '翻页按钮不与任何卡片重叠');
-ok(gp2.pager.every((p) => hitsOf(gp2.RR.hits, 'mSkill').map((h) => h.rect).every((c) => !overlap(p.rect, c))), '末页翻页按钮不与卡片重叠');
-ok(gp2.pager.every((p) => p.rect.y + p.rect.h < 1626), '末页翻页按钮在屏内', fmt(gp2.pager[0].rect));
+ok(has(gp0.RR.texts, '上下滑动浏览'), '滑动浏览提示文案存在');
+ok(game.renderer._globalCfgViewport && game.renderer._globalCfgMaxScroll === 1340,
+  '视口/最大滚动量暴露给滚动器（16 项 8 行 → maxScroll=1340）', JSON.stringify(game.renderer._globalCfgViewport));
+// 视口内卡片全部落在视口 y 范围内（整行滚动）
+const vp = game.renderer._globalCfgViewport;
+ok(gp0.cards.every((h) => h.rect.y >= vp.y - 0.5 && h.rect.y + h.rect.h <= vp.y + vp.h + 0.5), '可见卡片均在视口内', gp0.cards.map((h) => fmt(h.rect)).join(' '));
+// 滚到底：最后两个技能可见
+const gpEnd = gpCase(1340);
+const endIds = gpEnd.cards.map((h) => h.data.id);
+eq(gpEnd.cards.length, 6, '滚到底仍可见 6 张（尾行 2 张 + 前两行）');
+ok(endIds.indexOf(GlobalSkills.POOL[15].id) >= 0, `滚动到底可见末位技能 ${GlobalSkills.POOL[15].id}`, endIds.join(','));
+// 滚动量越界钳制
+const gpOver = gpCase(9999);
+ok(hitsOf(gpOver.RR.hits, 'mSkill').every((h) => h.rect.y >= vp.y - 0.5), '越界滚动量被钳制到 maxScroll');
 
-// 点击翻页：走 main.js 的 globalPage 分支
-console.log('\n=== 5. 翻页点击链路 ===');
+/* ===================================================================== */
+console.log('\n=== 5. 滚动链路：begin/move/end + 惯性（panel-scroll.js） ===');
 resetMeta();
-renderMenu({ type: 'globalCfg', index: 0, page: 0 });
-tapKey('globalPage', (d) => d === 1);
-eq(game.menuPanel.page, 1, '点「下一页」→ page=1');
-renderMenu({ type: 'globalCfg', index: 0, page: 1 });
-tapKey('globalPage', (d) => d === 2);
-eq(game.menuPanel.page, 2, '再点「下一页」→ page=2');
-renderMenu({ type: 'globalCfg', index: 0, page: 2 });
-ok(!game.menuHits.some((h) => h.key === 'globalPage' && h.data === 3), '第 3 页不存在「下一页」命中区（无越界入口）');
-tapKey('globalPage', (d) => d === 1);
-eq(game.menuPanel.page, 1, '点「上一页」→ page=1');
+renderMenu({ type: 'globalCfg', index: 0, scrollY: 0 });
+const _ps = await import('../js/game/input/panel-scroll.js');
+const PScroll = _ps.default || _ps;                       // 单例（真实时钟，用于 begin 视口判定）
+let fakeNow = 1000;
+const PClock = _ps.createPanelScroller({ now: () => fakeNow });   // 注入时钟（用于惯性采样）
+const pIn = { x: 375, y: vp.y + vp.h / 2 };
+ok(PClock.begin(game, pIn) === true, '视口内 begin 返回 true');
+ok(!PClock.begin(game, { x: 375, y: vp.y - 50 }), '视口外 begin 返回 false（走点击分发）');
+fakeNow = 1050;
+PClock.move(game, { x: 375, y: pIn.y - 30 });   // 上滑 30px（超过 dragThreshold）
+fakeNow = 1100;
+PClock.move(game, { x: 375, y: pIn.y - 60 });   // 100ms 内累计上滑 60px → 速度 600px/s
+eq(game.menuPanel.scrollY, 60, '拖动跟手：scrollY=60');
+PClock.end(game);
+ok(game._panelScrollVelocity > 0, '松手后获得向下惯性速度', String(game._panelScrollVelocity));
+const v0 = game._panelScrollVelocity;
+for (let i = 0; i < 30; i++) PScroll.update(game, 0.016);
+ok(game.menuPanel.scrollY >= 60, '惯性推进滚动位置', String(game.menuPanel.scrollY));
+ok(game._panelScrollVelocity < v0 || game.menuPanel.scrollY >= 1340, '匀减速：速度单调衰减（或已到边界）');
+// 边界钳制
+for (let i = 0; i < 600; i++) PScroll.update(game, 0.016);
+ok(game.menuPanel.scrollY <= 1340, '惯性不越过 maxScroll', String(game.menuPanel.scrollY));
+game.menuPanel.scrollY = 0; game._panelScrollVelocity = -3000;
+for (let i = 0; i < 600; i++) PScroll.update(game, 0.016);
+ok(game.menuPanel.scrollY >= 0, '反向惯性不越过 0', String(game.menuPanel.scrollY));
+// 面板关闭后滚动器休眠
+game.menuPanel = null;
+PScroll.update(game, 0.016);
+ok(game._panelDrag == null, '面板关闭后无残留拖拽态');
 
 /* ===================================================================== */
 console.log('\n=== 6. 购买：金币不足 / 金币足够 ===');
@@ -192,7 +218,7 @@ renderMenu({ type: 'matchCfg', slot: 'match4' });
 tapKey('mSkill', (d) => d.id === 'cross');
 eq(game.meta.gold, 100, '金币不足时不扣款');
 ok(!game.meta.skillUnlocked('match4', 'cross'), '金币不足时未解锁');
-eq(game.meta.matchSkills.match4, 'random', '金币不足时配置不变');
+eq(game.meta.matchSkills.match4, 'row', '金币不足时配置不变');
 ok(lastToast().indexOf('金币不足') >= 0, '提示「金币不足」', lastToast());
 
 resetMeta();
@@ -219,11 +245,11 @@ game.meta.globalSkills = { slots: ['shuffle', 'refill'] };
 // 记录项：槽 2 默认装备 refill，但 SKILL_UNLOCK.defaults.global 只有 shuffle
 resetMeta();
 game.meta.globalSkills = { slots: ['shuffle', 'refill'] };
-let R1 = renderMenu({ type: 'globalCfg', index: 1, page: 0 });
+let R1 = renderMenu({ type: 'globalCfg', index: 1, scrollY: 0 });
 ok(has(R1.texts, '✓ 已配置'), '默认补给免费解锁，正确显示已配置');
 game.meta.gold = 9999;
 // 先解锁 refill
-renderMenu({ type: 'globalCfg', index: 0, page: 0 });
+renderMenu({ type: 'globalCfg', index: 0, scrollY: 0 });
 tapKey('mSkill', (d) => d.id === 'refill');
 ok(game.meta.skillUnlocked('global', 'refill'), 'refill 已解锁');
 eq(GlobalSkills.slots(game.meta.globalSkills).join(','), 'refill,shuffle', '槽 0 配 refill → 与槽 1 的 refill 互换，槽 1 回落 shuffle');
@@ -269,7 +295,7 @@ eq(pc[1].x - (pc[0].x + pc[0].w), 18, '两列间距 18');
 eq(pc[2].y - (pc[0].y + pc[0].h), 16, '行距 = 252 + 16');
 let pcOverlap = 0;
 for (let i = 0; i < pc.length; i++) for (let j = i + 1; j < pc.length; j++) if (overlap(pc[i], pc[j])) pcOverlap++;
-eq(pcOverlap, 0, '6 张候选卡两两不重叠');
+eq(pcOverlap, 0, '5 张候选卡两两不重叠');
 const close = game.menuHits.find((h) => h.key === 'panelClose');
 ok(!!close, 'panelClose 存在');
 ok(pc.every((r) => r.y > close.rect.y), '候选卡在标题下方');

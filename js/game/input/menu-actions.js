@@ -94,7 +94,7 @@ function onMenuTap(game, p) {
           return;
         }
       }
-      for (const hit of game.menuHits) { if (hit.key === 'globalPage' && hit.hit(p.x,p.y)) { game.menuPanel.page = hit.data; return; } }
+      // v1.17.45：globalPage 翻页键已下架（全局面板改为视口内惯性滚动，触摸由 panel-scroll.js 处理）
       return; // 面板打开时忽略底层按钮
     }
     for (const it of game.menuHits) {
@@ -114,8 +114,8 @@ function onMenuTap(game, p) {
           game.menuPanel = { type: 'matchCfg', slot: it.data && it.data.slot || 'match4' };
           return;
         case 'globalCfg':
-          // v5.3 主页全局技能配置行 → 全局技能配置面板
-          game.menuPanel = { type: 'globalCfg', index: it.data && it.data.index || 0, page: 0 };
+          // v5.3 主页全局技能配置行 → 全局技能配置面板（v1.17.45 滚动版：scrollY 归零）
+          game.menuPanel = { type: 'globalCfg', index: it.data && it.data.index || 0, scrollY: 0 };
           return;
         case 'relicPage': {
           // v1.16.78 圣物图鉴：翻页

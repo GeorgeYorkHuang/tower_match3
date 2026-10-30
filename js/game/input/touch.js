@@ -1,4 +1,5 @@
 const RelicScroll = require('./relic-scroll.js');
+const PanelScroll = require('./panel-scroll.js');
 'use strict';
 // One gesture lifetime shared by wx and canvas channels; caller injects the main canvas.
 function bindTouch(game, c) {
@@ -18,8 +19,11 @@ function bindTouch(game, c) {
       const p = touchPoint(e);
       if (!p) return;
       RelicScroll.stop(game);
+      PanelScroll.stop(game);
       // Menu input must never be gated by the board gesture lock.
       if (game.state === 'menu' && !(game.menuTab === 'relic' && !game.menuPanel)) {
+        // v1.17.45 全局技能面板：视口内触摸 → 进入滚动拖拽（点击延迟到 touchend 补发，拖动不触发卡点）
+        if (PanelScroll.begin(game, p)) return;
         game.dispatchTouch(p);
         return;
       }
@@ -45,6 +49,11 @@ function bindTouch(game, c) {
       // v1.16.82 圣遗物页拖动滚动
       if (game._relicDrag && p) {
         RelicScroll.move(game, p);
+        return;
+      }
+      // v1.17.45 全局技能面板拖动滚动
+      if (game._panelDrag && p) {
+        PanelScroll.move(game, p);
         return;
       }
       if (game.towerInfo) return; // 详情弹层打开时锁定交换
@@ -80,6 +89,13 @@ function bindTouch(game, c) {
         if (!d.moved && game.state === 'menu') game.dispatchTouch(d.p);
         return;
       }
+      // v1.17.45 全局技能面板：未拖动 → 补发点击；已拖动 → 吞掉
+      if (game._panelDrag) {
+        const d = PanelScroll.end(game);
+        game._touchStart = null; moved = false; startCell = null; lastCell = null; game.selected = null;
+        if (!d.moved && game.state === 'menu') game.dispatchTouch(d.p);
+        return;
+      }
       // 点击交换：无滑动 + 战斗态 + 无动画 → 选中/交换/取消
       if (!moved && startCell && game.state === 'fighting' && !game.anim && !game.swapped) {
         const [r, c] = startCell;
@@ -108,6 +124,7 @@ function bindTouch(game, c) {
       startCell = null; lastCell = null;
       moved = false;
       RelicScroll.cancel(game);
+      PanelScroll.cancel(game);
       game._touchStart = null;
       game.selected = null;
       game.pickCell = null;

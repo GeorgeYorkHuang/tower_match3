@@ -4335,7 +4335,10 @@ class Renderer {
   }
 
   menuGlobalCfg(ctx, s, push) {
-    return this._getSkillLoadout().menuGlobalCfg(ctx, s, push);
+    // v1.17.45 全局面板滚动：视口/最大滚动量回存 renderer，供 input/panel-scroll.js 使用
+    const ret = this._getSkillLoadout().menuGlobalCfg(ctx, s, push);
+    if (ret && ret.viewport) { this._globalCfgViewport = ret.viewport; this._globalCfgMaxScroll = ret.maxScroll; }
+    return ret;
   }
 
   /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */

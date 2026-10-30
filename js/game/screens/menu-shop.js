@@ -53,12 +53,11 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned }) {
         text(ctx, `明日再来 ${left}/${cd.daily}`, cx + cbw / 2, cy + 148, 13, '#ff6b6b', 'center');
       }
     });
-    // —— 3. 技能解锁（三消 3 组 + 全局 2 款，金币购买）——
+    // —— 3. 技能解锁（三消 2 组 + 全局 2 款，金币购买；v1.17.45 连消技配置下架，不再售卖）——
     text(ctx, '技能解锁', 55, 722, 26, '#ffffff', 'left');
     const groups = [
       { slot: 'match4', label: '四连技', items: CONFIG.MATCH_SKILL.match4 },
       { slot: 'match5', label: '高连技', items: CONFIG.MATCH_SKILL.match5 },
-      { slot: 'chain', label: '连消技', items: CONFIG.MATCH_SKILL.chain },
       { slot: 'global', label: '全局', items: [
         { id: 'shuffle', name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, mark: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
         { id: 'refill', name: CONFIG.GLOBAL_SKILL.refillSkill.name, mark: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },

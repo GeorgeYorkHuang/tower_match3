@@ -34,7 +34,7 @@ module.exports = {
       { id: 'attack', name: '连锁攻击', desc: '连锁三消在消除格位置生成对应塔子弹，随机分散索敌，攻击力不受塔能量影响' },
       { id: 'skill',  name: '连锁技能', desc: '直接释放对应塔随机一个周期技能（不受周期影响）；未配置周期技则补 5 能量' },
     ],
-    default: { match4: 'random', match5: 'rainbow', chain: 'attack' },  // 旧档 / 未配置默认（match4 随机 5 款抽取）
+    default: { match4: 'row', match5: 'rainbow', chain: 'attack' },  // 旧档 / 未配置默认（v1.17.45 随机抽取下架，match4 默认行爆）
     chainStart: 4,            // 连续消除从第 4 组起算连锁
     chainEnergy: 5,           // 连锁技能兜底：未配置周期技 → 对应塔 +5 能量
     blastBlockEnergy: 2,      // v5.6.6 爆炸波及格按块充能：每格给对应颜色塔充能点数（塔激活以三消为准）
@@ -138,7 +138,7 @@ module.exports = {
   ],
 
   SKILL_UNLOCK: {
-    defaults: { match4: ['row', 'random'], match5: ['rainbow'], chain: ['attack'], global: ['shuffle', 'refill'] },
+    defaults: { match4: ['row'], match5: ['rainbow'], global: ['shuffle', 'refill'] },   // v1.17.45 下架：随机抽取(match4)、连消技配置(chain)
     price: { match4: 800, match5: 1200, chain: 1000, global: 2000 },
   },
 
