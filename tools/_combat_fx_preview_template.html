@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<!-- 战斗表现预览（伤害数字 + 连消全格弹道）：由 tools/_build_combat_fx_preview.mjs 生成 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>战斗表现预览 · 连消全格弹道 + 伤害数字</title>
+<style>
+  html,body{margin:0;background:#0b1118;color:#dfe8f5;font-family:sans-serif}
+  canvas{display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<canvas id="cv" width="750" height="1200"></canvas>
+<script>
+window.onerror = function (msg, src, line, col, err) {
+  const c = document.getElementById('cv').getContext('2d');
+  c.fillStyle = '#3a0d0d'; c.fillRect(0, 0, 750, 140);
+  c.fillStyle = '#ff9c9c'; c.font = '16px sans-serif'; c.textAlign = 'left'; c.textBaseline = 'top';
+  c.fillText('预览脚本错误: ' + msg, 12, 12);
+  if (err && err.stack) c.fillText(String(err.stack).slice(0, 160), 12, 40);
+};
+</script>
+<script>const MOD_SRC = {/*__MODULES__*/};</script>
+<script>
+/* ---------- 极简 CJS 加载器（与 _skill_shot_template.html 同机制） ---------- */
+const factories = {}, cache = {};
+for (const path in MOD_SRC) {
+  const bin = atob(MOD_SRC[path]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const src = new TextDecoder('utf-8').decode(bytes);
+  factories[path] = new Function('require', 'module', 'exports', src + '\n//# sourceURL=' + path);
+}
+function norm(p) {
+  const out = [];
+  for (const seg of p.split('/')) {
+    if (seg === '.' || seg === '') continue;
+    if (seg === '..') out.pop(); else out.push(seg);
+  }
+  return out.join('/');
+}
+function resolvePath(from, req) {
+  if (req.startsWith('.')) {
+    const base = from.split('/').slice(0, -1).join('/');
+    let p = norm(base + '/' + req);
+    if (!factories[p]) p = norm(p + '.js');
+    return p;
+  }
+  return norm(req);
+}
+function makeRequire(from) {
+  return function (req) {
+    const target = resolvePath(from, req);
+    if (cache[target]) return cache[target].exports;
+    const f = factories[target];
+    if (!f) throw new Error('未内联模块：' + target);
+    const mod = { exports: {} };
+    cache[target] = mod;
+    f(makeRequire(target), mod, mod.exports);
+    return mod.exports;
+  };
+}
+const req = makeRequire('preview.js');
+
+const PRES = req('js/config/combat-presentation.js');
+const CA = req('js/skills/chain-attacks.js');
+const DN = req('js/game/fx/damage-numbers.js');
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* ---------- 示例消除序列（与真实 stepList 同结构） ---------- */
+const CELL = (r, c, color) => ({ r, c, color });
+const steps = [
+  { clearedDetails: [CELL(1, 1, 'red'), CELL(1, 2, 'red'), CELL(2, 1, 'red')] },                       // 第1组：不计连消
+  { clearedDetails: [CELL(3, 4, 'blue'), CELL(3, 5, 'blue'), CELL(4, 4, 'blue')] },                     // 第2组
+  { clearedDetails: [CELL(5, 7, 'yellow'), CELL(5, 8, 'yellow'), CELL(6, 8, 'yellow')] },               // 第3组
+  { clearedDetails: [CELL(2, 5, 'red'), CELL(2, 6, 'red'), CELL(3, 5, 'red'), CELL(3, 6, 'red'),       // 第4组：4消 + 爆炸重复格
+    CELL(4, 6, 'red'), CELL(3, 6, 'red')], matches: [] },
+  { clearedDetails: [CELL(4, 1, 'purple'), CELL(4, 2, 'purple'), CELL(5, 1, 'purple'), CELL(5, 2, 'purple'), CELL(3, 1, 'purple')] }, // 第5组：5消
+  { clearedDetails: [CELL(0, 8, 'blue'), CELL(0, 9, 'blue'), CELL(0, 10, 'blue'), CELL(1, 9, 'green'), CELL(1, 10, 'green'), CELL(2, 10, 'green'),
+    CELL(3, 9, 'yellow'), CELL(3, 10, 'yellow'), CELL(4, 9, 'yellow')],
+    matches: [{ cells: [[0, 8], [0, 9], [0, 10]], rainbow: true, color: 'blue' }] },                   // 第6组：彩虹组跳过 + 3绿 + 3黄(电塔未出战→充能回退)
+];
+
+const ORIGIN_X = 45, ORIGIN_Y = 520;
+const plan = CA.plan({
+  steps,
+  session: undefined,
+  layout: { cols: 11, cell: 60, originX: ORIGIN_X, originY: ORIGIN_Y },
+  activeTowers: ['fire', 'ice', 'poison', 'boomerang', 'cannon'],   // 电塔故意未出战 → 观察 charge 回退
+});
+const byStep = plan.shotsByStep;
+
+/* ---------- 伤害数字：把每个弹道"命中"转成事件 ---------- */
+const dn = DN.create();
+const targets = [
+  { x: 250, y: 210, id: 'e1' },
+  { x: 400, y: 180, id: 'e2' },
+  { x: 540, y: 215, id: 'e3' },
+];
+
+/* ---------- 动画：按级播发，命中时冒数字 ---------- */
+const PER_STEP = 0.55;       // 每级消除占用时长
+let t0 = performance.now();
+const fired = new Set();
+const flyers = [];
+
+function colorOf(c) {
+  const map = { red: '#e74c3c', blue: '#4aa3df', green: '#58d68d', yellow: '#f4d03f', purple: '#af7ac5', orange: '#e67e22' };
+  return map[c] || '#7f8c9b';
+}
+
+function frame(now) {
+  const t = (now - t0) / 1000;
+  ctx.clearRect(0, 0, 750, 1200);
+
+  /* 标题与统计 */
+  ctx.fillStyle = '#dfe8f5'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText('连消全格弹道 + 伤害数字 · 预览', 30, 40);
+  ctx.font = '18px sans-serif'; ctx.fillStyle = '#8fa4bd';
+  ctx.fillText('第 4 组起算连消｜同步去重｜彩虹跳过｜未出战颜色走充能回退', 30, 74);
+
+  const s = plan.stats;
+  const lines = [
+    `弹道条目 ${s.emitted}（去重 ${s.duplicate}｜跳彩虹 ${s.skippedRainbow}｜充能回退 ${s.charge}）`,
+    `伤害数字：活跃 ${dn.stats().active}｜合并 ${dn.stats().merged}｜单帧上限 ${PRES.damageNumbers.maxActive}`,
+  ];
+  ctx.font = '17px sans-serif'; ctx.fillStyle = '#6f8399';
+  lines.forEach((ln, i) => ctx.fillText(ln, 30, 104 + i * 24));
+
+  /* 敌人 */
+  targets.forEach((tg, i) => {
+    ctx.beginPath(); ctx.fillStyle = ['#8e5b3a', '#4f6a86', '#5d7a4a'][i];
+    ctx.arc(tg.x, tg.y, 34, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#cfe0f0'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('敌人 ' + (i + 1), tg.x, tg.y + 56);
+  });
+
+  /* 棋盘格 */
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 11; c++) {
+      const x = ORIGIN_X + c * 60, y = ORIGIN_Y + r * 60;
+      ctx.fillStyle = 'rgba(255,255,255,0.035)';
+      ctx.fillRect(x + 1, y + 1, 57, 57);
+    }
+  }
+  /* 已消除格：按快照颜色高亮（越晚的级次越亮） */
+  steps.forEach((st, si) => {
+    const active = t >= si * PER_STEP && t < si * PER_STEP + PER_STEP * 1.15;
+    if (!active) return;
+    const k = (t - si * PER_STEP) / PER_STEP;
+    st.clearedDetails.forEach((d) => {
+      const x = ORIGIN_X + d.c * 60, y = ORIGIN_Y + d.r * 60;
+      ctx.globalAlpha = Math.max(0, 0.55 * (1 - k));
+      ctx.fillStyle = colorOf(d.color);
+      ctx.fillRect(x + 3, y + 3, 54, 54);
+      ctx.globalAlpha = 1;
+    });
+  });
+
+  /* 连消弹道：本级起飞 → 飞向最近敌人 */
+  for (let si = 0; si < steps.length; si++) {
+    const shots = byStep[si] || [];
+    const start = si * PER_STEP + 0.1;
+    const tt = t - start;
+    if (tt < 0 || !shots.length) continue;
+    if (!fired.has(si)) {
+      fired.add(si);
+      shots.forEach((sh, i) => {
+        const tg = targets[sh.seq % targets.length];
+        flyers.push({ sh, tg, born: t, delay: i * 0.012 });
+      });
+    }
+  }
+  flyers.forEach((f) => {
+    const age = t - f.born - f.delay;
+    if (age < 0 || age > 0.55) return;
+    const p = age / 0.55;
+    const x = f.sh.x + (f.tg.x - f.sh.x) * p;
+    const y = f.sh.y + (f.tg.y - f.sh.y) * p - Math.sin(p * Math.PI) * 40;
+    const col = f.sh.kind === 'charge' ? PRES.damageNumbers.palette.unknown
+      : f.sh.kind === 'neutral' ? '#ffffff' : PRES.colorOf(f.sh.towerKey);
+    ctx.globalAlpha = 1 - p * 0.35;
+    ctx.beginPath(); ctx.arc(x, y, f.sh.kind === 'tower' ? 7 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.globalAlpha = 1;
+    if (p > 0.96) {
+      // 命中即冒数字（真实接法在 damage() 扣血后发事件，这里只演示表现）
+      dn.push({
+        enemyId: f.tg.id,
+        x: f.tg.x, y: f.tg.y - 24,
+        sourceKey: f.sh.kind === 'tower' ? f.sh.towerKey : 'unknown',
+        amount: f.sh.kind === 'tower' ? 40 + (f.sh.seq % 7) * 9 : 6,
+        kind: f.sh.kind === 'tower' ? 'hit' : 'dot',
+      });
+    }
+  });
+
+  dn.step(1 / 60);
+  dn.drawTo(ctx, {
+    text: (c, str, x, y, size, color, align) => {
+      c.font = 'bold ' + Math.round(size) + 'px sans-serif';
+      c.textAlign = align || 'center'; c.textBaseline = 'middle';
+      c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillText(str, x + 1.5, y + 2);
+      c.fillStyle = color; c.fillText(str, x, y);
+    },
+  });
+
+  /* 图例 */
+  const legend = [
+    ['#ff7043', '火塔弹道'], ['#7fd4ff', '冰塔弹道'], ['#7ee2a8', '毒塔弹道'],
+    ['#c39bd3', '镖塔弹道'], ['#cfd8e3', '充能回退 / 未出战颜色'], ['#ffffff', '彩虹通用弹'],
+  ];
+  ctx.textAlign = 'left'; ctx.font = '16px sans-serif';
+  legend.forEach((lg, i) => {
+    const x = 30 + (i % 3) * 240, y = 1120 + Math.floor(i / 3) * 30;
+    ctx.beginPath(); ctx.arc(x + 7, y, 7, 0, Math.PI * 2); ctx.fillStyle = lg[0]; ctx.fill();
+    ctx.fillStyle = '#9db0c6'; ctx.fillText(lg[1], x + 22, y + 1);
+  });
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
