@@ -1,3 +1,4 @@
+const WaveRelics = require('./relics/wave-hooks.js');
 const MatchRelics = require('./relics/match-hooks.js');
 const GS_BALANCE = require('./config/global-balance.js');
 /**
@@ -200,11 +201,7 @@ class Run {
   }
 
   /** v1.16.96 赏金猎人3★：连续3波不掉宝箱时，第4波必掉（调用方在掉落判定处消费） */
-  bountyGuarantee() {
-    if (!this.relic3('cm_bounty') || this._bountyStreak < 3) return false;
-    this._bountyStreak = 0;
-    return true;
-  }
+  bountyGuarantee() { return WaveRelics.bountyGuarantee(this); }
 
   _weightsFor() {
     const keys = CONFIG.DIFFICULTY.activeColors[this.difficulty] || this._colors;
@@ -567,19 +564,7 @@ class Run {
       if (f.windEvery && this.wave % f.windEvery === 0) this.windStacks = (this.windStacks || 0) + 1;
       if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
     }
-    // v1.16.78 战术转移：每波免费洗牌 +N 次（按星级）；v1.16.96 3★ 额外 +1 次
-    const shN = this.relicNum('cm_shuffle');
-    if (shN > 0) {
-      this.freeShuffle += shN + (this.relic3('cm_shuffle') ? 1 : 0);
-      this.relicFx('cm_shuffle', `免费洗牌 +${shN + (this.relic3('cm_shuffle') ? 1 : 0)}`); // v1.17 生效提示
-    }
-    // v1.16.96 金库3★：记录波初城墙血（波末无伤判定）；赏金猎人3★：连续无宝箱波计数
-    this._waveStartHp = this.lineHp;
-    if (this.relic3('cm_bounty')) {
-      if (this._waveChestDropped) this._bountyStreak = 0;
-      else this._bountyStreak += 1;
-    }
-    this._waveChestDropped = false;
+    WaveRelics.startWave(this);
     this._waveGold = CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
     return this.wave;
   }
@@ -591,25 +576,7 @@ class Run {
    * @returns {broken, leak, enemyHp, totalDps, waveGold, firstSynergyWave}
    */
   endWave(skipLeak) {
-    // v1.16.78 金库：每波结束银币 +N%（按星级）；v1.16.96 3★：本波城墙无伤时银币额外 +30%
-    this.gold += Math.round(this._waveGold * (1 + this.relicNum('cm_vault') / 100));
-    if (this.relic3('cm_vault') && this.lineHp >= this._waveStartHp - 0.001) {
-      this.gold += Math.round(this._waveGold * 0.3);
-      this.relicFx('cm_vault', '无伤银币 +30%'); // v1.17 生效提示
-    }
-    // v1.16.78 生命回复：每波结束城墙回复 N% 生命；v1.16.96 3★：回复溢出转为护盾（上限10%最大血量）
-    const regen = this.relicNum('cm_regen');
-    if (regen > 0) {
-      const maxHp = this.lineMaxHp || CONFIG.LINE.hp;
-      const healed = maxHp * regen / 100;
-      const before = this.lineHp;
-      this.lineHp = Math.min(maxHp, this.lineHp + healed);
-      const overflow = healed - (this.lineHp - before);
-      if (overflow > 0 && this.relic3('cm_regen')) {
-        this.wallShield = Math.min(maxHp * 0.1, this.wallShield + overflow);
-      }
-      this.relicFx('cm_regen', `城墙回复 ${regen}%`); // v1.17 生效提示
-    }
+    WaveRelics.endWave(this);
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
     const windMul = Math.pow(1.10, this.windStacks || 0);
