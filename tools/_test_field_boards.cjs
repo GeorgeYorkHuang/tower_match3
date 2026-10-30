@@ -28,5 +28,5 @@ for(const field of ['ancient','lava','frost','test','abyss']){const g={_waveAliv
 // Render contract: icon-only full slot plus sequential partial yellow/full green beans.
 const fills=[],labels=[],icons=[];const ctx=new Proxy({createLinearGradient:()=>({addColorStop(){}})},{get:(t,k)=>k in t?t[k]:()=>{}});
 const globalBtn=method('js/game/render.js','_globalBtn',{GlobalSkills:{get:()=>({color:'#fff'})},roundRect(){},fillRoundRect:(...args)=>fills.push(args),strokeRoundRect(){},text:(ctx,label)=>labels.push(label)});
-globalBtn.call({_skillIcon:(...args)=>icons.push(args)},ctx,'shuffle','','hidden name',0,0,100,100,1.5,'#ff8c42');assert.equal(icons[0][4],100);assert.equal(labels.length,0);assert(fills.some(a=>a.at(-1)==='#62df97'&&a[3]===24));assert(fills.some(a=>a.at(-1)==='#f4cd52'&&a[3]===12));
-console.log('PASS silent locked switching, normal-field clear gates, icon-only 100px slot and fractional green/yellow charging beans');
+globalBtn.call({_skillIcon:(...args)=>icons.push(args)},ctx,'shuffle','','hidden name',0,0,100,100,1.5,'#ff8c42');assert.equal(icons[0][4],80);assert.equal(icons[0][3],40);assert(fills.some(a=>a[2]===84));assert.equal(labels.length,0);assert(fills.some(a=>a.at(-1)==='#62df97'&&a[3]===24));assert(fills.some(a=>a.at(-1)==='#f4cd52'&&a[3]===12));
+console.log('PASS silent locked switching, normal-field clear gates, icon-only 80px glyph and centered beans and fractional green/yellow charging beans');

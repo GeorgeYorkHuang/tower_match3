@@ -866,13 +866,14 @@ class Renderer {
     roundRect(ctx, bx, by, bw, bh, 8);
     ctx.stroke();
     const skillId=(this._equippedGlobalSlots||['shuffle','refill'])[key==='shuffle'?0:1];
-    // 图标按槽位尺寸显示；充能胶囊叠在槽位底边
-    const iconSz = Math.min(bw, bh);
-    this._skillIcon(ctx,skillId,bx+bw/2,by+bh/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
+    // 图标缩小20%，顶部对齐；胶囊居中于图标下沿与槽位下沿之间
+    const iconSz = Math.min(bw, bh) * 0.8;
+    this._skillIcon(ctx,skillId,bx+bw/2,by+iconSz/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
     // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
     const segW = 24, segH = 12, segGap = 8;
     const sx0 = bx + (bw - (maxCells * segW + (maxCells - 1) * segGap)) / 2;
-    const sy0 = by + bh - 12;
+    const iconBottom = by + iconSz;
+    const sy0 = (iconBottom + by + bh) / 2 - segH / 2;
     for (let i = 0; i < maxCells; i++) {
       const sx = sx0 + i * (segW + segGap);
       const progress=Math.max(0,Math.min(1,filled-i));
@@ -887,11 +888,9 @@ class Renderer {
 
   _speedBadge(ctx,x,y,w,h,speed) {
     const accent=speed>1?'#f5ce73':'#99c8d5';
-    fillRoundRect(ctx,x,y,w,h,Math.min(16,h/2),'#1c2c39');
-    strokeRoundRect(ctx,x+1,y+1,w-2,h-2,Math.min(15,h/2),accent,1.5);
     ctx.save();ctx.strokeStyle=accent;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
-    for(let i=0;i<2;i++){const cx=x+14+i*10,cy=y+h/2;ctx.beginPath();ctx.moveTo(cx-4,cy-7);ctx.lineTo(cx+3,cy);ctx.lineTo(cx-4,cy+7);ctx.stroke();}
-    ctx.restore();text(ctx,'×'+speed,x+w*0.69,y+h/2+7,22,accent,'center');
+    for(let i=0;i<2;i++){const cx=x+w/2-24+i*10,cy=y+h/2;ctx.beginPath();ctx.moveTo(cx-4,cy-7);ctx.lineTo(cx+3,cy);ctx.lineTo(cx-4,cy+7);ctx.stroke();}
+    ctx.restore();text(ctx,'×'+speed,x+w/2+18,y+h/2,22,accent,'center');
   }
 
   board(ctx, grid, selected, anim, shake, theme) {
@@ -3910,8 +3909,6 @@ class Renderer {
     text(ctx, '城墙无敌 · 弹药恒满 · 免三消', 375, 104, 15, '#8ea3b8', 'center');
     push('tf_speed', null, 630, 54, 112, 56);
     const spdCol = s.speed >= 4 ? '#ff8c42' : s.speed >= 2 ? '#f7c948' : '#5b6b7c';
-    fillRoundRect(ctx, 636, 58, 100, 48, 10, 'rgba(0,0,0,0.35)');
-    strokeRoundRect(ctx, 636, 58, 100, 48, 10, spdCol, 1.5);
     this._speedBadge(ctx,636,58,100,48,s.speed);
     // v1.16.113 测试战场：本局圣遗物行（注入即显示；★3 角标 = 3★ 质变生效；点击查看详情）
     const rels = s.battleRelics || [];
