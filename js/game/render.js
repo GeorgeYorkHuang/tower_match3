@@ -1,3 +1,6 @@
+const { createMenuHeader } = require('./screens/menu-header.js');
+const { createMenuShopScreen } = require('./screens/menu-shop.js');
+const { createHomeScreen } = require('./screens/home.js');
 const { createRelicScreen } = require('./screens/relics.js');
 const { createCodexScreen } = require('./screens/codex.js');
 const AccountMenuScreen = require('./screens/account-menu.js');
@@ -4111,6 +4114,11 @@ class Renderer {
     text(ctx, '🧹 清空全部技能', px + pw - 165, by + 32, 20, '#8ea3b8', 'center');
   }
 
+  _menuHeader(ctx, s, push) {
+    if (!this._headerScreen) this._headerScreen = createMenuHeader({ drawImg, IMG_SRC, fmtK });
+    return this._headerScreen(ctx, s, push);
+  }
+
   menuLayer(ctx, s, hits) {
     const items = [];
     const push = (key, data, x, y, w, h) => items.push({ key, data, rect: { x, y, w, h }, hit: (px, py) => px >= x - 0.5 && px <= x + w + 0.5 && py >= y - 0.5 && py <= y + h + 0.5 });
@@ -4122,28 +4130,7 @@ class Renderer {
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
-    // Shared header: square menu button and both currencies on one baseline.
-    const mcy = 110, mch = 52, mw = 164;
-    const menuX = 30, coinX = 102, diamondX = 290;
-    ctx.fillStyle = 'rgba(13,20,31,0.94)';
-    ctx.fillRect(0, 0, 750, 186);
-    ctx.fillStyle = 'rgba(124,168,255,0.26)';
-    ctx.fillRect(0, 185, 750, 1);
-    fillRoundRect(ctx, menuX, mcy, mch, mch, 12, '#263447');
-    strokeRoundRect(ctx, menuX, mcy, mch, mch, 12, '#7ca8ff', 1.2);
-    for (let i = 0; i < 3; i++) fillRoundRect(ctx, menuX + 13, mcy + 15 + i * 10, 26, 3, 1.5, '#eef4ff');
-    push('accountOpen', null, menuX, mcy, mch, mch);
-    fillRoundRect(ctx, coinX, mcy, mw, mch, 26, 'rgba(247,201,72,0.12)');
-    strokeRoundRect(ctx, coinX, mcy, mw, mch, 26, '#f7c948', 1.5);
-    if (IMG_SRC.coin) drawImg(ctx, IMG_SRC.coin, coinX + 12, mcy + 10, 32, 32);
-    else text(ctx, '🪙', coinX + 28, mcy + 26, 26, '#f7c948', 'center');
-    text(ctx, fmtK(s.gold || 0), coinX + 52, mcy + 27, 28, '#f7c948', 'left');
-    fillRoundRect(ctx, diamondX, mcy, mw, mch, 26, 'rgba(124,168,255,0.12)');
-    strokeRoundRect(ctx, diamondX, mcy, mw, mch, 26, '#7ca8ff', 1.5);
-    if (IMG_SRC.diamond) drawImg(ctx, IMG_SRC.diamond, diamondX + 12, mcy + 10, 32, 32);
-    else text(ctx, '💎', diamondX + 28, mcy + 26, 26, '#7ca8ff', 'center');
-    text(ctx, fmtK(s.diamond), diamondX + 52, mcy + 27, 28, '#7ca8ff', 'left');
-    if (s.testProfile) text(ctx, '测试档案', 30, 194, 20, '#f7c948', 'left');
+    this._menuHeader(ctx, s, push);
     // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
     // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
     if (s.tab === 'battle') drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
@@ -4213,198 +4200,22 @@ class Renderer {
   }
 
   /** 战斗主页：战场卡（v1.16.76 战场合约参数化：远古/熔岩/霜风/深渊/测试 5 战场共用一套卡片） */
-  menuBattle(ctx, s, push) {
-    const sx = 80, sy = 400, sw = 590, sh = 392;   // 卡片几何不变
-    const stage = s.stage || 'ancient';
-    const F = CONFIG.FIELDS[stage] || CONFIG.FIELDS.ancient;
-    const isTest = stage === 'test';
-    const tint = F.tint;
-    const tintDark = F.tintDark;
-    const title = F.short;
-    const subtitle = F.subtitle;
-    push('stage', { id: stage }, sx, sy, sw, sh);
-    // 战场卡（渐变底 + 斜向光带 + 城齿装饰 + 塔色描边 + 呼吸光晕）
-    const breath = 0.06 + 0.04 * Math.sin(Date.now() / 500);
-    ctx.save();
-    ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.clip();
-    const sgrad = ctx.createLinearGradient(0, sy, 0, sy + sh);
-    sgrad.addColorStop(0, isTest ? '#2b2347' : '#1c2a38'); sgrad.addColorStop(1, isTest ? '#151229' : '#0e1a20');
-    ctx.fillStyle = sgrad; ctx.fillRect(sx, sy, sw, sh);
-    // 斜向光带（左上→右下 3 条低透明）
-    ctx.globalAlpha = 0.05; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 18;
-    for (let k = -1; k <= 2; k++) {
-      const bx = sx + k * 260;
-      ctx.beginPath(); ctx.moveTo(bx, sy + sh); ctx.lineTo(bx + 560, sy); ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-    // 城齿装饰横带（卡片底部，象征城墙防线）
-    ctx.fillStyle = isTest ? 'rgba(168,139,255,0.14)' : 'rgba(46,204,113,0.14)';
-    for (let cx2 = sx + 16; cx2 < sx + sw - 16; cx2 += 44) {
-      ctx.fillRect(cx2, sy + sh - 34, 26, 16);
-    }
-    ctx.fillRect(sx + 16, sy + sh - 20, sw - 32, 8);
-    ctx.restore();
-    ctx.globalAlpha = 1 + breath;
-    strokeRoundRect(ctx, sx, sy, sw, sh, 22, tint, 2.5);
-    ctx.globalAlpha = 1;
-    // v1.16.78 战场图标：卡片内嵌超大图（顶部居中 260px，白底已抠透明）
-    const badge = drawImg(ctx, isTest ? 'assets/images/menubg/icon_stage_test.png' : `assets/images/menubg/icon_stage_${stage}.png`, 375 - 130, sy + 18, 260, 260);
-    if (!badge) { ctx.beginPath(); ctx.arc(375, sy + 148, 118, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill(); text(ctx, isTest ? '🧪' : '🏰', 375, sy + 160, 100, '#ffffff', 'center'); }
-    // 战场标题 + 副标题（图标下方）
-    text(ctx, F.name, 375, sy + 316, 38, '#ffffff', 'center');
-    text(ctx, subtitle, 375, sy + 350, 20, isTest ? '#b7a4e8' : '#8ea3b8', 'center');
-    // v1.16.78 锁定态：未解锁战场显示 🔒 徽标 + 解锁条件
-    const locked = !isTest && F.unlockWave && (s.bestWave || 0) < F.unlockWave;
-    if (locked) {
-      ctx.globalAlpha = 0.45; ctx.fillStyle = '#000';
-      ctx.beginPath(); roundRect(ctx, sx, sy, sw, sh, 22); ctx.fill();
-      ctx.globalAlpha = 1;
-      fillRoundRect(ctx, 375 - 92, sy + 30, 184, 44, 22, 'rgba(0,0,0,0.65)');
-      strokeRoundRect(ctx, 375 - 92, sy + 30, 184, 44, 22, '#f0b45c', 1.5);
-      text(ctx, `🔒 最深 ${F.unlockWave} 波解锁`, 375, sy + 58, 22, '#f0b45c', 'center');
-      text(ctx, `当前最佳 ${s.bestWave || 0} 波`, 375, sy + 92, 18, '#c9b28a', 'center');
-    }
-    text(ctx, isTest ? '免三消 · 无波次结算 · 专注技能验证' : (locked ? `达到第 ${F.unlockWave} 波后可进入此战场` : '◀ ▶ 切换战场 · 进入战斗按所选战场'), 375, sy + sh - 16, 17, locked ? '#c9a15c' : (isTest ? '#8f7cd0' : '#5a8a72'), 'center');
-    // ◀ ▶ 战场切换箭头（v1.16.78 重设计：150° 钝角三角楔形，卡片高度垂直居中）
-    const arR = 30;
-    const arrow = (ax, dir) => {
-      const ay = sy + sh / 2;   // 圆心：卡片上下高度的正中间
-      const isPrev = dir === '‹';   // v1.16.127 修正：左侧朝左=上一个，右侧朝右=下一个
-      const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (isPrev ? 0 : 2.1));
-      // 命中区（含光晕）
-      push(isPrev ? 'stagePrev' : 'stageNext', null, ax - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
-      // 呼吸光晕
-      ctx.globalAlpha = glow;
-      ctx.fillStyle = tint;
-      ctx.beginPath(); ctx.arc(ax, ay, arR + 7, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 底部投影
-      ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(ax + 2, ay + 4, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 渐变圆底
-      const abg = ctx.createRadialGradient(ax - arR * 0.35, ay - arR * 0.42, arR * 0.12, ax, ay, arR);
-      abg.addColorStop(0, isTest ? '#8f83f5' : '#45d48a');
-      abg.addColorStop(0.55, isTest ? '#5a4bc8' : '#23a06a');
-      abg.addColorStop(1, isTest ? '#3c2f8f' : '#14694a');
-      ctx.fillStyle = abg;
-      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.stroke();
-      // 150° 钝角三角楔形箭头（顶角 150°，两底角各 15°：宽扁利落的指向楔形）
-      const h = 19;                       // 底边半高
-      const d = Math.round(h / Math.tan(Math.PI * 150 / 360));   // 顶点深度 = h / tan75° ≈ 5
-      ctx.save();
-      ctx.translate(ax, ay);
-      // 顶点在 -x 侧，默认朝左；右箭头（›）才镜像
-      if (!isPrev) ctx.scale(-1, 1);
-      const tg = ctx.createLinearGradient(-d, 0, 6, 0);
-      tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#dfe9e2');
-      ctx.fillStyle = tg;
-      ctx.beginPath();
-      ctx.moveTo(-d, 0); ctx.lineTo(6, -h); ctx.lineTo(6, h); ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
-    };
-    arrow(sx - 38, '‹');
-    arrow(sx + sw + 38, '›');
-    // Capsule entry button and skill rows share their left/right edges.
-    const ey = 850, eh = 80, entryW = 440, entryX = (750 - entryW) / 2;
-    push('enter', null, entryX, ey, entryW, eh);
-    const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
-    bgrad.addColorStop(0, tint); bgrad.addColorStop(1, tintDark);
-    fillRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, bgrad);
-    strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
-    fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.18)');
-    text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
-    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 65, 1010, entryW, 200, true);
-    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 65, 1244, entryW, 200, false);
-    // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
+  _getHomeScreen() {
+    if (!this._homeScreen) this._homeScreen = createHomeScreen({ drawImg, skillCards: this._menuSkillCards.bind(this) });
+    return this._homeScreen;
   }
+
+  menuBattle(ctx, s, push) { return this._getHomeScreen().menuBattle(ctx, s, push); }
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
   /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
   /** 商店页 v5.3c：自上而下 每日碎片精选 → 圣遗物宝箱（限购）→ 技能解锁 */
-  menuShop(ctx, s, push) {
-    // —— 1. 每日圣遗物碎片精选（0 点刷新，金币购买碎片）——
-    text(ctx, '每日碎片精选 · 0 点刷新', 55, 226, 26, '#ffffff', 'left');
-    const picks = (s.daily && s.daily.picks) || [];
-    const cw = 200, ch = 200, gap = 12;
-    picks.slice(0, 3).forEach((p, i) => {
-      const cx = 55 + i * (cw + gap);
-      const def = CONFIG.relicRunDef(p.relic) || { id: p.relic, name: p.relic, icon: '📿' };
-      const rar = p.rar || CONFIG.relicRarity(p.relic);
-      const rc = CONFIG.GO.RARITY[rar] || '#4aa3ff';
-      fillRoundRect(ctx, cx, 252, cw, ch, 16, '#161d28');
-      strokeRoundRect(ctx, cx, 252, cw, ch, 16, rc, 1.4);
-      const isz = 76;
-      const src = relicIconSrc(p.relic);
-      ctx.beginPath(); ctx.arc(cx + cw / 2, 252 + 52, 40, 0, Math.PI * 2);
-      ctx.fillStyle = rc; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
-      if (!(src && drawImg(ctx, src, cx + cw / 2 - isz / 2, 252 + 52 - isz / 2, isz, isz))) text(ctx, def.icon || '📿', cx + cw / 2, 252 + 54, 40, '#d9c2ff', 'center');
-      text(ctx, def.name || p.relic, cx + cw / 2, 252 + 110, 17, '#ffffff', 'center');
-      const shN = p.shards || CONFIG.DAILY.shards[p.rar || CONFIG.relicRarity(p.relic)] || 1;
-      text(ctx, `碎片 ×${shN}`, cx + cw / 2, 252 + 136, 16, rc, 'center');
-      push('shopShard', { relic: p.relic, shards: shN, price: p.price, icon: def.icon, name: def.name }, cx + cw / 2 - 70, 252 + 150, 140, 40);
-      fillRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#2c3542');
-      strokeRoundRect(ctx, cx + cw / 2 - 70, 252 + 150, 140, 40, 10, '#f7c948', 1.2);
-      if (!drawImg(ctx, IMG_SRC.coin, cx + cw / 2 - 52, 252 + 160, 22, 22)) text(ctx, '🪙', cx + cw / 2 - 39, 252 + 171, 18, '#f7c948', 'center');
-      text(ctx, `${p.price}`, cx + cw / 2 - 14, 252 + 175, 18, '#f7c948', 'left');
-    });
-    // —— 2. 圣遗物宝箱（金币购买随机碎片，每日限购；蓝/紫/金 3 档稀有度）——
-    text(ctx, '圣遗物宝箱', 55, 500, 26, '#ffffff', 'left');
-    const chests = [CONFIG.SHOP_CHEST.blue, CONFIG.SHOP_CHEST.purple, CONFIG.SHOP_CHEST.gold];
-    const cbw = 205, cbh = 150, cgap = 12;
-    chests.forEach((cd, i) => {
-      const cx = 55 + i * (cbw + cgap), cy = 528;
-      const left = (s.shopLeft && s.shopLeft[cd.key] !== undefined) ? s.shopLeft[cd.key] : cd.daily;
-      const cImg = cd.key === 'blue' ? IMG_SRC.chestBronze : cd.key === 'purple' ? IMG_SRC.chestSilver : IMG_SRC.chestGold;
-      push('shopChest', { key: cd.key }, cx, cy, cbw, cbh);
-      fillRoundRect(ctx, cx, cy, cbw, cbh, 16, '#1b2230');
-      strokeRoundRect(ctx, cx, cy, cbw, cbh, 16, cd.color, 1.5);
-      if (!drawImg(ctx, cImg, cx + cbw / 2 - 34, cy + 22, 68, 68)) text(ctx, cd.icon, cx + cbw / 2, cy + 56, 46, cd.color, 'center');
-      text(ctx, cd.name, cx + cbw / 2, cy + 98, 17, '#ffffff', 'center');
-      text(ctx, `随机 ${cd.shards.join('~')} 个碎片 · 剩 ${left}/${cd.daily}`, cx + cbw / 2, cy + 122, 12, left > 0 ? '#9fb2c3' : '#ff6b6b', 'center');
-      if (left > 0) {
-        fillRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#2c3542');
-        strokeRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#f7c948', 1.2);
-        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw / 2 - 38, cy + 137, 16, 16)) text(ctx, '🪙', cx + cbw / 2 - 32, cy + 144, 14, '#f7c948', 'center');
-        text(ctx, `${cd.price}`, cx + cbw / 2 - 16, cy + 148, 16, '#f7c948', 'left');
-      } else {
-        text(ctx, `明日再来 ${left}/${cd.daily}`, cx + cbw / 2, cy + 148, 13, '#ff6b6b', 'center');
-      }
-    });
-    // —— 3. 技能解锁（三消 3 组 + 全局 2 款，金币购买）——
-    text(ctx, '技能解锁', 55, 722, 26, '#ffffff', 'left');
-    const groups = [
-      { slot: 'match4', label: '四连技', items: CONFIG.MATCH_SKILL.match4 },
-      { slot: 'match5', label: '高连技', items: CONFIG.MATCH_SKILL.match5 },
-      { slot: 'chain', label: '连消技', items: CONFIG.MATCH_SKILL.chain },
-      { slot: 'global', label: '全局', items: [
-        { id: 'shuffle', name: CONFIG.GLOBAL_SKILL.shuffleSkill.name, mark: CONFIG.GLOBAL_SKILL.shuffleSkill.icon, color: CONFIG.GLOBAL_SKILL.shuffleSkill.color },
-        { id: 'refill', name: CONFIG.GLOBAL_SKILL.refillSkill.name, mark: CONFIG.GLOBAL_SKILL.refillSkill.icon, color: CONFIG.GLOBAL_SKILL.refillSkill.color },
-      ] },
-    ];
-    const gcw = 149, gch = 108, ggap = 12, gx0 = 55, gy0 = 752;
-    let gi = 0;
-    groups.forEach((g) => {
-      g.items.forEach((it) => {
-        const col = gi % 4, row = Math.floor(gi / 4);
-        const cx = gx0 + col * (gcw + ggap), cy = gy0 + row * (gch + 12);
-        const owned = this._skillOwned(s, g.slot, it.id);
-        push('shopSkill', { slot: g.slot, id: it.id }, cx, cy, gcw, gch);
-        fillRoundRect(ctx, cx, cy, gcw, gch, 12, owned ? '#141d2a' : '#1a1410');
-        strokeRoundRect(ctx, cx, cy, gcw, gch, 12, owned ? it.color : '#6b4a2a', owned ? 1.3 : 1);
-        text(ctx, it.mark || it.icon || '', cx + gcw / 2, cy + 34, 30, owned ? it.color : '#8f6a45', 'center');
-        text(ctx, it.name, cx + gcw / 2, cy + 62, 14, owned ? '#ffffff' : '#b58a5a', 'center');
-        if (owned) text(ctx, '已解锁 ✓', cx + gcw / 2, cy + 88, 13, '#7ef0a3', 'center');
-        else text(ctx, `🔒 ${CONFIG.SKILL_UNLOCK.price[g.slot]}`, cx + gcw / 2, cy + 88, 14, '#ffb84d', 'center');
-        gi++;
-      });
-    });
+  _getMenuShopScreen() {
+    if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned: this._skillOwned.bind(this) });
+    return this._menuShopScreen;
   }
+
+  menuShop(ctx, s, push) { return this._getMenuShopScreen().menuShop(ctx, s, push); }
 
   /**
    * v1.17.9d 开箱弹窗：宝箱开启后收益一次性弹出（参考结算页圣遗物碎片动画——图标逐个弹跳出场）。

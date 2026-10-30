@@ -16,6 +16,9 @@ const ROOT = resolve(HERE, '..');
 
 const MODULES = [
   'js/game/render.js',
+  'js/game/screens/home.js',
+  'js/game/screens/menu-shop.js',
+  'js/game/screens/menu-header.js',
   'js/game/fx/firewall.js',
   'js/game/fx/firepillar.js',
   'js/game/screens/skill-loadout.js',
