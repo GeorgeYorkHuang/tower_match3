@@ -46,7 +46,7 @@ class WaveDirector {
     const w = this.game.run.wave;
     const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // v1.16.78 深渊诅咒被动
     // v1.17.6 数量增长：基数 15，每 2 波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
-    let count = 15 + Math.floor((w - 1) / 2) + Math.floor(w / 5) * 5;
+    const count = CONFIG.ENEMY.countForWave(w);
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
     const eliteCount = Math.floor(count / 20);                  // v1.17.6 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
     const mix = CONFIG.ENEMY.levelMix(w);                       // 代际权重数组（主代 + 副代 + 残留代）

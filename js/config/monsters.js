@@ -20,6 +20,12 @@ module.exports = {
       { type: 'tank',   hp: 1400, atk: 22, spd: 1.0, armor: 0.16 }, // Lv6 重坦 波19-29
       { type: 'normal', hp: 1000, atk: 14, spd: 1.7, armor: 0.20 }, // Lv7 普通 波24-34
       { type: 'runner', hp: 600,  atk: 7,  spd: 3.1, armor: 0.24 }, // Lv8 快速 波29-39
+      { type: 'tank', hp: 2380, atk: 28, spd: 1.06, armor: 0.20 }, // Lv9
+      { type: 'normal', hp: 1700, atk: 18, spd: 1.80, armor: 0.24 }, // Lv10
+      { type: 'runner', hp: 1020, atk: 9, spd: 3.29, armor: 0.28 }, // Lv11
+      { type: 'tank', hp: 3700, atk: 36, spd: 1.12, armor: 0.32 }, // Lv12
+      { type: 'normal', hp: 2650, atk: 24, spd: 1.91, armor: 0.36 }, // Lv13
+      { type: 'runner', hp: 1560, atk: 12, spd: 3.60, armor: 0.40 }, // Lv14
     ],
     /** 超界等级（40 波后 Lv9+）：按 普→快→重 循环，同类型上一代 ×1.7 血量 / ×1.25 攻击 / 减伤 +4% */
     levelOf(n) {
@@ -32,12 +38,33 @@ module.exports = {
     /** 每波代际占比（等级权重数组，投放时取模循环；已确认 v2 表格：Lv1 波1-4、Lv2 波3-10、Lv3 波4-14、Lv4 波9-19……） */
     levelMix(w) {
       if (w <= 2) return [1];
-      if (w <= 40) return this._mixTbl[w] || [9, 9, 9, 10, 10];
+      if (w <= 60) return this._mixTbl[w] || [9, 9, 9, 10, 10];
       const base = [9, 9, 9, 10, 10];      // 40 波后：沿用 40 波比例，代际整体上移（每 5 波 +1 代）
       const shift = Math.floor((w - 41) / 5);
       return base.map((lv) => lv + shift);
     },
     _mixTbl: {
+      41: [9,9,9,10,11],
+      42: [9,9,10,10,11],
+      43: [9,10,10,10,11],
+      44: [9,10,10,11,11],
+      45: [10,10,10,11,11],
+      46: [10,10,11,11,11],
+      47: [10,10,11,11,12],
+      48: [10,11,11,11,12],
+      49: [10,11,11,12,12],
+      50: [11,11,11,12,12],
+      51: [11,11,12,12,12],
+      52: [11,11,12,12,13],
+      53: [11,12,12,12,13],
+      54: [11,12,12,13,13],
+      55: [12,12,12,13,13],
+      56: [12,12,13,13,13],
+      57: [12,12,13,13,14],
+      58: [12,13,13,13,14],
+      59: [12,13,13,14,14],
+      60: [13,13,13,14,14],
+
       3: [1, 1, 1, 1, 2], 4: [1, 1, 2, 2, 3], 5: [2, 2, 2, 3, 3],
       6: [2, 2, 3, 3, 3], 7: [2, 2, 3, 3, 3], 8: [2, 2, 3, 3, 3], 9: [2, 3, 3, 3, 4], 10: [2, 3, 3, 4, 4],
       11: [3, 3, 4, 4, 4], 12: [3, 4, 4, 4, 4], 13: [3, 4, 4, 4, 4], 14: [3, 4, 4, 4, 5], 15: [4, 4, 4, 5, 5],
@@ -59,9 +86,9 @@ module.exports = {
     },
     /** 本波怪物总血量（结算口径，与 wave.js 生成一致；curseMult = 1.15^诅咒层数） */
     waveTotalHp(w, curseMult) {
-      const count = (6 + 3 * w) * 2;
+      const count = this.countForWave(w);
       const hasBoss = w >= 5 && w % this.bossEvery === 0;
-      const eliteCount = this.elitePerWave || 1;
+      const eliteCount = Math.floor(count / 20);
       const normalCount = count - (hasBoss ? 1 : 0) - eliteCount;
       const mix = this.levelMix(w);
       const main = this.mainLevel(w);
@@ -71,7 +98,8 @@ module.exports = {
       if (hasBoss) hp += this.levelOf(main).hp * this.bossHpMult;
       return hp * (curseMult || 1);
     },
-    countPerWave: '6 + 3 × wave',          // 每波数量（实现时按表达式解析）
+    countForWave(w) { return 15 + Math.floor((w - 1) / 2) + Math.floor(w / 5) * 5; },
+    countPerWave: '15 + floor((wave-1)/2) + floor(wave/5)*5',          // 每波数量（实现时按表达式解析）
     bossEvery: 5,                          // 每 5 波 1 只 Boss（5,10,15...），掉宝箱
     bossHpMult: 8,                         // Boss 血量 = 主等级 ×8
     bossAtkMult: 11.25,                    // Boss 攻击 = 主等级 ×11.25
