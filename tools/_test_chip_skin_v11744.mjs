@@ -2,11 +2,11 @@
  * _test_chip_skin_v11744.mjs —— 底板 × 图案两层方块皮肤接入回归（v1.17.44）
  *
  * 覆盖：
- *  1. 资产清单 54 张且文件全部存在（底板6 + 普通6 + 特殊 6色×7形）
+ *  1. 资产清单 19 张且文件全部存在（底板6 + 普通6 + 特殊7）
  *  2. 普通块：先底板后图案，两次 drawImage，路径正确
- *  3. 特殊块：底板取来源色、图案取 tint/<色>/<形>（已染色版）
- *  4. rainbow：底板回落红色、图案 tint/red/rainbow.png
- *  5. 子雷：split + sub → sub.png
+ *  3. 特殊块：底板取来源色、图案取 glyph_<形>（统一现存资产）
+ *  4. rainbow：不绘制底板、图案 glyph_rainbow.png
+ *  5. 子雷：split + sub → 白色矢量图标
  *  6. 底板未就绪 → 回退旧整图（board/<色>.png）且不叠图案
  *  7. 全部未就绪 → 色块 + 暗条 + v5.2 矢量徽记
  *  8. ChipSkin 辅助函数：shapeOf / baseColorOf / normalSrc 回退
@@ -72,11 +72,17 @@ const reset = () => { draws = []; fills = 0; reads.length = 0; };
 /* ---------- 1. 资产清单与文件存在 ---------- */
 console.log('[1] 资产清单');
 const list = ChipSkin.assets();
-ok(list.length === 54, '54 张资产', 'got ' + list.length);
+ok(list.length === 19, '19 张资产', 'got ' + list.length);
 const missing = list.filter((p) => !fs.existsSync(path.resolve(p)));
 ok(missing.length === 0, '全部文件存在', JSON.stringify(missing));
 ok(list.filter((p) => p.indexOf('base_') >= 0).length === 6, '底板 6 张');
-ok(list.filter((p) => p.indexOf('tint/') >= 0).length === 42, '特殊染色图案 42 张');
+ok(!list.some(p=>p.includes('/tint/')), '不再预载已删除的 tint 图案');
+ok(new Set(list).size === list.length, '资产清单无重复');
+ok(list.filter(p=>p.endsWith('glyph_rainbow.png')).length === 1, '彩虹只预载一张');
+
+const combinations = ChipSkin.COLORS.flatMap(c => ChipSkin.SHAPES.map(shape => ({c,s:shape==='sub'?'split':shape,sub:shape==='sub'})));
+ok(combinations.every(piece => fs.existsSync(path.resolve(ChipSkin.specialSrc(piece)))), '六色×七形的42种组合均解析到现存图案');
+ok(combinations.every(piece => !ChipSkin.specialSrc(piece).includes('/tint/')), '动态查图不引用旧目录');
 
 /* ---------- 2. 普通块 ---------- */
 console.log('[2] 普通块：底板 + 原色图案');
@@ -92,13 +98,13 @@ ok(draws[0] === 'assets/images/board2/base_yellow.png' && draws[1] === 'assets/i
   '黄块 = base_yellow + glyph_bolt', JSON.stringify(draws));
 
 /* ---------- 3. 特殊块 ---------- */
-console.log('[3] 特殊块：来源色底板 + 染色图案');
+console.log('[3] 特殊块：来源色底板 + 统一现存图案');
 const cases = [
-  [{ c: 'blue', s: 'col' }, 'base_blue.png', 'tint/blue/col.png'],
-  [{ c: 'green', s: 'cross' }, 'base_green.png', 'tint/green/cross.png'],
-  [{ c: 'purple', s: 'row' }, 'base_purple.png', 'tint/purple/row.png'],
-  [{ c: 'orange', s: 'rand' }, 'base_orange.png', 'tint/orange/rand.png'],
-  [{ c: 'red', s: 'split' }, 'base_red.png', 'tint/red/split.png'],
+  [{ c: 'blue', s: 'col' }, 'base_blue.png', 'glyph_col.png'],
+  [{ c: 'green', s: 'cross' }, 'base_green.png', 'glyph_cross.png'],
+  [{ c: 'purple', s: 'row' }, 'base_purple.png', 'glyph_row.png'],
+  [{ c: 'orange', s: 'rand' }, 'base_orange.png', 'glyph_rand.png'],
+  [{ c: 'red', s: 'split' }, 'base_red.png', 'glyph_split.png'],
 ];
 for (const [piece, b, g] of cases) {
   reset();
@@ -112,15 +118,15 @@ console.log('[4] rainbow 与子雷特例');
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: null, s: 'rainbow' }, 0, 0, null);
 ok(draws.length === 1 && !draws.some(p=>p.includes('base_')), 'rainbow 只绘制图标，无底板', JSON.stringify(draws));
-ok(draws[0] && draws[0].endsWith('tint/red/rainbow.png'), 'rainbow 图案', JSON.stringify(draws));
+ok(draws[0] && draws[0].endsWith('glyph_rainbow.png'), 'rainbow 图案', JSON.stringify(draws));
 
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: 'green', s: 'split', sub: true }, 0, 0, null);
-ok(draws[1] && draws[1].endsWith('tint/green/sub.png'), '子雷取 sub.png（非 split.png）', JSON.stringify(draws));
+ok(draws.length === 1 && draws[0].endsWith('base_green.png'), '子雷保留绿底板、图标走白色矢量', JSON.stringify(draws));
 
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: 'blue', s: 'split' }, 0, 0, null);
-ok(draws[1] && draws[1].endsWith('tint/blue/split.png'), '父雷取 split.png', JSON.stringify(draws));
+ok(draws[1] && draws[1].endsWith('glyph_split.png'), '父雷取 split.png', JSON.stringify(draws));
 
 /* ---------- 5. 底板未就绪 → 回退旧整图 ---------- */
 console.log('[5] 底板未就绪 → 旧整图回退（不叠图案）');
