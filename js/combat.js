@@ -371,50 +371,7 @@ class CombatSystem {
       }
       return s.t < s.dur;
     }
-    if (s.bounce) {
-      // v1.16.21 弹力镖（原镖阵重做，新单体）：直线飞行，碰敌人或战斗区域边缘反弹；每次碰敌造成伤害（同敌仅一次），反弹 maxB 次或超时后消失
-      s.x += Math.cos(s.ang) * s.speed * dt;
-      s.y += Math.sin(s.ang) * s.speed * dt;
-      const aX = g.ly.areaX, aW = g.ly.areaW, aY = g.ly.areaY, aH = g.ly.areaH;
-      if (s.x < aX) { s.x = aX; s.ang = Math.PI - s.ang; s.bounces++; }
-      else if (s.x > aX + aW) { s.x = aX + aW; s.ang = Math.PI - s.ang; s.bounces++; }
-      if (s.y < aY) { s.y = aY; s.ang = -s.ang; s.bounces++; }
-      else if (s.y > aY + aH) { s.y = aY + aH; s.ang = -s.ang; s.bounces++; }
-      const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < (s.hitR || 30));
-      if (hitE) {
-        if (!s.hitIds[hitE.id]) {
-          s.hitIds[hitE.id] = true;
-          // v1.16.102 弹力3★：弹力镖每次反弹伤害 +5%（最多 +50%）
-          const bounceV = this.game.run.relic3('boo_bounce') ? (1 + 0.05 * Math.min(10, s.bounces)) : 1;
-          this.damage(hitE, s.dmg * bounceV, 'boomerang');
-          this.fxFlash(hitE.x, hitE.y, '#c39bd3');
-          this.fxParticle(hitE.x, hitE.y, '#c39bd3', 3, 18, 0.3, 90, 4);
-        }
-        const nx = s.x - hitE.x, ny = s.y - hitE.y;
-        const nl = Math.hypot(nx, ny) || 1;
-        const vx = Math.cos(s.ang), vy = Math.sin(s.ang);
-        const dot = vx * (nx / nl) + vy * (ny / nl);
-        s.ang = Math.atan2(vy - 2 * dot * (ny / nl), vx - 2 * dot * (nx / nl));
-        s.bounces++;
-      }
-      if (s.bounces >= s.maxB || s.t >= s.dur) {
-        if (s.fx) s.fx.t = s.fx.dur;   // v1.16.38 弹力镖提前结束（反弹满/超时）时同步结束其 fx，防止幽灵残留
-        // v1.16.102 飞刃3★：弹力镖消失时 30% 概率分裂为 2 枚小镖（50% 伤害，反弹 2 次）
-        if (this.game.run.relic3('boo_blade') && Math.random() < 0.3 && !s._splitDone) {
-          s._splitDone = true;
-          for (let k = 0; k < 2; k++) {
-            const subAng = s.ang + (Math.PI / 2) * (k === 0 ? -1 : 1) + (Math.random() * 0.6 - 0.3);
-            const sub = { key: 'boomerang', dmg: s.dmg * 0.5, t: 0, dur: 3, x: s.x, y: s.y, ang: subAng, speed: 380, bounce: true, bounces: 0, maxB: 2, hitR: 22, hitIds: {} };
-            this.shots.push(sub);
-            const subFx = { type: 'shot', kind: 'bounce', ref: sub, t: 0, dur: 3, color: '#aed6f1' };
-            sub.fx = subFx;
-            this.game.fx.push(subFx);
-          }
-        }
-        return false;
-      }
-      return true;
-    }
+    if (s.bounce) return BoomerangTower.stepBounce(this, s, dt);
     if (s.scatter) {
       // v1.13.13：无目标散射弹道——沿途真实碰撞，命中即结算并消失；射界尽头（dur 耗尽）未命中也消失
       const hitE = this.scatterCheck(s);
@@ -517,81 +474,10 @@ class CombatSystem {
   updateTurrets(dt) { return CannonTower.updateTurrets(this, dt); }
 
   /** 回旋镖·风暴镖推进（v1.16.21）：三同心圈旋转十字飞镖，每镖独立命中 10% 伤害，命中不消失 */
-  updateStorms(dt) {
-    if (!this.storms || !this.storms.length) return;
-    for (let i = this.storms.length - 1; i >= 0; i--) {
-      const st = this.storms[i];
-      st.ttl -= dt;
-      if (st.ttl <= 0) {
-        if (st.fx) st.fx.t = st.fx.dur;   // v1.16.38 同步结束风暴镖 fx
-        // v1.16.102 旋风3★：风暴镖结束时原地爆炸（150% 伤害，半径 140 码）
-        if (this.game.run.relic3('boo_cyclone')) {
-          this.explode(st.x, st.y, 140, this.shotDmg('boomerang', true) * 1.5, 'boomerang');
-        }
-        this.storms.splice(i, 1);
-        continue;
-      }
-      // v1.16.102 风暴眼3★：风暴镖中心的敌人每秒受到 15% 额外伤害
-      if (this.game.run.relic3('boo_eye')) {
-        st._eyeT = (st._eyeT || 0) + dt;
-        if (st._eyeT >= 1) {
-          st._eyeT = 0;
-          const center = this.enemies().filter((o) => o.hp > 0)
-            .sort((a, b) => Math.hypot(a.x - st.x, a.y - st.y) - Math.hypot(b.x - st.x, b.y - st.y))[0];
-          if (center) {
-            this.damage(center, this.shotDmg('boomerang') * 0.15, 'boomerang');
-            this.fxFlash(center.x, center.y, '#c39bd3', 0.25);
-          }
-        }
-      }
-      const ds = st.darts;
-      for (let j = ds.length - 1; j >= 0; j--) {
-        const d = ds[j];
-        d.a += d.spd * dt;
-        const dx = st.x + Math.cos(d.a) * d.r;
-        const dy = st.y + Math.sin(d.a) * d.r;
-        const hitE = this.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - dx, o.y - dy) < 14);
-        if (hitE && !d.hitIds[hitE.id]) {
-          d.hitIds[hitE.id] = true;
-          this.damage(hitE, st.perDmg, 'boomerang');
-          this.fxFlash(dx, dy, '#c39bd3');
-          this.fxParticle(dx, dy, '#c39bd3', 3, 16, 0.25, 80, 4);
-        }
-      }
-    }
-  }
+  updateStorms(dt) { return BoomerangTower.updateStorms(this, dt); }
 
   /** 回旋镖·风痕推进：路径伤害区，C 卷痕减速 */
-  updateWindTrails(dt) {
-    if (!this.windTrails || !this.windTrails.length) return;
-    for (let i = this.windTrails.length - 1; i >= 0; i--) {
-      const w = this.windTrails[i];
-      w.ttl -= dt;
-      if (w.ttl <= 0) { this.windTrails.splice(i, 1); continue; }
-      this.enemies().forEach((o) => {
-        if (o.hp <= 0 || Math.hypot(o.x - w.x, o.y - w.y) > w.r) return;
-        // v1.16.102 风刃3★：风痕叠加时伤害取最高值 +30%/层（上限 3 层）
-        let mult = 1;
-        if (this.game.run.relic3('boo_wind')) {
-          const layers = Math.min(3, this.windTrails.filter((w2) => w2 !== w && Math.hypot(o.x - w2.x, o.y - w2.y) <= w2.r).length + 1);
-          mult = 1 + 0.3 * layers;
-        }
-        this.damage(o, w.dps * dt * mult, 'boomerang');
-        // v1.16.102 长痕3★：风痕命中的敌人附加 1 层标记（持续 5 秒，需学习猎手标记技能；每敌 1 秒内至多叠 1 层）
-        if (this.game.run.relic3('boo_trail') && this.lv('boomerang', '猎手标记') > 0) {
-          o._trailMarkCd = (o._trailMarkCd || 0) - dt;
-          if (o._trailMarkCd <= 0) {
-            o._trailMarkCd = 1;
-            const cap = SKILL_NUM.boomerang['猎手标记'].stackCap + SKILL_NUM.boomerang['猎手标记'].stacksPerBranch * this.branchLv('boomerang', '猎手标记', 'B');
-            o._mark = Math.min(cap, (o._mark || 0) + 1);
-            o._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
-            this.fxParticle(o.x, o.y - 16, '#d2b4de', 2, 12, 0.35, 60, 4);
-          }
-        }
-        if (w.slow) this.applySlow(o, w.slow, 0.2);
-      });
-    }
-  }
+  updateWindTrails(dt) { return BoomerangTower.updateWindTrails(this, dt); }
 
   /* ---------- 敌人状态推进 ---------- */
   tickStatus(e, dt) {
@@ -1057,71 +943,7 @@ class CombatSystem {
   /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
   applyBleed(e, dmg) { return Statuses.applyBleed(this, e, dmg); }
 
-  tickBoomerang(dt) {
-    const g = this.game;
-    const stormBalance=SKILL_NUM.boomerang['风暴镖'], bounceBalance=SKILL_NUM.boomerang['弹力镖'];
-    // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖 10% 伤害，命中即消失；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
-    const cyclone = this.lv('boomerang', '风暴镖');
-    if (cyclone > 0) {
-      this.timers.storm = (this.timers.storm || 0) + dt;
-      if (this.timers.storm >= stormBalance.period * this._weakPeriod('boomerang')) {
-        this.timers.storm = 0;
-        this.castEnergy('boomerang', '风暴镖');
-        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
-        if (alive.length) {
-          const t = alive[Math.floor(Math.random() * alive.length)];
-          // 三圈角速度不同：内圈 2.6 顺时针 / 中圈 2.0 逆时针 / 外圈 2.4 顺时针（A 疾旋统一 +25%/级）
-          const rings = stormBalance.rings;
-          const baseN = stormBalance.ringCounts;
-          const nAdd = this.branchLv('boomerang', '风暴镖', 'C');
-          const perDmg = this.shotDmg('boomerang') * stormBalance.damage * (1 + stormBalance.damagePerBranch * this.branchLv('boomerang', '风暴镖', 'B'));
-          const spdMul = 1 + stormBalance.speedPerBranch * this.branchLv('boomerang', '风暴镖', 'A');
-          const darts = [];
-          rings.forEach((rc, ri) => {
-            const n = baseN[ri] + nAdd;
-            const spd = rc.base * spdMul;   // 带方向符号（正=顺时针）
-            for (let i = 0; i < n; i++) darts.push({ r: rc.r, spd, a: (Math.PI * 2 * i) / n, hitIds: {} });
-          });
-          this.storms = this.storms || [];
-          // v1.16.102 旋风3★：风暴镖持续时间翻倍（3→6 秒）
-          const cyclTtl = this.game.run.relic3('boo_cyclone') ? stormBalance.duration * 2 : stormBalance.duration;
-          const sto = { x: t.x, y: t.y, r: 120, ttl: cyclTtl, darts, perDmg };
-          const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: cyclTtl, darts };
-          sto.fx = fxo;                    // v1.16.38 风暴镖 fx 引用（同步清除）
-          this.storms.push(sto);
-          g.fx.push(fxo);
-        }
-      }
-    }
-    // 回旋镖·弹力镖（v1.16.21 原镖阵重做，新单体）：每 8 秒射 2 枚十字飞镖，碰敌人或战斗区边缘反弹（60% 伤害，反弹 10 次结束）；A 增镖 +1/级；B 利刃 +25%/级；C 弹力增强 +5 次/级
-    const ringN = this.lv('boomerang', '弹力镖');
-    if (ringN > 0) {
-      this.timers.ringN = (this.timers.ringN || 0) + dt;
-      if (this.timers.ringN >= bounceBalance.period * this._weakPeriod('boomerang')) {
-        this.timers.ringN = 0;
-        this.castEnergy('boomerang', '弹力镖');
-        const alive = this.enemies().filter((e) => e.hp > 0 && this.inTowerRange('boomerang', e.x, e.y));
-        const mus = this.towerMuzzle('boomerang');
-        const n = bounceBalance.count + 1 * this.branchLv('boomerang', '弹力镖', 'A');
-        const perDmg = this.shotDmg('boomerang') * bounceBalance.damage * (1 + bounceBalance.damagePerBranch * this.branchLv('boomerang', '弹力镖', 'B'));
-        const maxB = bounceBalance.bounces + bounceBalance.bouncesPerBranch * this.branchLv('boomerang', '弹力镖', 'C');
-        // 初始方向：射程内随机存活敌人方向 ± 散射（无敌人则全随机）
-        let baseAng = Math.random() * Math.PI * 2;
-        if (alive.length) {
-          const t = alive[Math.floor(Math.random() * alive.length)];
-          baseAng = Math.atan2(t.y - mus.y, t.x - mus.x);
-        }
-        for (let i = 0; i < n; i++) {
-          const ang = baseAng + (i - (n - 1) / 2) * bounceBalance.spreadStep;
-          const d = { key: 'boomerang', dmg: perDmg, t: 0, dur: bounceBalance.duration, x: mus.x, y: mus.y, ang, speed: bounceBalance.speed, bounce: true, bounces: 0, maxB, hitR: bounceBalance.hitRadius, hitIds: {} };
-          this.shots.push(d);
-          const fxo = { type: 'shot', kind: 'bounce', ref: d, t: 0, dur: bounceBalance.duration, color: '#c39bd3' };
-          d.fx = fxo;                    // v1.16.38 弹力镖 fx 引用（提前结束同步清除）
-          g.fx.push(fxo);
-        }
-      }
-    }
-  }
+  tickBoomerang(dt) { return BoomerangTower.tickBoomerang(this, dt); }
 
   /* ---------- 视觉 ---------- */
 
