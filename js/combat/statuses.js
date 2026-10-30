@@ -112,7 +112,7 @@ function applySlow(combat, e, mult, ttl) {
 }
 
 function freezeE(combat, e, dur) {
-  const d = (e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
+  const d = (e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
   // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
@@ -224,9 +224,9 @@ function tickBaseStatus(combat, e, dt) {
   // 回旋镖·猎手标记（v1.16.42）：标记持续 5 秒，到期清零
   if (e._markT > 0) { e._markT -= dt; if (e._markT <= 0) { e._mark = 0; e._markT = 0; } }
   // 控制
-  if (e.frozen > 0) e.frozen -= dt;
+  if (e.frozen > 0) e.frozen -= dt / (e.controlResist || 1);
   if (e.paralyzed > 0) e.paralyzed -= dt;
-  if (e.slow) { e.slow.ttl -= dt; if (e.slow.ttl <= 0) e.slow = null; }
+  if (e.slow) { e.slow.ttl -= dt / (e.controlResist || 1); if (e.slow.ttl <= 0) e.slow = null; }
   if (e.corrode) { e.corrode.ttl -= dt; if (e.corrode.ttl <= 0) e.corrode = null; }
   if (e.overload) { e.overload.ttl -= dt; if (e.overload.ttl <= 0) e.overload = null; }
   // 流血（v1.16.12，回旋镖普攻）：随移动距离结算——每累计移动 100px 跳一次伤害

@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('assert'),Board=require('../js/board.js'),{Match3Controller}=require('../js/match3.js');
+const b=new Board({rows:3,cols:4});b.grid=[['fire','ice','fire','poison'],['ice','fire','electric','poison'],['poison','electric','ice','electric']];assert.equal(b.findMatches().length,0);
+const groups=[],clear=Array.from({length:3},()=>Array(4).fill(false)),base=b.grid.map(r=>r.slice());const swaps=b._scanAllColors(groups,clear);assert(swaps.length);assert(groups.some(g=>g.color==='fire'));assert(clear.flat().filter(Boolean).length>=3);assert(groups.every(g=>g._noPlant));assert.equal(new Set(groups.map(g=>g.color)).size,groups.length);assert(swaps.every((s,i)=>!i||s.column>=swaps[i-1].column));
+const C=require('../js/match3.js');
+const Controller=C.Match3Controller||C;let fired=0,burst=0;
+const st={m5:{op:'scan',scanBase:base,scanSwaps:swaps,scanFinal:b.grid.map(r=>r.slice())},clearedCells:[[0,0],[0,1],[0,2]],matches:groups,gridAfter:b.grid};
+const game={state:'fighting',anim:{phase:'swap',progress:0,durSwap:.2,durClear:.15,durWait:.1,durFall:.3,base,cleared:new Set(['0,0']),cascade:{steps:[st],index:0}}};
+const ctl=new Controller(game);ctl._fireChainStep=()=>fired++;ctl._specialsFx=()=>{};ctl._burst=()=>burst++;
+ctl.update(.21);assert.equal(game.anim.phase,'scan');assert.equal(fired,0);ctl.update(.6);assert.equal(game.anim.phase,'scan');assert.equal(burst,0);game.state='relicpick';const p=game.anim.progress;ctl.update(3);assert.equal(game.anim.progress,p);game.state='fighting';ctl.update(.7);assert.equal(game.anim.phase,'clear');assert.equal(fired,1);assert.equal(burst,1);assert.strictEqual(game.anim.base,st.m5.scanFinal);
+console.log('PASS scan discovers real adjacent swaps, per-color/no-recursion clearing, left-to-right order, scan-before-clear animation, paused scan and single clear trigger');
+const full=new Board({rows:6,cols:6,hooks:{onMatch5:()=> 'scan',onMatch4:()=> 'row'}});
+full.grid=[['fire','fire','fire','fire','fire','ice'],['ice','electric','poison','ice','electric','poison'],['electric','poison','ice','electric','poison','ice'],['fire','ice','fire','poison','ice','electric'],['poison','fire','electric','ice','electric','poison'],['ice','electric','poison','fire','poison','ice']];
+const resolved=full.resolve();assert(resolved.stepList[0].m5.scanSwaps.length>0);assert(resolved.stepList[0].clearedCells.length>=8);assert(resolved.stepList[0].m5.scanFinal);console.log('PASS real five-match resolve records scan swaps and clears both original five-match and scanned triples');

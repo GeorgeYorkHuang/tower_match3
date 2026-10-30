@@ -569,7 +569,7 @@ class Run {
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
     const windMul = Math.pow(1.10, this.windStacks || 0);
     // v1.17 代际重构：本波总血量由等级表生成（与 wave.buildPlan 同口径）
-    const enemyHp = CONFIG.ENEMY.waveTotalHp(this.wave, curseMul);
+    const enemyHp = this.wave===20 && this.bossWaveHp ? this.bossWaveHp : CONFIG.ENEMY.waveTotalHp(this.wave, curseMul);
     const totalDps = this.effects.totalDps();
     const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);

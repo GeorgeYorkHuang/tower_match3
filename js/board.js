@@ -416,7 +416,7 @@ Board.prototype.resolve = function resolve() {
           plants.push({ r: center[0], c: center[1], v: this._makeSpecial(null, 'rainbow', false) });
         } else if (op === 'scan') {
           // 自动扫描：每种颜色各匹配一次三消，统一并入本步清除
-          this._scanAllColors(matches, toClear);
+          if(!m5Info.scanSwaps){m5Info.scanBase=this.grid.map(row=>row.slice());m5Info.scanSwaps=this._scanAllColors(matches,toClear);m5Info.scanFinal=this.grid.map(row=>row.slice());}
         } else if (op === 'recolor') {
           // 染色：随机 10 个非该色普通块变该色（避开清除区），染色后该色新产生的匹配并入本步
           const rc = this._recolorBoard(m.color, toClear);
@@ -466,31 +466,23 @@ Board.prototype.resolve = function resolve() {
 };
 
 /** 高连技·自动扫描：每种颜色各匹配一次三消（跳过与既有组重复的组），并入本步 matches 与清除标记 */
-Board.prototype._scanAllColors = function _scanAllColors(matches, toClear) {
-  const known = new Set();
-  matches.forEach((m) => m.cells.forEach(([r, c]) => known.add(r + ',' + c)));
-  const seenColor = new Set();
-  for (const color of this.activeColors) {
-    if (seenColor.has(color)) continue;
-    // 遍历该色全部组，取第一个与既有组坐标不重复的
-    let g = null;
-    const all = this.findMatches().filter((m) => !m.rainbow
-      && cellColor(this.grid[m.cells[0][0]][m.cells[0][1]]) === color);
-    for (const cand of all) {
-      if (cand.cells.some(([r, c]) => known.has(r + ',' + c))) continue;
-      g = cand;
-      break;
-    }
-    if (g) {
-      seenColor.add(color);
-      g._noPlant = true;      // 面板产物不再触发播种（防 scan 递归）
-      matches.push(g);
-      g.cells.forEach(([r, c]) => {
-        known.add(r + ',' + c);
-        toClear[r][c] = true;
-      });
-    }
+Board.prototype._scanAllColors = function(matches,toClear) {
+  const reserved=new Set(),seen=new Set(),swaps=[];
+  matches.forEach(m=>m.cells.forEach(([r,c])=>reserved.add(r+','+c)));
+  toClear.forEach((row,r)=>row.forEach((yes,c)=>{if(yes)reserved.add(r+','+c);}));
+  for(let c=0;c<this.cols;c++)for(let r=0;r<this.rows;r++)for(const [rr,cc] of [[r+1,c],[r,c+1]]) {
+    if(!this.inRange(rr,cc)||reserved.has(r+','+c)||reserved.has(rr+','+cc))continue;
+    const a=this.grid[r][c],b=this.grid[rr][cc];
+    if(a===null||b===null||isSpecial(a)||isSpecial(b)||a===b)continue;
+    this.grid[r][c]=b;this.grid[rr][cc]=a;
+    const found=this.findMatches().map(m=>({...m,color:cellColor(this.grid[m.cells[0][0]][m.cells[0][1]])})).filter(m=>!m.rainbow&&!seen.has(m.color)&&m.cells.some(p=>(p[0]===r&&p[1]===c)||(p[0]===rr&&p[1]===cc))&&!m.cells.some(([x,y])=>reserved.has(x+','+y)));
+    if(!found.length){this.grid[r][c]=a;this.grid[rr][cc]=b;continue;}
+    const colors=new Set();
+    found.forEach(m=>{if(colors.has(m.color))return;colors.add(m.color);seen.add(m.color);m._noPlant=true;matches.push(m);m.cells.forEach(([x,y])=>{reserved.add(x+','+y);toClear[x][y]=true;});});
+    reserved.add(r+','+c);reserved.add(rr+','+cc);
+    swaps.push({from:[r,c],to:[rr,cc],column:c});
   }
+  return swaps;
 };
 
 /** 高连技·染色：随机 n 个非该色普通块变为该色（避开清除区），返回被染色格列表 */

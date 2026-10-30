@@ -1,3 +1,4 @@
+const Rosea = require('../bosses/rosea.js');
 const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
 // One damage path, explicit Combat context. Preserve multiplier and reentrant death order.
@@ -82,6 +83,7 @@ function damage(combat, e, dmg, srcKey, kind = 'hit') {
   const m = g.meta;
   const dmgLv = (m && m.relicBonus && m.relicBonus().dmg) || 0;
   if (dmgLv > 0) v *= (1 + 0.08 * dmgLv);
+  v = Rosea.absorb(e,v);
   const hpBefore = e.hp;
   e.hp -= v;
   recordDamage(combat, e, hpBefore, srcKey, kind);

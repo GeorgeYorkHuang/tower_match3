@@ -1,3 +1,4 @@
+const Rosea = require('./bosses/rosea.js');
 /**
  * wave.js —— 波次导演：生成本波敌人投放计划、按间隔陆续放怪、生成单只敌人
  * 持有 game 引用以访问 run / enemies / 状态 / BGM；持有 ly 以取布局坐标
@@ -70,6 +71,7 @@ class WaveDirector {
     }
     // v1.17.9 投放节奏：每 1~2s（随机）投放一批，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多）
     this.interval = 1 + Math.random();   // 首批间隔也随机 1~2s
+    if(Rosea.setup(this)) { this.interval=0.25;return; }
     this.hasBoss = hasBoss;
     this.enemyTotalHp = CONFIG.ENEMY.waveTotalHp(w, curseMult); // 与 run.endWave 结算口径一致
   }
@@ -78,6 +80,7 @@ class WaveDirector {
   tick(dt) {
     if (!this.plan.length) return;
     this.timer += dt;
+    if(this.game.run.bossLock){if(this.timer>=0.25){this.timer=0;this.spawnOne();}return;}
     const maxBatch = Math.max(1, Math.ceil(this.game.run.wave / 5)); // v1.17.8 单批上限随波次
     if (this.timer >= this.interval && this.plan.length) {
       this.timer = 0;
@@ -95,6 +98,9 @@ class WaveDirector {
     const wallY = this.ly.wallY;
     const speed = (wallY - entryY) / WAVE_DUR;
     this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
+    const born=this.game.enemies[this.game.enemies.length-1];
+    if(it.bossId)Rosea.spawn(this.game,born,it.bossId);
+    if(it.isSummon)born.isSummon=true;
     if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // v1.17.5 投放完成时间戳
   }
 

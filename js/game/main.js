@@ -1,3 +1,4 @@
+const Rosea = require('../bosses/rosea.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
 const RelicKill = require('../relics/kill-hooks.js');
 const BattleActions = require('./input/battle-actions.js');
@@ -413,7 +414,7 @@ class GameMain {
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
       this.dmgNumbers.step(bdt);
-      this.waveTime += bdt;
+      if(!this.run.bossLock)this.waveTime += bdt;
       // v1.16.74 战场宝箱生命周期：20s 未点击自动消失；点击后开箱(0.4s 四帧)→飞向屏幕中心放大(0.6s)→弹圣物三选一（全程 1s）
       this.fieldChests = this.fieldChests.filter((c) => {
         c.t += bdt;
@@ -436,6 +437,16 @@ class GameMain {
       if (this.run.broken) { this.waveEnd(); return; }
       // v1.17.8 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 3s（场上残怪保留，叠加波继续打）
       //   （波时长不再固定；出怪节奏=0.5s/批，每批随机 1~⌈w/5⌉ 只）
+      if(this.run.bossLock) {
+        const boss=this.run.bossEnemy;
+        if(boss&&boss.hp<=0){
+          this.run.bossLock=false;this.wave.plan=[];
+          this.enemies=this.enemies.filter(e=>e.waveNo!==20);
+          if(!this._waveCleared[20]){this._waveCleared[20]=true;this.run.clearedWaves++;}
+          this._overlapWave=this.enemies.length>0;this.waveEnd();
+        }
+        return;
+      }
       const allDead = !this.enemies.length && !this.wave.plan.length;
       const spawnedAll = !this.wave.plan.length && this.wave.planDoneAt !== null;
       if (allDead) {
@@ -477,6 +488,7 @@ class GameMain {
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
+    Rosea.tick(this,dt);
     GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
     if (this.run.slotOrder.length === 0) {
@@ -527,7 +539,7 @@ class GameMain {
     let wallHits = 0;
     for (const e of this.enemies) {
       if (e.y < wallLine) continue;
-      if (e.frozen > 0 || e.paralyzed > 0) continue;
+      if (e.frozen > 0 || e.paralyzed > 0 || e._bossStun > 0) continue;
       // 毒·瘴气：环内敌人命中率下降（20% 概率攻击落空，v1.16.21）
       if (e._miasma && Math.random() < 0.20) continue;
       // 冰墙攻击间隔迟缓计时（v1.16.21：被冰墙迟缓的敌人攻击间隔 +0.5s）
@@ -574,7 +586,7 @@ class GameMain {
   /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
    *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
   moveEnemy(e, dt) {
-    if (e.frozen > 0) return;
+    if (e.frozen > 0 || e._bossStun > 0) return;
     const lineY = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10;   // v1.17.11 攻城线（塔位区即城墙）
     if (e.y >= lineY) return;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
@@ -1257,6 +1269,7 @@ class GameMain {
     }
     const enemyHp = this.enemies.reduce((sum, e) => sum + Math.max(0, e.hp), 0);
     return {
+      miniBoss: run.bossEnemy && run.bossEnemy.hp>0 ? run.bossEnemy : null,
       gold: run.gold,
       wave: run.wave,
       waveTime: this.waveTime,

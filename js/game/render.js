@@ -319,15 +319,24 @@ class Renderer {
       text(ctx, '¥', 38, 90, 20, '#5b6b7c', 'center');
     }
     text(ctx, fmtNum(s.gold), 72, 94, 26, '#c9d6e4');
-    // 波次与倒计时（居中偏左，同一行；倒计时左移至 440 距右上胶囊更远）
-    text(ctx, `第 ${s.wave} 波`, 320, 94, 24, '#ffffff', 'center');
-    if (s.state === 'fighting' && s.waveTime < s.waveDuration) {
-      text(ctx, `${Math.ceil(s.waveDuration - s.waveTime)}s`, 438, 94, 20, '#b8c2cc', 'center');
+    // 等级圆与经验外环：12点起顺时针；进度条下沿高于圆心。
+    const cx=174,cy=84,radius=22,outer=28;
+    const xp=Math.max(0,Math.min(1,Number(s.expRatio)||0));
+    ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fillStyle='#f7cf45';ctx.fill();
+    text(ctx,String(s.expLevel||0),cx,cy,25,'#111111','center');
+    ctx.beginPath();ctx.arc(cx,cy,outer,0,Math.PI*2);ctx.strokeStyle='rgba(247,207,69,0.22)';ctx.lineWidth=4;ctx.stroke();
+    if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp,false);ctx.strokeStyle='#f7cf45';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();}
+    const wx=220,wy=66,ww=338,wh=12;
+    const wave=Math.max(1,Math.min(60,Number(s.wave)||1));
+    progressBar(ctx,wx,wy,ww,wh,(wave-1)/59,'#e8c76b','rgba(255,255,255,0.12)');
+    for(let n=5;n<=60;n+=5){
+      const mx=wx+(n-1)/59*ww;
+      const major=n===20||n===40||n===60;
+      ctx.beginPath();ctx.arc(mx,wy+wh/2,major?5:2.5,0,Math.PI*2);ctx.fillStyle=n<=wave?(n===60?'#ff826f':'#f8dd8a'):'#66717e';ctx.fill();
+      if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,wy-14,14,n===60?'#ffab95':'#e5d7aa','center');
     }
-    // 协同状态（右，下移避开右上微信小程序按钮）
-    const syn = s.synergies;
-    const label = syn[0] && syn[0].done ? '协同✓' : '协同';
-    text(ctx, label, 690, 114, 20, syn[0] && syn[0].done ? '#7ef0a3' : '#b8c2cc', 'right');
+    text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,wy+wh+17,15,'#e9dfc4','left');
+    text(ctx,'• 小Boss',wx+ww,wy+wh+17,13,'#aeb9c7','right');
     // v1.17.2 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
@@ -374,18 +383,11 @@ class Renderer {
       if (bossBlink) text(ctx, '⚠', AREA_X + AREA_W - 132, AREA_Y + ENTRY_H / 2, 26, '#ff6b6b', 'right');
       text(ctx, 'BOSS', AREA_X + AREA_W - 100, AREA_Y + ENTRY_H / 2, 22, bossBlink ? '#ff6b6b' : '#b3403a', 'right');
     }
-    // v1.8 整体经验条：出怪区最上方横条 + 右侧等级圆（v1.17.2 等级圆内嵌条右端，整条左移，规避右上小程序胶囊）
-    if (s.expLevel !== undefined) {
-      const exX = AREA_X + 160, exY = AREA_Y + 14, exW = AREA_W - 360, exH = 16;
-      text(ctx, '整体经验', exX, exY - 6, 18, 'rgba(255,255,255,0.45)', 'left');
-      progressBar(ctx, exX, exY, exW, exH, s.expRatio || 0, '#f7c948', 'rgba(0,0,0,0.4)');
-      text(ctx, `${Math.floor(s.exp)}/${Math.ceil(s.expNeed)}`, exX + exW / 2, exY + exH + 6, 16, 'rgba(255,255,255,0.5)', 'center');
-      // 右侧等级圆（内嵌于条右端，圆心不再越出行动区右侧）
-      const rcx = exX + exW - 24, rcy = exY + exH / 2, rr = 22;
-      ctx.beginPath(); ctx.arc(rcx, rcy, rr, 0, Math.PI * 2);
-      ctx.fillStyle = '#f7c948'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.stroke();
-      text(ctx, `${s.expLevel}`, rcx, rcy + 2, 26, '#5c4a00', 'center');
+    if(s.miniBoss) {
+      const b=s.miniBoss;
+      text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+14,16,'#ead3ff','center');
+      progressBar(ctx,220,AREA_Y+25,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
+      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/3',375,AREA_Y+48,13,'#d1c393','center');
     }
     // 敌群血条（入口带下方细条）
     progressBar(ctx, AREA_X + 12, AREA_Y + ENTRY_H - 8, AREA_W - 24, 6, s.enemyHpRatio, '#ff6b6b', 'rgba(255,255,255,0.15)');
@@ -912,6 +914,24 @@ class Renderer {
     }
 
     /* 阶段 1：交换动画——两个方块从各自旧位置滑向新位置，其余方块原位不动 */
+    if(anim&&anim.phase==='scan') {
+      const plan=anim.scan,base=(plan.scanBase||anim.base).map(row=>row.slice()),moving=[];
+      for(const sw of plan.scanSwaps||[]) {
+        const t=Math.max(0,Math.min(1,(anim.progress-(sw.column/boardCols))/0.08));
+        if(t>=1){const [r,c]=sw.from,[rr,cc]=sw.to,v=base[r][c];base[r][c]=base[rr][cc];base[rr][cc]=v;}
+        else if(t>0)moving.push({...sw,t});
+      }
+      for(let r=0;r<boardRows;r++)for(let c=0;c<boardCols;c++){
+        let rr=r,cc=c;
+        for(const sw of moving){if(sw.from[0]===r&&sw.from[1]===c){rr=r+(sw.to[0]-r)*sw.t;cc=c+(sw.to[1]-c)*sw.t;}else if(sw.to[0]===r&&sw.to[1]===c){rr=r+(sw.from[0]-r)*sw.t;cc=c+(sw.from[1]-c)*sw.t;}}
+        if(base[r][c])this.drawCell(ctx,boardX+cc*cell+2,boardY+rr*cell+2,cell,base[r][c],r,c,selected);
+      }
+      const front=boardX+Math.min(1,anim.progress)*boardCols*cell;
+      const beam=ctx.createLinearGradient(front-22,0,front+10,0);beam.addColorStop(0,'rgba(255,255,255,0)');beam.addColorStop(0.7,'rgba(255,255,255,0.6)');beam.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=beam;ctx.fillRect(Math.max(boardX,front-22),boardY,Math.min(32,boardX+boardCols*cell-Math.max(boardX,front-22)),boardRows*cell);
+      ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(front,boardY);ctx.lineTo(front,boardY+boardRows*cell);ctx.stroke();
+      if(shP>=0&&shP<1)ctx.restore();return;
+    }
     if (anim && anim.phase === 'swap') {
       const t = easeOutCubic(Math.min(1, anim.progress));
       const [r1, c1, r2, c2] = anim.swap;

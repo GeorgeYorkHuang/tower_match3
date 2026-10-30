@@ -41,8 +41,8 @@ class Match3Controller {
       cascade: { steps, index: 0, settledByStep: ret.settledByStep, chainShotsByStep: ret.chainShotsByStep || [], chainStart: ret.chainStart, fired: new Set() },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
-    this._specialsFx(first); // v1.17.29 特殊块生成/引爆特效 + 震动
-    this._burst(first.clearedCells, first.matches); // 消除迸发反馈
+    if(!(first.m5&&first.m5.op==='scan'))this._specialsFx(first); // v1.17.29 特殊块生成/引爆特效 + 震动
+    if(!(first.m5&&first.m5.op==='scan'))this._burst(first.clearedCells, first.matches); // 消除迸发反馈
     // 无解重排
     if (!g.run.board.isSolvable()) {
       g.run.board.regen();
@@ -57,12 +57,15 @@ class Match3Controller {
     if (!g.anim || (g.state && g.state !== 'fighting' && g.state !== 'testfield')) return;
     const a = g.anim;
     a.progress += dt / (a.phase === 'swap' ? a.durSwap
-      : (a.phase === 'clear' ? a.durClear : (a.phase === 'wait' ? a.durWait : a.durFall)));
+      : (a.phase === 'scan' ? 1.2 : a.phase === 'clear' ? a.durClear : (a.phase === 'wait' ? a.durWait : a.durFall)));
     if (a.phase === 'swap' && a.progress >= 1) {
       a.phase = 'clear';
       a.progress = 0;
-      this._fireChainStep(a);
+      const st=a.cascade.steps[a.cascade.index];
+      if(st.m5&&st.m5.op==='scan'){a.phase='scan';a.scan=st.m5;}else this._fireChainStep(a);
       if (!a.cleared.size) g.anim = null; // 无消除：交换完即结束
+    } else if(a.phase==='scan'&&a.progress>=1){
+      const st=a.cascade.steps[a.cascade.index];a.base=st.m5.scanFinal||a.base;a.phase='clear';a.progress=0;this._fireChainStep(a);this._specialsFx(st);this._burst(st.clearedCells,st.matches);
     } else if (a.phase === 'clear' && a.progress >= 1) {
       a.phase = 'wait'; // 消除淡出完成 → 等待段（空位停留，特效呈现）
       a.progress = 0;
@@ -81,6 +84,7 @@ class Match3Controller {
         a.durClear = 0.15; a.durWait = 0.1; a.durFall = 0.3;
         a.progress = 0;
         a.phase = 'clear';
+        if(st.m5&&st.m5.op==='scan'){a.phase='scan';a.scan=st.m5;this.cascadeToast(cs.index);return;}
         this._fireChainStep(a); // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效
         this.cascadeToast(cs.index);
@@ -178,7 +182,7 @@ class Match3Controller {
       });
     } else if (m5.op === 'scan') {
       // 金色扫描光幕：棋盘顶 → 底，扫过格高亮
-      g.fx.push({ type: 'scanSweep', x: boardX, y: boardY, t: 0, dur: 0.5, w: g.ly.cols * cell, h: g.ly.rows * cell, cell });
+      // 扫描光柱由独立scan阶段绘制，结束后才进入消除。
     } else if (m5.op === 'recolor') {
       // 该色涟漪扩散 + 染色格水波闪光
       g.fx.push({
