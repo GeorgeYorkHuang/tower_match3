@@ -46,8 +46,7 @@ module.exports = {
     '毒藤': { period:6, targets:1, duration:3 },
     '剧毒':   { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, baseDuration:5, durationPerBranch:2, baseDamage:0.10, freq: [0, 0.1, 0.2, 0.3] },        // C 频发：每跳间隔缩减
     '毒性强化': { stackCap:5, stacksPerBranch:2, damage:[0.15,0.18,0.21,0.24], ttlAdd: [0, 2, 4, 6] },          // B 延毒：中毒时长
-    '瘟疫':   { speedMultiplier:0.8, slowDuration:1, defaultInterval:2, baseProbability:0.30, probabilityPerBranch:0.10, radius:50, radiusPerBranch:25, iv: [0, 2, 1.7, 1.5, 1.3],         // A 快疫：传染判定间隔
-                prob: [0, 0.30, 0.45, 0.60] },     // C 强疫：传染概率
+    '瘟疫':   { speedMultiplier:0.8, slowDuration:1, defaultInterval:2, baseProbability:0.30, probabilityPerBranch:0.10, radius:50, radiusPerBranch:25, iv: [0, 2, 1.7, 1.5, 1.3] },   // A 快疫：传染判定间隔；C 强疫 = 0.30+0.10×C（30/40/50/60%）
     '瘴气':   { wallOffset:50, halfHeight:20, heightPerBranch:0.2, tickInterval:2, stacksPerTick:1, dotMult: [0, 1.2, 1.3, 1.4],       // B 浓瘴：中毒 DoT 伤害倍率
                 atkCut: [0, 0.2, 0.35, 0.5] },     // C 弱化：瘴内中毒敌攻击削减
     '毒爆':   { targets:3, radius:200, inherit: [0, 0.30, 0.40, 0.50],    // B 继承：附带死亡层数概率
