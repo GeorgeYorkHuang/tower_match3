@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>萝赛 Boss 帧动画预览 · altar_rosea（W 交付）</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:14px; background:#1b1e24; color:#dfe4ea; font:13px/1.6 "Microsoft YaHei",system-ui,sans-serif; }
+  h1 { font-size:16px; margin:0 0 10px; color:#f0d48a; }
+  h1 small { color:#8a93a0; font-weight:normal; }
+  .wrap { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+  .panel { background:#232830; border:1px solid #333a45; border-radius:8px; padding:10px 12px; }
+  .panel h3 { margin:0 0 8px; font-size:13px; color:#aab4c0; font-weight:normal; }
+  .row { display:flex; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+  .row label { color:#8a93a0; min-width:56px; }
+  button { background:#2e3542; color:#dfe4ea; border:1px solid #3d4654; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:12px; }
+  button.on { background:#4a5b78; border-color:#6b83a8; color:#fff; }
+  button:hover { border-color:#6b83a8; }
+  canvas#stage { background:repeating-conic-gradient(#2a2f38 0 25%, #232830 0 50%) 0 0/24px 24px; border-radius:8px; display:block; }
+  .info { margin-top:8px; color:#9aa5b1; white-space:pre-line; min-height:40px; }
+  .drop { border:1px dashed #4a5568; border-radius:8px; padding:10px; text-align:center; color:#8a93a0; cursor:pointer; margin-top:8px; }
+  .drop.over { border-color:#f0d48a; color:#f0d48a; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; background:#3a4250; color:#c6cfda; margin-right:4px; }
+  .badge.warn { background:#5a4a2e; color:#f0d48a; }
+</style>
+</head>
+<body>
+<h1>圣坛 20 波小 Boss「缠根司祭·萝赛」<small> · altar_rosea · 192规格任务卡256规格 · fx 模块同源预览</small></h1>
+<div class="wrap">
+  <div class="panel">
+    <canvas id="stage" width="860" height="540"></canvas>
+    <div class="info" id="info">正在加载图集…</div>
+    <div class="drop" id="drop">相对路径加载失败时：拖入 assets/images/bosses/altar_rosea/march.png（1536 宽）或 sapling_runner.png（640 宽）</div>
+  </div>
+  <div class="panel" style="width:300px">
+    <h3>状态与表现</h3>
+    <div class="row"><label>阶段</label>
+      <button id="p1" class="on">P1 藤甲期</button>
+      <button id="p2">P2 花绽狂暴</button>
+    </div>
+    <div class="row"><label>盾层</label>
+      <button data-lv="0" class="on">0</button><button data-lv="1">1</button><button data-lv="2">2</button><button data-lv="3">3</button>
+    </div>
+    <div class="row"><label>播放</label>
+      <button id="play">暂停</button>
+      <button id="replay">重播</button>
+    </div>
+    <div class="row"><label>技能</label>
+      <button id="burst">破壳花瓣爆开(0.5s)</button>
+    </div>
+    <div class="row"><label>召唤</label>
+      <button id="sumL">左入口</button><button id="sumR">右入口</button>
+    </div>
+    <h3 style="margin-top:12px">视图</h3>
+    <div class="row"><label>缩放</label>
+      <button data-z="0.5">0.5×</button><button data-z="1" class="on">原尺寸</button><button data-z="1.5">1.5×</button><button data-z="2">2×</button>
+    </div>
+    <div class="row"><label>幼芽</label>
+      <button data-sp="0">0</button><button data-sp="1">1</button><button data-sp="3" class="on">3</button><button data-sp="6">6</button>
+    </div>
+    <div class="row" style="margin-top:12px"><label>同屏</label><span class="badge" id="fxStat">fx: -</span></div>
+    <div class="info" style="min-height:88px">
+      <span class="badge warn">任务卡偏差</span>march 为 6 帧（任务卡 8 帧）：模型 3 次生成均无法稳定 8 帧一致（7 帧版丢杖），采用 6 帧一致版，见 manifest。<br>
+      <span class="badge">说明</span>本页 fx 层与 js/game/fx/boss-rosea.js 同源（内嵌 base64），验收表现即接入后表现。
+    </div>
+  </div>
+</div>
+<script>
+/* ===== fx 模块（base64 内嵌，与 js/game/fx/boss-rosea.js 同源） ===== */
+const MOD_SRC = "LyoqCiAqIEJvc3Mg6KGo546w5qih5Z2X77ya5Zyj5Z2bIDIwIOazouOAjOe8oOagueWPuOelrcK36JCd6LWb44CNKGFsdGFyX3Jvc2VhKe+8iHYxIMK3IFcg5Lqk5LuY77yJCiAqCiAqIOiBjOi0o+WNleS4gO+8mua2iOi0uemAu+i+keS+p+eahOWPquivu+eKtuaAge+8iHBoYXNlIC8gc2hpZWxkTGF5ZXJzIC8geCAvIHkgLyBlbGFwc2Vk77yJ5LiO5LiA5qyh5oCn5LqL5Lu277yMCiAqIOe7mOWItuaKgOiDveihqOeOsOWxguOAgioq5Y+q57uY5Yi2KirvvJrkuI3kv67mlLnooYDph48v5oqk55SyL+WPrOWUpC/mjonokL3vvIzkuI3mjIHmnIkgUnVuL0NvbWJhdO+8jAogKiDkuI3or7vmo4vnm5jvvIzkuI3osIPnlKggTWF0aC5yYW5kb23vvIjnoa7lrprmgKflk4jluIzvvIzpgb/lhY3miZPkubHpgLvovpHkvqcgUk5HIOmhuuW6j++8ieOAggogKgogKiDooajnjrDmuIXljZXvvIjlr7nlupTku7vliqHljaHvvInvvJoKICogICAxKSDol6TnlLLlkLjmlLbnjq/vvJpzaGllbGRMYXllcnM+MCDml7bph5HoibLol6Tnjq/vvIjlsYLmlbA95byn5q615pWw77yM6ZqPIGVsYXBzZWQg57yT6L2s77yJCiAqICAgMikgMeKAlDMg5bGC5qCH5b+X77yaQm9zcyDlpLTpobblsI/mlrnlnZfvvIjlrp7lv4M9546w5pyJ5bGC5pWw77yJCiAqICAgMykgMC41cyDnoLTlo7PlgZzpob8v6Iqx55Oj54iG5byA77yadHJpZ2dlckJ1cnN0KCkg5ZCOIDAuNXMg5YaF6Iqx55Oj54iG5pWjICsg5omp5pWj546v77yM6Ieq5Yqo57uT5p2fCiAqICAgNCkg5Lik5L6n5bm86Iq95Y+s5ZSk5YWl5Y+j77yadHJpZ2dlclN1bW1vbignbGVmdCd8J3JpZ2h0Jykg5ZCOIDAuOHMg6Jek6JST5peL5rahICsg5LiK5Y2H6Iq954K5CiAqICAgNSkgUDIg57qi6YeRL+Wrqee7v+i9ruW7k+WPmOWMlu+8mnBoYXNlPj0yIOaXtuWPjOWxguWRvOWQuOi9ruW7k++8iOWklue6oumHkS/lhoXlq6nnu7/vvIkKICoKICog6YGu5oyh57qm5p2f77ya5omA5pyJ5pWI5p6c5LulIEJvc3Mg5Li65Lit5b+D44CB5Y2K5b6EIOKJpCAxLjbDl3NpemXvvIznpoHmraLlhajlsY/mjIHnu63pga7mjKHkuInmtojnm5jjgIIKICoKICog5o6l57q/5aWR57qm77yI6aqM5pS25ZCO55SxIENvZGV4IOaOpeWFpe+8m+W9k+WJjeS7hemihOiniOWZqOa2iOi0ue+8ie+8mgogKiAgIGNvbnN0IGZ4ID0gUm9zZWFGeC5jcmVhdGUoKTsKICogICAvLyDmr4/luKfvvIjmiJjmlpfmjqjov5vvvIzmmoLlgZzml7bkuI3mjqjov5vvvInvvJoKICogICBmeC5zeW5jKHsgcGhhc2U6IGUucGhhc2UsIHNoaWVsZExheWVyczogZS5zaGllbGRMYXllcnMsIHg6IGUueCwgeTogZS55LCBzaXplOiBlLnNpemUsIGVsYXBzZWQ6IHJ1bi5lbGFwc2VkIH0pOwogKiAgIGZ4LnN0ZXAoZHQpOwogKiAgIC8vIOS6i+S7tuWFpeWPo++8iOmAu+i+keS+p+WIpOWumuWRveS4reaXtuiwg+eUqO+8ie+8mgogKiAgIGZ4LnRyaWdnZXJCdXJzdCgpOyAgICAgICAgICAgIC8vIFMyIOiXpOWjs+eCuOijgueerOmXtAogKiAgIGZ4LnRyaWdnZXJTdW1tb24oJ2xlZnQnKTsgICAgIC8vIOW5vOiKveeUn+aIkOS+pwogKiAgIC8vIOa4suafk+Wxgu+8iEJvc3Mg5pys5L2T5bin5LmL5ZCO44CB6KGA5p2h5LmL5YmN77yJ77yaCiAqICAgZnguZHJhd1RvKGN0eCk7CiAqICAgLy8g6YCA5Ye65oiY5paXIC8g6YeN5byA77yaCiAqICAgZngucmVzZXQoKTsKICovCid1c2Ugc3RyaWN0JzsKCnZhciBERUZBVUxUX0NPTkYgPSB7CiAgcmluZzogeyByYWRpdXNSYXRpbzogMC42Miwgd2lkdGg6IDMsIGNvbG9yOiAnI2Q5YTUzZicsIHJvdFNwZWVkOiAwLjQsIGdhcERlZzogMTggfSwKICBwaXBzOiB7IGNvdW50OiAzLCBzaXplOiA3LCBnYXA6IDUsIHlSYXRpbzogMC43OCwgb246ICcjZThiNjRjJywgb2ZmOiAncmdiYSgyNTUsMjU1LDI1NSwwLjIyKScgfSwKICByaW06IHsgb3V0ZXI6ICcjZmY4YzVhJywgaW5uZXI6ICcjYjllNzdlJywgb3V0ZXJSYXRpbzogMC42OCwgaW5uZXJSYXRpbzogMC41OCwgd2lkdGg6IDIuNSwgcHVsc2U6IDAuMzUgfSwKICBidXJzdDogeyBkdXJhdGlvbjogMC41LCBwZXRhbHM6IDE0LCBjb2xvcnM6IFsnI2YyYTBiNScsICcjZTc3ZTljJywgJyNiOWU3N2UnXSwgcmluZ0NvbG9yOiAncmdiYSgyNTUsMjIwLDE4MCwwLjkpJywgbWF4UmFkaXVzUmF0aW86IDEuMzUgfSwKICBzdW1tb246IHsgZHVyYXRpb246IDAuOCwgY29sb3I6ICcjN2ZiMDY5Jywgb2Zmc2V0UmF0aW86IDEuMTUsIHJhZGl1c1JhdGlvOiAwLjM0IH0sCn07CgovKiDnoa7lrprmgKfkvKrpmo/mnLrvvJrmiorluo/lj7fmiZPmlaPliLAgWy0xLDFdICovCmZ1bmN0aW9uIGppdHRlcihzZXEpIHsKICB2YXIgaCA9IChzZXEgKiAyNjU0NDM1NzYxKSA+Pj4gMDsKICBoIF49IGggPj4+IDE1OyBoID0gTWF0aC5pbXVsKGgsIDIyNDY4MjI1MDcpID4+PiAwOwogIGggXj0gaCA+Pj4gMTM7CiAgcmV0dXJuICgoaCAlIDIwMDApIC8gMTAwMCkgLSAxOwp9CgpmdW5jdGlvbiBjbGFtcDAxKHYpIHsgcmV0dXJuIHYgPCAwID8gMCA6ICh2ID4gMSA/IDEgOiB2KTsgfQoKZnVuY3Rpb24gY3JlYXRlKG9wdHMpIHsKICBvcHRzID0gb3B0cyB8fCB7fTsKICB2YXIgY29uZiA9IG9wdHMuY29uZmlnIHx8IERFRkFVTFRfQ09ORjsKCiAgLy8g5Y+q6K+754q25oCB77yI6YC76L6R5L6n5q+P5binIHN5bmMg6KaG55uW77yJCiAgdmFyIHN0ID0geyBwaGFzZTogMSwgc2hpZWxkTGF5ZXJzOiAwLCB4OiAwLCB5OiAwLCBzaXplOiA5NiwgZWxhcHNlZDogMCwgdmlzaWJsZTogZmFsc2UgfTsKCiAgLy8g5LiA5qyh5oCn6KGo546w5LqL5Lu277yI5Y+q6K6w6Kem5Y+R5pe25Yi777yM55SxIHN0ZXAg5o6o6L+b5a+/5ZG977yJCiAgdmFyIGJ1cnN0QWdlID0gLTE7ICAgICAgICAgICAgICAgICAvLyA+PTAg6KGo56S654iG5aOz6KGo546w6L+b6KGM5LitCiAgdmFyIHN1bW1vbnMgPSBbXTsgICAgICAgICAgICAgICAgICAvLyBbe3NpZGUsIGFnZX1dCiAgdmFyIHNlcSA9IDA7CiAgdmFyIHN0YXRzID0geyBidXJzdHM6IDAsIHN1bW1vbnM6IDAgfTsKCiAgLyoqIOavj+W4p+WQjOatpemAu+i+keWPquivu+eKtuaAge+8iOa1heaLt+i0nea2iOi0ue+8jOS4jeaMgeacieW8leeUqO+8iSAqLwogIGZ1bmN0aW9uIHN5bmMocykgewogICAgaWYgKCFzKSByZXR1cm47CiAgICBpZiAocy5waGFzZSAhPSBudWxsKSBzdC5waGFzZSA9IChzLnBoYXNlID49IDIgPyAyIDogMSk7CiAgICBpZiAocy5zaGllbGRMYXllcnMgIT0gbnVsbCkgc3Quc2hpZWxkTGF5ZXJzID0gTWF0aC5tYXgoMCwgTWF0aC5taW4oMywgcy5zaGllbGRMYXllcnMgfCAwKSk7CiAgICBpZiAocy54ICE9IG51bGwpIHN0LnggPSBzLng7CiAgICBpZiAocy55ICE9IG51bGwpIHN0LnkgPSBzLnk7CiAgICBpZiAocy5zaXplICE9IG51bGwpIHN0LnNpemUgPSBNYXRoLm1heCgxLCBzLnNpemUpOwogICAgaWYgKHMuZWxhcHNlZCAhPSBudWxsKSBzdC5lbGFwc2VkID0gTWF0aC5tYXgoMCwgcy5lbGFwc2VkKTsKICAgIHN0LnZpc2libGUgPSB0cnVlOwogIH0KCiAgLyoqIOaOqOi/m+ihqOeOsOWvv+WRve+8iOaaguWBnOaXtuS4jeiwg+eUqO+8iSAqLwogIGZ1bmN0aW9uIHN0ZXAoZHQpIHsKICAgIGlmICghKGR0ID4gMCkpIHJldHVybjsKICAgIGlmIChidXJzdEFnZSA+PSAwKSB7CiAgICAgIGJ1cnN0QWdlICs9IGR0OwogICAgICBpZiAoYnVyc3RBZ2UgPj0gY29uZi5idXJzdC5kdXJhdGlvbikgYnVyc3RBZ2UgPSAtMTsKICAgIH0KICAgIGZvciAodmFyIGkgPSBzdW1tb25zLmxlbmd0aCAtIDE7IGkgPj0gMDsgaS0tKSB7CiAgICAgIHN1bW1vbnNbaV0uYWdlICs9IGR0OwogICAgICBpZiAoc3VtbW9uc1tpXS5hZ2UgPj0gY29uZi5zdW1tb24uZHVyYXRpb24pIHN1bW1vbnMuc3BsaWNlKGksIDEpOwogICAgfQogIH0KCiAgLyoqIFMyIOiXpOWjs+eCuOijgueerOmXtOiwg+eUqO+8iDAuNXMg6Iqx55Oj54iG5byA6KGo546w77yM6Ieq5Yqo57uT5p2f77yJICovCiAgZnVuY3Rpb24gdHJpZ2dlckJ1cnN0KCkgewogICAgYnVyc3RBZ2UgPSAwOwogICAgc2VxKys7CiAgICBzdGF0cy5idXJzdHMrKzsKICB9CgogIC8qKiDlubzoir3lj6zllKTlhaXlj6PvvJpzaWRlID0gJ2xlZnQnIHwgJ3JpZ2h0JyAqLwogIGZ1bmN0aW9uIHRyaWdnZXJTdW1tb24oc2lkZSkgewogICAgc3VtbW9ucy5wdXNoKHsgc2lkZTogc2lkZSA9PT0gJ3JpZ2h0JyA/ICdyaWdodCcgOiAnbGVmdCcsIGFnZTogMCwgc2VlZDogc2VxKysgfSk7CiAgICBzdGF0cy5zdW1tb25zKys7CiAgfQoKICAvKiog5riy5p+T5bGC6LCD55So77ya55S75oqA6IO96KGo546w5bGC77yI5ZyoIEJvc3Mg5pys5L2T5bin5LmL5ZCO44CB6KGA5p2h5LmL5YmN77yJICovCiAgZnVuY3Rpb24gZHJhd1RvKGN0eCkgewogICAgaWYgKCFzdC52aXNpYmxlKSByZXR1cm47CiAgICB2YXIgeCA9IHN0LngsIHkgPSBzdC55LCBzaXplID0gc3Quc2l6ZSwgdCA9IHN0LmVsYXBzZWQ7CgogICAgLy8gMSkg6Jek55Sy5ZC45pS2546v77yI5bGC5pWwID0g5byn5q615pWw77yJCiAgICBpZiAoc3Quc2hpZWxkTGF5ZXJzID4gMCkgewogICAgICB2YXIgciA9IHNpemUgKiBjb25mLnJpbmcucmFkaXVzUmF0aW87CiAgICAgIHZhciByb3QgPSB0ICogY29uZi5yaW5nLnJvdFNwZWVkOwogICAgICB2YXIgc2VncyA9IHN0LnNoaWVsZExheWVyczsKICAgICAgdmFyIHNwYW4gPSAoTWF0aC5QSSAqIDIgLSBzZWdzICogKGNvbmYucmluZy5nYXBEZWcgKiBNYXRoLlBJIC8gMTgwKSkgLyBzZWdzOwogICAgICBjdHgubGluZVdpZHRoID0gY29uZi5yaW5nLndpZHRoOwogICAgICBjdHguc3Ryb2tlU3R5bGUgPSBjb25mLnJpbmcuY29sb3I7CiAgICAgIGN0eC5nbG9iYWxBbHBoYSA9IDAuODU7CiAgICAgIGZvciAodmFyIGkgPSAwOyBpIDwgc2VnczsgaSsrKSB7CiAgICAgICAgdmFyIGEwID0gcm90ICsgaSAqIChzcGFuICsgY29uZi5yaW5nLmdhcERlZyAqIE1hdGguUEkgLyAxODApOwogICAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgICBjdHguYXJjKHgsIHkgLSBzaXplICogMC4wNSwgciwgYTAsIGEwICsgc3Bhbik7CiAgICAgICAgY3R4LnN0cm9rZSgpOwogICAgICB9CiAgICAgIGN0eC5nbG9iYWxBbHBoYSA9IDE7CiAgICB9CgogICAgLy8gMikgUDIg5Y+M5bGC5ZG85ZC46L2u5buT77yI5aSW57qi6YeRIC8g5YaF5aup57u/77yJCiAgICBpZiAoc3QucGhhc2UgPj0gMikgewogICAgICB2YXIgcHVsc2UgPSAwLjUgKyAwLjUgKiBNYXRoLnNpbih0ICogTWF0aC5QSSAqIDIgKiAwLjgpOwogICAgICB2YXIgYWxwaGEgPSAwLjI1ICsgY29uZi5yaW0ucHVsc2UgKiAwLjM1ICogcHVsc2U7CiAgICAgIGN0eC5saW5lV2lkdGggPSBjb25mLnJpbS53aWR0aDsKICAgICAgY3R4Lmdsb2JhbEFscGhhID0gYWxwaGE7CiAgICAgIGN0eC5zdHJva2VTdHlsZSA9IGNvbmYucmltLm91dGVyOwogICAgICBjdHguYmVnaW5QYXRoKCk7CiAgICAgIGN0eC5lbGxpcHNlKHgsIHkgLSBzaXplICogMC40NSwgc2l6ZSAqIGNvbmYucmltLm91dGVyUmF0aW8gKiAoMC41ICsgMC4wNiAqIHB1bHNlKSwgc2l6ZSAqIGNvbmYucmltLm91dGVyUmF0aW8gKiAwLjYyLCAwLCAwLCBNYXRoLlBJICogMik7CiAgICAgIGN0eC5zdHJva2UoKTsKICAgICAgY3R4LnN0cm9rZVN0eWxlID0gY29uZi5yaW0uaW5uZXI7CiAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgY3R4LmVsbGlwc2UoeCwgeSAtIHNpemUgKiAwLjQ1LCBzaXplICogY29uZi5yaW0uaW5uZXJSYXRpbyAqICgwLjUgKyAwLjA2ICogKDEgLSBwdWxzZSkpLCBzaXplICogY29uZi5yaW0uaW5uZXJSYXRpbyAqIDAuNjIsIDAsIDAsIE1hdGguUEkgKiAyKTsKICAgICAgY3R4LnN0cm9rZSgpOwogICAgICBjdHguZ2xvYmFsQWxwaGEgPSAxOwogICAgfQoKICAgIC8vIDMpIOegtOWjs+iKseeTo+eIhuW8gO+8iDAuNXPvvIznoa7lrprmgKfop5LluqbvvIkKICAgIGlmIChidXJzdEFnZSA+PSAwKSB7CiAgICAgIHZhciBwID0gY2xhbXAwMShidXJzdEFnZSAvIGNvbmYuYnVyc3QuZHVyYXRpb24pOwogICAgICB2YXIgbiA9IGNvbmYuYnVyc3QucGV0YWxzOwogICAgICBmb3IgKHZhciBrID0gMDsgayA8IG47IGsrKykgewogICAgICAgIHZhciBhbmcgPSAoayAvIG4pICogTWF0aC5QSSAqIDIgKyBqaXR0ZXIoc2VxICogMzEgKyBrKSAqIDAuMzU7CiAgICAgICAgdmFyIGRpc3QgPSBzaXplICogKDAuMjUgKyBjb25mLmJ1cnN0Lm1heFJhZGl1c1JhdGlvICogcCkgKiAoMC43NSArIDAuMjUgKiBNYXRoLmFicyhqaXR0ZXIoc2VxICogMTcgKyBrKSkpOwogICAgICAgIHZhciBweCA9IHggKyBNYXRoLmNvcyhhbmcpICogZGlzdDsKICAgICAgICB2YXIgcHkgPSB5IC0gc2l6ZSAqIDAuNDUgKyBNYXRoLnNpbihhbmcpICogZGlzdCAqIDAuNzI7CiAgICAgICAgY3R4Lmdsb2JhbEFscGhhID0gMSAtIHA7CiAgICAgICAgY3R4LmZpbGxTdHlsZSA9IGNvbmYuYnVyc3QuY29sb3JzW2sgJSBjb25mLmJ1cnN0LmNvbG9ycy5sZW5ndGhdOwogICAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgICBjdHguZWxsaXBzZShweCwgcHksIHNpemUgKiAwLjA3LCBzaXplICogMC4wNDUsIGFuZywgMCwgTWF0aC5QSSAqIDIpOwogICAgICAgIGN0eC5maWxsKCk7CiAgICAgIH0KICAgICAgLy8g5omp5pWj546v77yI5YmNIDQwJe+8iQogICAgICBpZiAocCA8IDAuNCkgewogICAgICAgIGN0eC5nbG9iYWxBbHBoYSA9IDEgLSBwIC8gMC40OwogICAgICAgIGN0eC5zdHJva2VTdHlsZSA9IGNvbmYuYnVyc3QucmluZ0NvbG9yOwogICAgICAgIGN0eC5saW5lV2lkdGggPSAzOwogICAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgICBjdHguYXJjKHgsIHkgLSBzaXplICogMC40NSwgc2l6ZSAqICgwLjM1ICsgMC45ICogKHAgLyAwLjQpKSwgMCwgTWF0aC5QSSAqIDIpOwogICAgICAgIGN0eC5zdHJva2UoKTsKICAgICAgfQogICAgICBjdHguZ2xvYmFsQWxwaGEgPSAxOwogICAgfQoKICAgIC8vIDQpIOS4pOS+p+W5vOiKveWPrOWUpOWFpeWPo++8iDAuOHMg6Jek6JST5peL5rahICsg5LiK5Y2H6Iq954K577yJCiAgICBmb3IgKHZhciBzID0gMDsgcyA8IHN1bW1vbnMubGVuZ3RoOyBzKyspIHsKICAgICAgdmFyIHNtID0gc3VtbW9uc1tzXTsKICAgICAgdmFyIHEgPSBjbGFtcDAxKHNtLmFnZSAvIGNvbmYuc3VtbW9uLmR1cmF0aW9uKTsKICAgICAgdmFyIHN4ID0geCArIChzbS5zaWRlID09PSAncmlnaHQnID8gMSA6IC0xKSAqIHNpemUgKiBjb25mLnN1bW1vbi5vZmZzZXRSYXRpbzsKICAgICAgdmFyIHN5ID0geSAtIHNpemUgKiAwLjI7CiAgICAgIGN0eC5nbG9iYWxBbHBoYSA9IDEgLSBxOwogICAgICBjdHguc3Ryb2tlU3R5bGUgPSBjb25mLnN1bW1vbi5jb2xvcjsKICAgICAgY3R4LmxpbmVXaWR0aCA9IDIuNTsKICAgICAgLy8g5Y+M5peL5rah5bynCiAgICAgIGZvciAodmFyIGEgPSAwOyBhIDwgMjsgYSsrKSB7CiAgICAgICAgdmFyIGEwID0gc20uYWdlICogMy4yICsgYSAqIE1hdGguUEk7CiAgICAgICAgY3R4LmJlZ2luUGF0aCgpOwogICAgICAgIGN0eC5hcmMoc3gsIHN5LCBzaXplICogY29uZi5zdW1tb24ucmFkaXVzUmF0aW8sIGEwLCBhMCArIE1hdGguUEkgKiAwLjkpOwogICAgICAgIGN0eC5zdHJva2UoKTsKICAgICAgfQogICAgICAvLyDkuIrljYfoir3ngrnvvIgzIOS4qu+8jOehruWumuaAp++8iQogICAgICBmb3IgKHZhciBkID0gMDsgZCA8IDM7IGQrKykgewogICAgICAgIHZhciBqID0gaml0dGVyKHNtLnNlZWQgKiAxMyArIGQpOwogICAgICAgIHZhciByaXNlID0gcSAqIHNpemUgKiAwLjU7CiAgICAgICAgY3R4LmZpbGxTdHlsZSA9IGNvbmYuc3VtbW9uLmNvbG9yOwogICAgICAgIGN0eC5iZWdpblBhdGgoKTsKICAgICAgICBjdHguYXJjKHN4ICsgaiAqIHNpemUgKiAwLjE4LCBzeSAtIHJpc2UgLSBkICogc2l6ZSAqIDAuMDgsIHNpemUgKiAwLjAzNSwgMCwgTWF0aC5QSSAqIDIpOwogICAgICAgIGN0eC5maWxsKCk7CiAgICAgIH0KICAgICAgY3R4Lmdsb2JhbEFscGhhID0gMTsKICAgIH0KICB9CgogIC8qKgogICAqIFAyIOi9ruW7k+WPmOWMlui+heWKqe+8iOWPr+mAie+8ie+8muaKiuacrOS9k+W4p+afk+S4iue6oumHkS/lq6nnu7/mj4/ovrnlkI7nu5jliLbjgIIKICAgKiDpnIDopoEgb3B0cy5jcmVhdGVDYW52YXMg5bel5Y6C77yI5b6u5L+hIHd4LmNyZWF0ZU9mZnNjcmVlbkNhbnZhcyAvIOa1j+iniOWZqCBkb2N1bWVudC5jcmVhdGVFbGVtZW5077yJ77ybCiAgICog5peg55S75biD5bel5Y6C5pe26L+U5ZueIGZhbHNl77yI6ZmN57qn5Li65LiN5p+T6Imy77yM5LuFIGRyYXdUbyDnmoQgcmltIOi9ruW7k++8ieOAggogICAqLwogIHZhciB0aW50Q2FjaGUgPSBudWxsOwogIGZ1bmN0aW9uIGRyYXdUaW50ZWRGcmFtZShjdHgsIGltZywgZnJhbWVJbmRleCwgZnJhbWVXLCBmcmFtZUgsIGR4LCBkeSwgZHcsIGRoLCBjcmVhdGVDYW52YXMpIHsKICAgIGlmICghaW1nIHx8ICFjcmVhdGVDYW52YXMpIHJldHVybiBmYWxzZTsKICAgIHZhciBrZXkgPSBpbWcuc3JjIHx8IGltZzsKICAgIGlmICghdGludENhY2hlIHx8IHRpbnRDYWNoZS5pbWcgIT09IGltZykgdGludENhY2hlID0geyBpbWc6IGltZywgY2FudmFzZXM6IHt9IH07CiAgICB2YXIgY3ZzID0gdGludENhY2hlLmNhbnZhc2VzW2ZyYW1lSW5kZXhdOwogICAgaWYgKCFjdnMpIHsKICAgICAgY3ZzID0gY3JlYXRlQ2FudmFzKGZyYW1lVywgZnJhbWVIKTsKICAgICAgaWYgKCFjdnMgfHwgIWN2cy5nZXRDb250ZXh0KSByZXR1cm4gZmFsc2U7CiAgICAgIHZhciBnID0gY3ZzLmdldENvbnRleHQoJzJkJyk7CiAgICAgIGcuZHJhd0ltYWdlKGltZywgZnJhbWVJbmRleCAqIGZyYW1lVywgMCwgZnJhbWVXLCBmcmFtZUgsIDAsIDAsIGZyYW1lVywgZnJhbWVIKTsKICAgICAgZy5nbG9iYWxDb21wb3NpdGVPcGVyYXRpb24gPSAnc291cmNlLWluJzsKICAgICAgZy5maWxsU3R5bGUgPSBzdC5waGFzZSA+PSAyID8gJ3JnYmEoMjU1LDE0MCw5MCwwLjM1KScgOiAncmdiYSgxODUsMjMxLDEyNiwwLjI1KSc7CiAgICAgIGcuZmlsbFJlY3QoMCwgMCwgZnJhbWVXLCBmcmFtZUgpOwogICAgICB0aW50Q2FjaGUuY2FudmFzZXNbZnJhbWVJbmRleF0gPSBjdnM7CiAgICB9CiAgICBjdHguZHJhd0ltYWdlKGN2cywgZHgsIGR5LCBkdywgZGgpOwogICAgcmV0dXJuIHRydWU7CiAgfQoKICAvKiog6YCA5Ye65oiY5paXIC8g6YeN5byAICovCiAgZnVuY3Rpb24gcmVzZXQoKSB7CiAgICBidXJzdEFnZSA9IC0xOwogICAgc3VtbW9ucy5sZW5ndGggPSAwOwogICAgc3QudmlzaWJsZSA9IGZhbHNlOwogIH0KCiAgZnVuY3Rpb24gc3RhdHNPZigpIHsgcmV0dXJuIHsgYnVyc3RzOiBzdGF0cy5idXJzdHMsIHN1bW1vbnM6IHN0YXRzLnN1bW1vbnMsIHN1bW1vbnNBY3RpdmU6IHN1bW1vbnMubGVuZ3RoLCBidXJzdGluZzogYnVyc3RBZ2UgPj0gMCB9OyB9CgogIHJldHVybiB7CiAgICBzeW5jOiBzeW5jLCBzdGVwOiBzdGVwLCBkcmF3VG86IGRyYXdUbywKICAgIHRyaWdnZXJCdXJzdDogdHJpZ2dlckJ1cnN0LCB0cmlnZ2VyU3VtbW9uOiB0cmlnZ2VyU3VtbW9uLAogICAgZHJhd1RpbnRlZEZyYW1lOiBkcmF3VGludGVkRnJhbWUsIHJlc2V0OiByZXNldCwgc3RhdHM6IHN0YXRzT2YsIGNvbmZpZzogY29uZiwKICAgIHN0YXRlOiBzdCwKICB9Owp9Cgptb2R1bGUuZXhwb3J0cyA9IHsgY3JlYXRlLCBERUZBVUxUX0NPTkYsIGppdHRlciB9Owo=";
+const factories = {};
+function req(path) {
+  if (!factories[path]) {
+    const src = decodeURIComponent(escape(atob(MOD_SRC)));
+    factories[path] = new Function('require', 'module', 'exports', src + '\n//# sourceURL=' + path);
+  }
+  const module = { exports: {} };
+  factories[path](req, module, module.exports);
+  return module.exports;
+}
+const RoseaFx = req('js/game/fx/boss-rosea.js');
+
+/* ===== 状态 ===== */
+const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+const info = document.getElementById('info');
+const GROUND = 470;                       // 地面基线
+const boss = { x: 300, size: 200, elapsed: 0, frame: 0, frameT: 0 };
+const fx = RoseaFx.create();
+let marchImg = null, sapImg = null;
+let M = { frames: 6, fw: 256, fh: 256, durs: [320,320,320,320,320,320] };
+let S = { frames: 5, fw: 128, fh: 128, durs: [160,160,160,160,160] };
+let phase = 1, layers = 0, playing = true, zoom = 1, sapCount = 3;
+let last = performance.now();
+const saplings = [];
+
+function status(msg, warn) { info.textContent = msg; info.style.color = warn ? '#f0b0b0' : '#9aa5b1'; }
+function loadedMsg() {
+  status('✓ march.png ' + (marchImg ? marchImg.naturalWidth + '×' + marchImg.naturalHeight : '缺')
+    + ' · sapling_runner.png ' + (sapImg ? sapImg.naturalWidth + '×' + sapImg.naturalHeight : '缺')
+    + '\n棋盘=透明 · Boss 脚底=地面线 · fx 层随右侧控件实时变化');
+}
+
+/* ===== 相对路径加载（三种前缀兜底）+ 拖入兜底 ===== */
+function tryLoad(path, cb) {
+  const cands = ['../' + path, '../../' + path, path];
+  (function next(i) {
+    if (i >= cands.length) { cb(null); return; }
+    const img = new Image();
+    img.onload = () => cb(img);
+    img.onerror = () => next(i + 1);
+    img.src = cands[i];
+  })(0);
+}
+tryLoad('assets/images/bosses/altar_rosea/march.png', img => {
+  if (img) { marchImg = img; } else status('⚠ march.png 相对路径加载失败，请拖入', true);
+  tryLoad('assets/images/bosses/altar_rosea/sapling_runner.png', im2 => {
+    if (im2) sapImg = im2;
+    loadedMsg();
+  });
+});
+const drop = document.getElementById('drop');
+['dragover','dragenter'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+document.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  f.arrayBuffer().then(buf => {
+    const blob = new Blob([buf], { type: 'image/png' });
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth === 1536) { marchImg = img; status('✓ 已载入 march.png ' + img.naturalWidth + '×' + img.naturalHeight); }
+      else if (img.naturalWidth === 640) { sapImg = img; status('✓ 已载入 sapling_runner.png ' + img.naturalWidth + '×' + img.naturalHeight); }
+      else status('⚠ 宽度 ' + img.naturalWidth + ' 不匹配 march(1536)/sapling(640)', true);
+      loadedMsg();
+    };
+    img.src = URL.createObjectURL(blob);
+  });
+});
+
+/* ===== 控件 ===== */
+function setPhase(p) {
+  phase = p;
+  document.getElementById('p1').classList.toggle('on', p === 1);
+  document.getElementById('p2').classList.toggle('on', p === 2);
+}
+document.getElementById('p1').onclick = () => setPhase(1);
+document.getElementById('p2').onclick = () => setPhase(2);
+document.querySelectorAll('button[data-lv]').forEach(b => b.onclick = () => {
+  layers = +b.dataset.lv;
+  document.querySelectorAll('button[data-lv]').forEach(x => x.classList.toggle('on', x === b));
+});
+document.getElementById('play').onclick = e => {
+  playing = !playing;
+  e.target.textContent = playing ? '暂停' : '播放';
+};
+document.getElementById('replay').onclick = () => {
+  boss.elapsed = 0; boss.frame = 0; boss.frameT = 0;
+  fx.reset(); fx.triggerBurst(); fx.triggerSummon('left'); fx.triggerSummon('right');
+};
+document.getElementById('burst').onclick = () => fx.triggerBurst();
+document.getElementById('sumL').onclick = () => fx.triggerSummon('left');
+document.getElementById('sumR').onclick = () => fx.triggerSummon('right');
+document.querySelectorAll('button[data-z]').forEach(b => b.onclick = () => {
+  zoom = +b.dataset.z;
+  document.querySelectorAll('button[data-z]').forEach(x => x.classList.toggle('on', x === b));
+});
+document.querySelectorAll('button[data-sp]').forEach(b => b.onclick = () => {
+  sapCount = +b.dataset.sp;
+  document.querySelectorAll('button[data-sp]').forEach(x => x.classList.toggle('on', x === b));
+});
+
+/* ===== 渲染 ===== */
+function makeSapling(i) {
+  return { x: 900 + i * 90, seed: i * 37, frame: 0, frameT: 0 };
+}
+function drawSprite(img, meta, frame, cx, groundY, dw, dh) {
+  if (!img) return;
+  ctx.drawImage(img, frame * meta.fw, 0, meta.fw, meta.fh, cx - dw / 2, groundY - dh, dw, dh);
+}
+function render(dt) {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // 地面线
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, GROUND + 0.5); ctx.lineTo(cv.width, GROUND + 0.5); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '11px sans-serif';
+  ctx.fillText('地面（脚底中心锚点）', 10, GROUND + 14);
+
+  const dw = M.fw * zoom, dh = M.fh * zoom;
+  const bossY = GROUND;
+  const bossSize = 200 * zoom;
+  const bossCx = boss.x;
+
+  // 幼芽（runner 循环，从右往左）
+  const want = sapImg ? sapCount : 0;
+  while (saplings.length < want) saplings.push(makeSapling(saplings.length));
+  saplings.length = want;
+  const sdw = S.fw * zoom * 0.75, sdh = S.fh * zoom * 0.75;
+  for (const sp of saplings) {
+    if (playing) {
+      sp.x -= 90 * zoom * dt;
+      sp.frameT += S.durs[sp.frame];
+      if (sp.frameT >= S.durs[sp.frame] * 1) { sp.frameT = 0; sp.frame = (sp.frame + 1) % S.frames; }
+      if (sp.x < -sdw) sp.x = cv.width + 60;
+    }
+    drawSprite(sapImg, S, sp.frame, sp.x, GROUND, sdw, sdh);
+  }
+
+  // Boss 本体（march 循环）+ fx 层
+  if (playing) {
+    boss.frameT += M.durs[boss.frame];
+    if (boss.frameT >= M.durs[boss.frame]) { boss.frameT = 0; boss.frame = (boss.frame + 1) % M.frames; }
+    boss.elapsed += dt;
+  }
+  fx.sync({ phase, shieldLayers: layers, x: bossCx, y: bossY - 6 * zoom, size: bossSize, elapsed: boss.elapsed });
+  if (playing) fx.step(dt);
+
+  drawSprite(marchImg, M, boss.frame, bossCx, bossY, dw, dh);
+  // P2 时尝试给本体叠加轮廓染色（fx 模块辅助，降级则仅 rim 轮廓）
+  if (phase >= 2 && marchImg) {
+    fx.drawTintedFrame(ctx, marchImg, boss.frame, M.fw, M.fh,
+      bossCx - dw / 2, bossY - dh, dw, dh,
+      (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
+  }
+  fx.drawTo(ctx);
+
+  document.getElementById('fxStat').textContent =
+    'bursting:' + fx.stats().bursting + ' summons:' + fx.stats().summonsActive;
+}
+
+function tick(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  render(dt);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
