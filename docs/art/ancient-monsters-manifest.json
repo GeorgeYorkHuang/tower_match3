@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-31T00:25",
+  "version": "2026-10-31T01:42",
   "game": "圣坛裂痕",
   "field": "圣坛花园",
   "spec": {
@@ -25,7 +25,7 @@
         220
       ],
       "anchor": "bottom-center",
-      "bytes": 89068,
+      "bytes": 89767,
       "scaled": 0.444,
       "rawMaxDim": 252
     },
@@ -68,6 +68,106 @@
       "bytes": 84677,
       "scaled": 0.299,
       "rawMaxDim": 374
+    },
+    {
+      "generation": 4,
+      "type": "normal",
+      "name": "藤缚侍从",
+      "path": "assets/images/enemies/ancient/lv4.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        240,
+        240,
+        240,
+        240,
+        240
+      ],
+      "anchor": "bottom-center",
+      "bytes": 74056,
+      "scaled": 0.216,
+      "rawMaxDim": 519
+    },
+    {
+      "generation": 5,
+      "type": "fast",
+      "name": "荆棘猎犬",
+      "path": "assets/images/enemies/ancient/lv5.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        160,
+        160,
+        160,
+        160,
+        160
+      ],
+      "anchor": "bottom-center",
+      "bytes": 101543,
+      "scaled": 0.396,
+      "rawMaxDim": 283
+    },
+    {
+      "generation": 6,
+      "type": "tank",
+      "name": "古根盾卫",
+      "path": "assets/images/enemies/ancient/lv6.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        300,
+        300,
+        300,
+        300,
+        300
+      ],
+      "anchor": "bottom-center",
+      "bytes": 100358,
+      "scaled": 0.322,
+      "rawMaxDim": 348
+    },
+    {
+      "generation": 7,
+      "type": "normal",
+      "name": "残坛守兵",
+      "path": "assets/images/enemies/ancient/lv7.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        240,
+        240,
+        240,
+        240,
+        240
+      ],
+      "anchor": "bottom-center",
+      "bytes": 84357,
+      "scaled": 0.26,
+      "rawMaxDim": 431
+    },
+    {
+      "generation": 8,
+      "type": "fast",
+      "name": "逐风花螳",
+      "path": "assets/images/enemies/ancient/lv8.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        160,
+        160,
+        160,
+        160,
+        160
+      ],
+      "anchor": "bottom-center",
+      "bytes": 78496,
+      "scaled": 0.38,
+      "rawMaxDim": 295
     }
   ]
 }

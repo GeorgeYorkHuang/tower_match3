@@ -16,12 +16,23 @@ SAFE = 112          # 内容最大边（留 8px 安全空白）
 ALPHA_TH = 16       # alpha 阈值
 
 JOBS = [
-    dict(lv=1, name="苔露团",     type="normal", frames=6, durs=[140,160,200,310,200,220], erode=2,
+    dict(lv=1, name="苔露团",     type="normal", frames=6, durs=[140,160,200,310,200,220], erode=2, anchor="foot",
          raw=r"art\monsters_ancient\lv1\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T16-24-39.png"),
     dict(lv=2, name="疾芽鼠",     type="fast",   frames=5, durs=[160]*5,
          raw=r"art\monsters_ancient\lv2\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T16-24-50.png"),
     dict(lv=3, name="负碑石卫",   type="tank",   frames=5, durs=[300]*5,
          raw=r"art\monsters_ancient\lv3\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T16-25-01.png"),
+    # ---- B卡 Lv4-8 ----
+    dict(lv=4, name="藤缚侍从",   type="normal", frames=5, durs=[240]*5, anchor="foot",
+         raw=r"art\monsters_ancient\lv4\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T17-40-38.png"),
+    dict(lv=5, name="荆棘猎犬",   type="fast",   frames=5, durs=[160]*5, anchor="lift",
+         raw=r"art\monsters_ancient\lv5\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T17-40-49.png"),
+    dict(lv=6, name="古根盾卫",   type="tank",   frames=5, durs=[300]*5, anchor="foot",
+         raw=r"art\monsters_ancient\lv6\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T17-40-58.png"),
+    dict(lv=7, name="残坛守兵",   type="normal", frames=5, durs=[240]*5, anchor="foot",
+         raw=r"art\monsters_ancient\lv7\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T17-41-07.png"),
+    dict(lv=8, name="逐风花螳",   type="fast",   frames=5, durs=[160]*5, anchor="lift",
+         raw=r"art\monsters_ancient\lv8\Sprite_sheet_for_a_2D_mobile_t_2026-10-30T17-41-18.png"),
 ]
 
 def largest_component_mask(alpha):
@@ -76,16 +87,21 @@ def process(job):
     scale = min(1.0, SAFE / maxdim)
     if scale < 1.0:
         frames = [f.resize((max(1,int(f.width*scale)), max(1,int(f.height*scale))), Image.LANCZOS) if f else None for f in frames]
-    # 地面线：所有帧内容的最低点
-    ground = max(f.height for f in frames if f)
     # 合成
+    # anchor='foot'  ：脚底基点锚定——所有帧脚底对齐同一基线（消除帧间跳动感，仅保留挤压/摆动）
+    # anchor='lift'  ：保留原图腾空量（跑/跳循环的滞空相）
+    anchor = job.get("anchor", "lift")
+    margin = job.get("baseMargin", 6)   # 脚底距图集底边留白
     atlas = Image.new("RGBA", (CELL*N, CELL), (0,0,0,0))
     for i, f in enumerate(frames):
         if not f: continue
-        # 顶部距地面线的距离保持原相对关系（保留跳跃腾空）
-        top_from_ground = ground - f.height
         px = (i*CELL) + (CELL - f.width)//2
-        py = CELL - top_from_ground - f.height
+        if anchor == "foot":
+            py = CELL - margin - f.height   # 脚底统一钉在基线上
+        else:
+            ground = max(g.height for g in frames if g)
+            top_from_ground = ground - f.height
+            py = CELL - top_from_ground - f.height
         atlas.paste(f, (px, py))
     # 输出
     out_dir = os.path.join(ROOT, "assets", "images", "enemies", "ancient")
@@ -204,8 +220,11 @@ def remove_fringe(im, palette, tol=22, passes=2, erode=1):
     return im
 
 def main():
-    manifest = {"version": "2026-10-31T00:25", "game": "圣坛裂痕", "field": "圣坛花园", "spec": {"frameWidth":128,"frameHeight":128,"anchor":"bottom-center"}, "monsters": []}
+    import sys
+    only = {int(a) for a in sys.argv[1:] if a.isdigit()}  # 可选：python xxx.py 4 5 6 只跑指定等级
+    manifest = {"version": "2026-10-31T01:42", "game": "圣坛裂痕", "field": "圣坛花园", "spec": {"frameWidth":128,"frameHeight":128,"anchor":"bottom-center"}, "monsters": []}
     for job in JOBS:
+        if only and job["lv"] not in only: continue
         atlas, out_path, report, scale, maxdim = process(job)
         entry = {
             "generation": job["lv"], "type": job["type"], "name": job["name"],
@@ -218,7 +237,23 @@ def main():
         print(f"Lv{job['lv']} {job['name']}: {atlas.size[0]}x{atlas.size[1]}, {entry['bytes']/1024:.1f}KB, scale={scale:.2f} (rawMax {maxdim}px)")
         for r in report: print("   frame", r)
     os.makedirs(os.path.join(ROOT, "docs", "art"), exist_ok=True)
-    with open(os.path.join(ROOT, "docs", "art", "ancient-monsters-manifest.json"), "w", encoding="utf-8") as f:
+    man_path = os.path.join(ROOT, "docs", "art", "ancient-monsters-manifest.json")
+    # 增量合并：过滤跑批时保留未涉及等级的既有条目
+    old = {}
+    if os.path.exists(man_path):
+        try:
+            with open(man_path, encoding="utf-8") as f:
+                old = {m["generation"]: m for m in json.load(f).get("monsters", [])}
+        except Exception:
+            old = {}
+    merged = []
+    seen = set()
+    for m in manifest["monsters"]:
+        merged.append(m); seen.add(m["generation"])
+    for gen, m in sorted(old.items()):
+        if gen not in seen: merged.append(m)
+    manifest["monsters"] = sorted(merged, key=lambda m: m["generation"])
+    with open(man_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
     print("manifest -> docs/art/ancient-monsters-manifest.json")
 
