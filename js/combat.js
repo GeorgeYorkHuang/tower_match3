@@ -1,3 +1,4 @@
+const Impacts = require('./combat/impacts.js');
 const Lifecycle = require('./combat/lifecycle.js');
 const Attacks = require('./combat/attacks.js');
 const Areas = require('./combat/areas.js');
@@ -375,75 +376,10 @@ class CombatSystem {
    *   冰·多重冰锥/碎冰、镖·多镖等）命中均走此判定——各塔基础 20% 概率，学对应 dot 强化技能后
    *   概率提升（公式与普攻一致：基础 20% + 技能 +25%[电·麻痹为 +20%] + A 分支每级 +15%）
    */
-  tryAttackDebuff(key, o, dmg) {
-    if (key === 'fire') {
-      // 灼烧（v1.16.21）：基础 20%；学「点燃」+25%（A 炽焰每级再 +15%）
-      const ignite = this.lv('fire', '点燃');
-      let burnProb = SKILL_NUM.fire['点燃'].baseProbability;
-      if (ignite > 0) burnProb += SKILL_NUM.fire['点燃'].learnedProbability + SKILL_NUM.fire['点燃'].probabilityPerBranch * this.branchLv('fire', '点燃', 'A');
-      burnProb += this.relicVal('fire_fuel') / 100;   // v1.16.114 薪柴1★/2★：普攻灼烧概率 +20%/30%
-      // v1.16.96 薪柴3★：灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害（失败部分累积，上限 +50%）
-      if (this.game.run.relic3('fire_fuel') && burnProb >= 0.8) {
-        if (Math.random() < 0.8) this.applyBurn(o, dmg, 'fire');
-        else this.game.run._fuelBoost = Math.min(50, (this.game.run._fuelBoost || 0) + 10);
-      } else if (Math.random() < burnProb) this.applyBurn(o, dmg, 'fire');
-    } else if (key === 'ice') {
-      // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
-      const frost = this.lv('ice', '寒霜');
-      const probSlow = SKILL_NUM.ice['寒霜'].baseProbability + (frost > 0 ? SKILL_NUM.ice['寒霜'].learnedProbability + SKILL_NUM.ice['寒霜'].probabilityPerBranch * this.branchLv('ice', '寒霜', 'A') : 0) + this.relicVal('ice_extreme') / 100;   // v1.16.114 极寒1★/2★
-      // v1.16.99 极寒3★：冰缓概率触顶（≥80%）时，多余判定转为 0.3 秒冻结
-      const ext = this.game.run.relic3('ice_extreme') && probSlow >= 0.8;
-      const slowOK = ext ? Math.random() < 0.8 : Math.random() < probSlow;
-      if (slowOK) {
-        const mult = SKILL_NUM.ice['寒霜'].baseSlow + SKILL_NUM.ice['寒霜'].slowMult[this.branchLv('ice', '寒霜', 'C')] + this.relicVal('ice_spike') / 100;   // v1.16.114 霜刺1★/2★
-        const ttl = SKILL_NUM.ice['寒霜'].duration + SKILL_NUM.ice['寒霜'].ttl[this.branchLv('ice', '寒霜', 'B')];
-        this.applySlow(o, mult, ttl);
-        this.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
-      } else if (ext) {
-        this.freezeE(o, 0.3);
-      }
-      // 冰冻（v1.16.21）：学技能后 20% 概率冻结 + A 档位；B 深结 时长 +1/1.5/2s
-      const frzLv = this.lv('ice', '冰冻');
-      if (frzLv > 0) {
-        const prob = SKILL_NUM.ice['冰冻'].baseProbability + SKILL_NUM.ice['冰冻'].prob[this.branchLv('ice', '冰冻', 'A')];
-        if (Math.random() < prob) {
-          const dur = SKILL_NUM.ice['冰冻'].baseDuration + SKILL_NUM.ice['冰冻'].dur[this.branchLv('ice', '冰冻', 'B')];
-          o.frozen = Math.max(o.frozen || 0, dur);
-          this.fxFlash(o.x, o.y, '#d6f0ff', 0.28);
-          this.fxRing(o.x, o.y, '#7fd4ff', 46, 0.4, 4);
-          this.fxParticle(o.x, o.y, '#b8e6ff', 10, 60, 0.5, 130, 5);
-        }
-      }
-    } else if (key === 'electric') {
-      ElectricTower.tryAttackDebuff(this, o, dmg);
-    } else if (key === 'poison') {
-      PoisonTower.tryAttackDebuff(this, o, dmg);
-    } else if (key === 'boomerang') {
-      BoomerangTower.tryAttackDebuff(this, o, dmg);
-    }
-  }
+  tryAttackDebuff(key, o, dmg) { return Impacts.tryAttackDebuff(this, key, o, dmg); }
 
   /* ---------- 六塔命中行为 ---------- */
-  hit(key, e, dmg) {
-    const g = this.game;
-    ElectricTower.onAnyTowerHit(this, e);
-
-    if (key === 'fire') this.hitFire(e, dmg);
-    else if (key === 'ice') this.hitIce(e, dmg);
-    else if (key === 'poison') this.hitPoison(e, dmg);
-    else if (key === 'electric') this.hitElectric(e, dmg);
-    else if (key === 'boomerang') this.hitBoomerang(e, dmg);
-    else if (key === 'cannon') this.hitCannon(e, dmg);
-
-    // 命中计数（电·充能）
-    e.hitCount++;
-    // 命中特效：按塔类型爆发专属粒子（v1.13.2 增强：数量更多 + 命中冲击环 + 双色火花）
-    const HIT_FX = { fire: '#ff7043', ice: '#7fd4ff', poison: '#7ee2a8', electric: '#f4d03f', boomerang: '#c39bd3', cannon: '#d89e63' };
-    this.fxParticle(e.x, e.y, HIT_FX[key] || '#ffffff', 8, 52, 0.4, 140, 5);
-    this.fxParticle(e.x, e.y, '#ffffff', 4, 30, 0.25, 110, 3);
-    this.fxRing(e.x, e.y, HIT_FX[key] || '#ffffff', 30, 0.28, 3);
-    this.fxFlash(e.x, e.y, '#ffffff', 0.25);
-  }
+  hit(key, e, dmg) { return Impacts.hit(this, key, e, dmg); }
 
   /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
   /** v1.16.112 火塔普攻命中统一挂点（3★ 圣遗物）：hitFire 与多重火球 strike 共用，保证所有普攻路径生效
