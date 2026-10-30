@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>圣坛花园怪物循环预览 · ancient-monsters</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --panel:#ffffff; --line:#d8d2c4; --ink:#33302a; --dim:#8a857a;
+    --accent:#5c8a4e; --accent2:#b8912f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--ink); padding:16px;}
+  h1{font-size:18px; margin-bottom:2px;}
+  .sub{color:var(--dim); font-size:12px; margin-bottom:12px;}
+  .layout{display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .ctrl{width:330px;}
+  .stage-panel{flex:1; min-width:520px;}
+  .row{display:flex; align-items:center; gap:8px; margin:8px 0; flex-wrap:wrap;}
+  .row label{min-width:74px; color:var(--dim); font-size:12px;}
+  select,input[type=range]{flex:1;}
+  input[type=range]{accent-color:var(--accent);}
+  button{border:1px solid var(--line); background:#faf8f3; border-radius:6px; padding:4px 12px; cursor:pointer; font-size:13px;}
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  button.on{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .lvgrid{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin:6px 0;}
+  .lvgrid button{padding:5px 2px; font-size:12px;}
+  .lvgrid button .t{display:block; font-size:10px; color:var(--dim);}
+  .lvgrid button.on .t{color:#e8ffe0;}
+  .drop{border:2px dashed var(--line); border-radius:8px; padding:10px; text-align:center; color:var(--dim); font-size:12px; margin-top:10px; cursor:pointer;}
+  .drop.over{border-color:var(--accent); color:var(--accent);}
+  canvas{image-rendering:pixelated; display:block; width:100%; height:auto; border-radius:6px;}
+  .info{font-size:12px; color:var(--dim); margin-top:8px; white-space:pre-wrap;}
+  .warn{color:#b0483a; font-size:12px;}
+</style>
+</head>
+<body>
+<h1>圣坛花园怪物循环预览 <span style="font-weight:normal;font-size:12px;color:var(--dim)">tools/preview_ancient_monsters.html</span></h1>
+<div class="sub">对应《W美工-圣坛花园Lv1至Lv14完整任务单》预览节。锚点=底部中心；帧边界虚线；占位模式验证播放器，拖入图集验证真图；行进模拟看实际移动效果。</div>
+
+<div class="layout">
+  <div class="panel ctrl">
+    <div class="lvgrid" id="lvGrid"></div>
+
+    <div class="row"><label>来源</label>
+      <button id="srcDemo" class="on">内置占位</button>
+      <button id="srcAtlas">图集</button>
+      <button id="srcExisting">现有lv1–8</button>
+    </div>
+
+    <div class="row"><label>模式</label>
+      <button id="modeLoop" class="on">原地循环</button>
+      <button id="modeMarch">行进模拟</button>
+    </div>
+
+    <div class="row"><label>缩放</label>
+      <input type="range" id="zoom" min="0.5" max="6" step="0.25" value="2">
+      <span id="zoomV" style="min-width:56px;font-size:12px">2.00×</span>
+    </div>
+    <div class="row"><label>预设</label>
+      <button data-z="1">1×审图</button>
+      <button data-z="2">2×</button>
+      <button data-z="4">4×</button>
+      <button data-z="0.45">实战≈0.45×</button>
+    </div>
+
+    <div class="row"><label>底色</label>
+      <select id="bg">
+        <option value="checker">透明棋盘</option>
+        <option value="field">圣坛战场底色</option>
+        <option value="black">纯黑（查白边）</option>
+        <option value="white">纯白（查黑边/白底残留）</option>
+      </select>
+    </div>
+
+    <div class="row"><label>同屏数量</label>
+      <input type="range" id="count" min="1" max="8" step="1" value="3">
+      <span id="countV" style="min-width:20px;font-size:12px">3</span>
+    </div>
+    <div class="row"><label>群速差</label>
+      <input type="range" id="spread" min="0" max="40" step="1" value="15">
+      <span id="spreadV" style="min-width:56px;font-size:12px">±15%</span>
+    </div>
+    <div class="row" id="rowMarchSpeed" style="display:none"><label>行进速度</label>
+      <input type="range" id="marchSpeed" min="0.25" max="3" step="0.05" value="1">
+      <span id="marchSpeedV" style="min-width:64px;font-size:12px">1.00×</span>
+    </div>
+
+    <div class="row"><label>显示</label>
+      <button id="tFrame" class="on">帧边界</button>
+      <button id="tAnchor" class="on">锚点线</button>
+      <button id="tLabel" class="on">帧号</button>
+    </div>
+
+    <div class="row"><label>播放</label>
+      <button id="btnPlay" class="on">⏸ 暂停</button>
+      <button id="btnPrev">◀ 单帧</button>
+      <button id="btnNext">单帧 ▶</button>
+      <button id="btnStep">步进模式</button>
+    </div>
+    <div class="row"><label>时长</label>
+      <input type="range" id="dur" min="0.25" max="3" step="0.05" value="1">
+      <span id="durV" style="min-width:64px;font-size:12px">1.00×</span>
+    </div>
+
+    <div class="drop" id="drop">把图集 PNG 拖到<b>页面任意位置</b>即可<br>（如 assets/images/enemies/lv1.png）· 或点击此处选择文件 · 也可拖入 manifest JSON
+      <input type="file" id="file" accept="image/png,.json" hidden>
+    </div>
+    <div class="info" id="info"></div>
+  </div>
+
+  <div class="panel stage-panel">
+    <div class="stagewrap"><canvas id="stage" width="960" height="420"></canvas></div>
+    <div class="info" id="note" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<div id="dropOverlay" style="display:none; position:fixed; inset:0; background:rgba(92,138,78,.15); border:3px dashed var(--accent); z-index:99; pointer-events:none; align-items:center; justify-content:center; font-size:22px; color:var(--accent); font-weight:bold;">松开载入图集</div>
+
+<script>
+"use strict";
+/* ===== 怪物表：名称/类型/帧数/逐帧时长/移速——与任务单一致 ===== */
+const TYPE_DUR = { normal:240, fast:160, tank:300 };
+const TYPE_CN  = { normal:"普通", fast:"快速", tank:"重坦" };
+const MONSTERS = [
+  {lv:1,  name:"苔露团",     type:"normal", frames:6, durs:[140,160,200,310,200,220], spd:1.5},
+  {lv:2,  name:"疾芽鼠",     type:"fast",   frames:5, spd:2.7},
+  {lv:3,  name:"负碑石卫",   type:"tank",   frames:5, spd:0.9},
+  {lv:4,  name:"藤缚侍从",   type:"normal", frames:5, spd:1.6},
+  {lv:5,  name:"荆棘猎犬",   type:"fast",   frames:5, spd:2.9},
+  {lv:6,  name:"古根盾卫",   type:"tank",   frames:5, spd:1.0},
+  {lv:7,  name:"残坛守兵",   type:"normal", frames:5, spd:1.7},
+  {lv:8,  name:"逐风花螳",   type:"fast",   frames:5, spd:3.1},
+  {lv:9,  name:"重碑禁卫",   type:"tank",   frames:5, spd:1.06},
+  {lv:10, name:"花冠近卫",   type:"normal", frames:5, spd:1.8},
+  {lv:11, name:"裂蕊飞奔者", type:"fast",   frames:5, spd:3.29},
+  {lv:12, name:"盘根巨卫",   type:"tank",   frames:5, spd:1.12},
+  {lv:13, name:"圣庭执戟者", type:"normal", frames:5, spd:1.91},
+  {lv:14, name:"凋风掠影",   type:"fast",   frames:5, spd:3.6},
+];
+MONSTERS.forEach(m=>{ if(!m.durs) m.durs = Array(m.frames).fill(TYPE_DUR[m.type]); });
+const FW=128, FH=128; // 新规格单帧
+
+/* ===== 状态 ===== */
+let cur = 0, src = "demo", zoom = 2, bgMode = "checker";
+let mode = "loop";           // loop | march
+let playing = true, stepMode = false, manualFrame = 0;
+let showFrame = true, showAnchor = true, showLabel = true;
+let count = 3, spread = 15, durScale = 1, marchSpeed = 1;
+let atlasMeta = null;        // 当前拖入图集 {img, frames, fw, fh, durs, name, forLv}
+let overrides = {};          // lv -> meta（拖入的图按 Lv 记忆）
+let marchers = [];           // 行进模拟的实例
+
+/* ===== 内置占位图：按类型程序化生成走循环 ===== */
+function makeDemo(m){
+  const N=m.frames, fw=FW, fh=FH;
+  const cols={normal:["#7fb069","#5c8a4e","#3f5e36"],fast:["#79c0d8","#3f7fa6","#2c5468"],tank:["#c8a878","#a66a3f","#6e4526"]};
+  const [c1,c2,c3]=cols[m.type];
+  const cvs=document.createElement("canvas"); cvs.width=fw*N; cvs.height=fh;
+  const g=cvs.getContext("2d");
+  for(let i=0;i<N;i++){
+    const p=i/N, cx=fw/2, base=fh-14; // 底部锚点
+    g.save(); g.translate(cx, base);
+    if(m.type==="normal"){
+      const hop=Math.sin(p*Math.PI*2), y=-18-6*Math.max(0,hop);
+      const sq=1+0.10*Math.cos(p*Math.PI*4);
+      g.fillStyle=c3; g.globalAlpha=.25; g.beginPath(); g.ellipse(0,-2,22,5,0,0,7); g.fill(); g.globalAlpha=1;
+      g.fillStyle=c1; g.beginPath(); g.ellipse(0,y,20/sq,24*sq,0,0,7); g.fill();
+      g.fillStyle=c2; g.beginPath(); g.ellipse(-6,y-6,5,6,0,0,7); g.ellipse(6,y-6,5,6,0,0,7); g.fill();
+    }else if(m.type==="fast"){
+      const sw=Math.sin(p*Math.PI*2);
+      g.fillStyle=c3; g.globalAlpha=.25; g.beginPath(); g.ellipse(0,-2,24,4,0,0,7); g.fill(); g.globalAlpha=1;
+      g.save(); g.rotate(0.18);
+      g.strokeStyle=c2; g.lineWidth=4; g.lineCap="round";
+      g.beginPath(); g.moveTo(-10,-14); g.lineTo(-16-8*sw,-2); g.moveTo(10,-14); g.lineTo(16+8*sw,-2); g.stroke();
+      g.fillStyle=c1; g.beginPath(); g.ellipse(0,-22,26,11,0,0,7); g.fill();
+      g.fillStyle=c2; g.beginPath(); g.arc(-22,-24,7,0,7); g.fill();
+      g.fillStyle="#fff"; g.beginPath(); g.arc(-24,-26,2.5,0,7); g.fill();
+      g.restore();
+    }else{
+      const sw=Math.sin(p*Math.PI*2);
+      g.fillStyle=c3; g.globalAlpha=.25; g.beginPath(); g.ellipse(0,-2,30,6,0,0,7); g.fill(); g.globalAlpha=1;
+      g.fillStyle=c1; g.beginPath(); g.roundRect(-26,-46+2*Math.abs(sw),52,44,10); g.fill();
+      g.fillStyle=c2; g.fillRect(-30+3*sw,-40,10,26); g.fillRect(20+3*sw,-40,10,26);
+      g.fillStyle=c3; g.fillRect(-14,-52+2*Math.abs(sw),28,10);
+    }
+    g.restore();
+  }
+  return {img:cvs, frames:N, fw, fh, durs:m.durs, name:"[占位]"+m.name, forLv:m.lv};
+}
+function activeMeta(){
+  if((src==="atlas"||src==="existing")){
+    if(atlasMeta && atlasMeta.forLv===cur) return atlasMeta;
+    if(overrides[cur]) return overrides[cur];
+  }
+  return makeDemo(MONSTERS[cur]);
+}
+
+/* ===== 舞台 ===== */
+const stage=document.getElementById("stage"), ctx=stage.getContext("2d");
+function drawChecker(w,h){
+  ctx.fillStyle="#cfcabc"; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle="#e6e2d6";
+  const s=16;
+  for(let y=0;y<h;y+=s)for(let x=0;x<w;x+=s) if(((x/s)+(y/s))%2<1) ctx.fillRect(x,y,s,s);
+}
+function drawBG(w,h){
+  if(bgMode==="checker"){drawChecker(w,h);return;}
+  if(bgMode==="black"){ctx.fillStyle="#111";ctx.fillRect(0,0,w,h);return;}
+  if(bgMode==="white"){ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);return;}
+  const gr=ctx.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,"#4a5a3d"); gr.addColorStop(1,"#33402c");
+  ctx.fillStyle=gr; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle="rgba(214,183,90,.18)"; ctx.lineWidth=2;
+  for(let x=40;x<w;x+=160){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+}
+/* 帧索引：按逐帧时长表推进 */
+function frameAt(meta, t){ // t: 0..1 循环相位
+  const total=meta.durs.reduce((a,b)=>a+b,0);
+  let tt=((t%1)+1)%1*total, acc=0;
+  for(let k=0;k<meta.durs.length;k++){ acc+=meta.durs[k]; if(tt<acc) return k; }
+  return meta.durs.length-1;
+}
+
+let last=performance.now(), phase=0, marchT=0, dtGlobal=0.016;
+function tick(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now; dtGlobal=dt;
+  if(playing && !stepMode){
+    const meta=activeMeta();
+    const total=meta.durs.reduce((a,b)=>a+b,0)/1000*durScale;
+    phase=(phase+dt/total)%1;
+    if(mode==="march") marchT+=dt;
+  }
+  render();
+  requestAnimationFrame(tick);
+}
+
+function drawInstance(meta, idx, cx, baseY, ph, tag){
+  const dw=Math.round(meta.fw*zoom), dh=Math.round(meta.fh*zoom);
+  const fr = stepMode? manualFrame%meta.durs.length : frameAt(meta, ph);
+  const drawY=baseY-dh;
+  ctx.drawImage(meta.img, fr*meta.fw,0,meta.fw,meta.fh, Math.round(cx-dw/2), Math.round(drawY), dw,dh);
+  if(showFrame){
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.setLineDash([4,4]);
+    ctx.strokeRect(Math.round(cx-dw/2)+.5, drawY+.5, dw-1, dh-1);
+    ctx.setLineDash([]);
+  }
+  if(showAnchor){
+    const ay=baseY;
+    ctx.strokeStyle="rgba(220,60,60,.8)"; ctx.beginPath();
+    ctx.moveTo(cx-dw/2,ay); ctx.lineTo(cx+dw/2,ay); ctx.stroke();
+    ctx.fillStyle="rgba(220,60,60,.9)"; ctx.beginPath(); ctx.arc(cx,ay,3,0,7); ctx.fill();
+  }
+  if(showLabel){
+    ctx.fillStyle= (bgMode==="white"||bgMode==="checker")?"#555":"rgba(255,255,255,.85)";
+    ctx.font="11px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(tag+"·F"+(fr+1), cx, baseY+14);
+  }
+}
+
+function renderLoop(){
+  const w=stage.width,h=stage.height;
+  drawBG(w,h);
+  const meta=activeMeta();
+  const n=count, dh=Math.round(meta.fh*zoom);
+  const gap=30, unit=Math.round(meta.fw*zoom)*1.4+gap;
+  const totalW=n*unit;
+  const x0=(w-totalW)/2+Math.round(meta.fw*zoom)*0.2;
+  const baseY=h/2+dh/2-18;
+  for(let i=0;i<n;i++){
+    const ph=(phase*(1+(i-(n-1)/2)*spread/100)+i/n)%1;
+    drawInstance(meta, i, x0+i*unit, baseY, ph, "①"+(i+1));
+  }
+}
+function renderMarch(){
+  const w=stage.width,h=stage.height;
+  const keep=bgMode; if(bgMode==="checker") bgMode="field"; // 行进模拟强制战场底
+  drawBG(w,h); bgMode=keep;
+  const meta=activeMeta(), m=MONSTERS[cur];
+  const dh=Math.round(meta.fh*zoom), dw=Math.round(meta.fw*zoom);
+  const groundY=h-56; // 地面基线
+  // 地面
+  ctx.strokeStyle="rgba(255,255,255,.25)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,groundY); ctx.lineTo(w,groundY); ctx.stroke();
+  // 速度：移速 spd × 34px/s × marchSpeed × 群速差
+  const base= m.spd*34*marchSpeed;
+  // 维护实例队列
+  const want=count;
+  while(marchers.length<want) marchers.push({x: w + marchers.length*40, seed:Math.random(), dist:0});
+  marchers.length=want;
+  const cycle= meta.durs.reduce((a,b)=>a+b,0)/1000*durScale; // 一个动画循环的秒数
+  for(const it of marchers){
+    const v=base*(1+(it.seed-0.5)*2*spread/100);
+    if(playing&&!stepMode){ it.x-=v*dtGlobal; it.dist+=v*dtGlobal; }
+    if(it.x<-dw){ it.x=w+dw*(0.5+Math.random()*0.5); it.seed=Math.random(); it.dist=0; }
+    // 动画相位按真实逐帧时长推进，与原地循环同节奏
+    const ph=(it.dist===undefined?0:(marchT*(1+(it.seed-0.5)*2*spread/100))/cycle + it.seed)%1;
+    drawInstance(meta, 0, it.x, groundY, ph, "移速"+m.spd.toFixed(2));
+  }
+  ctx.fillStyle=(bgMode==="white"||bgMode==="checker")?"#555":"rgba(255,255,255,.85)";
+  ctx.font="12px sans-serif"; ctx.textAlign="left";
+  ctx.fillText("行进模拟：速度按移速 "+m.spd.toFixed(2)+" 换算（×34px/s×"+marchSpeed.toFixed(2)+"），动画相位与位移同步", 12, 20);
+}
+function render(){
+  if(mode==="loop") renderLoop(); else renderMarch();
+  const meta=activeMeta(), m=MONSTERS[cur];
+  document.getElementById("note").textContent=
+    meta.name+" ｜ 单帧 "+meta.fw+"×"+meta.fh+" ｜ "+meta.frames+" 帧循环 ｜ 逐帧时长 "+meta.durs.join("/")+"ms（×"+durScale.toFixed(2)+"）"+
+    (src==="atlas"?" ｜ 来源:拖入图集":" ｜ 来源:内置占位（验证播放器用，非真图）")+
+    (mode==="march"?" ｜ 模式:行进模拟":"");
+  document.getElementById("info").textContent=
+    "Lv"+m.lv+" "+m.name+" ｜ "+TYPE_CN[m.type]+" ｜ 标准"+TYPE_DUR[m.type]+"ms/帧"+(m.lv===1?"（Lv1 沿用现播放器逐帧表）":"")+" ｜ 移速 "+m.spd+
+    "\n规格：透明PNG · 单行横排 · 各帧等大128×128 · 底部中心锚点 · 帧间不越格";
+}
+
+/* ===== 控件 ===== */
+const $=id=>document.getElementById(id);
+function buildGrid(){
+  const g=$("lvGrid"); g.innerHTML="";
+  MONSTERS.forEach((m,i)=>{
+    const b=document.createElement("button");
+    b.innerHTML="Lv"+m.lv+"<span class='t'>"+m.name+"</span>";
+    if(i===cur)b.classList.add("on");
+    b.onclick=()=>{cur=i; manualFrame=0; phase=0; marchers=[];
+      [...g.children].forEach((c,j)=>c.classList.toggle("on",j===cur));
+      if(src!=="demo" && !overrides[i] && !(atlasMeta&&atlasMeta.forLv===i)) setSrc("demo");
+      render();};
+    g.appendChild(b);
+  });
+}
+buildGrid();
+function setSrc(s){
+  src=s; $("srcDemo").classList.toggle("on",s==="demo"); $("srcAtlas").classList.toggle("on",s==="atlas");
+  $("srcExisting").classList.toggle("on",s==="existing");
+  phase=0; marchers=[]; render();
+}
+$("srcDemo").onclick=()=>setSrc("demo");
+$("srcAtlas").onclick=()=>{
+  if(atlasMeta||overrides[cur]) setSrc("atlas"); else $("file").click();
+};
+$("srcExisting").onclick=()=>{ tryLoadExisting(); };
+/* 一键载入现有素材（相对路径；在 WorkBuddy 预览服务器里可能受限，失败会提示改用拖入） */
+function tryLoadExisting(){
+  const lv=MONSTERS[cur].lv;
+  if(lv>8){ status("现有素材只有 lv1–lv8（Lv9–14 目前回退旧图）。请拖入新图集。", true); return; }
+  const fr=lv===1?6:5, dur=MONSTERS[cur].durs;
+  const cands=["../assets/images/enemies/lv"+lv+".png","../../assets/images/enemies/lv"+lv+".png","assets/images/enemies/lv"+lv+".png"];
+  status("尝试按相对路径载入 lv"+lv+".png …");
+  (function next(i){
+    if(i>=cands.length){ status("⚠ 相对路径载入失败（预览服务器沙箱可能不透出项目文件）。请改用：把 lv"+lv+".png 拖到页面任意位置。", true); return; }
+    const img=new Image();
+    img.onload=()=>{
+      const meta={frames:fr, fw:Math.round(img.naturalWidth/fr), fh:img.naturalHeight, durs:dur,
+                  name:"[现有素材]lv"+lv+".png（"+fr+"帧 "+Math.round(img.naturalWidth/fr)+"×"+img.naturalHeight+"）", forLv:lv-1};
+      overrides[lv-1]={img, ...meta};
+      atlasMeta=overrides[lv-1]; setSrc("atlas");
+      if(img.naturalWidth % fr !== 0)
+        status("✓ 已载入 lv"+lv+".png（"+img.naturalWidth+"×"+img.naturalHeight+"）。⚠ 宽 "+img.naturalWidth+" 不能被 "+fr+" 整除（每帧 "+(img.naturalWidth/fr).toFixed(1)+"px）——旧素材帧宽本就不等分，轻微错位属正常。");
+      else
+        status("✓ 已载入现有素材 lv"+lv+".png："+img.naturalWidth+"×"+img.naturalHeight+"，"+fr+" 帧等分。");
+    };
+    img.onerror=()=>next(i+1);
+    img.src=cands[i];
+  })(0);
+}
+function setMode(mo){
+  mode=mo; marchers=[];
+  $("modeLoop").classList.toggle("on",mo==="loop");
+  $("modeMarch").classList.toggle("on",mo==="march");
+  $("rowMarchSpeed").style.display = mo==="march"?"":"none";
+  render();
+}
+$("modeLoop").onclick=()=>setMode("loop");
+$("modeMarch").onclick=()=>setMode("march");
+
+$("zoom").oninput=e=>{zoom=+e.target.value; $("zoomV").textContent=zoom.toFixed(2)+"×"; render();};
+document.querySelectorAll("[data-z]").forEach(b=>b.onclick=()=>{
+  zoom=+b.dataset.z; $("zoom").value=zoom; $("zoomV").textContent=zoom.toFixed(2)+"×"; render();});
+$("bg").onchange=e=>{bgMode=e.target.value; render();};
+$("count").oninput=e=>{count=+e.target.value; $("countV").textContent=count; render();};
+$("spread").oninput=e=>{spread=+e.target.value; $("spreadV").textContent="±"+spread+"%"; render();};
+$("marchSpeed").oninput=e=>{marchSpeed=+e.target.value; $("marchSpeedV").textContent=marchSpeed.toFixed(2)+"×"; render();};
+$("tFrame").onclick=e=>{showFrame=!showFrame;e.target.classList.toggle("on",showFrame);render();};
+$("tAnchor").onclick=e=>{showAnchor=!showAnchor;e.target.classList.toggle("on",showAnchor);render();};
+$("tLabel").onclick=e=>{showLabel=!showLabel;e.target.classList.toggle("on",showLabel);render();};
+$("btnPlay").onclick=e=>{playing=!playing;e.target.classList.toggle("on",playing);e.target.textContent=playing?"⏸ 暂停":"▶ 播放";};
+$("btnPrev").onclick=()=>{stepMode=true;$("btnStep").classList.add("on");manualFrame=(manualFrame-1+99)%99;render();};
+$("btnNext").onclick=()=>{stepMode=true;$("btnStep").classList.add("on");manualFrame=(manualFrame+1)%99;render();};
+$("btnStep").onclick=e=>{stepMode=!stepMode;e.target.classList.toggle("on",stepMode);if(!stepMode)phase=0;render();};
+$("dur").oninput=e=>{durScale=+e.target.value;$("durV").textContent=durScale.toFixed(2)+"×";render();};
+
+/* ===== 文件载入（PNG 图集 / manifest）——纯浏览器 API，修复 Buffer 依赖 ===== */
+function status(msg, isWarn){
+  $("info").textContent = msg;
+  $("info").style.color = isWarn ? "#b0483a" : "";
+  console.log("[preview]", msg);
+}
+function loadAtlas(img, meta, arrayBuf){
+  const m={img, frames:meta.frames, fw:meta.fw, fh:meta.fh, durs:meta.durs, name:meta.name, forLv:meta.forLv};
+  overrides[meta.forLv]=m; atlasMeta=m; setSrc("atlas");
+  let msg="✓ 已载入 "+meta.name+"（挂到 Lv"+MONSTERS[meta.forLv].lv+" "+MONSTERS[meta.forLv].name+"）："+m.fw+"×"+m.fh+"，"+m.frames+" 帧，每帧 "+m.fw+"px 宽。当前缩放 "+zoom+"×。";
+  if(arrayBuf){
+    const dv=new DataView(arrayBuf);
+    if(dv.getUint32(0)===0x89504e47){ // PNG
+      const w=dv.getUint32(16), h=dv.getUint32(20);
+      if(w % meta.frames !== 0)
+        msg="⚠ 图集宽 "+w+" 不能被 "+meta.frames+" 帧整除（实际 "+(w/meta.frames).toFixed(1)+"px/帧）——各帧需等大，否则切帧串色。已按四舍五入 "+m.fw+"px 预览。";
+    }
+  }
+  status(msg);
+}
+$("drop").onclick=()=>$("file").click();
+$("file").onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=""; };
+
+/* 整页拖放：覆盖层提示 + window 级监听，拖到任何位置都能接住 */
+const overlay=$("dropOverlay");
+let dragDepth=0;
+window.addEventListener("dragenter",e=>{
+  e.preventDefault();
+  if(e.dataTransfer && [...(e.dataTransfer.types||[])].includes("Files")){
+    dragDepth++; overlay.style.display="flex";
+  }
+});
+window.addEventListener("dragover",e=>{ e.preventDefault(); });
+window.addEventListener("dragleave",e=>{
+  e.preventDefault(); dragDepth=Math.max(0,dragDepth-1);
+  if(dragDepth===0) overlay.style.display="none";
+});
+window.addEventListener("drop",e=>{
+  e.preventDefault(); dragDepth=0; overlay.style.display="none";
+  const f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) handleFile(f); else status("⚠ 拖入的内容不是文件。", true);
+});
+
+function handleFile(f){
+  status("正在读取："+f.name+"（"+(f.size/1024).toFixed(1)+"KB）…");
+  if(f.name.toLowerCase().endsWith(".json")){
+    f.text().then(t=>{
+      try{
+        const man=JSON.parse(t);
+        const list=man.monsters||man;
+        const arr=Array.isArray(list)?list:[];
+        const m=arr.find(x=>x.generation==MONSTERS[cur].lv||x.lv==MONSTERS[cur].lv);
+        status(m
+          ? "✓ manifest Lv"+m.generation+"：路径 "+m.path+"，帧 "+m.frameCount+"，"+m.frameWidth+"×"+m.frameHeight+"，时长 "+(m.frameDurations||[]).join("/")+"\n请再拖入对应 PNG 图集进行预览。"
+          : "manifest 已读，但未含当前等级 Lv"+MONSTERS[cur].lv+" 条目。");
+      }catch(err){ status("⚠ manifest 解析失败："+err.message, true); }
+    });
+    return;
+  }
+  if(!/\.png$/i.test(f.name)){ status("⚠ 只支持 PNG 图集或 manifest JSON，收到："+f.name, true); return; }
+  const idx=cur, m=MONSTERS[idx], lv=m.lv;
+  const fr=m.frames, dur=m.durs;
+  f.arrayBuffer().then(buf=>{
+    // PNG 尺寸（纯 DataView，浏览器兼容）
+    const dv=new DataView(buf);
+    let w=0,h=0;
+    if(dv.byteLength>24 && dv.getUint32(0)===0x89504e47){ w=dv.getUint32(16); h=dv.getUint32(20); }
+    if(!w){ status("⚠ 不是有效 PNG（文件头不符）。", true); return; }
+    status("PNG 尺寸 "+w+"×"+h+"，按 "+fr+" 帧等分（每帧 "+(w/fr).toFixed(1)+"px），解码中…");
+    const fw=Math.round(w/fr), fh=h;
+    const blob=new Blob([buf],{type:"image/png"});
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      loadAtlas(img,{frames:fr, fw, fh, durs:dur, name:"[拖入]"+f.name+"（"+fr+"帧 "+fw+"×"+fh+"）", forLv:idx}, buf);
+    };
+    img.onerror=()=>{ status("⚠ 图片解码失败："+f.name+"（文件可能损坏）", true); };
+    img.src=url;
+  }).catch(err=>{ status("⚠ 读取失败："+err.message, true); });
+}
+
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

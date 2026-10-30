@@ -1,0 +1,73 @@
+{
+  "version": "2026-10-31T00:25",
+  "game": "圣坛裂痕",
+  "field": "圣坛花园",
+  "spec": {
+    "frameWidth": 128,
+    "frameHeight": 128,
+    "anchor": "bottom-center"
+  },
+  "monsters": [
+    {
+      "generation": 1,
+      "type": "normal",
+      "name": "苔露团",
+      "path": "assets/images/enemies/ancient/lv1.png",
+      "frameCount": 6,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        140,
+        160,
+        200,
+        310,
+        200,
+        220
+      ],
+      "anchor": "bottom-center",
+      "bytes": 89068,
+      "scaled": 0.444,
+      "rawMaxDim": 252
+    },
+    {
+      "generation": 2,
+      "type": "fast",
+      "name": "疾芽鼠",
+      "path": "assets/images/enemies/ancient/lv2.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        160,
+        160,
+        160,
+        160,
+        160
+      ],
+      "anchor": "bottom-center",
+      "bytes": 53125,
+      "scaled": 0.424,
+      "rawMaxDim": 264
+    },
+    {
+      "generation": 3,
+      "type": "tank",
+      "name": "负碑石卫",
+      "path": "assets/images/enemies/ancient/lv3.png",
+      "frameCount": 5,
+      "frameWidth": 128,
+      "frameHeight": 128,
+      "frameDurations": [
+        300,
+        300,
+        300,
+        300,
+        300
+      ],
+      "anchor": "bottom-center",
+      "bytes": 84677,
+      "scaled": 0.299,
+      "rawMaxDim": 374
+    }
+  ]
+}
