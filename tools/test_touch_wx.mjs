@@ -328,5 +328,39 @@ t('口令旧回调不跨档案/页面生效，切档读写失败保留原档',()
   } finally {wx.showModal=previousShow;wx.getStorageSync=get;wx.setStorageSync=set;}
 });
 
+t('R09圣遗物页真实触摸：滚动边界、手动解锁、升星扣费及外部关闭',()=>{
+  const config=CONFIG_FOR_TEST();
+  const ctx=new Proxy({}, {get(t,k){
+    if(k==='measureText')return v=>({width:String(v).length*10});
+    if(k==='createLinearGradient'||k==='createRadialGradient')return ()=>({addColorStop(){}});
+    return ()=>{};
+  },set(){return true;}});
+  game.state='menu';game.menuTab='relic';game.menuPanel=null;game.relicScroll=0;
+  const render=()=>{game.menuHits=game.renderer.menuLayer(ctx,game.menuState(),[]);};
+  const event=(x,y)=>{const p=toClient(x,y);return {touches:[{clientX:p.x,clientY:p.y}]};};
+  const tap=(x,y)=>{wxHandlers.start(event(x,y));wxHandlers.end({touches:[]});};
+  const drag=(from,to)=>{wxHandlers.start(event(375,from));wxHandlers.move(event(375,to));wxHandlers.end({touches:[]});};
+  render();assert(game.renderer._relicMaxScroll>0);
+  drag(1000,600);assert(Math.abs(game.relicScroll-400)<1e-7);assert.strictEqual(game.menuPanel,null);
+  drag(1000,-100000);assert.strictEqual(game.relicScroll,game.renderer._relicMaxScroll);
+  drag(600,100000);assert.strictEqual(game.relicScroll,0);
+  const id=game.renderer._relicRunList()[0].id;
+  delete game.meta.relicStars[id];delete game.meta.runCodex[id];
+  game.meta.shards[id]=game.meta.shardNeed(id);render();
+  for(const hit of game.menuHits.filter(h=>h.key==='relicInfo'||h.key==='relicLock')) {
+    assert(hit.rect.y>=484);assert(hit.rect.y+hit.rect.h<=1492);
+  }
+  const click=key=>{const h=game.menuHits.find(h=>h.key===key);assert(h,key);tap(h.rect.x+h.rect.w/2,h.rect.y+h.rect.h/2);};
+  const card=game.menuHits.find(h=>h.key==='relicInfo'&&h.data===id);assert(card);
+  tap(card.rect.x+card.rect.w/2,card.rect.y+card.rect.h/2);
+  assert.strictEqual(game.menuPanel.type,'relicInfo');render();click('relicUnlock');
+  assert.strictEqual(game.meta.starOf(id),1);assert.strictEqual(game.meta.shards[id],0);
+  const cost=config.STAR_UP.cost[2];game.meta.shards[id]=cost.shards;game.meta.gold=cost.gold-1;
+  render();click('relicStar');assert.strictEqual(game.meta.starOf(id),1);assert.strictEqual(game.meta.gold,cost.gold-1);
+  game.meta.gold=cost.gold;render();click('relicStar');
+  assert.strictEqual(game.meta.starOf(id),2);assert.strictEqual(game.meta.gold,0);assert.strictEqual(game.meta.shards[id],0);
+  render();tap(0,600);assert.strictEqual(game.menuPanel,null);assert.strictEqual(game.menuTab,'relic');
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

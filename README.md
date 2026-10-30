@@ -57,6 +57,7 @@ js/
       skill-loadout.js          技能配置卡片与选择面板
       account-menu.js           功能菜单和我的信息
       codex.js                  塔图鉴主页和技能详情
+      relics.js                 圣遗物滚动页、图鉴、详情与升星
     icons/ / fx/                图标及部分特效播放参数
 tools/                          Node 测试、HTML 预览与构建工具
 docs/                           设计、数值字典和重构记录
@@ -66,7 +67,7 @@ docs/                           设计、数值字典和重构记录
 
 领域配置是共享定义；玩家的金币、碎片、星级属于 `Meta`，棋盘、塔能量、技能分支和冷却属于当前 `Run`/战斗实例。业务状态不得写回配置表。 `Meta.fromJSON/toJSON` 与存储读取边界均复制嵌套数据；读取失败或未知版本存档不会被自动空档覆盖，详见 [R08验收说明](docs/存档隔离-R08验收说明.md)。兼容入口保留同一配置对象引用，不复制第二套数值。
 
-已分离：四类领域数据、触摸与菜单路由、塔图鉴绘制、圣遗物成长、深度宝箱、局外商店、技能解锁和全局技能目录/槽位/运行逻辑。定义模块不反向依赖 `config.js`；查询函数通过聚合配置上下文调用。服务显式接收档案或对局，不缓存玩家引用；绘制模块只返回点击区域，扣款、发奖归业务模块。
+已分离：四类领域数据、触摸与菜单路由、塔图鉴与圣遗物页面绘制、圣遗物成长、深度宝箱、局外商店、技能解锁和全局技能目录/槽位/运行逻辑。定义模块不反向依赖 `config.js`；查询函数通过聚合配置上下文调用。服务显式接收档案或对局，不缓存玩家引用；绘制模块只返回点击区域，扣款、发奖归业务模块。
 
 仍待分离：`combat.js` 中各塔攻击与圣遗物触发、`run.js` 中消除收益挂点、其余界面和战斗弹窗、旧版圣物成长与宝箱。尚未完成全部硬编码数值迁移，P2/P3 平衡提案也不属于本轮机械重构。
 
@@ -92,6 +93,7 @@ node tools/_test_touch_channels.cjs
 node tools/_test_canvas_adaptation.cjs
 node tools/test_touch_wx.mjs
 node tools/_test_codex_split.cjs
+node tools/_test_relic_screen_equiv.cjs
 node tools/_test_relic_progression.cjs
 node tools/_test_deep_chests.cjs
 node tools/_test_shop_unlocks.cjs
@@ -103,7 +105,7 @@ node tools/_test_multi_replacement.cjs
 node tools/_test_rainbow_charge.cjs
 ```
 
-其中 `codex_split / relic_progression / deep_chests / shop_unlocks / global_skills_split` 使用本地 Git 中固定提交 `1b72edb` 作为重构前基线，逐项比较旧新返回值、状态或绘制指令；需保留该提交历史，源码ZIP不能直接运行这些历史对比测试。这些测试证明迁移等价，不代表原规则没有缺陷。
+其中 `codex_split / relic_progression / deep_chests / shop_unlocks / global_skills_split` 使用本地 Git 中固定提交 `1b72edb` 作为重构前基线，逐项比较旧新返回值、状态或绘制指令；需保留该提交历史，源码ZIP不能直接运行这些历史对比测试。`_test_relic_screen_equiv.cjs`另用固定提交`a4c4699`作为圣遗物页面基线，覆盖1746个输入组合（含图片加载与缺图回退），详见[接入说明](docs/圣遗物页面拆分-接入说明.md)。这些测试证明迁移等价，不代表原规则没有缺陷。
 
 预览重新构建与校验：
 

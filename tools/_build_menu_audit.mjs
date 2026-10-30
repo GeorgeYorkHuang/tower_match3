@@ -22,6 +22,7 @@ const MODULES = [
   'js/game/fx/firepillar.js',
   'js/game/ui.js',
   'js/game/screens/codex.js',
+  'js/game/screens/relics.js',
   'js/config.js',
   'js/config/monsters.js',
   'js/config/towers.js',
