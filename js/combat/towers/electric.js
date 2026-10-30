@@ -210,4 +210,150 @@ function onAnyTowerHit(combat, e) {
 
 }
 
-module.exports = { hitElectric, tryAttackDebuff, onAnyTowerHit };
+function tickElectric(combat, dt) {
+  const g = combat.game;
+  const arcBalance = SKILL_NUM.electric['极光电击'];
+  // v1.16.101 快充3★：过载脉冲窗口递减（interval 读取 run._elecPulseTtl）
+  if (g.run._elecPulseTtl > 0) g.run._elecPulseTtl -= dt;
+  // 电·极光电击（v1.16.21 电弧重做改名；v1.16.42 修复性调整；v1.16.49 树状分支；v1.16.50 C 裂电；
+  //   v1.16.51 基础重做）：每 8 秒电击最近敌人（不再穿透延长线），并向 (100+20×A) 码内分叉电弧命中 3+arcC 个敌人
+  //   （各造成主线伤害 40%）；A 扩域：分叉寻敌范围 +20/级（100→120→140→160）；
+  //   B 增伤 +20%/级（80→100/120/140%）；C 裂电：分叉命中数量 +1/级（3→4→5→6）
+  const arc = combat.lv('electric', '极光电击');
+  if (arc > 0) {
+    const arcA = combat.branchLv('electric', '极光电击', 'A');
+    const arcB = combat.branchLv('electric', '极光电击', 'B');
+    const arcC = combat.branchLv('electric', '极光电击', 'C');
+    combat.timers.arc = (combat.timers.arc || 0) + dt;
+    const period = arcBalance.period * combat._weakPeriod('electric');   // v1.16.42 周期固定 8 秒（弱化态 ×1.5）
+    if (combat.timers.arc >= period) {
+      combat.timers.arc = 0;
+      combat.castEnergy('electric', '极光电击');
+      // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+      const mz = combat.towerMuzzle('electric');
+      const tx = mz.x, ty = mz.y;
+      const range = combat.range('electric');
+      const alive = combat.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
+      if (alive.length) {
+        // 最近的敌人（行距离最小）为电击目标（v1.16.51：不再沿延长线穿透，仅此一目标受主线伤害）
+        const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
+        const dmg = combat.shotDmg('electric') * (arcBalance.damage + arcBalance.damagePerBranch * arcB);
+        const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
+        combat.damage(nearest, dmg, 'electric');
+        combat.fxFlash(nearest.x, nearest.y, '#f4d03f');
+        // v1.16.51 分叉电弧：从最近敌向 (100+20×A) 码内分叉 3+arcC 个敌人，各 40% 主线伤害（不递归、不重复）
+        const hitSet = new Set([nearest]);
+        const branchRange = arcBalance.branchRadius + arcBalance.radiusPerBranch * arcA;   // A 扩域：100→120→140→160 码
+        // v1.16.101 超导3★：全部连锁类效果目标数 +1
+        const nB = arcBalance.branchCount + arcC + (combat.game.run.relic3('elec_super') ? 1 : 0);   // C 裂电：3→4→5→6 个
+        // v1.16.101 电链3★：分叉电弧可再分叉一次（各 20% 伤害）
+        const reFork = combat.game.run.relic3('elec_chain');
+        for (let k = 0; k < nB; k++) {
+          const cands = combat.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - nearest.x, o.y - nearest.y) <= branchRange);
+          if (!cands.length) break;
+          const tgt = cands.splice(Math.floor(Math.random() * cands.length), 1)[0];
+          hitSet.add(tgt);
+          combat.damage(tgt, dmg * arcBalance.branchDamage, 'electric');
+          combat.fxFlash(tgt.x, tgt.y, '#7fc7ff');
+          const cpath = [
+            { x: nearest.x, y: nearest.y },
+            { x: nearest.x + (tgt.x - nearest.x) * 0.5 + (Math.random() * 26 - 13), y: nearest.y + (tgt.y - nearest.y) * 0.5 + (Math.random() * 26 - 13) },
+            { x: tgt.x, y: tgt.y },
+          ];
+          combat.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
+          // 电链：每个分叉目标再分叉 1 次（各 20% 主线伤害）
+          if (reFork) {
+            const sub = combat.enemies().filter((o) => o.hp > 0 && !hitSet.has(o) && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= branchRange)
+              .sort((a, b) => Math.hypot(a.x - tgt.x, a.y - tgt.y) - Math.hypot(b.x - tgt.x, b.y - tgt.y))[0];
+            if (sub) {
+              hitSet.add(sub);
+              combat.damage(sub, dmg * 0.2, 'electric');
+              combat.fxFlash(sub.x, sub.y, '#aed6f1');
+              combat.fxBeam(tgt.x, tgt.y, sub.x, sub.y, '#aed6f1', 0.25, 2);
+            }
+          }
+        }
+        // 视觉：塔口 → 最近敌人 金色主弧（v1.16.47 强化粗电弧+光晕；v1.16.49 0.6s）
+        const path = [{ x: x1, y: y1 }];
+        for (let s = 1; s < 4; s++) {
+          const t = s / 4;
+          path.push({ x: x1 + (x2 - x1) * t + (Math.random() * 30 - 15), y: y1 + (y2 - y1) * t + (Math.random() * 30 - 15) });
+        }
+        path.push({ x: x2, y: y2 });
+        combat.game.fx.push({ type: 'shot', kind: 'zigzag', path, t: 0, dur: 0.6, color: '#ffe08a', w: 5, glow: true });
+        combat.fxFlash(tx, ty, '#f4d03f');
+        combat.fxRing(x2, y2, '#f4d03f', 30, 0.3, 3);
+        combat.fxParticle(nearest.x, nearest.y, '#f4d03f', 6, 50, 0.45, 120, 5);
+      }
+    }
+  }
+  const stormBalance = SKILL_NUM.electric['雷暴'];
+  const storm = combat.lv('electric', '雷暴');
+  if (storm > 0) {
+    // v1.16.21 雷暴分支调整：A=雷击目标+2/级（3/5/7/9）；B=连雷 30%/45%/60% 几率连锁周边 90px 敌人；C=雷击间隔 -1s/级（10→9/8/7s）
+    const cLv = combat.branchLv('electric', '雷暴', 'C');
+    const period = (stormBalance.period - stormBalance.periodReductionPerBranch * cLv) * combat._weakPeriod('electric');   // C0 10 / C1 9 / C2 8 / C3 7s（弱化态 ×1.5）
+    combat.timers.storm = (combat.timers.storm || 0) + dt;
+    if (combat.timers.storm >= period) {
+      combat.timers.storm = 0;
+      combat.castEnergy('electric', '雷暴');
+      const aLv = combat.branchLv('electric', '雷暴', 'A');
+      const bLv = combat.branchLv('electric', '雷暴', 'B');
+      const n = stormBalance.targetCount + stormBalance.targetsPerBranch * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
+      const dmg = combat.shotDmg('electric') * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1));
+      // 全图随机 N 个存活目标（Fisher-Yates）
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y));
+      const pool = alive.slice();
+      // v1.16.101 雷域3★：雷暴优先命中血量最高的敌人
+      if (combat.game.run.relic3('elec_domain')) {
+        pool.sort((a, b) => b.hp - a.hp);
+      } else {
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+        }
+      }
+      const targets = pool.slice(0, n);
+      // 按 y 从上到下分 2-3 批，每批间隔 0.12s（落雷演出分批）
+      const sorted = targets.slice().sort((a, b) => a.y - b.y);
+      const batches = Math.min(3, Math.max(2, Math.ceil(n / 3)));
+      sorted.forEach((e, idx) => {
+        const delay = Math.floor(idx * batches / n) * 0.12;
+        // 雷击伤害（即时结算）
+        combat.damage(e, dmg, 'electric');
+        // v1.16.101 雷霆3★：雷暴击中麻痹的敌人时，将其麻痹向 90 码内 2 名敌人传导（各 1 秒）
+        if (combat.game.run.relic3('elec_storm') && e.paralyzed > 0) {
+          const spread2 = combat.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= stormBalance.chainRadius)
+            .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, 2);
+          spread2.forEach((o) => {
+            o.paralyzed = Math.max(o.paralyzed || 0, 1);
+            combat.applySlow(o, 0.5, 1);
+            combat.fxBeam(e.x, e.y, o.x, o.y, '#ffe08a', 0.25, 2.5);
+            combat.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.35, 110, 4);
+          });
+        }
+        // B 分支（v1.16.21 连雷）：雷击 30%/45%/60% 几率连锁周边最近 bLv 个敌人（90px，50% 伤害）
+        if (bLv > 0 && Math.random() < stormBalance.chainProbability[bLv]) {
+          // v1.16.101 超导3★：全部连锁类效果目标数 +1
+          const chainN = bLv + (combat.game.run.relic3('elec_super') ? 1 : 0);
+          const chain = combat.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= stormBalance.chainRadius)
+            .sort((a2, b2) => Math.hypot(a2.x - e.x, a2.y - e.y) - Math.hypot(b2.x - e.x, b2.y - e.y)).slice(0, chainN);
+          chain.forEach((o) => {
+            combat.damage(o, dmg * stormBalance.chainDamage, 'electric');
+            const cpath = [{ x: e.x, y: e.y }];
+            const mx = (e.x + o.x) / 2 + (Math.random() * 14 - 7), my = (e.y + o.y) / 2 + (Math.random() * 14 - 7);
+            cpath.push({ x: mx, y: my }, { x: o.x, y: o.y });
+            combat.game.fx.push({ type: 'shot', kind: 'zigzag', path: cpath, t: 0, dur: 0.3, color: '#7fc7ff', w: 2.5 });
+            combat.fxFlash(o.x, o.y, '#7fc7ff');
+          });
+        }
+        // 雷暴演出：预兆圈 0.22s → 主闪分叉 → 地面电花（按批 delay 错开）
+        combat.game.fx.push({ type: 'shot', kind: 'storm', x: e.x, y: e.y, t: 0, dur: delay + 0.55, delay, seed: Math.floor(Math.random() * 9999) });
+        combat.fxParticle(e.x, e.y, '#f4d03f', 6, 40, 0.35, 140, 5);
+        combat.fxRing(e.x, e.y, '#f4d03f', 26, 0.35, 3);
+      });
+    }
+  }
+}
+
+module.exports = { tickElectric, hitElectric, tryAttackDebuff, onAnyTowerHit };
