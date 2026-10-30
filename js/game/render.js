@@ -793,10 +793,9 @@ class Renderer {
     let x = x0 + (showG ? slotSize + slotGap : 0);
     for (let i = 0; i < slotCount; i++) {
       const tw = towers[i] || null;
-      // 槽：无压暗层、无描边；空槽仅淡白提示
-      fillRoundRect(ctx, x, slotY, slotSize, slotSize, 8, tw ? 'rgba(0,0,0,0)' : 'rgba(255,255,255,0.05)');
+      // v1.17.45 槽体完全透明（无底色）；空槽 = 半透明灰色蒙版（无文字提示）
       if (!tw) {
-        text(ctx, '待消除', x + slotSize / 2, slotY + slotSize / 2 + 2, 13, 'rgba(255,255,255,0.4)', 'center');
+        fillRoundRect(ctx, x, slotY, slotSize, slotSize, 8, 'rgba(140,150,160,0.28)');
       } else {
         // 塔图标（32×32 居中，图片优先，回退自绘几何图形——emoji 在部分 canvas 环境不渲染）
         const ix = x + (slotSize - L.towerIcon.size) / 2;
@@ -804,10 +803,7 @@ class Renderer {
         if (!drawImg(ctx, IMG_SRC[tw.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
           drawTowerGlyph(ctx, tw.key, ix, iy, L.towerIcon.size);
         }
-        // 等级（v1.17.10 不再显示右上角数字徽章，改槽底小字，避免遮挡塔图标）
-        text(ctx, `Lv${tw.level}`, x + slotSize / 2, slotY + slotSize - 10, 13, 'rgba(255,255,255,0.75)', 'center');
-        // v1.17.14：移除左上角 ⓘ 圆标与弹药条顶部数字——俯视塔占满槽位后两者都压住主体，
-        //   且整槽本身可点（slotAt），圆标无需保留；弹药量改由柱条高度 + 颜色表达。
+        // v1.17.45：去掉槽底 Lv 文字；等级由弹药柱条 + 塔本体表现
         // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
         const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
         const bx = x + slotSize - 9;              // 槽内右侧竖条
@@ -844,7 +840,7 @@ class Renderer {
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
-    ctx.globalAlpha = 1;
+    // v1.17.45：不再用整体半透明压暗；未充能改为图标上覆盖半透明灰蒙版（图标本体不透明）
     // 背景：未充能 = 无背景色；已充能 = 主题色渐变背景（替换底色）
     if (ready) {
       const bg = ctx.createLinearGradient(0, by, 0, by + bh);
