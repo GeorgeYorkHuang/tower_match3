@@ -9,7 +9,7 @@ const FirewallFx = require('./fx/firewall.js');
 const FirepillarFx = require('./fx/firepillar.js');
 const { createSkillLoadout } = require('./screens/skill-loadout.js');
 const { skillIcon } = require('./icons/skills.js');
-const { specialBlockMark, COLOR_FILL } = require('./icons/special-blocks.js');
+const { specialBlockMark, subBlockGlyph, COLOR_FILL } = require('./icons/special-blocks.js');
 const ChipSkin = require('./icons/chip-skin.js');          // v1.17.44 底板 × 图案两层查表（替换 v1.17.35 方案）
 const GS_BALANCE = require('../config/global-balance.js');
 /**
@@ -946,7 +946,8 @@ class Renderer {
             const bcF = isObjF ? ChipSkin.baseColorOf(color) : cBase;
             if (drawImg(ctx, ChipSkin.BASES[bcF], x + inset, y + inset, sz, sz)) {
               const glyphF = isObjF ? ChipSkin.specialSrc(color) : ChipSkin.normalSrc(bcF);
-              if (glyphF) drawImg(ctx, glyphF, x + inset, y + inset, sz, sz);
+              if (isObjF && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + inset + sz / 4, y + inset + sz / 4, sz / 2);
+              else if (glyphF) drawImg(ctx, glyphF, x + inset, y + inset, sz, sz);
             } else if (!cBase || !drawImg(ctx, BOARD_IMG[cBase], x + inset, y + inset, sz, sz)) {
               fillRoundRect(ctx, x + inset, y + inset, sz, sz, 8, COLOR_FILL[cBase] || '#333');
             }
@@ -1010,10 +1011,13 @@ class Renderer {
       if (glyph) {
         const glyphSize = isObj && color.s === 'split' && color.sub ? size * 0.5 : size;
         const inset = (size - glyphSize) / 2;
-        drawImg(ctx, glyph, x + inset, y + inset, glyphSize, glyphSize);
+        if (isObj && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + inset, y + inset, glyphSize);
+        else drawImg(ctx, glyph, x + inset, y + inset, glyphSize, glyphSize);
       }
     } else if (base && drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
-      // 回退：旧整图自带符号，不再叠图案
+      // Child mine keeps its white emblem even while only the old base asset is ready.
+      if (isObj && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + size / 4, y + size / 4, size / 2);
+      // 其它回退：旧整图自带符号，不再叠图案
     } else {
       fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
