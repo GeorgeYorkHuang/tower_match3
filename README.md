@@ -54,9 +54,11 @@ js/
       touch.js / coordinates.js  手势生命周期 / 坐标换算
       relic-scroll.js            圣遗物惯性滚动（参数见config/relic-scroll.js）
       menu-actions.js           菜单动作、弹窗、购买操作分发
+      battle-actions.js         战斗弹层优先级、点击消费与战斗动作分发
     screens/
       home.js / menu-header.js  战场主页 / 顶部功能与货币栏
       menu-shop.js              局外商店绘制（不执行购买）
+      battle-shop.js            局内商店绘制与点击矩形（不执行购买）
       skill-loadout.js          技能配置卡片与选择面板
       account-menu.js           功能菜单和我的信息
       codex.js                  塔图鉴主页和技能详情
@@ -163,3 +165,5 @@ node tools/_build_special_preview.mjs
 16. **【待排期】合规预留**：宝箱概率公示、付费分层（若有内购）所需的界面与文案预留。
 
 R12已完成主页、顶部栏与局外商店绘制提取，66组状态与固定基线逐绘制指令/命中区对比通过；见[接入说明](docs/主页商店页面拆分-接入说明.md)。
+
+R13已完成战斗点击路由与局内商店绘制提取，保留三选一、塔详情、撤离和结算点击顺序；56组路由对比、80组商店绘制对比与15项真实main购买链路验证通过，见[接入说明](docs/战斗路由与局内商店拆分-接入说明.md)。
