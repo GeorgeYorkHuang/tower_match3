@@ -1,3 +1,4 @@
+const Targeting = require('./combat/targeting.js');
 const RelicKill = require('./relics/kill-hooks.js');
 const COMBAT_BALANCE = require('./config/combat-common.js');
 /**
@@ -155,10 +156,7 @@ class CombatSystem {
   }
 
   /** 塔当前射程（射程/技能叠加） */
-  range(key) {
-    const cfg = CONFIG.TOWERS[key];
-    return Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
-  }
+  range(key) { return Targeting.range(this, key); }
 
   /** v1.16.78 圣遗物当前星级数值（1★=desc / 2★=star2 文本最后数字）；未获得返回 0 */
   relicVal(id) {
@@ -1181,28 +1179,10 @@ class CombatSystem {
   }
 
   /** 选择攻击目标（v1.16.130）：射程内直线距离最近的一个怪物（更智能：优先打靠近塔的威胁） */
-  pickTarget(key) {
-    const r = this.range(key);
-    const mz = this.towerMuzzle(key);
-    let best = null, bestD = Infinity;
-    this.enemies().forEach((e) => {
-      if (e.hp <= 0) return;
-      const d = Math.hypot(e.x - mz.x, e.y - mz.y);
-      if (d > r) return;
-      if (d < bestD) { bestD = d; best = e; }
-    });
-    return best;
-  }
+  pickTarget(key) { return Targeting.pickTarget(this, key); }
 
   /** v1.16.130 额外目标：主目标 Y 轴往上 40px 截面范围（水平带 [main.y-40, main.y]）内的随机敌人；带内无其他敌人时回退主目标 */
-  pickAltTarget(key, main) {
-    const r = this.range(key);
-    const mz = this.towerMuzzle(key);
-    const y0 = main.y - COMBAT_BALANCE.alternateTargetBand, y1 = main.y;
-    const cands = this.enemies().filter((e) => e.hp > 0 && e !== main && e.y >= y0 && e.y <= y1 && Math.hypot(e.x - mz.x, e.y - mz.y) <= r);
-    if (!cands.length) return main;
-    return cands[Math.floor(Math.random() * cands.length)];
-  }
+  pickAltTarget(key, main) { return Targeting.pickAltTarget(this, key, main); }
 
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
   attackOnce(key) {
@@ -3238,22 +3218,10 @@ class CombatSystem {
     this.explode(o.x, o.y, 80, d * 0.6, 'ice');
   }
 
-  towerMuzzle(key) {
-    const g = this.game;
-    const ly = this.ly();
-    if (g.state === 'testfield') return { x: 15 + 50, y: 1053 + 50 };   // 渲染 testFieldLayer 硬编码单塔大槽（100×100，中心 65,1103）
-    const n = ly.slotCount || 4;
-    const rowW = n * ly.slotSize + (n - 1) * ly.slotGap;
-    const startX = (750 - rowW) / 2;
-    const slotW = ly.slotSize + ly.slotGap;
-    const idx = g.run.slotOrder.indexOf(key);
-    return { x: startX + Math.max(0, idx) * slotW + ly.slotSize / 2, y: ly.slotY + ly.slotSize / 2 };
-  }
+  towerMuzzle(key) { return Targeting.towerMuzzle(this, key); }
 
-  /** 某点是否在当前塔攻击范围内（与普攻 pickTarget 同口径：行距离 ≤ 射程；v1.16.21 技能释放限定用） */
-  inTowerRange(key, x, y) {
-    return Math.abs(this.towerMuzzle(key).y - y) <= this.range(key);
-  }
+  /** 技能现有范围判定：仅检查纵向距离（与普攻直线距离不同，本轮保留原行为） */
+  inTowerRange(key, x, y) { return Targeting.inTowerRange(this, key, x, y); }
 
   hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
 
