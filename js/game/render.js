@@ -1,3 +1,4 @@
+const AccountMenuScreen = require('./screens/account-menu.js');
 const FirewallFx = require('./fx/firewall.js');
 const FirepillarFx = require('./fx/firepillar.js');
 const { createSkillLoadout } = require('./screens/skill-loadout.js');
@@ -459,6 +460,7 @@ class Renderer {
     if (!s.shopOpen) return;
     // 面板（居中偏上，避开灵动岛/微信胶囊）
     const w = 560, h = 640, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 80;
+    this.shopPanelRect = { x, y, w, h };
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
@@ -1028,9 +1030,18 @@ class Renderer {
     const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
     const base = isObj ? (color.s === 'rainbow' ? null : (color.c || color.tint || null)) : color;
     const bc = isObj ? ChipSkin.baseColorOf(color) : base;
-    if (drawImg(ctx, ChipSkin.BASES[bc], x, y, size, size)) {
+    if (isObj && color.s === 'rainbow') {
+      // Rainbow is a standalone icon, including the asset-loading fallback.
+      if (!drawImg(ctx, ChipSkin.specialSrc(color), x, y, size, size)) {
+        this._specialBlockMark(ctx, x, y, size, color);
+      }
+    } else if (drawImg(ctx, ChipSkin.BASES[bc], x, y, size, size)) {
       const glyph = isObj ? ChipSkin.specialSrc(color) : ChipSkin.normalSrc(bc);
-      if (glyph) drawImg(ctx, glyph, x, y, size, size);
+      if (glyph) {
+        const glyphSize = isObj && color.s === 'split' && color.sub ? size * 0.5 : size;
+        const inset = (size - glyphSize) / 2;
+        drawImg(ctx, glyph, x + inset, y + inset, glyphSize, glyphSize);
+      }
     } else if (base && drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
       // 回退：旧整图自带符号，不再叠图案
     } else {
@@ -4040,6 +4051,7 @@ class Renderer {
     const tower = s.towers.find((t) => t && t.key === key);
     if (!tower) return;
     const pw = 670, ph = 1160, px = (750 - pw) / 2, py = 150;
+    push('panel_bounds', null, px, py, pw, ph);
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     fillRoundRect(ctx, px, py, pw, ph, 16, '#1b2230');
@@ -4112,21 +4124,28 @@ class Renderer {
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
-    // v1.17.10 顶部布局：货币胶囊固定宽度（两枚等宽，图标居左，默认容 6 位数字 + 预留尾字母位）
-    //   金币/钻石 ≥1,000,000 时显示 1,000k；宽度不随数字变化；右侧留给微信胶囊与灵动岛
-    const mcy = 110, mch = 52, mw = 180;
-    const coinTxt = fmtK(s.gold || 0);
-    fillRoundRect(ctx, 18, mcy, mw, mch, 26, 'rgba(247,201,72,0.12)');
-    strokeRoundRect(ctx, 18, mcy, mw, mch, 26, '#f7c948', 1.5);
-    if (IMG_SRC.coin) drawImg(ctx, IMG_SRC.coin, 30, mcy + 10, 32, 32);
-    else text(ctx, '🪙', 46, mcy + 26, 26, '#f7c948', 'center');
-    text(ctx, coinTxt, 70, mcy + 27, 28, '#f7c948', 'left');
-    const dTxt = fmtK(s.diamond);
-    fillRoundRect(ctx, 18 + mw + 12, mcy, mw, mch, 26, 'rgba(124,168,255,0.12)');
-    strokeRoundRect(ctx, 18 + mw + 12, mcy, mw, mch, 26, '#7ca8ff', 1.5);
-    if (IMG_SRC.diamond) drawImg(ctx, IMG_SRC.diamond, 18 + mw + 12 + 12, mcy + 10, 32, 32);
-    else text(ctx, '💎', 18 + mw + 12 + 28, mcy + 26, 26, '#7ca8ff', 'center');
-    text(ctx, dTxt, 18 + mw + 12 + 52, mcy + 27, 28, '#7ca8ff', 'left');
+    // Shared header: square menu button and both currencies on one baseline.
+    const mcy = 110, mch = 52, mw = 164;
+    const menuX = 30, coinX = 102, diamondX = 290;
+    ctx.fillStyle = 'rgba(13,20,31,0.94)';
+    ctx.fillRect(0, 0, 750, 186);
+    ctx.fillStyle = 'rgba(124,168,255,0.26)';
+    ctx.fillRect(0, 185, 750, 1);
+    fillRoundRect(ctx, menuX, mcy, mch, mch, 12, '#263447');
+    strokeRoundRect(ctx, menuX, mcy, mch, mch, 12, '#7ca8ff', 1.2);
+    for (let i = 0; i < 3; i++) fillRoundRect(ctx, menuX + 13, mcy + 15 + i * 10, 26, 3, 1.5, '#eef4ff');
+    push('accountOpen', null, menuX, mcy, mch, mch);
+    fillRoundRect(ctx, coinX, mcy, mw, mch, 26, 'rgba(247,201,72,0.12)');
+    strokeRoundRect(ctx, coinX, mcy, mw, mch, 26, '#f7c948', 1.5);
+    if (IMG_SRC.coin) drawImg(ctx, IMG_SRC.coin, coinX + 12, mcy + 10, 32, 32);
+    else text(ctx, '🪙', coinX + 28, mcy + 26, 26, '#f7c948', 'center');
+    text(ctx, fmtK(s.gold || 0), coinX + 52, mcy + 27, 28, '#f7c948', 'left');
+    fillRoundRect(ctx, diamondX, mcy, mw, mch, 26, 'rgba(124,168,255,0.12)');
+    strokeRoundRect(ctx, diamondX, mcy, mw, mch, 26, '#7ca8ff', 1.5);
+    if (IMG_SRC.diamond) drawImg(ctx, IMG_SRC.diamond, diamondX + 12, mcy + 10, 32, 32);
+    else text(ctx, '💎', diamondX + 28, mcy + 26, 26, '#7ca8ff', 'center');
+    text(ctx, fmtK(s.diamond), diamondX + 52, mcy + 27, 28, '#7ca8ff', 'left');
+    if (s.testProfile) text(ctx, '测试档案', 30, 194, 20, '#f7c948', 'left');
     // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
     // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
     if (s.tab === 'battle') drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
@@ -4174,7 +4193,8 @@ class Renderer {
     });
     // 子面板
     if (s.panel) {
-      if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
+      if (['accountMenu', 'accountInfo', 'testProfile'].includes(s.panel.type)) AccountMenuScreen.draw(ctx, s, push, this._menuPanelShell.bind(this));
+      else if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
       else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // v1.16.78 圣遗物详情（1/2/3★ + 升星）
       else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // v1.16.76 圣遗物升星
       else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // v1.16.76 调试工具（仅 DEBUG 构建）
@@ -4292,19 +4312,17 @@ class Renderer {
     };
     arrow(sx - 38, '‹');
     arrow(sx + sw + 38, '›');
-    // 进入战斗
-    const ey = 850, eh = 80;
-    push('enter', null, 75, ey, 600, eh);
+    // Capsule entry button and skill rows share their left/right edges.
+    const ey = 850, eh = 80, entryW = 440, entryX = (750 - entryW) / 2;
+    push('enter', null, entryX, ey, entryW, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, tint); bgrad.addColorStop(1, tintDark);
-    ctx.fillStyle = bgrad; roundRect(ctx, 100, ey, 550, eh, 22); ctx.fill();
-    strokeRoundRect(ctx, 100, ey, 550, eh, 22, 'rgba(255,255,255,0.4)', 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    fillRoundRect(ctx, 106, ey + 6, 538, 18, 9, ctx.fillStyle);
-    text(ctx, '⚔ 进入战斗', 375, ey + 46, 40, '#ffffff', 'center');
-    // v5.3c 技能卡片两行（进入战斗按钮下方）：行1 三消技能 3 卡（四连/高连/连消）· 行2 全局技能 2 卡（按双槽装备显示）
-    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 55, 970, 640, 200, true);
-    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 55, 1234, 640, 200, false, 84);
+    fillRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, bgrad);
+    strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
+    fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.18)');
+    text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
+    this._menuSkillCards(ctx, s, push, '三消技能', s.matchSkills, 65, 1010, entryW, 200, true);
+    this._menuSkillCards(ctx, s, push, '全局技能', s.globalSkills, 65, 1244, entryW, 200, false);
     // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
 
@@ -4418,6 +4436,7 @@ class Renderer {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     const W = 560, H = 470, X = (750 - W) / 2, Y = (LOGIC_H - H) / 2;
+    push('panelBounds', null, X, Y, W, H);
     const pin = ph(0, 200);
     ctx.save();
     ctx.globalAlpha = Math.min(1, pin * 1.6);
@@ -4980,22 +4999,22 @@ class Renderer {
       const en = CONFIG.SKILL_ENERGY[sk.name];
       const enTxt = en === undefined ? 0 : en;
       text(ctx, sk.type || '', gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
-      const ecW2 = 72, ecH2 = 32, ecX2 = gx + cw3 - 16 - ecW2, ecY2 = gy + 56;
+      const ecW2 = 72, ecH2 = 32, ecX2 = gx + cw3 - 16 - ecW2, ecY2 = gy + 77 - ecH2;
       fillRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, '#0b0f16');
       strokeRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, 'rgba(244,208,63,0.55)', 1.2);
       text(ctx, `⚡${enTxt}`, ecX2 + ecW2 / 2, ecY2 + ecH2 / 2 + 1, 17, '#f4d03f', 'center');
       // 分隔线（塔色渐隐），上下分区
-      fillRoundRect(ctx, gx + 18, gy + 82, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
+      fillRoundRect(ctx, gx + 18, gy + 83, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
       // ---- 下区：技能描述（左右各留 20px 白）----
-      const descLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 25).slice(0, 3);
+      const descLines = this.wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 24).slice(0, 3);
       descLines.forEach((ln, li) => {
-        text(ctx, ln, gx + 20, gy + 102 + li * 32, 25, '#d7e2ee', 'left');
+        text(ctx, ln, gx + 20, gy + 102 + li * 32, 24, '#d7e2ee', 'left');
       });
       // v1.16.110 移除右下角"点击查看详情 >>>"（卡片整体可点，入口语义由能耗胶囊+说明区承担）
     });
   }
 
-  /** v1.16.115 技能分支面板放大一档：字体整体按阶梯上移一级（14→18→22→28→48），图标 150→195（+30%） */
+  /** 塔图鉴详情：原布局等比缩至 2/3 后放大 10%，绘制与触摸区域使用相同变换。 */
   codexSkillPanel(ctx, s, push) {
     const p = s.panel || {};
     const towerKey = p.tower || s.codexSel || 'fire';
@@ -5003,9 +5022,26 @@ class Renderer {
     if (!sk) return;
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
     const W2 = 700, H2 = 1360, px = 25, py = Math.round((LOGIC_H - H2) / 2);
+    const panelScale = (2 / 3) * 1.1;
+    const offsetX = 375 * (1 - panelScale);
+    const offsetY = LOGIC_H / 2 * (1 - panelScale);
+    const pushScaled = (key, data, x, y, w, h) =>
+      push(key, data, offsetX + x * panelScale, offsetY + y * panelScale, w * panelScale, h * panelScale);
+    pushScaled('panelBounds', null, px, py, W2, H2);
     // 遮罩 + 面板（底 #151b24，描边=塔色）
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(panelScale, panelScale);
+    // Single-line labels stay inside their allotted columns, including unusually long names.
+    const fit = (value, width, size) => {
+      ctx.font = `${size}px sans-serif`;
+      let valueText = String(value || '');
+      if (ctx.measureText(valueText).width <= width) return valueText;
+      while (valueText && ctx.measureText(valueText + '…').width > width) valueText = valueText.slice(0, -1);
+      return valueText + '…';
+    };
     strokeRoundRect(ctx, px - 4, py - 4, W2 + 8, H2 + 8, 28, hexA(cCol, 0.30), 6);   // 外圈柔光
     fillRoundRect(ctx, px, py, W2, H2, 24, '#151b24');
     strokeRoundRect(ctx, px, py, W2, H2, 24, cCol, 2);
@@ -5014,7 +5050,7 @@ class Renderer {
     fillRoundRect(ctx, px, py + 42, W2, 22, 0, cCol);
     fillRoundRect(ctx, px + 16, py + 3, W2 - 32, 3, 1.5, 'rgba(255,255,255,0.35)');
     text(ctx, '技 能 分 支 · 升 级 三 选 一', 375, py + 34, 28, '#ffffff', 'center');
-    push('panelClose', null, px + W2 - 76, py + 8, 52, 52);
+    pushScaled('panelClose', null, px + W2 - 76, py + 8, 52, 52);
     ctx.beginPath(); ctx.arc(px + W2 - 50, py + 34, 20, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
     text(ctx, '✕', px + W2 - 50, py + 35, 24, '#ffffff', 'center');
@@ -5029,7 +5065,7 @@ class Renderer {
       strokeRoundRect(ctx, icx - IHD, icy, ISZ, ISZ, 36, cCol, 2);
       text(ctx, sk.icon || '?', icx, icy + 104, 82, '#ffffff', 'center');
     }
-    text(ctx, sk.name, 375, py + 312, 48, '#ffffff', 'center');
+    text(ctx, fit(sk.name, W2 - 80, 48), 375, py + 312, 48, '#ffffff', 'center');
     // 类型 + 能耗胶囊（居中）
     const en = CONFIG.SKILL_ENERGY[sk.name];
     const enTxt = en === undefined ? 0 : en;
@@ -5064,7 +5100,7 @@ class Renderer {
       strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, cCol, 1.5);
       fillRoundRect(ctx, cx0 + 22, cy0 + 20, 64, 64, 16, cCol);
       text(ctx, bk, cx0 + 54, cy0 + 54, 34, '#0d1117', 'center');
-      text(ctx, bName, cx0 + 104, cy0 + 42, 32, '#ffffff', 'left');
+      text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 42, 32, '#ffffff', 'left');
       // 概述最多 2 行（28px）
       this.wrapText(ctx, bDesc || '', cw - 130, 28).slice(0, 2).forEach((ln, li) => {
         text(ctx, ln, cx0 + 104, cy0 + 84 + li * 34, 28, '#c9d6e4', 'left');
@@ -5073,10 +5109,11 @@ class Renderer {
       lvls.slice(0, 3).forEach((t, li) => {
         const ry2 = cy0 + 174 + li * 28;
         text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
-        const ln = this.wrapText(ctx, t, cw - 220, 22)[0] || '';
+        const ln = fit(t, cw - 220, 22);
         text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');
       });
     });
+    ctx.restore();
   }
 
   /** v1.16.76 撤离决策层：每 10 波暂停，撤离拿深度池 100% / 继续深入阵亡保底 30% */
@@ -5177,6 +5214,7 @@ class Renderer {
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     const w = pw || 700, h = hgt || 640, x = (750 - w) / 2, y = centered ? Math.round((LOGIC_H - h) / 2) : 180;
+    push('panelBounds', null, x, y, w, h);
     fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
     strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
     text(ctx, title, 375, y + 54, 34, '#ffffff', 'center');
@@ -5341,6 +5379,7 @@ class Renderer {
     ctx.beginPath(); ctx.arc(x + w - 50, y + 44, 20, 0, Math.PI * 2);
     ctx.fillStyle = '#3a4553'; ctx.fill();
     text(ctx, '✕', x + w - 50, y + 52, 26, '#ffffff', 'center');
+    onPick.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + h };
     onPick.close = { hit: (px, py) => Math.abs(px - (x + w - 50)) < 30 && Math.abs(py - (y + 44)) < 30 };
     if (!relics.length) return;
     // 分页列表（每页 8 行）

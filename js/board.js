@@ -327,7 +327,7 @@ Board.prototype.resolve = function resolve() {
           CONFIG.MATCH_SKILL.splitCorners.forEach(([dr, dc]) => {
             const rr = r + dr, cc = c + dc;
             if (!this.inRange(rr, cc)) return;
-            splitSeeds.push({ r: rr, c: cc, color: cellColor(v) });
+            splitSeeds.push({ r: rr, c: cc, color: cellColor(this.grid[rr][cc]) || cellColor(v) });
           });
         }
       } else if (st === 'rand') {

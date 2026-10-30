@@ -70,13 +70,14 @@ function createSkillLoadout(deps = {}) {
   const skillIcon = deps.skillIcon || fallbackSkillIcon;
   const wrapText = deps.wrapText || fallbackWrapText;
 
-  /** 主页技能卡一行（三消 3 卡 / 全局 2 槽）：150×200（4:3）+ 左侧竖排逐字标签
+  /** 主页技能卡一行（三消 3 卡 / 全局 2 槽）：127.5×170（4:3）+ 左侧竖排逐字标签
    *  原 render._menuSkillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch) */
   function skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX = 0) {
     const tint = isMatch ? '#b896ff' : '#f4cb79';
     const keys = isMatch ? ['match4', 'match5', 'chain'] : GlobalSkills.slots(cfg);
     const labels = ['四连技能', '高连技能', '连消技能'];
-    const gap = 18, ch = Math.min(h, 200), cw = ch * 3 / 4;
+    const ch = Math.min(h, 200) * 0.85, cw = ch * 3 / 4;
+    const gap = keys.length > 1 ? (w - keys.length * cw) / (keys.length - 1) : 0;
     const left = x + 90 + cardDX;
     const labelStep = 28, labelTop = y + (ch - (label.length - 1) * labelStep) / 2;
     Array.from(label).forEach((letter, i) => text(ctx, letter, x + 30, labelTop + i * labelStep, 23, tint, 'center'));
@@ -92,11 +93,8 @@ function createSkillLoadout(deps = {}) {
       grad.addColorStop(1, '#101b2c');
       fillRoundRect(ctx, bx, y, cw, ch, 20, grad);
       strokeRoundRect(ctx, bx, y, cw, ch, 20, color, 1.8);
-      fillRoundRect(ctx, bx + 12, y + 12, cw - 24, 4, 2, color);
-      skillIcon(ctx, id, bx + cw / 2, y + 64, 72, color);
-      text(ctx, def.name, bx + cw / 2, y + 124, 21, '#f0f5ff', 'center');
-      text(ctx, isMatch ? '三消触发' : def.category, bx + cw / 2, y + 153, 15, color, 'center');
-      text(ctx, '点击更换  ›', bx + cw / 2, y + ch - 21, 16, '#8fa6c2', 'center');
+      skillIcon(ctx, id, bx + cw / 2, y + ch * 0.36, 78, color);
+      text(ctx, def.name, bx + cw / 2, y + ch * 0.76, 21, '#f0f5ff', 'center');
       push(isMatch ? 'matchCfg' : 'globalCfg', isMatch ? { slot: key } : { index: i }, bx, y, cw, ch);
     });
   }

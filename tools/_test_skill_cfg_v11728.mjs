@@ -98,11 +98,11 @@ eq(mHits.length, 3, '三消技能行注册 3 个 matchCfg 命中区');
 eq(mHits.map((h) => h.data.slot).join(','), 'match4,match5,chain', '三槽顺序 match4/match5/chain');
 eq(gHits.length, 2, '全局技能行注册 2 个 globalCfg 命中区（双槽，无第三格）');
 eq(gHits.map((h) => h.data.index).join(','), '0,1', '双槽 index 0/1');
-ok(mHits.every((h) => h.rect.w === 150 && h.rect.h === 200), '技能卡 3:4 尺寸 150x200', mHits.map((h) => fmt(h.rect)).join(' '));
-eq(mHits[0].rect.x, 145, '三消首卡 x=145（标签列右缘 + 55）');
-eq(mHits[0].rect.y, 970, '三消行 y=970');
-eq(gHits[0].rect.y, 1234, '全局行 y=1234（行距 264）');
-eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 18, '全局双卡间距 18');
+ok(mHits.every((h) => h.rect.w === 127.5 && h.rect.h === 170), '技能卡 3:4 尺寸 127.5x170', mHits.map((h) => fmt(h.rect)).join(' '));
+eq(mHits[0].rect.x, 155, '三消首卡 x=155（标签列右缘 + 55）');
+eq(mHits[0].rect.y, 1010, '三消行 y=1010');
+eq(gHits[0].rect.y, 1244, '全局行 y=1244（卡片边缘间距仍为64）');
+eq(gHits[1].rect.x - (gHits[0].rect.x + gHits[0].rect.w), 185, '全局双卡间距 185');
 ok(has(R.texts, '四连技能') && has(R.texts, '高连技能') && has(R.texts, '连消技能'), '三槽顶部标签文案齐全');
 ok(has(R.texts, '全局槽位 1') && has(R.texts, '全局槽位 2'), '全局双槽标签「全局槽位 1/2」');
 ok(!has(R.texts, '全局槽位 3'), '不存在第三全局槽标签');
@@ -275,6 +275,6 @@ ok(!!close, 'panelClose 存在');
 ok(pc.every((r) => r.y > close.rect.y), '候选卡在标题下方');
 
 /* ===================================================================== */
-eq(gHits[0].rect.x, 229, '全局首卡 x=229，保持标签原左缘');
+eq(gHits[0].rect.x, 155, '全局首卡 x=155，保持标签原左缘');
 console.log(`\n================ ${pass} PASS / ${fail} FAIL ================`);
 process.exit(fail ? 1 : 0);

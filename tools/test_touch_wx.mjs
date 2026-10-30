@@ -12,13 +12,14 @@ const store = {};
 const wxHandlers = {};
 global.wx = {
   createInnerAudioContext() { return { src: '', loop: false, volume: 1, play() {}, stop() {} }; },
-  getStorageSync(k) { return store[k]; },
-  setStorageSync(k, v) { store[k] = v; },
+  getStorageSync(k) { return store[k] == null ? store[k] : JSON.parse(JSON.stringify(store[k])); },
+  setStorageSync(k, v) { store[k] = JSON.parse(JSON.stringify(v)); },
   // 真机：全局触摸通道（逻辑像素坐标）
   getSystemInfoSync() { return { windowWidth: 375, windowHeight: 667, pixelRatio: 3 }; },
   onTouchStart(fn) { wxHandlers.start = fn; },
   onTouchMove(fn) { wxHandlers.move = fn; },
   onTouchEnd(fn) { wxHandlers.end = fn; },
+  onTouchCancel(fn) { wxHandlers.cancel = fn; },
 };
 const ctx2d = new Proxy({}, { get() { return () => undefined; }, set() { return true; } });
 const canvasHandlers = {};
@@ -97,6 +98,193 @@ t('toLogic 使用wx逻辑坐标与绘制缩放的逆变换', () => {
   const p = game.toLogic(300, 500);
   assert.strictEqual(Math.round(p.x), Math.round(300 * 3 / game.scale));
   assert.strictEqual(Math.round(p.y), Math.round(500 * 3 / game.scale));
+});
+
+for (const valid of [true, false]) {
+  t(`持续滑动只尝试一次交换（有效=${valid}），抬手后可再交换`, () => {
+    reset();
+    let calls = 0;
+    const saved = game.match3.trySwap;
+    game.match3.trySwap = () => { calls++; return valid; };
+    const event = (r, c) => { const p = center(r,c); return { touches: [{ clientX:p.x, clientY:p.y }] }; };
+    try {
+      wxHandlers.start(event(0,0));
+      wxHandlers.move(event(0,1));
+      game.anim = null; game.swapped = false;
+      wxHandlers.move(event(0,2));
+      const extra = event(1,1); extra.touches.push({clientX:0,clientY:0});
+      wxHandlers.start(extra); // Additional finger must not reset the gesture.
+      wxHandlers.move(event(1,2));
+      assert.strictEqual(calls, 1);
+      wxHandlers.end(event(1,2)); // Adapter includes the ending touch: must still release.
+      wxHandlers.start(event(0,0));
+      wxHandlers.move(event(0,1));
+      assert.strictEqual(calls, 2);
+      wxHandlers.cancel();
+      wxHandlers.move(event(0,2));
+      assert.strictEqual(calls, 2);
+      wxHandlers.start(event(0,0));
+      wxHandlers.move(event(0,1));
+      assert.strictEqual(calls, 3);
+      wxHandlers.end({ touches: [] });
+    } finally { game.match3.trySwap = saved; }
+  });
+}
+
+t('按钮点击在 end 携带触点或遗漏 end 后仍可继续响应', () => {
+  reset();
+  const saved = game.dispatchTouch;
+  let calls = 0;
+  game.dispatchTouch = () => { calls++; return true; };
+  const p = center(0,0);
+  const e = { touches: [{clientX:p.x,clientY:p.y}] };
+  try {
+    wxHandlers.start(e); wxHandlers.end(e);
+    wxHandlers.start(e); wxHandlers.end(e);
+    wxHandlers.start(e); // Simulate a lost end during a panel transition.
+    wxHandlers.start(e); wxHandlers.end(e);
+    assert.strictEqual(calls, 4);
+  } finally { game.dispatchTouch = saved; }
+});
+
+t('主界面真实渲染命中区经 wx 触摸可打开技能面板并关闭', () => {
+  reset(); game.state = 'menu'; game.menuTab = 'battle'; game.menuPanel = null;
+  const ctx = new Proxy({}, { get(t,k) {
+    if(k === 'measureText') return s => ({width:String(s).length*10});
+    if(k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({addColorStop(){}});
+    return () => {};
+  }, set(){return true;} });
+  const render = () => { game.menuHits = game.renderer.menuLayer(ctx,game.menuState(),[]); };
+  const click = (key, shape) => {
+    const hit = game.menuHits.find(h => h.key === key); assert.ok(hit, key);
+    const r = hit.rect, p = toClient(r.x+r.w/2,r.y+r.h/2);
+    const touch = shape === 'xy' ? {x:p.x,y:p.y} : {clientX:p.x,clientY:p.y};
+    const e = shape === 'changed' ? {touches:[],changedTouches:[touch]} : {touches:[touch]};
+    wxHandlers.start(e); wxHandlers.end(e);
+  };
+  for(const shape of ['client','xy','changed']) {
+    render(); click('matchCfg',shape);
+    assert.strictEqual(game.menuPanel.type,'matchCfg');
+    render(); click('panelClose',shape);
+    assert.strictEqual(game.menuPanel,null);
+  }
+});
+
+t('各主页弹窗：内侧空白保持打开，四侧外部关闭且不触发底层', () => {
+  const ctx = new Proxy({}, { get(t,k) {
+    if(k==='measureText') return s=>({width:String(s).length*10});
+    if(k==='createLinearGradient'||k==='createRadialGradient') return ()=>({addColorStop(){}});
+    return ()=>{};
+  },set(){return true;} });
+  game.state='menu'; game.menuTab='battle';
+  const relicId = CONFIG_FOR_TEST().RELIC_RUN.tower.fire[0].id;
+  const panels=[{type:'matchCfg',slot:'match4'},{type:'matchCfg',slot:'chain'},
+    {type:'globalCfg',index:0,page:2},{type:'relicInfo',id:relicId},
+    {type:'codexSkill',tower:'fire',idx:0},{type:'chestOpen',gain:{gold:1}}];
+  for(const panel of panels) {
+    for(const side of ['left','right','top','bottom']) {
+      game.menuPanel={...panel};
+      game.menuHits=game.renderer.menuLayer(ctx,game.menuState(),[]);
+      const bounds=game.menuHits.find(h=>h.key==='panelBounds'); assert.ok(bounds,panel.type);
+      const r=bounds.rect;
+      game.onMenuTap({x:r.x+5,y:r.y+5}); assert.ok(game.menuPanel,'inside '+panel.type);
+      const p={x:r.x+r.w/2,y:r.y+r.h/2};
+      if(side==='left') p.x=r.x-2; if(side==='right') p.x=r.x+r.w+2;
+      if(side==='top') p.y=r.y-2; if(side==='bottom') p.y=r.y+r.h+2;
+      game.onMenuTap(p); assert.strictEqual(game.menuPanel,null,panel.type+' '+side);
+      assert.strictEqual(game.state,'menu');
+    }
+  }
+});
+function CONFIG_FOR_TEST(){return require('../js/config.js');}
+
+t('局内商店：空白不穿透，外部关闭不触发底层按钮', () => {
+  game.state='fighting'; game.relicDetail=null; game.towerInfo=null; game.towerSkill=null; game.funcLayer=null;
+  game.shopOpen=true;
+  game.renderer.shopPanelRect={x:100,y:300,w:550,h:600};
+  game.renderer.shopCloseRect=null; game.renderer.shopItemRects=[];
+  const saved=game.cycleRunSpeed; let calls=0;
+  game.cycleRunSpeed=()=>calls++; game.renderer.speedHit={hit:()=>true};
+  try {
+    assert.strictEqual(game.dispatchTouch({x:120,y:320}),true); assert.strictEqual(game.shopOpen,true);
+    assert.strictEqual(calls,0);
+    game.dispatchTouch({x:20,y:320}); assert.strictEqual(game.shopOpen,false); assert.strictEqual(calls,0);
+  } finally {game.cycleRunSpeed=saved; game.renderer.speedHit=null;}
+});
+
+t('局内圣遗物详情：点击外部返回原状态',()=>{
+  game.state='relicDetail'; game.relicDetail={from:'testfield'};
+  game.relicDetailHits={bg:{hit:()=>true}};
+  game.dispatchTouch({x:0,y:0});
+  assert.strictEqual(game.relicDetail,null); assert.strictEqual(game.state,'testfield');
+});
+
+t('塔图鉴详情全技能：缩小后放大10%、居中、关闭命中区随画面缩放',()=>{
+  const config=CONFIG_FOR_TEST();
+  const ctx = new Proxy({}, {get(t,k){
+    if(k==='measureText') return v=>({width:String(v).length*20});
+    if(k==='createLinearGradient'||k==='createRadialGradient') return ()=>({addColorStop(){}});
+    return ()=>{};
+  },set(){return true;}});
+  for(const [tower,pool] of Object.entries(config.EFFECT_POOLS)) {
+    pool.forEach((sk,idx)=>{
+      const hits=[];
+      const push=(key,data,x,y,w,h)=>hits.push({key,rect:{x,y,w,h},hit:(px,py)=>px>=x&&px<=x+w&&py>=y&&py<=y+h});
+      game.renderer.codexSkillPanel(ctx,{panel:{tower,idx}},push);
+      const bounds=hits.find(h=>h.key==='panelBounds').rect;
+      const close=hits.find(h=>h.key==='panelClose').rect;
+      assert.ok(Math.abs(bounds.w-700*2/3*1.1)<0.001);
+      assert.ok(Math.abs(bounds.h-1360*2/3*1.1)<0.001);
+      assert.ok(Math.abs(bounds.x+bounds.w/2-375)<0.001);
+      assert.ok(Math.abs(bounds.y+bounds.h/2-config.DESIGN.H/2)<0.001);
+      assert.ok(close.y>300,'close avoids top capsule');
+      game.state='menu';game.menuPanel={type:'codexSkill',tower,idx};game.menuHits=hits;
+      game.onMenuTap({x:close.x+close.w/2,y:close.y+close.h/2});
+      assert.strictEqual(game.menuPanel,null);
+    });
+  }
+});
+
+t('左上功能菜单：口令、音乐、我的信息与独立测试档登出',()=>{
+  const Account=require('../js/game/account.js');
+  const access=require('../js/config/test-access.js');
+  const ctx=new Proxy({}, {get(t,k){
+    if(k==='measureText') return v=>({width:String(v).length*10});
+    if(k==='createLinearGradient'||k==='createRadialGradient') return ()=>({addColorStop(){}});
+    return ()=>{};
+  },set(){return true;}});
+  game.state='menu';game.menuPanel=null;game.testProfile=false;
+  const render=()=>{game.menuHits=game.renderer.menuLayer(ctx,game.menuState(),[]);};
+  const click=key=>{
+    render(); const h=game.menuHits.find(h=>h.key===key);assert.ok(h,key);
+    const p=toClient(h.rect.x+h.rect.w/2,h.rect.y+h.rect.h/2);
+    wxHandlers.start({touches:[{clientX:p.x,clientY:p.y}]});wxHandlers.end({touches:[]});
+  };
+  click('accountOpen'); assert.strictEqual(game.menuPanel.type,'accountMenu');
+  const music=game.meta.musicOn;
+  click('accountMusic');assert.strictEqual(game.meta.musicOn,!music);
+  assert.strictEqual(game.sfx.musicEnabled,!music);
+  click('accountInfo');assert.strictEqual(game.menuPanel.type,'accountInfo');
+  click('panelClose');click('accountOpen');
+  wx.showModal=opts=>opts.success({confirm:true,content:'wrong'});
+  click('accountPass');assert.strictEqual(game.testProfile,false);
+  assert.strictEqual(game.menuPanel.type,'accountMenu');
+  wx.showModal=opts=>opts.success({confirm:true,content:access.passphrase});
+  click('accountPass');assert.strictEqual(game.menuPanel.type,'testProfile');
+  game.meta.gold=123;game.save.save();
+  const normal=JSON.stringify(store.xxfx_save_v1);
+  click('profileResume');assert.strictEqual(game.testProfile,true);
+  assert.strictEqual(game.meta.gold,999999);
+  game.meta.gold=456;game.save.save();
+  assert.strictEqual(JSON.stringify(store.xxfx_save_v1),normal);
+  click('accountOpen');click('accountLogout');
+  assert.strictEqual(game.testProfile,false);assert.strictEqual(game.meta.gold,123);
+  assert.strictEqual(game.save.storageKey,'xxfx_save_v1');
+  Account.switchProfile(game,true);assert.strictEqual(game.meta.gold,456);
+  Account.switchProfile(game,true,'fresh');assert.strictEqual(game.meta.gold,0);
+  assert.strictEqual(JSON.stringify(store.xxfx_save_v1),normal);
+  Account.switchProfile(game,false);assert.strictEqual(game.meta.gold,123);
+  delete wx.showModal;
 });
 
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);

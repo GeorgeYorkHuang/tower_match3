@@ -12,13 +12,14 @@ const SAVE_KEY = 'xxfx_save_v1';
 class SaveManager {
   constructor(game) {
     this.game = game;
+    this.storageKey = SAVE_KEY;
   }
 
   /** 读取原始存档；无 wx / 损坏 / 版本不符 → null（v4 及以下由 Meta.fromJSON 迁移为 v5） */
   load() {
     if (typeof wx === 'undefined' || !wx.getStorageSync) return null;
     try {
-      const d = wx.getStorageSync(SAVE_KEY);
+      const d = wx.getStorageSync(this.storageKey);
       if (!d) return null;
       if (d.version === 5 || d.version === 4 || d.version === 3) return this._renameIceSkills(this._renameBounceSkill(d));
       if (d.version === 2) return this._migrateV2(d); // v2 旧档自动迁移（技能卡带等级）
@@ -126,15 +127,15 @@ class SaveManager {
     if (!meta) return;
     try {
       // v1.6：不再把对局塔位（先消先得）持久化到 towerUnlocks——每局从 0 塔开始
-      wx.setStorageSync(SAVE_KEY, meta.toJSON());
+      wx.setStorageSync(this.storageKey, meta.toJSON());
     } catch (e) {}
   }
   /** 清档：删除本地存档（用于设置-清档重开） */
   clear() {
     if (typeof wx === 'undefined') return;
     try {
-      if (wx.removeStorageSync) wx.removeStorageSync(SAVE_KEY);
-      else wx.setStorageSync(SAVE_KEY, null);
+      if (wx.removeStorageSync) wx.removeStorageSync(this.storageKey);
+      else wx.setStorageSync(this.storageKey, null);
     } catch (e) {}
   }
 }

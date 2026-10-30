@@ -17,9 +17,11 @@ const COLOR_FILL = {
 /** 特殊块类型符号绘制（56 基准坐标系，size 缩放）；签名与 render.js #_specialBlockMark 一致 */
 function specialBlockMark(ctx, x, y, size, piece) {
   ctx.save(); ctx.translate(x + size / 2, y + size / 2); ctx.scale(size / 56, size / 56);
+  if (piece.s !== 'rainbow') {
   strokeRoundRect(ctx,-26,-26,52,52,9,'#172035',4);
   strokeRoundRect(ctx,-24,-24,48,48,8,piece.s==='rainbow'?'#ffe8a5':(piece.s==='split'&&piece.sub?'#ff4d5e':'#ffffff'),2);
   fillRoundRect(ctx,-20,-20,40,40,10,'rgba(9,18,35,0.87)');
+  }
   const glyphColor = piece.s === 'rainbow' ? '#ffffff' : ({ red: '#ff6578', blue: '#69caff', green: '#74ed9c', yellow: '#ffe36a', purple: '#c69aff', orange: '#ffad58' })[piece.c || piece.tint] || '#ffffff';
   ctx.strokeStyle=glyphColor; ctx.fillStyle=glyphColor; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.lineJoin='round';
   const line=(a,b,c,d)=>{ctx.beginPath();ctx.moveTo(a,b);ctx.lineTo(c,d);ctx.stroke();};
@@ -33,6 +35,7 @@ function specialBlockMark(ctx, x, y, size, piece) {
   else if(piece.s==='cross') { arrow(false);arrow(true);dot(0,0,4); }
   else if(piece.s==='split') {
     if(piece.sub){
+      ctx.save(); ctx.scale(0.5, 0.5);
       // 子分裂雷：红警风格（红框红底 + 三角警示 + 爆炸对角标），一眼区分父雷；爆炸效果与父一致
       fillRoundRect(ctx,-18,-18,36,36,8,'rgba(58,8,14,0.92)');
       ctx.strokeStyle='#ff9aa5'; ctx.lineWidth=2.5;
@@ -40,6 +43,7 @@ function specialBlockMark(ctx, x, y, size, piece) {
       dot(0,1,2.6);
       ctx.strokeStyle='#ff4d5e'; ctx.lineWidth=3;
       line(-11,-11,11,11); line(11,-11,-11,11);
+      ctx.restore();
     } else {
       // 父分裂雷：金色中心十字 + 四角连线大圆点
       ctx.strokeStyle='#ffd24a'; ctx.lineWidth=3;

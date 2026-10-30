@@ -1,3 +1,4 @@
+const AccountMenu = require('./account.js');
 const ICE_WALL_BALANCE = require('../config/tower-skills.js').ice['冰墙'];
 const GS_BALANCE = require('../config/global-balance.js');
 /**
@@ -73,6 +74,7 @@ class GameMain {
     this.saveData = this.save.load();
     // 局外数据（主界面）：金币 / 圣物 / 宝箱 / 每日精选
     this.meta = this.save.applyMeta(this.saveData);
+    this.sfx.setMusicEnabled(this.meta.musicOn !== false);
     this.sfx.setEnabled(this.meta.soundOn !== false);   // v1.16.107 应用声音开关存档
     // 主界面状态
     this.menuTab = 'battle';     // battle / shop / relic / codex（v1.16.75 新增塔图鉴页签）
@@ -1118,14 +1120,14 @@ class GameMain {
     ctx.fillRect(0, 0, Math.ceil(_c.canvas.width / s), Math.ceil(_c.canvas.height / s));
     if (this.state === 'menu') {
       this.menuHits = this.renderer.menuLayer(ctx, this.menuState(), this.menuHits);
-      this.renderer.toast(ctx, this.toasts);
+      if (this.testProfile) this.renderer.toast(ctx, this.toasts);
       return;
     }
     // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）；v1.16.73 测试战场弹圣遗物三选一时底层保持测试战场
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（relicpick 冻结）
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
-      this.renderer.toast(ctx, this.toasts);
+      if (this.testProfile) this.renderer.toast(ctx, this.toasts);
       if (this.relicDetail) {   // v1.16.113 测试战场圣遗物详情弹层
         this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
       }
@@ -1151,7 +1153,7 @@ class GameMain {
     // v1.17 局内商店面板：从 actionArea 内移到敌人/特效层之后绘制（否则怪物贴图浮在商店面板上方）；
     // 在 toast 之前画（商店遮罩不盖 toast），仍先于三选一/塔详情/功能弹层，保持"弹层盖商店"的既有层级
     this.renderer.battleShop(ctx, st);
-    this.renderer.toast(ctx, this.toasts);
+    if (this.testProfile) this.renderer.toast(ctx, this.toasts);
     if (this.state === 'picking') {
       const group = this.pickQueue[this.pickIndex];
       const pending = this.remainingPending(group.tower);
@@ -1325,12 +1327,19 @@ class GameMain {
       shards: this.meta.shards,
       starStones: this.meta.starStones,
       bestWave: this.meta.bestWave,
+      deviceInfo: this.menuPanel && this.menuPanel.type === 'accountInfo' ? AccountMenu.deviceInfo() : null,
+      testProfile: !!this.testProfile,
+      musicOn: this.meta.musicOn !== false,
       debug: !!CONFIG.DEBUG_ACCOUNT,
     };
   }
 
   /** 测试战场触摸分发（v1.14）：面板打开时仅响应面板项，否则控制条/塔槽/返回/倍速 */
   onTestFieldTap(p) {
+    if (this.testPanel) {
+      const bounds = (this.testHits || []).find(it => it.id === 'panel_bounds');
+      if (bounds && !bounds.hit(p.x, p.y)) { this.testPanel = null; return true; }
+    }
     // v1.16.113 测试战场：点击圣遗物行 → 查看本局圣遗物详情（叠加弹层，战斗不暂停）
     if (!this.testPanel) {
       const rb = this.renderer.relicBarHit;
@@ -1371,7 +1380,13 @@ class GameMain {
   /** 主界面触摸分发：命中 menuHits（渲染时重建）中第一个按键；面板打开时仅响应面板项 */
   onMenuTap(p) {
     if (this.menuPanel) {
+      const bounds = this.menuHits.find(it => it.key === 'panelBounds');
+      if (bounds && !bounds.hit(p.x, p.y)) { this.menuPanel = null; return; }
       const ptype = this.menuPanel.type;
+      if (['accountMenu', 'accountInfo', 'testProfile'].includes(ptype)) {
+        const target = this.menuHits.find(it => (it.key.startsWith('account') || it.key.startsWith('profile')) && it.hit(p.x, p.y));
+        if (target) { AccountMenu.handle(this, target.key); return; }
+      }
       // v1.16.78 圣物图鉴翻页（relicDex 面板内）
       if (ptype === 'relicDex') {
         const total = this._relicRunTotal();
@@ -1459,6 +1474,7 @@ class GameMain {
     for (const it of this.menuHits) {
       if (!it.hit(p.x, p.y)) continue;
       switch (it.key) {
+        case 'accountOpen': this.menuPanel = { type: 'accountMenu' }; return;
         case 'tab':
           this.menuTab = it.data;
           this.menuPanel = null;
@@ -1755,7 +1771,7 @@ class GameMain {
     // v1.16.73 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
     if (this.relicDetail) {
       const h = this.relicDetailHits;
-      if (h.close && h.close.hit(p.x, p.y)) {
+      if ((h.close && h.close.hit(p.x, p.y)) || (h.bg && h.bg.hit(p.x, p.y))) {
         const from = this.relicDetail.from || 'fighting';   // v1.16.113 关闭后回到来源状态（testfield/fighting）
         this.relicDetail = null; this.state = from; return true;
       }
@@ -1823,6 +1839,24 @@ class GameMain {
       if (h.bg && h.bg.hit(p.x, p.y)) { this.funcLayer = null; return true; }
       return true; // 面板内点击不处理其它
     }
+    if (this.shopOpen) {
+      const panel = this.renderer.shopPanelRect;
+      if (panel && (p.x < panel.x || p.x > panel.x + panel.w || p.y < panel.y || p.y > panel.y + panel.h)) {
+        this.shopOpen = false;
+        return true;
+      }
+      const scl = this.renderer.shopCloseRect;
+      if (scl && p.x >= scl.x && p.x <= scl.x + scl.w && p.y >= scl.y && p.y <= scl.y + scl.h) { this.shopOpen = false; return true; }
+      const rects = this.renderer.shopItemRects || [];
+      for (let i = 0; i < rects.length; i++) {
+        const r = rects[i];
+        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+          this.buyStoreItem(i);
+          return true;
+        }
+      }
+      return true; // Modal blank space must not reach battle controls.
+    }
     // 加速按钮（v1.16.30 移到城墙上方 · 移动区右下角，独立命中区）
     if (this.renderer.speedHit && this.renderer.speedHit.hit(p.x, p.y)) {
       this.cycleRunSpeed();
@@ -1843,18 +1877,6 @@ class GameMain {
       if (this._chestBusy) return true;
       // v1.16.89 局内商店：入口移至底部功能条，此处仅处理面板内点击（关闭钮 / 商品格）
       if (this.shopOpen === undefined) this.shopOpen = false;
-      if (this.shopOpen) {
-        const scl = this.renderer.shopCloseRect;
-        if (scl && p.x >= scl.x && p.x <= scl.x + scl.w && p.y >= scl.y && p.y <= scl.y + scl.h) { this.shopOpen = false; return true; }
-        const rects = this.renderer.shopItemRects || [];
-        for (let i = 0; i < rects.length; i++) {
-          const r = rects[i];
-          if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
-            this.buyStoreItem(i);
-            return true;
-          }
-        }
-      }
       // v1.16.73 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
       const rb = this.renderer.relicBarHit;
       if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
@@ -1965,13 +1987,27 @@ class GameMain {
   bindTouch() {
     const c = _c ? _c.canvas : null; // 获取到的主画布（可能是 wx.createCanvas() 返回）
     let startCell = null, lastCell = null;
+    let gestureUsed = false;
     this.pickCell = null; // 点击交换：当前选中格（渲染高亮，直到下次点击/滑动）
     let moved = false;    // 是否已发生滑动（点击 vs 滑动判定）
     // 触摸处理（wx 全局通道与 canvas 事件通道共用；坐标在 toLogic 内做自适应归一化）
+    const touchPoint = (e) => {
+      const t = e && ((e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]));
+      if (!t) return null;
+      const x = Number.isFinite(t.clientX) ? t.clientX : t.x;
+      const y = Number.isFinite(t.clientY) ? t.clientY : t.y;
+      return Number.isFinite(x) && Number.isFinite(y) ? this.toLogic(x, y) : null;
+    };
     const onStart = (e) => {
-      const t = e && e.touches && e.touches[0];
-      if (!t) return;
-      const p = this.toLogic(t.clientX, t.clientY);
+      const p = touchPoint(e);
+      if (!p) return;
+      // Menu input must never be gated by the board gesture lock.
+      if (this.state === 'menu' && !(this.menuTab === 'relic' && !this.menuPanel)) {
+        this.dispatchTouch(p);
+        return;
+      }
+      if (e.touches && e.touches.length > 1) return;
+      gestureUsed = false;
       // v1.16.82 圣遗物页滑动浏览：延迟点击判定到 touchend（拖动不触发卡点）
       if (this.state === 'menu' && this.menuTab === 'relic' && !this.menuPanel) {
         this._relicDrag = { y0: p.y, scroll0: this.relicScroll || 0, moved: false, p };
@@ -1988,22 +2024,19 @@ class GameMain {
       this._touchStart = { x: p.x, y: p.y };
     };
     const onMove = (e) => {
-      const t0 = e && e.touches && e.touches[0];
+      const p = touchPoint(e);
       // v1.16.82 圣遗物页拖动滚动
-      if (this._relicDrag && t0) {
+      if (this._relicDrag && p) {
         const d = this._relicDrag;
-        const p = this.toLogic(t0.clientX, t0.clientY);
         if (Math.abs(p.y - d.y0) > 12) d.moved = true;
         if (d.moved) this.relicScroll = Math.max(0, Math.min(d.scroll0 - (p.y - d.y0), this.renderer._relicMaxScroll || 0));
         return;
       }
       if (this.towerInfo) return; // 详情弹层打开时锁定交换
       if (this.funcLayer) return; // 功能弹层打开时锁定交换
-      if (this.state !== 'fighting' || !startCell || this.swapped) return;
+      if (gestureUsed || this.state !== 'fighting' || !startCell || this.swapped) return;
       if (this.anim) return; // 三消动画进行中锁定交换
-      const t = e && e.touches && e.touches[0];
-      if (!t) return;
-      const p = this.toLogic(t.clientX, t.clientY);
+      if (!p) return;
       // 移动超过阈值视为滑动手势：取消点击选中，进入滑动交换
       if (this._touchStart && Math.hypot(p.x - this._touchStart.x, p.y - this._touchStart.y) > 8) {
         moved = true;
@@ -2014,15 +2047,17 @@ class GameMain {
       const [r1, c1] = startCell, [r2, c2] = cell;
       const adjacent = Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1;
       if (adjacent && (!lastCell || lastCell[0] !== r2 || lastCell[1] !== c2)) {
-        if (this.match3.trySwap(r1, c1, r2, c2)) {
-          startCell = cell; // 有效交换：锁定起点，动画结束后可再操作
-        } else {
-          startCell = cell; // 无效交换：从新格继续滑动
-        }
+        // Consume even invalid swaps; animation completion must not unlock this gesture.
+        gestureUsed = true;
+        moved = true;
+        this.pickCell = null;
+        this.match3.trySwap(r1, c1, r2, c2);
       }
       lastCell = cell;
     };
-    const onEnd = () => {
+    const onEnd = (e) => {
+      // Always release on end: adapters may include the ending touch in touches.
+      gestureUsed = false;
       // v1.16.82 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
       if (this._relicDrag) {
         const d = this._relicDrag;
@@ -2054,6 +2089,15 @@ class GameMain {
       moved = false;
       this._touchStart = null;
     };
+    const onCancel = () => {
+      gestureUsed = false;
+      startCell = null; lastCell = null;
+      moved = false;
+      this._relicDrag = null;
+      this._touchStart = null;
+      this.selected = null;
+      this.pickCell = null;
+    };
     // 真机/官方推荐通道：wx 全局触摸事件（坐标=逻辑像素，与 windowWidth 同尺度）。
     // 小游戏主画布 canvas.addEventListener 在真机非同层渲染下可能不派发触摸事件，
     // 且其坐标可能为 canvas 物理像素系；故优先使用 wx 通道，canvas 仅作回退。
@@ -2063,6 +2107,7 @@ class GameMain {
         wx.onTouchStart(onStart);
         wx.onTouchMove(onMove);
         wx.onTouchEnd(onEnd);
+        if (wx.onTouchCancel) wx.onTouchCancel(onCancel);
         return;
       } catch (e) { /* 回退 canvas 通道 */ }
     }
@@ -2071,6 +2116,7 @@ class GameMain {
     c.addEventListener('touchstart', onStart);
     c.addEventListener('touchmove', onMove);
     c.addEventListener('touchend', onEnd);
+    c.addEventListener('touchcancel', onCancel);
   }
 
   toast(text, color) {

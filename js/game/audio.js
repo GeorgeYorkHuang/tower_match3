@@ -36,6 +36,7 @@ class SfxManager {
     this.fxSpecial = createAudio(AUDIO.special, false, 0.2);
     this._bgmStarted = false;
     this._lastFx = {};   // kind → 最近播放时间戳（统一防抖表）
+    this.musicEnabled = true;
     this.enabled = true;   // v1.16.107 声音总开关（设置弹层可切换）
   }
 
@@ -60,7 +61,13 @@ class SfxManager {
     this._lastFx[kind] = now;
   }
 
+  setMusicEnabled(on) {
+    this.musicEnabled = !!on;
+    if (!this.musicEnabled) this.stopBgm();
+  }
+
   startBgm() {
+    if (!this.musicEnabled) return;
     if (!this.enabled) return;   // v1.16.107 声音关闭不启 BGM
     if (this.bgm && !this._bgmStarted) {
       this._bgmStarted = true;

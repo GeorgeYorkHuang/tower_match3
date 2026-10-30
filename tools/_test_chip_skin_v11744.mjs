@@ -111,8 +111,8 @@ for (const [piece, b, g] of cases) {
 console.log('[4] rainbow 与子雷特例');
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: null, s: 'rainbow' }, 0, 0, null);
-ok(draws[0] && draws[0].endsWith('base_red.png'), 'rainbow 用红底板', JSON.stringify(draws));
-ok(draws[1] && draws[1].endsWith('tint/red/rainbow.png'), 'rainbow 图案', JSON.stringify(draws));
+ok(draws.length === 1 && !draws.some(p=>p.includes('base_')), 'rainbow 只绘制图标，无底板', JSON.stringify(draws));
+ok(draws[0] && draws[0].endsWith('tint/red/rainbow.png'), 'rainbow 图案', JSON.stringify(draws));
 
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: 'green', s: 'split', sub: true }, 0, 0, null);
@@ -136,7 +136,7 @@ ok(draws.length === 1 && draws[0] === 'assets/images/board/ice.png', '特殊块�
 
 reset();
 R.drawCell(ctx, 0, 0, 60, { c: null, s: 'rainbow' }, 0, 0, null);
-ok(fills > 0, 'rainbow 无 base 且底板失败 → 色块兜底');
+ok(fills === 0 && draws.length === 0, 'rainbow 图片缺失时仅矢量图标，无底板或暗条');
 
 /* ---------- 6. 全部未就绪 → 色块 + 矢量徽记 ---------- */
 console.log('[6] 全部未就绪 → 色块 + 矢量徽记');

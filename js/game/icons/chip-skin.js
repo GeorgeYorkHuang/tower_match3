@@ -6,7 +6,7 @@
  *   glyph_<part>.png            普通图案（flame/snow/flask/bolt/blade/bomb）
  *   tint/<color>/<glyph>.png    特殊图案，已按来源色染好（row/col/cross/split/sub/rand/rainbow）
  *
- * 特殊块结构：{ c: 来源色, s: 形状, sub?: true }；rainbow 的 c 为 null，用红底板 + 六色图案。
+ * 特殊块结构：{ c: 来源色, s: 形状, sub?: true }；rainbow 的 c 为 null，只绘制六色图案，不绘制底板。
  * 子雷：s === 'split' && sub === true → 用 sub.png。
  *
  * 纯查表，不做运行时染色；图未就绪由 render.js 的 drawImg 返回 false 后回退旧整图。
@@ -20,7 +20,7 @@ const NORMAL_PART = {
   red: 'flame', blue: 'snow', green: 'flask',
   yellow: 'bolt', purple: 'blade', orange: 'bomb',
 };
-const FALLBACK_COLOR = 'red';   // rainbow 特殊块的底板色（图案自带六色）
+const FALLBACK_COLOR = 'red';   // 缺省图案路径的颜色目录（彩虹不绘制底板）
 
 const BASES = {};
 const NORMALS = {};
@@ -45,7 +45,7 @@ function shapeOf(piece) {
   return s && SHAPES.indexOf(s) >= 0 ? s : null;
 }
 
-/** 特殊块底板色（rainbow 用红底） */
+/** 特殊块来源色（彩虹仅用作图案目录回退） */
 function baseColorOf(piece) {
   const c = piece && piece.c;
   return c && BASES[c] ? c : FALLBACK_COLOR;
