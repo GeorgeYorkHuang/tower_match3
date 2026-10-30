@@ -1,3 +1,4 @@
+const FieldAccess = require('../../field-access.js');
 'use strict';
 const CONFIG = require('../../config.js');
 const GlobalSkills = require('../../global-skills.js');
@@ -145,6 +146,8 @@ function onMenuTap(game, p) {
           return;
         }
         case 'stage': {
+          const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);
+          if(why){FieldAccess.prompt(game,why);return;}
           // v1.16.76 战场卡本体：提示当前所选战场合约
           const F = CONFIG.FIELDS[game.menuStage] || CONFIG.FIELDS.ancient;
           game.toast(`当前：${F.name} · ${F.subtitle}`, '#7cd6a6');
@@ -153,28 +156,22 @@ function onMenuTap(game, p) {
         case 'stagePrev':
         case 'stageNext': {
           // v1.16.78 ◀ ▶ 按合约切换战场：未解锁战场不再静默跳过（可见、进场时校验）
-          const order = CONFIG.FIELD_ORDER;
+          const order = FieldAccess.visible(game.testProfile);
           const dir = it.key === 'stageNext' ? 1 : -1;
           let idx = order.indexOf(game.menuStage);
           idx = (idx + dir + order.length) % order.length;
           game.menuStage = order[idx];
           const F2 = CONFIG.FIELDS[game.menuStage];
-          if (F2.unlockWave && game.meta.bestWave < F2.unlockWave) {
-            game.toast(`已切换：${F2.name}（🔒 需最深 ${F2.unlockWave} 波解锁，当前最佳 ${game.meta.bestWave}）`, '#f0b45c');
-          } else {
-            game.toast(`已切换：${F2.name}（${F2.subtitle}）`, '#7cd6a6');
-          }
+          const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);
+
           return;
         }
         case 'enter': {
           // v1.16.30 按所选战场进入：测试战场 → 免三消直测；正式战斗需校验解锁（v1.16.78）
           game.menuPanel = null;
-          if (game.menuStage === 'test') { game.enterTestField(); return; }
-          const Fe = CONFIG.FIELDS[game.menuStage] || CONFIG.FIELDS.ancient;
-          if (Fe.unlockWave && game.meta.bestWave < Fe.unlockWave) {
-            game.toast(`${Fe.name} 尚未解锁：需最深 ${Fe.unlockWave} 波（当前最佳 ${game.meta.bestWave}）`, '#f0b45c');
-            return;
-          }
+          const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);
+          if(why){FieldAccess.prompt(game,why);return;}
+          if(game.menuStage==='test'){game.enterTestField();return;}
           game.newRun(true);
           return;
         }

@@ -394,7 +394,7 @@ class Renderer {
     // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
     this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
     // 棋盘（v1.17.29 传入 _shake 支持消除抖动）
-    this.board(ctx, s.grid, s.selected, s.anim, s._shake);
+    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
     // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
@@ -454,7 +454,7 @@ class Renderer {
     // v1.16.48 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
     const spX = 750 - 16 - 124, spY = WALL_Y - 8 - 66, spW = 124, spH = 66;
     const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
-    text(ctx, `⏩×${s.runSpeed || 1}`, spX + spW / 2, spY + spH / 2 + 4, 30, spdCol, 'center');
+    this._speedBadge(ctx,spX,spY,spW,spH,s.runSpeed||1);
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
   }
 
@@ -835,8 +835,8 @@ class Renderer {
     if (showG) {
       const sz = this.ly.slotSize;
       const perUse = Math.max(1, s.chargePerUse || 30);
-      const shuCells = Math.min(3, Math.floor((s.shuffleAmmo || 0) / perUse));
-      const refCells = Math.min(3, Math.floor((s.refillAmmo || 0) / perUse));
+      const shuCells = Math.min(3, ((s.shuffleAmmo || 0) / perUse));
+      const refCells = Math.min(3, ((s.refillAmmo || 0) / perUse));
       this._equippedGlobalSlots = s.globalSlots || ['shuffle','refill'];
       this.globalBtns = [
         this._globalBtn(ctx, 'shuffle', '', (GlobalSkills.get((s.globalSlots||['shuffle','refill'])[0])||{}).name||'洗牌', x0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
@@ -852,7 +852,7 @@ class Renderer {
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
-    ctx.globalAlpha = ready ? 1 : 0.6;
+    ctx.globalAlpha = 1;
     // 背景：未充能 = 无背景色；已充能 = 主题色渐变背景（替换底色）
     if (ready) {
       const bg = ctx.createLinearGradient(0, by, 0, by + bh);
@@ -866,23 +866,35 @@ class Renderer {
     roundRect(ctx, bx, by, bw, bh, 8);
     ctx.stroke();
     const skillId=(this._equippedGlobalSlots||['shuffle','refill'])[key==='shuffle'?0:1];
-    this._skillIcon(ctx,skillId,bx+bw/2,by+29,36,(GlobalSkills.get(skillId)||{}).color||tint);
-    text(ctx, name, bx + bw / 2, by + 52, 14, ready ? '#ffffff' : 'rgba(255,255,255,0.45)', 'center');
+    // 图标按槽位尺寸显示；充能胶囊叠在槽位底边
+    const iconSz = Math.min(bw, bh);
+    this._skillIcon(ctx,skillId,bx+bw/2,by+bh/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
     // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
     const segW = 24, segH = 12, segGap = 8;
     const sx0 = bx + (bw - (maxCells * segW + (maxCells - 1) * segGap)) / 2;
-    const sy0 = by + bh - 26;
+    const sy0 = by + bh - 12;
     for (let i = 0; i < maxCells; i++) {
       const sx = sx0 + i * (segW + segGap);
-      fillRoundRect(ctx, sx, sy0, segW, segH, 6, i < filled ? tint : 'rgba(255,255,255,0.12)');
-      if (i < filled) strokeRoundRect(ctx, sx, sy0, segW, segH, 6, 'rgba(255,255,255,0.8)', 1);
+      const progress=Math.max(0,Math.min(1,filled-i));
+      fillRoundRect(ctx,sx,sy0,segW,segH,6,'#253039');
+      if(progress>0)fillRoundRect(ctx,sx,sy0,segW*progress,segH,Math.min(6,segW*progress/2),progress>=1?'#62df97':'#f4cd52');
+      strokeRoundRect(ctx,sx,sy0,segW,segH,6,progress>=1?'#b0f3cc':'#8f814a',1);
     }
-    text(ctx, `${filled}/${maxCells}`, bx + bw / 2, by + bh - 8, 12, ready ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)', 'center');
+
     ctx.globalAlpha = 1;
     return { key, x: bx, y: by, w: bw, h: bh };
   }
 
-  board(ctx, grid, selected, anim, shake) {
+  _speedBadge(ctx,x,y,w,h,speed) {
+    const accent=speed>1?'#f5ce73':'#99c8d5';
+    fillRoundRect(ctx,x,y,w,h,Math.min(16,h/2),'#1c2c39');
+    strokeRoundRect(ctx,x+1,y+1,w-2,h-2,Math.min(15,h/2),accent,1.5);
+    ctx.save();ctx.strokeStyle=accent;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+    for(let i=0;i<2;i++){const cx=x+14+i*10,cy=y+h/2;ctx.beginPath();ctx.moveTo(cx-4,cy-7);ctx.lineTo(cx+3,cy);ctx.lineTo(cx-4,cy+7);ctx.stroke();}
+    ctx.restore();text(ctx,'×'+speed,x+w*0.69,y+h/2+7,22,accent,'center');
+  }
+
+  board(ctx, grid, selected, anim, shake, theme) {
     ChipSkin.preload();   // v1.17.44 底板+图案 61 张贴图一次性预载（包内文件）
     const { boardX, boardY, cell, boardRows, boardCols } = this.ly;
     // v1.17.29 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
@@ -957,6 +969,11 @@ class Renderer {
         }
       }
     }
+    if(theme==='lava'||theme==='frost') {
+      const ice=theme==='frost';
+      fillRoundRect(ctx,boardX-5,boardY-5,boardCols*cell+10,boardRows*cell+10,10,ice?'rgba(87,182,230,0.12)':'rgba(232,104,43,0.12)');
+      strokeRoundRect(ctx,boardX-5,boardY-5,boardCols*cell+10,boardRows*cell+10,10,ice?'#80d8fa':'#e7894c',2);
+    }
     // 下落层：clear 段显示消除前原位布局（未消除格保持原位、消除格由淡出层绘制）；fall 段显示最终布局 + 匀速下滑
     // （列整体同步下移——同列所有移动格下移相同格数、同速、同时到达，新补方块从各自对应高度出发）
     const v = CONFIG.FALL_SPEED * cell; // 固定下落速度（格/秒 × cell），与 durFall 0.4s 匹配：到位即结束
@@ -981,6 +998,7 @@ class Renderer {
         let color = inClear ? (g0[r][c] || null) : g1[r][c];   // v5.6.3 clear 段画原位，fall 段画最终布局
         if (!color) continue;
         if (inClear && anim.cleared.has(r + ',' + c)) continue; // 消除格由淡出层绘制，不重复
+        let x = boardX + c * cell + 2;
         let y = boardY + r * cell + 2;
         if (anim && anim.phase === 'fall' && anim.progress < 1) {   // v5.6.3 下落段独立计时
           const elapsed = anim.progress * anim.durFall; // 已流逝时间（秒）
@@ -989,7 +1007,15 @@ class Renderer {
           const dy = Math.min(dist, v * elapsed);
           y = y - dist + dy; // 从来源位置（上移 dist）匀速下滑至目标位置
         }
-        this.drawCell(ctx, boardX + c * cell + 2, y, cell, color, r, c, selected);
+        if(anim && anim.phase==='fall' && anim.gravityOrigins && anim.gravityOrigins[r][c]) {
+          const path=anim.gravityOrigins[r][c].path;
+          if(path && path.length>1) {
+            const t=Math.min(1,anim.progress)*(path.length-1),i=Math.min(path.length-2,Math.floor(t)),f=t-i;
+            x=boardX+(path[i].c+(path[i+1].c-path[i].c)*f)*cell+2;
+            y=boardY+(path[i].r+(path[i+1].r-path[i].r)*f)*cell+2;
+          } else { x=boardX+c*cell+2;y=boardY+r*cell+2; }
+        }
+        this.drawCell(ctx, x, y, cell, color, r, c, selected);
       }
     }
     if (shP >= 0 && shP < 1) ctx.restore();
@@ -998,6 +1024,12 @@ class Renderer {
   /** 单格绘制（v1.17.44 两层：无符号玻璃底板 → 图案；
    *  普通块用原色图案、特殊块用随来源色染好的图案；底板未就绪回退旧整图，再回退色块+矢量徽记） */
   drawCell(ctx, x, y, cell, color, r, c, selected) {
+    if (color && color.s === 'obstacle') {
+      const ice=color.theme==='frost';
+      fillRoundRect(ctx,x,y,cell-4,cell-4,8,ice?'#29475d':'#49312c');
+      strokeRoundRect(ctx,x+3,y+3,cell-10,cell-10,7,ice?'#a8e6ff':'#ff9a53',2);
+      text(ctx,ice?'❄':'◆',x+(cell-4)/2,y+(cell-4)/2+7,24,ice?'#c9f3ff':'#ffb66b','center'); return;
+    }
     const size = cell - 4;
     const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
     const base = isObj ? (color.s === 'rainbow' ? null : (color.c || color.tint || null)) : color;
@@ -3880,7 +3912,7 @@ class Renderer {
     const spdCol = s.speed >= 4 ? '#ff8c42' : s.speed >= 2 ? '#f7c948' : '#5b6b7c';
     fillRoundRect(ctx, 636, 58, 100, 48, 10, 'rgba(0,0,0,0.35)');
     strokeRoundRect(ctx, 636, 58, 100, 48, 10, spdCol, 1.5);
-    text(ctx, `⏩×${s.speed}`, 686, 89, 24, '#ffffff', 'center');
+    this._speedBadge(ctx,636,58,100,48,s.speed);
     // v1.16.113 测试战场：本局圣遗物行（注入即显示；★3 角标 = 3★ 质变生效；点击查看详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
@@ -4128,6 +4160,7 @@ class Renderer {
     // 子面板
     if (s.panel) {
       if (['accountMenu', 'accountInfo', 'testProfile'].includes(s.panel.type)) AccountMenuScreen.draw(ctx, s, push, this._menuPanelShell.bind(this));
+      else if (s.panel.type === 'fieldLocked') { this._menuPanelShell(ctx,s,push,'战场尚未解锁',320,true); text(ctx,s.panel.message,375,810,22,'#f0b45c','center'); }
       else if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
       else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // v1.16.78 圣遗物详情（1/2/3★ + 升星）
       else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // v1.16.76 圣遗物升星

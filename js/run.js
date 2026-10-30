@@ -51,7 +51,7 @@ class Run {
     this.gsState = {};
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, opts.matchSkills || {});  // v5.2 三消技能配置槽
-    this.board = new Board({ difficulty: this.difficulty });
+    this.board = new Board({ difficulty: this.difficulty, theme: opts.field || 'ancient', obstacles: ((CONFIG.FIELDS[opts.field] || {}).boardObstacles || []).map(p => p.slice()) });
     // v5.2 特殊方块挂钩：四连技 id / 高连技面板操作（board.resolve 播种段调用）
     this.board.hooks = {
       onMatch4: () => this.matchSkills.match4,

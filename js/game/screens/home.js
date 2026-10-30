@@ -21,7 +21,8 @@ function createHomeScreen({ drawImg, skillRow }) {
     push('stageNext', null, aRx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
     push('stage', { id: stage }, ix, iy, iw, iw + 62);
 
-    const locked = !isTest && F.unlockWave && (s.bestWave || 0) < F.unlockWave;
+    const requirement = stage === 'abyss' ? (!s.normalFieldCleared ? '通关任一普通战场解锁' : '') : (stage === 'lava' || stage === 'frost') && (s.ancientBestWave || 0) < 40 ? '圣坛花园达到40波解锁' : '';
+    const locked = !!requirement;
 
     // v1.16.78 战场图标：无背景直出（v1.17.48 放大 30% → 338px；锁定态整体压暗）
     ctx.globalAlpha = locked ? 0.4 : 1;
@@ -41,10 +42,13 @@ function createHomeScreen({ drawImg, skillRow }) {
     ctx.fillText(F.name, 375, nameY);
     // v1.16.78 锁定态：未解锁战场显示 🔒 徽标 + 解锁条件（v1.17.48 无面板版：徽标悬浮图标上方）
     if (locked) {
-      fillRoundRect(ctx, 375 - 92, iy + 8, 184, 44, 22, 'rgba(0,0,0,0.65)');
-      strokeRoundRect(ctx, 375 - 92, iy + 8, 184, 44, 22, '#f0b45c', 1.5);
-      text(ctx, `🔒 最深 ${F.unlockWave} 波解锁`, 375, iy + 36, 22, '#f0b45c', 'center');
-      text(ctx, `当前最佳 ${s.bestWave || 0} 波`, 375, iy + 68, 18, '#c9b28a', 'center');
+      fillRoundRect(ctx, 375 - 250, iy + 8, 500, 44, 22, 'rgba(0,0,0,0.65)');
+      strokeRoundRect(ctx, 375 - 250, iy + 8, 500, 44, 22, '#f0b45c', 1.5);
+      text(ctx, requirement, 375, iy + 36, 22, '#f0b45c', 'center');
+      const lx=ix+iw/2,ly=iy+iw/2;
+      ctx.save();ctx.strokeStyle='#f6d78b';ctx.lineWidth=5;ctx.beginPath();ctx.arc(lx,ly-12,18,Math.PI,0);ctx.stroke();
+      fillRoundRect(ctx,lx-29,ly-12,58,46,9,'#f6d78b');
+      fillRoundRect(ctx,lx-3,ly+1,6,18,3,'#4b3e29');ctx.restore();
     }
 
     // ◀ ▶ 战场切换箭头（v1.17.48 移到战场图标两侧、保持 36px 间距；垂直对齐图标中心）

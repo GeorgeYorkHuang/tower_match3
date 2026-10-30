@@ -107,7 +107,7 @@ class GameMain {
   newRun(enterBattle) {
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能局外三槽配置
+    this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能局外三槽配置
     this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
@@ -175,7 +175,7 @@ class GameMain {
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
-    this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
+    this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
     this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
@@ -476,6 +476,7 @@ class GameMain {
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
+    if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
     if (this.run.slotOrder.length === 0) {
@@ -514,6 +515,7 @@ class GameMain {
       if (this._waveAlive[wn] <= 0 && (wn < this.run.wave || !this.wave.plan.length)) {
         this._waveCleared[wn] = true;
         this.run.clearedWaves += 1;
+        if (wn === 60 && ['ancient','lava','frost'].includes(this.menuStage) && this.state !== 'testfield') { this.meta.normalFieldCleared = true; this.save.save(); }
       }
     });
   }
@@ -670,6 +672,7 @@ class GameMain {
       this.silverGained = silver;
     }
     this.run.gold = 0;
+    if(this.menuStage==='ancient') this.meta.ancientBestWave=Math.max(this.meta.ancientBestWave||0,this.run.wave);
     const miles = this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
     // v1.16.92 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
     const noChest = !evacuated && this.run.wave <= 3;
@@ -1293,6 +1296,7 @@ class GameMain {
 
   /* ---------- 主界面状态 ---------- */
   menuState() {
+    if(this.menuStage==='test'&&!this.testProfile)this.menuStage='ancient';
     const m = this.meta;
     const keys = Object.keys(CONFIG.TOWERS).filter((k) => !CONFIG.TOWERS[k].p1);
     const towerName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k] && CONFIG.TOWERS[k].color] || {}).name || k;
@@ -1315,7 +1319,7 @@ class GameMain {
       gold: m.gold,
       diamond: m.diamond,
       tab: this.menuTab,
-      stage: this.menuStage,           // v1.16.30 主界面所选战场：ancient | test
+      stage: this.menuStage==='test'&&!this.testProfile?'ancient':this.menuStage,           // v1.16.30 主界面所选战场：ancient | test
       codexSel: this.codexSel,         // v1.16.75 塔图鉴选中塔
       towerCodex: this.meta.towerCodex, // v1.16.75 已学习塔 { key: 1 }
       keys,
@@ -1345,7 +1349,7 @@ class GameMain {
       runCodex: this.meta.runCodex,   // v1.16.78 局内圣遗物图鉴解锁（图鉴页占位判定）
       shards: this.meta.shards,
       starStones: this.meta.starStones,
-      bestWave: this.meta.bestWave,
+      bestWave: this.meta.bestWave, ancientBestWave: this.meta.ancientBestWave || 0, normalFieldCleared: !!this.meta.normalFieldCleared,
       deviceInfo: this.menuPanel && this.menuPanel.type === 'accountInfo' ? AccountMenu.deviceInfo() : null,
       testProfile: !!this.testProfile,
       musicOn: this.meta.musicOn !== false,

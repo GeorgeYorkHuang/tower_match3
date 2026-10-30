@@ -47,6 +47,8 @@ class Meta {
     this.starStones = 0;           // 星辉石（3★ 金级门槛）
     this.deepChests = [];          // 深度宝箱槽位 [{ tier, gotAt, openAt }]（≤4）
     this.milestones = {};          // 里程碑首达 { wave: 1 }
+    this.ancientBestWave = 0;
+    this.normalFieldCleared = false;
     this.bestWave = 0;             // 历史最深波次
     this.dailyFirst = null;        // 每日首战加成 { date, counts: { field: n } }
     this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
@@ -217,6 +219,7 @@ class Meta {
       starStones: this.starStones,
       deepChests: this.deepChests,
       milestones: this.milestones,
+      ancientBestWave: this.ancientBestWave, normalFieldCleared: this.normalFieldCleared,
       bestWave: this.bestWave,
       dailyFirst: this.dailyFirst,
       totalDiamondSpent: this.totalDiamondSpent,
@@ -247,6 +250,8 @@ class Meta {
     m.starStones = d.starStones || 0;
     m.deepChests = Array.isArray(d.deepChests) ? d.deepChests.slice(0, CONFIG.DEPTH_CHEST.slots) : [];
     m.milestones = d.milestones || {};
+    m.ancientBestWave = d.ancientBestWave || 0;
+    m.normalFieldCleared = d.normalFieldCleared === true;
     m.bestWave = d.bestWave || 0;
     m.dailyFirst = d.dailyFirst || null;
     m.totalDiamondSpent = d.totalDiamondSpent || 0;

@@ -36,7 +36,7 @@ class Match3Controller {
       progress: 0, durSwap: 0.2,   // v5.6.5 交换动画 0.2s
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
-      final: first.gridAfter, // 当前步下落补格后的棋盘
+      gravityOrigins: first.gravityOrigins, final: first.gridAfter, // 当前步下落补格后的棋盘
       durClear: 0.15, durWait: 0.1, durFall: 0.3,   // v5.6.6 消除淡出 0.15s → 等待 0.1s → 下落 0.3s 串行
       cascade: { steps, index: 0, settledByStep: ret.settledByStep, chainShotsByStep: ret.chainShotsByStep || [], chainStart: ret.chainStart, fired: new Set() },
     };
@@ -77,7 +77,7 @@ class Match3Controller {
         const st = cs.steps[cs.index];
         a.base = cs.steps[cs.index - 1].gridAfter;
         a.cleared = new Set(st.clearedCells.map(([r, c]) => r + ',' + c));
-        a.final = st.gridAfter;
+        a.final = st.gridAfter; a.gravityOrigins = st.gravityOrigins;
         a.durClear = 0.15; a.durWait = 0.1; a.durFall = 0.3;
         a.progress = 0;
         a.phase = 'clear';
