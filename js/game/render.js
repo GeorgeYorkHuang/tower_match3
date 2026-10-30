@@ -319,28 +319,31 @@ class Renderer {
       text(ctx, '¥', 38, 90, 20, '#5b6b7c', 'center');
     }
     text(ctx, fmtNum(s.gold), 72, 94, 26, '#c9d6e4');
+
+  }
+
+  entryStatus(ctx,s) {
     // 等级圆与经验外环：12点起顺时针；进度条下沿高于圆心。
-    const cx=174,cy=84,radius=22,outer=28;
+    const cx=AREA_X+30,cy=AREA_Y+32,radius=22,outer=28;
     const xp=Math.max(0,Math.min(1,Number(s.expRatio)||0));
     ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fillStyle='#f7cf45';ctx.fill();
     text(ctx,String(s.expLevel||0),cx,cy,25,'#111111','center');
     ctx.beginPath();ctx.arc(cx,cy,outer,0,Math.PI*2);ctx.strokeStyle='rgba(247,207,69,0.22)';ctx.lineWidth=4;ctx.stroke();
     if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp,false);ctx.strokeStyle='#f7cf45';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();}
-    const wx=220,wy=66,ww=338,wh=12;
+    const wx=AREA_X+74,wy=AREA_Y+20,ww=AREA_W-74,wh=10;
     const wave=Math.max(1,Math.min(60,Number(s.wave)||1));
     progressBar(ctx,wx,wy,ww,wh,(wave-1)/59,'#e8c76b','rgba(255,255,255,0.12)');
     for(let n=5;n<=60;n+=5){
       const mx=wx+(n-1)/59*ww;
       const major=n===20||n===40||n===60;
       ctx.beginPath();ctx.arc(mx,wy+wh/2,major?5:2.5,0,Math.PI*2);ctx.fillStyle=n<=wave?(n===60?'#ff826f':'#f8dd8a'):'#66717e';ctx.fill();
-      if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,wy-14,14,n===60?'#ffab95':'#e5d7aa','center');
+      if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,AREA_Y+7,13,n===60?'#ffab95':'#e5d7aa',n===60?'right':'center');
     }
-    text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,wy+wh+17,15,'#e9dfc4','left');
-    text(ctx,'• 小Boss',wx+ww,wy+wh+17,13,'#aeb9c7','right');
+    text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,AREA_Y+7,14,'#e9dfc4','left');
     // v1.17.2 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
-      const rx = 128, ry = 118, rIcon = 22, rGap = 28, rMax = 10;
+      const rx = wx, ry = AREA_Y + 42, rIcon = 22, rGap = 28, rMax = 10;
       const shown = rels.slice(0, rMax);
       shown.forEach((rc, i) => {
         const icx = rx + i * rGap + rIcon / 2;
@@ -357,13 +360,10 @@ class Renderer {
         }
       });
       text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.55)', 'left');
-      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: rIcon + 16 }; // 圣遗物行点击区
+      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: Math.min(rIcon + 16, AREA_Y + ENTRY_H - (ry - 8)) }; // 圣遗物行点击区
     } else {
       this.relicBarHit = null;
     }
-    // 底线
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(0, STATUS_H - 2, 750, 2);
   }
 
   /** 行动区底：入口带 + 敌人 + 城墙 + 塔位区 + 棋盘（按状态分层调用） */
@@ -372,25 +372,15 @@ class Renderer {
     const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
       ? `assets/images/ui/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
-      fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
+      fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
-    // 入口带
-    fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
-    text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
-    // v1.16.59 Boss 关：出怪口红色感叹号闪烁提醒（交替显隐）
-    if (s.hasBoss) {
-      const bossBlink = (Date.now() / 280) % 1 < 0.55;
-      if (bossBlink) text(ctx, '⚠', AREA_X + AREA_W - 132, AREA_Y + ENTRY_H / 2, 26, '#ff6b6b', 'right');
-      text(ctx, 'BOSS', AREA_X + AREA_W - 100, AREA_Y + ENTRY_H / 2, 22, bossBlink ? '#ff6b6b' : '#b3403a', 'right');
-    }
+    this.entryStatus(ctx,s);
     if(s.miniBoss) {
       const b=s.miniBoss;
-      text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+14,16,'#ead3ff','center');
-      progressBar(ctx,220,AREA_Y+25,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
-      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/3',375,AREA_Y+48,13,'#d1c393','center');
+      text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');
+      progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
+      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/3',375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
     }
-    // 敌群血条（入口带下方细条）
-    progressBar(ctx, AREA_X + 12, AREA_Y + ENTRY_H - 8, AREA_W - 24, 6, s.enemyHpRatio, '#ff6b6b', 'rgba(255,255,255,0.15)');
     // 塔位区（v1.17.11 即城墙，先画背景）
     this.towerRow(ctx, s);
     // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
@@ -3950,13 +3940,13 @@ class Renderer {
         }
       });
       text(ctx, `圣物 ×${rels.length} 点图标看详情`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.6)', 'left');
-      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: rIcon + 16 };
+      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: Math.min(rIcon + 16, AREA_Y + ENTRY_H - (ry - 8)) };
     } else {
       this.relicBarHit = null;
     }
     // 行动区底
     if (!drawImg(ctx, IMG_SRC.actionArea, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
-      fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, AREA_H, 8, '#151a21');
+      fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
     // 入口带
     fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
