@@ -1,3 +1,4 @@
+const RelicKill = require('../relics/kill-hooks.js');
 const BattleActions = require('./input/battle-actions.js');
 const RelicScroll = require('./input/relic-scroll.js');
 const MenuActions = require('./input/menu-actions.js');
@@ -898,15 +899,12 @@ class GameMain {
     if (this.state === 'testfield') return;
     const b = this.meta.relicBonus();
     // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）；v1.16.78 经验之心：击杀经验 +N%（按星级）
-    const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
-    const gained = Math.round(base * (1 + 0.20 * b.exp) * (1 + this.run.relicNum('cm_exp') / 100));
-    this.run.gainExp(gained);
-    if (this.run.relicNum('cm_exp') > 0) this.run.relicFx('cm_exp', `击杀经验 +${this.run.relicNum('cm_exp')}%`, e.x, e.y); // v1.17 生效提示
+    RelicKill.experience(this.run, e, b);
     // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
     // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）；v1.16.96 赏金猎人3★ 连续3波无宝箱必掉
     if (e.type === 'elite') {
-      const chance = CONFIG.RELIC.dropChance * (1 + 0.10 * b.chest) * (1 + this.run.relicNum('cm_bounty') / 100);
+      const chance = RelicKill.eliteChestChance(this.run, b);
       if (Math.random() < chance || this.run.bountyGuarantee()) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
         this.run._waveChestDropped = true;

@@ -1,3 +1,4 @@
+const RelicKill = require('./relics/kill-hooks.js');
 const COMBAT_BALANCE = require('./config/combat-common.js');
 /**
  * combat.js —— 真实战斗系统（A1 技能行为差异化）
@@ -1012,37 +1013,14 @@ class CombatSystem {
     // 按所有激活塔触发死亡技能
     g.run.slotOrder.slice().forEach((key) => {
       if (key === 'fire' && this.hasDot(e, 'burn')) {
-        /* v1.16.96 火塔 3★ 死亡触发（不依赖爆燃技能） */
-        // 火种3★：灼烧目标死亡时留下火焰地面 3 秒，每秒 50% 攻击伤害
-        if (g.run.relic3('fire_seed')) {
-          this.groundDots = this.groundDots || [];
-          this.groundDots.push({ x: e.x, y: e.y, r: 60, ttl: 3, dps: this.shotDmg('fire', true) * 0.5, key: 'fire' });
-          this.fxRing(e.x, e.y, '#ff7043', 60, 0.5, 4);
-        }
-        // 余烬风暴（1★/2★ 补齐保留项行为）：灼烧目标死亡时 25%/40% 概率再次爆炸（30% 伤害·半径50）
-        //   3★：爆炸后留下 1 枚余烬弹，1 秒后自动射向最近敌人（伤害 30%）
-        const emberN = g.run.relicNum('fire_ember');
-        if (emberN > 0 && Math.random() < emberN / 100) {
-          this.explode(e.x, e.y, SKILL_NUM.fire['爆燃'].tickBurstRadius, this.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].tickBurstDamage, 'fire');
-          if (g.run.relic3('fire_ember')) {
-            g.run._emberShots = g.run._emberShots || [];
-            g.run._emberShots.push({ t: 1, x: e.x, y: e.y, dmg: this.shotDmg('fire', true) * 0.30 });
-          }
-        }
+        RelicKill.fireDeath(this, e);
         // 爆燃（v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%）
         if (this.has('fire', '爆燃') && Math.random() < SKILL_NUM.fire['爆燃'].deathProbability) {
           const aLv = this.branchLv('fire', '爆燃', 'A');
           const bLv = this.branchLv('fire', '爆燃', 'B');
           const boomR = SKILL_NUM.fire['爆燃'].baseRadius * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]);
           this.explode(e.x, e.y, boomR, this.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].baseDamage * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
-          // v1.16.96 连锁爆破3★：爆燃爆炸可传染——爆炸范围内敌人 30% 概率带 1 层灼烧
-          if (g.run.relic3('fire_chain')) {
-            this.enemies().forEach((o) => {
-              if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= boomR && Math.random() < 0.30) {
-                this.applyBurn(o, this.shotDmg('fire', true), 'fire');
-              }
-            });
-          }
+          RelicKill.fireExplosionSpread(this, e, boomR);
         }
       }
       if (key === 'poison' && this.has('poison', '毒爆') && this.hasDot(e, 'poison')) {
@@ -1059,7 +1037,7 @@ class CombatSystem {
         picks.forEach((o) => {
           if (Math.random() < SKILL_NUM.poison['毒爆'].spreadP) {
             // v1.16.100 瘟疫之源3★：传染时保留目标 50% 现有层数（无论是否触发 B 继承）
-            const base = this.game.run.relic3('poison_source') ? Math.max(1, Math.floor(this.poisonStack(e) * 0.5)) : 1;
+            const base = RelicKill.poisonInheritanceBase(this, e);
             const layers = (bLv > 0 && Math.random() < SKILL_NUM.poison['毒爆'].inherit[bLv]) ? this.poisonStack(e) : base;
             this.applyPoison(o, this.shotDmg('poison', true), 'poison', layers);
             o._poisonChain = chainN;
@@ -1075,19 +1053,7 @@ class CombatSystem {
           this.groundDots.push({ x: e.x, y: e.y, r: SKILL_NUM.poison['毒爆'].swampR, ttl: SKILL_NUM.poison['毒爆'].swampTtl[cLv], key: 'poison', dps: 0, stackPerSec: 1, swamp: true, slow: SKILL_NUM.poison['毒爆'].swampSlow });
         }
       }
-      // v1.16.100 剧毒精华3★：毒满层的敌人死亡时毒液溅射，90码 内叠 2 层（不依赖毒爆技能）
-      if (key === 'poison' && this.game.run.relic3('poison_essence') && this.hasDot(e, 'poison')) {
-        const pd = e.dots.find((d) => d.type === 'poison');
-        if (pd && pd.stack >= pd.maxStack) {
-          this.enemies().forEach((o) => {
-            if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 90) {
-              this.applyPoison(o, this.shotDmg('poison', true), 'poison', 2);
-            }
-          });
-          this.fxRing(e.x, e.y, '#1e8449', 90, 0.5, 4);
-          this.fxParticle(e.x, e.y, '#52be80', 10, 70, 0.5, 140, 5);
-        }
-      }
+      RelicKill.poisonEssence(this, e, key);
       // 毒·毒藤 C（v1.15）：被缠绕敌人死亡时，藤蔓延伸缠住 100px（每级 +50px）内下一个敌人
       if (key === 'poison' && this.lv('poison', '毒藤') > 0 && e._vineT > 0) {
         const vc = this.branchLv('poison', '毒藤', 'C');
@@ -1098,12 +1064,7 @@ class CombatSystem {
           if (next) {
             next.frozen = Math.max(next.frozen || 0, 2);
             next._vineT = Math.max(next._vineT || 0, 2);
-            // v1.16.100 蔓延3★：蔓延路径也留毒痕，每秒 10% 伤害（3 秒）
-            if (this.game.run.relic3('poison_spread')) {
-              this.groundDots = this.groundDots || [];
-              this.groundDots.push({ x: next.x, y: next.y, r: 80, ttl: 3, dps: this.shotDmg('poison', true) * 0.1, key: 'poison' });
-              this.fxRing(next.x, next.y, '#7dcea0', 80, 0.4, 3);
-            }
+            RelicKill.poisonTrail(this, next);
             this.fxBeam(e.x, e.y, next.x, next.y, '#2ecc71', 1, 4);
             this.fxRing(next.x, next.y, '#7dcea0', 26, 1, 3);
           }
@@ -1114,32 +1075,8 @@ class CombatSystem {
         const frzC = this.branchLv('ice', '冰冻', 'C');
         this.explode(e.x, e.y, SKILL_NUM.ice['冰冻'].shatterRadius, this.shotDmg('ice', true) * SKILL_NUM.ice['冰冻'].shatter[frzC], 'ice', 0, true);
       }
-      // v1.16.98 霜爆3★：击杀冰冻敌人时引发冰爆（100% 伤害，半径 120 码），并将范围内所有敌人冻结 1 秒
-      if (key === 'ice' && this.game.run.relic3('ice_frostburst') && e.frozen > 0) {
-        this.explode(e.x, e.y, 120, this.shotDmg('ice', true), 'ice');
-        this.enemies().forEach((o) => {
-          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 120) this.freezeE(o, 1);
-        });
-      }
-      // v1.16.99 霜刺3★：冰缓的敌人被击杀时，减速光环扩散至周围 80码
-      if (key === 'ice' && this.game.run.relic3('ice_spike') && e.slow && e.slow.ttl > 0) {
-        this.enemies().forEach((o) => {
-          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) this.applySlow(o, 0.3, 3);
-        });
-        this.fxRing(e.x, e.y, '#a9d6f5', 80, 0.5, 4);
-        this.fxParticle(e.x, e.y, '#d6f0ff', 8, 60, 0.5, 120, 5);
-      }
-      // v1.16.101 静电3★：被麻痹敌人死亡时释放静电，麻痹周围敌人 0.8 秒
-      if (key === 'electric' && this.game.run.relic3('elec_static') && e.paralyzed > 0) {
-        this.enemies().forEach((o) => {
-          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100) {
-            o.paralyzed = Math.max(o.paralyzed || 0, 0.8);
-            this.applySlow(o, 0.5, 0.8);
-          }
-        });
-        this.fxRing(e.x, e.y, '#f4d03f', 100, 0.4, 4);
-        this.fxParticle(e.x, e.y, '#ffe08a', 8, 60, 0.4, 130, 5);
-      }
+      RelicKill.iceDeath(this, e, key);
+      RelicKill.electricDeath(this, e, key);
       // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
       // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
       if (key === 'boomerang' && this.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
@@ -1152,36 +1089,10 @@ class CombatSystem {
           pick._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
           this.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
         }
-        // v1.16.102 猎心3★：标记满层的敌人死亡时，标记转移至最近的敌人并保留全部层数
-        if (this.game.run.relic3('boo_hunt') && (e._mark || 0) >= markCap) {
-          const rec = cands.slice().sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
-          if (rec) {
-            rec._mark = Math.min(markCap, (rec._mark || 0) + e._mark);
-            rec._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
-            this.fxBeam(e.x, e.y, rec.x, rec.y, '#d2b4de', 0.4, 3);
-          }
-        }
+        RelicKill.hunterTransfer(this, e, cands, markCap);
       }
-      // v1.16.102 血刃3★：流血的敌人死亡时喷溅血液：80 码内敌人附加 1 层流血
-      if (key === 'boomerang' && this.game.run.relic3('boo_blood') && this.hasDot(e, 'bleed')) {
-        this.enemies().forEach((o) => {
-          if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) {
-            this.applyBleed(o, this.shotDmg('boomerang', true));
-          }
-        });
-        this.fxRing(e.x, e.y, '#c0392b', 80, 0.5, 4);
-        this.fxParticle(e.x, e.y, '#c0392b', 10, 70, 0.5, 140, 5);
-      }
-      // v1.16.102 追猎3★：标记的敌人被其他塔击杀时，返还 1 点能量
-      if (key === 'boomerang' && this.game.run.relic3('boo_mark') && (e._mark || 0) > 0 && e.lastDmgKey && e.lastDmgKey !== 'boomerang') {
-        const bt = this.tower('boomerang');
-        if (bt) bt.energy = Math.min(bt.energy + 1, this.game.run.armoryEnergyMax());
-        this.fxParticle(e.x, e.y - 10, '#d2b4de', 3, 20, 0.4, 80, 4);
-      }
-      // v1.16.103 燃烧弹3★：被点燃的敌人死亡时爆炸（96% 伤害，半径 100 码）
-      if (key === 'cannon' && this.game.run.relic3('can_incend') && this.hasDot(e, 'burn')) {
-        this.explode(e.x, e.y, 100, this.shotDmg('cannon', true) * 0.96, 'cannon');
-      }
+      RelicKill.boomerangDeath(this, e, key);
+      RelicKill.cannonDeath(this, e, key);
     });
     // 爆炸表现 + 音效（按最近伤害来源着色）
     const KILL_COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };
