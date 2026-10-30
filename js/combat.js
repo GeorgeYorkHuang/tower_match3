@@ -1,3 +1,4 @@
+const Areas = require('./combat/areas.js');
 const BoomerangTower = require('./combat/towers/boomerang.js');
 const CannonTower = require('./combat/towers/cannon.js');
 const PoisonTower = require('./combat/towers/poison.js');
@@ -391,78 +392,10 @@ class CombatSystem {
   }
 
   /** 延迟爆炸推进（炮引信 / 炮火支援落点 / 冰花延迟结算） */
-  updateDelayed(dt) {
-    for (let i = this.delayed.length - 1; i >= 0; i--) {
-      const d = this.delayed[i];
-      d.t += dt;
-      if (d.t >= d.delay) {
-        this.delayed.splice(i, 1);
-        if (d.fn) { d.fn(this); continue; }   // v1.16.9 自定义延迟回调（冰花第 3 帧末结算）
-        this.explode(d.x, d.y, d.r, d.dmg, d.key, d.knock, d.slowAfter);
-        // v1.16.103 空袭3★：炮火支援落点 20% 概率二次轰炸（40% 伤害）
-        if (d.key === 'cannon' && this.game.run.relic3('can_airstrike') && Math.random() < 0.2) {
-          this.explode(d.x + (Math.random() - 0.5) * 40, d.y + (Math.random() - 0.5) * 40, d.r * 0.7, d.dmg * 0.4, 'cannon');
-        }
-        // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
-        if (d.ember > 0) {
-          this.groundDots = this.groundDots || [];
-          this.groundDots.push({ x: d.x, y: d.y, r: d.r * 0.6, ttl: 2, dps: this.shotDmg('cannon', true) * 0.24 * d.ember, key: 'fire' });
-        }
-      }
-    }
-  }
+  updateDelayed(dt) { return Areas.updateDelayed(this, dt); }
 
   /** 地面持续区域推进（火·余烬直伤 / 毒·毒池·毒沼直伤+每秒叠毒+泥沼减速） */
-  updateGroundDots(dt) {
-    if (!this.groundDots || !this.groundDots.length) return;
-    for (let i = this.groundDots.length - 1; i >= 0; i--) {
-      const gd = this.groundDots[i];
-      gd.ttl -= dt;
-      if (gd.ttl <= 0) { this.groundDots.splice(i, 1); continue; }
-      this.enemies().forEach((o) => {
-        if (o.hp <= 0) return;
-        const dist = Math.hypot(o.x - gd.x, o.y - gd.y);
-        if (dist > gd.r) {
-          // v1.16.100 腐沼3★：毒池边缘生成毒雾环，进出敌人各叠 1 层毒
-          if (gd.ring && dist <= gd.r * 1.1) {
-            gd._ft = (gd._ft || 0) + dt;
-            while (gd._ft >= 1) {
-              gd._ft -= 1;
-              this.applyPoison(o, this.shotDmg('poison', true), 'poison', 1);
-              this.fxParticle(o.x, o.y, '#7ee2a8', 2, 20, 0.4, 70, 3);
-            }
-          }
-          return;
-        }
-        if (gd.dps) this.damage(o, gd.dps * dt, gd.key || 'fire');
-        // v1.16.42 毒沼：泥沼减速（与毒池区分——毒沼纯叠毒 + 减速，无直伤）
-        if (gd.swamp && gd.slow) this.applySlow(o, gd.slow, 1);
-        if (gd.key === 'poison' && gd.stackPerSec) {
-          gd._t = (gd._t || 0) + dt;
-          while (gd._t >= 1) {
-            gd._t -= 1;
-            this.applyPoison(o, this.shotDmg('poison', true), 'poison', gd.stackPerSec);
-          }
-          // v1.16.100 毒云3★：毒池上的敌人每秒丢失 1 点能量（对 Boss 无效；敌人无能量系统时挂点保留）
-          if (this.game.run.relic3('poison_cloud') && !gd.swamp && !o.isBoss && o.energy > 0) {
-            o.energy = Math.max(0, o.energy - 1);
-          }
-        }
-      });
-      if (gd.key === 'poison') {
-        if (gd.swamp) {
-          // v1.16.42 毒沼视觉粒子：暗褐绿泥沼气泡（与毒池的亮绿液区分）
-          if (Math.random() < 0.5) {
-            this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#6e8b3d', 2, 16, 0.5, 50, 4);
-          }
-        } else if (Math.random() < 0.3) {
-          this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#52be80', 2, 18, 0.5, 60, 4);
-        }
-      } else if (Math.random() < 0.3) {
-        this.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#ff7043', 2, 20, 0.4, 60, 4);
-      }
-    }
-  }
+  updateGroundDots(dt) { return Areas.updateGroundDots(this, dt); }
 
   /** 毒·毒棒推进（v1.15）：独立攻击周边 200px 敌人（直伤 + 叠毒），持续结束消失 */
   updatePoisonSticks(dt) { return PoisonTower.updatePoisonSticks(this, dt); }
