@@ -356,4 +356,27 @@ function tickElectric(combat, dt) {
   }
 }
 
-module.exports = { tickElectric, hitElectric, tryAttackDebuff, onAnyTowerHit };
+function stepOrb(combat, s, dt) {
+  // v1.16.21 游走电球（活电扩散）：每帧随机转向漂移（转向幅度加大 ±1.6 rad，配合等分初角更像四周扩散），命中 34px 内敌人即结算消失，dur 耗尽消散
+  s.ang += (Math.random() - 0.5) * SKILL_NUM.electric['活电'].turnJitter;
+  s.x += Math.cos(s.ang) * s.speed * dt;
+  s.y += Math.sin(s.ang) * s.speed * dt;
+  const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < SKILL_NUM.electric['活电'].hitRadius);
+  if (hitE) {
+    if (s.fx) s.fx.t = s.fx.dur;
+    combat.damage(hitE, s.dmg, 'electric');
+    combat.tryAttackDebuff('electric', hitE, s.dmg);   // v1.16.53 活电电球属普攻强化：统一麻痹判定（吃麻痹技能加成）
+    // v1.16.101 电球3★：电球游走路径留电痕 1 秒，触碰敌人受 10% 伤害
+    if (combat.game.run.relic3('elec_orb')) {
+      combat.groundDots = combat.groundDots || [];
+      combat.groundDots.push({ x: hitE.x, y: hitE.y, r: 50, ttl: 1, dps: combat.shotDmg('electric') * 0.1, key: 'electric' });
+      combat.fxRing(hitE.x, hitE.y, '#f4d03f', 50, 0.4, 3);
+    }
+    combat.fxFlash(hitE.x, hitE.y, '#f4d03f');
+    combat.fxParticle(hitE.x, hitE.y, '#f4d03f', 5, 30, 0.3, 120, 4);
+    return false;
+  }
+  return s.t < s.dur;
+}
+
+module.exports = { tickElectric, hitElectric, tryAttackDebuff, onAnyTowerHit, stepOrb };
