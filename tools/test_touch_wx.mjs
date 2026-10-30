@@ -178,7 +178,7 @@ t('各主页弹窗：内侧空白保持打开，四侧外部关闭且不触发�
   },set(){return true;} });
   game.state='menu'; game.menuTab='battle';
   const relicId = CONFIG_FOR_TEST().RELIC_RUN.tower.fire[0].id;
-  const panels=[{type:'matchCfg',slot:'match4'},{type:'matchCfg',slot:'chain'},
+  const panels=[{type:'matchCfg',slot:'match4'},{type:'matchCfg',slot:'match5'},
     {type:'globalCfg',index:0,page:2},{type:'relicInfo',id:relicId},
     {type:'codexSkill',tower:'fire',idx:0},{type:'chestOpen',gain:{gold:1}}];
   for(const panel of panels) {

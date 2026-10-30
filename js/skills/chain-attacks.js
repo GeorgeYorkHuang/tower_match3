@@ -225,6 +225,10 @@ function collectRecords(step) {
 /** 彩虹格集合（来自 matches 的 rainbow 组；用于识别彩虹自身无色格） */
 function rainbowCellSet(step) {
   const set = new Set();
+  if (Array.isArray(step.clearedDetails) && step.clearedDetails.some(d => typeof d.rainbow === 'boolean')) {
+    step.clearedDetails.forEach(d => { if (d.rainbow) set.add(d.r + ',' + d.c); });
+    return set;
+  }
   const matches = Array.isArray(step.matches) ? step.matches : [];
   for (const m of matches) {
     if (!m || m.rainbow !== true) continue;

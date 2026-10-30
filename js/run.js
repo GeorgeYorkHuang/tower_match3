@@ -1,3 +1,4 @@
+const ChainAttacks = require('./skills/chain-attacks.js');
 const WaveRelics = require('./relics/wave-hooks.js');
 const MatchRelics = require('./relics/match-hooks.js');
 const GS_BALANCE = require('./config/global-balance.js');
@@ -454,7 +455,7 @@ class Run {
     if (!ret.ok) return { ok: false };
     // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
     this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
-    const settled = [], settledByStep = [];
+    const settled = [], settledByStep = [], chainShotsByStep = [];
     const chainStart = this.gsState.chainstorm ? GS_BALANCE.chainstorm.startGroup : CONFIG.MATCH_SKILL.chainStart;
     this.gsState.chainstorm = false;
     if (this.gsState.charge) {
@@ -473,9 +474,18 @@ class Run {
       // v5.6.6 爆炸波及格按块计入奖励：每格充能对应颜色塔（匹配组内格已由 applyMatch 按形状结算，跳过避免双算）
       const blastGain = this._blastReward(st);
       if (blastGain > 0) stepSettled.push({ tower: null, gotTower: false, penalized: false, shape: null, exp: 0, ammoGain: blastGain, shuffleGain: 0, refillGain: 0 });
-      // v5.2 连消技：第 4 组起，连锁 3 消 → 连锁攻击（生成塔子弹）/ 连锁技能（随机释放周期技）
+      // 连消全格弹道：仅生成该步计划，真实发射由消除动画阶段驱动。
+      chainShotsByStep[si] = [];
       if (isChain && this.combatRef) {
+        // Keep the previous inactive-tower charge fallback once per three-match group.
         this._chainBonus(st, si + 1);
+        const L = CONFIG.LAYOUT.boardCell;
+        const plan = ChainAttacks.plan({ steps: [st], startGroup: 1,
+          activeTowers: this.slotOrder.slice(),
+          layout: { cols: L.cols, cell: this.boardCell || L.size,
+            originX: this.boardX, originY: this.boardY || 1089 } });
+        chainShotsByStep[si] = plan.shots.filter(shot => shot.kind === 'tower')
+          .map(shot => ({ ...shot, stepIndex: si, group: si + 1 }));
       }
       // v5.2 combo 弹字：连锁位置弹出 combo ×N（增强互动感）
       if (isChain && st.clearedCells && st.clearedCells.length && this.fxTarget) {
@@ -493,44 +503,22 @@ class Run {
       settledByStep.push(stepSettled);
     });
     this._triple3 = false;
-    return { ok: true, matches: ret.resolved.matches, steps: ret.resolved.steps, settled, settledByStep, stepList: ret.resolved.stepList };
+    return { ok: true, matches: ret.resolved.matches, steps: ret.resolved.steps, settled, settledByStep, chainShotsByStep, chainStart, stepList: ret.resolved.stepList };
   }
 
-  /** v5.2 连消技触发（第 4 组起）：连锁 3 消 → 对应塔子弹 / 周期技；颜色塔未激活 → 充能全局技能 */
+  /** 旧连消攻击已替换；仅保留未出战颜色三连组的原有充能回退。 */
   _chainBonus(st, comboN) {
-    const chain = this.matchSkills.chain;
-    if (chain !== 'attack' && chain !== 'skill') return;
-    const three = st.matches.filter((m) => !m.rainbow && m.shape === '3' && m.color);
-    if (!three.length) return;
-    const L = CONFIG.LAYOUT.boardCell;
+    // Legacy attack/periodic rewards are replaced; retain only the old charge fallback.
+    if (!['attack', 'skill'].includes(this.matchSkills.chain)) return;
+    const three = st.matches.filter(m => !m.rainbow && m.shape === '3' && m.color);
     for (const m of three) {
-      const tk = CONFIG.COLORS[m.color] ? CONFIG.COLORS[m.color].tower : null;
-      if (!tk) continue;
-      const t = this.effects.tower(tk);
-      if (t.level > 0) {
-        // 连锁 3 消：在消除格位置生成对应塔子弹（每格一枚，独立寻敌分散）/ 释放周期技
-        if (chain === 'attack') {
-          for (const [gr, gc] of m.cells) {
-            this.combatRef.spawnChainShots({
-              key: tk,
-              x: (750 - L.cols * L.size) / 2 + gc * L.size + L.size / 2,
-              y: (this.boardY || 1089) + gr * L.size + L.size / 2,
-              color: m.color,
-            });
-          }
-        } else {
-          const ok = this.combatRef.castPeriodicNow(tk);
-          if (!ok) {
-            // 未配置周期技：补 5 能量
-            t.energy = Math.min(t.energy + CONFIG.MATCH_SKILL.chainEnergy, this.armoryEnergyMax());
-          }
-        }
-      } else {
-        // 颜色塔未激活 → 充能全局技能（均分两个全局技能）
-        const half = Math.floor(CONFIG.MATCH_SKILL.chainEnergy / 2);
-        this._chargeAmmo('shuffle', half);
-        this._chargeAmmo('refill', CONFIG.MATCH_SKILL.chainEnergy - half);
-      }
+      const key = CONFIG.COLORS[m.color] && CONFIG.COLORS[m.color].tower;
+      if (!key) continue;
+      const tower = this.effects.tower(key);
+      if (tower.level > 0) continue;
+      const half = Math.floor(CONFIG.MATCH_SKILL.chainEnergy / 2);
+      this._chargeAmmo('shuffle', half);
+      this._chargeAmmo('refill', CONFIG.MATCH_SKILL.chainEnergy - half);
     }
   }
 

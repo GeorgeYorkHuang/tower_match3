@@ -1,3 +1,4 @@
+const DamageNumbers = require('./fx/damage-numbers.js');
 const RelicKill = require('../relics/kill-hooks.js');
 const BattleActions = require('./input/battle-actions.js');
 const RelicScroll = require('./input/relic-scroll.js');
@@ -104,10 +105,13 @@ class GameMain {
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle) {
+    this.dmgNumbers = DamageNumbers.create();
+    this.anim = null;
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能局外三槽配置
     this.run.metaRef = this.meta;   // v1.16.78 星级查询（圣遗物 2★ 数值乘区）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
+    this.run.boardX = this.renderer.ly.boardX; this.run.boardCell = this.renderer.ly.cell;
     this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点棋盘 y
     this.save.apply(this.saveData);
     this.waveTime = 0;
@@ -168,11 +172,14 @@ class GameMain {
 
   /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14.1） */
   enterTestField() {
+    this.dmgNumbers = DamageNumbers.create();
+    this.anim = null;
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
     this.run = new Run({ difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
     this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
     this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
     this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
+    this.run.boardX = this.renderer.ly.boardX; this.run.boardCell = this.renderer.ly.cell;
     this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
@@ -381,7 +388,7 @@ class GameMain {
       ? (this.state === 'testfield' ? this.testSpeed : this.runSpeed) : 1;
     this.fx = this.fx.filter((f) => { f.t += dt * fxMul; return f.t < f.dur; });
     // 三消动画推进（交换 → 消除 → 逐级连锁，由 match3 控制器管理）
-    this.match3.update(dt);
+    if (this.state === 'fighting' || this.state === 'testfield') this.match3.update(dt);
     // 主界面：宝箱开箱倒计时完成 → 发卡；每日精选跨天自动刷新
     if (this.state === 'menu') {
       this.tickChest(Date.now());
@@ -405,6 +412,7 @@ class GameMain {
       }
       // v1.16.13 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
+      this.dmgNumbers.step(bdt);
       this.waveTime += bdt;
       // v1.16.74 战场宝箱生命周期：20s 未点击自动消失；点击后开箱(0.4s 四帧)→飞向屏幕中心放大(0.6s)→弹圣物三选一（全程 1s）
       this.fieldChests = this.fieldChests.filter((c) => {
@@ -445,6 +453,7 @@ class GameMain {
         const t = this.run.effects.tower(k);
         if (t) t.energy = this.run.armoryEnergyMax();
       });
+      this.dmgNumbers.step(dt * this.testSpeed);
       this.waveTime += dt;
       this.stepEnemies(dt * this.testSpeed);
       return;
@@ -696,6 +705,9 @@ class GameMain {
     };
     this.gameoverAt = Date.now();   // v1.16.117 结算动画时间基准（圣遗物逐个弹出 → 收益最后弹出）
     this.gameoverSkip = false;      // v1.17.21 每局结算重置跳过标记（点击任意处置 true 直达演出终点）
+    this.anim = null;
+    this.combat.shots = []; this.combat.delayed = [];
+    this.dmgNumbers.clear();
     this.state = 'gameover';
     this.sfx.stopBgm();
   }
@@ -859,6 +871,8 @@ class GameMain {
 
   /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（v1.17 币种分离） */
   goMenu() {
+    this.anim = null;
+    this.combat.reset();
     // v1.17.20 碎片局末入账：战斗中直接返回主界面时先按失守比例兜底结算（结算后 runShardDetail 已清空 → 再调无副作用）
     this.settleRunShardsOnExit('中途退出');
     this.state = 'menu';
@@ -1132,7 +1146,7 @@ class GameMain {
     // v1.14 测试战场：独立渲染层（状态条 + 战场 + 塔槽 + 控制条 + 技能面板）；v1.16.73 测试战场弹圣遗物三选一时底层保持测试战场
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（relicpick 冻结）
-      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat);
+      this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat, this.dmgNumbers);
       if (this.testProfile) this.renderer.toast(ctx, this.toasts);
       if (this.relicDetail) {   // v1.16.113 测试战场圣遗物详情弹层
         this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
@@ -1154,6 +1168,7 @@ class GameMain {
     this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（暂停状态冻结）
     this.renderer.enemies(ctx, this.enemies);
     this.renderer.fx(ctx, this.fx);
+    this.renderer.damageNumbers(ctx, this.dmgNumbers);
     // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）
     this.renderer.fieldChests(ctx, this.fieldChests);
     // v1.17 局内商店面板：从 actionArea 内移到敌人/特效层之后绘制（否则怪物贴图浮在商店面板上方）；

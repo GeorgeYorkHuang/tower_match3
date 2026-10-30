@@ -38,7 +38,7 @@ class Match3Controller {
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       final: first.gridAfter, // 当前步下落补格后的棋盘
       durClear: 0.15, durWait: 0.1, durFall: 0.3,   // v5.6.6 消除淡出 0.15s → 等待 0.1s → 下落 0.3s 串行
-      cascade: { steps, index: 0, settledByStep: ret.settledByStep },
+      cascade: { steps, index: 0, settledByStep: ret.settledByStep, chainShotsByStep: ret.chainShotsByStep || [], chainStart: ret.chainStart, fired: new Set() },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
     this._specialsFx(first); // v1.17.29 特殊块生成/引爆特效 + 震动
@@ -54,13 +54,14 @@ class Match3Controller {
    *  v5.6.5 时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
   update(dt) {
     const g = this.game;
-    if (!g.anim) return;
+    if (!g.anim || (g.state && g.state !== 'fighting' && g.state !== 'testfield')) return;
     const a = g.anim;
     a.progress += dt / (a.phase === 'swap' ? a.durSwap
       : (a.phase === 'clear' ? a.durClear : (a.phase === 'wait' ? a.durWait : a.durFall)));
     if (a.phase === 'swap' && a.progress >= 1) {
       a.phase = 'clear';
       a.progress = 0;
+      this._fireChainStep(a);
       if (!a.cleared.size) g.anim = null; // 无消除：交换完即结束
     } else if (a.phase === 'clear' && a.progress >= 1) {
       a.phase = 'wait'; // 消除淡出完成 → 等待段（空位停留，特效呈现）
@@ -79,13 +80,24 @@ class Match3Controller {
         a.final = st.gridAfter;
         a.durClear = 0.15; a.durWait = 0.1; a.durFall = 0.3;
         a.progress = 0;
-        a.phase = 'clear'; // 新一级从消除段开始
+        a.phase = 'clear';
+        this._fireChainStep(a); // 新一级从消除段开始
         this._specialsFx(st); // v1.17.29 连锁级特殊块特效
         this.cascadeToast(cs.index);
         this._burst(st.clearedCells, st.matches); // 连锁级消除反馈
       } else {
         g.anim = null; // 连锁结束，棋盘稳定
       }
+    }
+  }
+
+  _fireChainStep(anim) {
+    const cs = anim.cascade, g = this.game;
+    if (!cs.fired) cs.fired = new Set();
+    if (cs.fired.has(cs.index)) return;
+    cs.fired.add(cs.index);
+    for (const shot of (cs.chainShotsByStep || [])[cs.index] || []) {
+      if (g.combat) g.combat.spawnChainShots({ key: shot.towerKey, x: shot.x, y: shot.y, color: shot.color });
     }
   }
 
@@ -99,7 +111,7 @@ class Match3Controller {
     // v1.17.29 消除音效分层：连消 / 5消+ / 4消 / 普通3消
     if (g.playSfx) {
       const shapes = (step.matches || []).map((m) => m.shape);
-      if (idx + 1 >= CONFIG.MATCH_SKILL.chainStart) g.playSfx('combo', 0.35);
+      if (idx + 1 >= (a.cascade.chainStart || CONFIG.MATCH_SKILL.chainStart)) g.playSfx('combo', 0.35);
       else if (shapes.some((s) => s === '5' || s === '6+' || s === 'L5')) g.playSfx('match5', 0.35);
       else if (shapes.some((s) => s === '4')) g.playSfx('match4', 0.35);
       else g.playSfx('match3', 0.12);

@@ -446,7 +446,12 @@ Board.prototype.resolve = function resolve() {
     const clearedCells = [], clearedDetails = [];
     for (let r = 0; r < this.rows; r++)
       for (let c = 0; c < this.cols; c++)
-        if (toClear[r][c]) { clearedDetails.push({r,c,color:cellColor(this.grid[r][c]) || rainbowColorOf.get(r + ',' + c)}); this.grid[r][c] = null; cleared++; clearedCells.push([r, c]); }
+        if (toClear[r][c]) {
+          const piece = this.grid[r][c];
+          clearedDetails.push({ r, c, color: cellColor(piece) || rainbowColorOf.get(r + ',' + c),
+            rainbow: !!(piece && piece.s === 'rainbow') });
+          this.grid[r][c] = null; cleared++; clearedCells.push([r, c]);
+        }
     this._movedCell = null;   // 交互落格仅对第一步四消生效
     this.gravity();
     stepList.push({ matches, clearedCells, clearedDetails, gridAfter: this.grid.map((row) => row.slice()), planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells });

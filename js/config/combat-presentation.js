@@ -28,7 +28,7 @@ module.exports = {
   /* ---------------- 怪物血条 ---------------- */
   enemyBars: {
     // 显示开关：只影响绘制，hp/maxHp/delayHp/护甲/掉落/击杀统计一律保持
-    show: true,
+    show: false,
     showBoss: true,          // Boss 可单独保留（Boss 血条是战斗节奏锚点）
     showElite: true,
     tail: true,              // 延迟尾条（区分直接伤 / DoT 平滑掉血）

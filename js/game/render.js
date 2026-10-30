@@ -1,3 +1,4 @@
+const Presentation = require('../config/combat-presentation.js');
 const { createBattleShop } = require('./screens/battle-shop.js');
 const { createMenuHeader } = require('./screens/menu-header.js');
 const { createMenuShopScreen } = require('./screens/menu-shop.js');
@@ -1359,7 +1360,13 @@ class Renderer {
     }
   }
 
+  damageNumbers(ctx, queue) {
+    if (Presentation.damageNumbers.enabled && queue) queue.drawTo(ctx, { text });
+  }
+
   drawEnemyBar(ctx, e, x, y, size) {
+    const bars = Presentation.enemyBars;
+    if (!bars.show || (e.isBoss && !bars.showBoss) || (e.type === 'elite' && !bars.showElite)) return;
     // 个体血条：实色当前血量 + 延迟尾条
     // 个体血条：实色当前血量 + 浅色延迟尾条（直接伤害后尾条缓慢收缩，一眼区分
     // 「直接伤一跳」（hp 瞬掉 + 尾条明显）与「持续伤平滑掉」（尾条几乎贴合））
@@ -3886,7 +3893,7 @@ class Renderer {
 
   /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（v1.4：无配置页） ================= */
   /** v1.14 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
-  testFieldLayer(ctx, s, hits, enemies, fx, combat) {
+  testFieldLayer(ctx, s, hits, enemies, fx, combat, damageNumbers) {
     const items = [];
     const push = (id, data, x, y, w, h) => items.push({ id, data, rect: { x, y, w, h }, hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h });
     // 背景
@@ -3954,6 +3961,7 @@ class Renderer {
     if (combat) this.groundFx(ctx, combat);
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
+    this.damageNumbers(ctx, damageNumbers);
     // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）
     const cur = (s.towers || [])[0] || null;
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, 1042, 750, L.towerRow.h)) {   // v1.17.11 测试战场塔位行保持原 y1042（正式战场已上移至 967 即城墙）

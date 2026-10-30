@@ -71,6 +71,7 @@ class CombatSystem {
   }
 
   reset() {
+    if (this.game && this.game.dmgNumbers) this.game.dmgNumbers.clear();
     this.shots = [];
     this.delayed = [];
     this.timers = {};
@@ -697,7 +698,7 @@ class CombatSystem {
   }
 
   /* ---------- 伤害结算 ---------- */
-  damage(e, dmg, srcKey) { return Damage.damage(this, e, dmg, srcKey); }
+  damage(e, dmg, srcKey, kind) { return Damage.damage(this, e, dmg, srcKey, kind); }
 
   /* ---------- 死亡触发：各塔死亡技能（爆燃/毒爆/霜星/扩散/回收/致死） ---------- */
   onKill(e) {

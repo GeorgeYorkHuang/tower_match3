@@ -1,3 +1,4 @@
+const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
 // Enemy status instances are caller-owned. Keep effect/death order and original tick cadence.
 const CONFIG = require('../config.js');
@@ -163,7 +164,9 @@ function tickBaseStatus(combat, e, dt) {
       e._corrodeD -= 60;
       const pct = e.isBoss ? 0.01 : 0.02;
       const v0 = (e.maxHp || e.hp) * pct;
+      const hpBefore = e.hp;
       e.hp -= v0;
+      recordDamage(combat, e, hpBefore, 'poison', 'true');
       if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
       combat.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);
     }
@@ -192,7 +195,7 @@ function tickBaseStatus(combat, e, dt) {
         // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
         let dealtV = dealt;
         if (d.type === 'poison' && e._poisonChain > 0) dealtV *= (1 + 0.10 * e._poisonChain);
-        combat.damage(e, dealtV, d.src);
+        combat.damage(e, dealtV, d.src, { kind: 'dot', sourceKey: d.src || ({ burn: 'fire', poison: 'poison', bleed: 'boomerang' })[d.type] });
         d.totalDealt = (d.totalDealt || 0) + dealt;
         // v1.16.100 毒腺3★：中毒伤害的 20% 转化为城墙修复
         if (d.type === 'poison' && combat.game.run.relic3('poison_gland')) {
@@ -233,7 +236,7 @@ function tickBaseStatus(combat, e, dt) {
     e._bleedLastY = e.y;
     if (e._bleedDist >= SKILL_NUM.boomerang['放血'].distancePerTick) {
       e._bleedDist -= SKILL_NUM.boomerang['放血'].distancePerTick;
-      combat.damage(e, e._bleedDmg || 0, 'boomerang');
+      combat.damage(e, e._bleedDmg || 0, 'boomerang', 'dot');
       combat.fxParticle(e.x, e.y - 10, '#c0392b', 4, 20, 0.35, 80, 5);
     }
     if (e.bleedT <= 0) { e.bleedT = 0; e._bleedDist = 0; }

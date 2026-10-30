@@ -1,3 +1,4 @@
+const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
 // One damage path, explicit Combat context. Preserve multiplier and reentrant death order.
 const CONFIG = require('../config.js');
@@ -26,7 +27,7 @@ function shotDmg(combat, key, isSkill) {
   return dmg;
 }
 
-function damage(combat, e, dmg, srcKey) {
+function damage(combat, e, dmg, srcKey, kind = 'hit') {
   if (e.hp <= 0) return;
   let v = dmg;
   // v1.16.11 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
@@ -81,7 +82,9 @@ function damage(combat, e, dmg, srcKey) {
   const m = g.meta;
   const dmgLv = (m && m.relicBonus && m.relicBonus().dmg) || 0;
   if (dmgLv > 0) v *= (1 + 0.08 * dmgLv);
+  const hpBefore = e.hp;
   e.hp -= v;
+  recordDamage(combat, e, hpBefore, srcKey, kind);
   e.lastDmgKey = srcKey || e.lastDmgKey;
   if (e.hp <= 0 && !e._dying) {
     e._dying = true;

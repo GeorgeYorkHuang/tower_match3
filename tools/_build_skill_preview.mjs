@@ -17,6 +17,7 @@ const ROOT = resolve(HERE, '..');
 /** 需要内联的模块（相对项目根）；顺序无关，按需 require */
 const MODULES = [
   'js/game/render.js',
+  'js/config/combat-presentation.js',
   'js/game/screens/battle-shop.js',
   'js/game/screens/home.js',
   'js/game/screens/menu-shop.js',
