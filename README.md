@@ -52,6 +52,7 @@ js/
     account.js                  本地测试档切换、机型信息
     input/
       touch.js / coordinates.js  手势生命周期 / 坐标换算
+      relic-scroll.js            圣遗物惯性滚动（参数见config/relic-scroll.js）
       menu-actions.js           菜单动作、弹窗、购买操作分发
     screens/
       skill-loadout.js          技能配置卡片与选择面板
@@ -94,6 +95,7 @@ node tools/_test_canvas_adaptation.cjs
 node tools/test_touch_wx.mjs
 node tools/_test_codex_split.cjs
 node tools/_test_relic_screen_equiv.cjs
+node tools/_test_relic_inertia.cjs
 node tools/_test_relic_progression.cjs
 node tools/_test_deep_chests.cjs
 node tools/_test_shop_unlocks.cjs

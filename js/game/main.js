@@ -1,3 +1,4 @@
+const RelicScroll = require('./input/relic-scroll.js');
 const MenuActions = require('./input/menu-actions.js');
 const TouchInput = require('./input/touch.js');
 const Coordinates = require('./input/coordinates.js');
@@ -365,6 +366,7 @@ class GameMain {
   }
 
   update(dt) {
+    RelicScroll.update(this, dt);
     // toast 过期
     this.toasts = this.toasts.filter((t) => (t.ttl -= dt) > 0);
     // v1.17 怪物帧动画时钟：仅战斗推进时累加；三选一/撤离/结算/弹层等暂停状态冻结 → 怪物帧动画停住

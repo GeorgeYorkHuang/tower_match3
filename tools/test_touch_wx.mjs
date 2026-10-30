@@ -362,5 +362,30 @@ t('R09圣遗物页真实触摸：滚动边界、手动解锁、升星扣费及�
   render();tap(0,600);assert.strictEqual(game.menuPanel,null);assert.strictEqual(game.menuTab,'relic');
 });
 
+t('圣遗物惯性真实链路：松手后继续、逐帧减速、再次按下停止',()=>{
+  const originalNow=Date.now,base=originalNow();let now=base;
+  const ctx=new Proxy({}, {get(t,k){
+    if(k==='measureText')return v=>({width:String(v).length*10});
+    if(k==='createLinearGradient'||k==='createRadialGradient')return ()=>({addColorStop(){}});
+    return ()=>{};
+  },set(){return true;}});
+  const e=(y,x=375)=>{const p=toClient(x,y);return {touches:[{clientX:p.x,clientY:p.y}]};};
+  game.state='menu';game.menuTab='relic';game.menuPanel=null;game.relicScroll=0;
+  game.menuHits=game.renderer.menuLayer(ctx,game.menuState(),[]);
+  try {
+    Date.now=()=>now;
+    wxHandlers.start(e(1000));now+=20;wxHandlers.move(e(980));now+=20;wxHandlers.move(e(960));
+    now+=10;wxHandlers.end({touches:[]});
+    assert(game._relicScrollVelocity>0);
+    const a=game.relicScroll;game.update(0.05);const first=game.relicScroll-a;
+    assert(Math.abs(first-47)<1e-7);
+    const b=game.relicScroll;game.update(0.05);const second=game.relicScroll-b;
+    assert(second>0&&second<first);
+    wxHandlers.start(e(600,0));assert.strictEqual(game._relicScrollVelocity,0);
+    const before=game.relicScroll;game.update(0.1);assert.strictEqual(game.relicScroll,before);
+    wxHandlers.cancel();assert.strictEqual(game._relicDrag,null);
+  } finally {Date.now=originalNow;wxHandlers.cancel();}
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

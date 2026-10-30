@@ -1,3 +1,4 @@
+const RelicScroll = require('./relic-scroll.js');
 'use strict';
 // One gesture lifetime shared by wx and canvas channels; caller injects the main canvas.
 function bindTouch(game, c) {
@@ -16,6 +17,7 @@ function bindTouch(game, c) {
     const onStart = (e) => {
       const p = touchPoint(e);
       if (!p) return;
+      RelicScroll.stop(game);
       // Menu input must never be gated by the board gesture lock.
       if (game.state === 'menu' && !(game.menuTab === 'relic' && !game.menuPanel)) {
         game.dispatchTouch(p);
@@ -25,7 +27,7 @@ function bindTouch(game, c) {
       gestureUsed = false;
       // v1.16.82 圣遗物页滑动浏览：延迟点击判定到 touchend（拖动不触发卡点）
       if (game.state === 'menu' && game.menuTab === 'relic' && !game.menuPanel) {
-        game._relicDrag = { y0: p.y, scroll0: game.relicScroll || 0, moved: false, p };
+        RelicScroll.begin(game, p);
         return;
       }
       // 状态/弹层/按钮命中分发（模块化 v1.13.11：dispatchTouch 独立方法）
@@ -42,9 +44,7 @@ function bindTouch(game, c) {
       const p = touchPoint(e);
       // v1.16.82 圣遗物页拖动滚动
       if (game._relicDrag && p) {
-        const d = game._relicDrag;
-        if (Math.abs(p.y - d.y0) > 12) d.moved = true;
-        if (d.moved) game.relicScroll = Math.max(0, Math.min(d.scroll0 - (p.y - d.y0), game.renderer._relicMaxScroll || 0));
+        RelicScroll.move(game, p);
         return;
       }
       if (game.towerInfo) return; // 详情弹层打开时锁定交换
@@ -75,8 +75,7 @@ function bindTouch(game, c) {
       gestureUsed = false;
       // v1.16.82 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
       if (game._relicDrag) {
-        const d = game._relicDrag;
-        game._relicDrag = null;
+        const d = RelicScroll.end(game);
         game._touchStart = null; moved = false; startCell = null; lastCell = null; game.selected = null;
         if (!d.moved && game.state === 'menu') game.dispatchTouch(d.p);
         return;
@@ -108,7 +107,7 @@ function bindTouch(game, c) {
       gestureUsed = false;
       startCell = null; lastCell = null;
       moved = false;
-      game._relicDrag = null;
+      RelicScroll.cancel(game);
       game._touchStart = null;
       game.selected = null;
       game.pickCell = null;
