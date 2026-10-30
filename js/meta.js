@@ -1,3 +1,8 @@
+const ShopService = require('./economy/shop.js');
+const SkillUnlocks = require('./skills/unlocks.js');
+const { todayStr } = require('./economy/calendar.js');
+const DeepChests = require('./relics/deep-chests.js');
+const RelicProgression = require('./relics/progression.js');
 /**
  * meta.js —— 局外持久化数据（主界面层，跨对局保留）
  * =====================================================================
@@ -19,11 +24,7 @@
 const CONFIG = require('./config.js');
 const GlobalSkills = require('./global-skills.js');
 
-function todayStr(nowMs) {
-  const d = new Date(nowMs || Date.now());
-  const p = (n) => (n < 10 ? '0' + n : '' + n);
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
+
 
 class Meta {
   constructor() {
@@ -59,46 +60,18 @@ class Meta {
   learnTower(key) { this.towerCodex[key] = 1; }
 
   /* ---------- 圣遗物星级 / 碎片（v1.16.76） ---------- */
-  starOf(id) { return this.relicStars[id] || (this.runCodex[id] ? 1 : 0); }   // 0=未解锁
+  starOf(id) { return RelicProgression.starOf(this, id); }   // 0=未解锁
   /** v1.17.20 碎片入账：只加碎片，不再自动解锁（解锁改为玩家手动触发 unlockByShard）
    *   旧实现（v1.16.78）达阈值即静默解锁，与「凑齐也可选择不解锁、继续攒碎片」冲突 */
-  addShard(id, n) {
-    this.shards[id] = (this.shards[id] || 0) + n;
-  }
+  addShard(id, n) { return RelicProgression.addShard(this, id, n); }
   /** 解锁所需碎片数（蓝 r=2 / 紫 sr=4 / 金 ssr=8），与升星消耗同源 */
-  shardNeed(id) { return CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(id)] || 0; }
+  shardNeed(id) { return RelicProgression.shardNeed(this, id); }
   /** 可用碎片解锁？（未解锁 且 碎片已够） */
-  canUnlockByShard(id) {
-    const need = this.shardNeed(id);
-    return need > 0 && this.starOf(id) < 1 && (this.shards[id] || 0) >= need;
-  }
+  canUnlockByShard(id) { return RelicProgression.canUnlockByShard(this, id); }
   /** 手动解锁（消耗碎片）：成功返回 null，失败返回错误文案 */
-  unlockByShard(id) {
-    if (this.starOf(id) >= 1) return '已解锁';
-    const need = this.shardNeed(id);
-    if (!need) return '该圣遗物无需碎片解锁';
-    const have = this.shards[id] || 0;
-    if (have < need) return `碎片不足（${have}/${need}）`;
-    this.shards[id] = have - need;
-    this.codexUnlock(id);
-    return null;
-  }
+  unlockByShard(id) { return RelicProgression.unlockByShard(this, id); }
   /** 升星：成功返回 null，失败返回错误文案 */
-  upStar(id) {
-    const cur = this.starOf(id);
-    if (!cur) return '未解锁该圣遗物';
-    if (cur >= 3) return '已达 3★';
-    const next = cur + 1;
-    const c = CONFIG.STAR_UP.cost[next];
-    if (this.gold < c.gold) return '金币不足';
-    if ((this.shards[id] || 0) < c.shards) return `碎片不足（${this.shards[id] || 0}/${c.shards}）`;
-    if (next === 3 && CONFIG.STAR_UP.goldStarExtraStone && CONFIG.relicRarity(id) === 'ssr' && this.starStones < (c.stone || 0)) return '星辉石不足';
-    this.gold -= c.gold;
-    this.shards[id] -= c.shards;
-    if (next === 3 && c.stone) this.starStones -= c.stone;
-    this.relicStars[id] = next;
-    return null;
-  }
+  upStar(id) { return RelicProgression.upStar(this, id); }
   /** 里程碑首达：返回本次新达成的波次数组 */
   checkMilestone(wave) {
     const got = CONFIG.MILESTONES.filter((m) => wave >= m && !this.milestones[m]);
@@ -107,55 +80,13 @@ class Meta {
     return got;
   }
   /* ---------- 深度宝箱（v1.16.76） ---------- */
-  tierByWave(wave) {
-    const t = CONFIG.DEPTH_CHEST.tiers;
-    for (const tier of t) if (wave <= tier.max) return tier;
-    return t[t.length - 1];
-  }
-  grantDeepChest(tierDef) {
-    if (this.deepChests.length >= CONFIG.DEPTH_CHEST.slots) return false;   // 槽满（设计：碎片金币走即时掉落线兜底）
-    this.deepChests.push({ tier: tierDef.key, gotAt: Date.now(), openAt: Date.now() + tierDef.openSec * 1000 });
-    return true;
-  }
-  chestReady(ch) { return Date.now() >= ch.openAt; }
+  tierByWave(wave) { return DeepChests.tierByWave(this, wave); }
+  grantDeepChest(tierDef) { return DeepChests.grantDeepChest(this, tierDef); }
+  chestReady(ch) { return DeepChests.chestReady(this, ch); }
   /** 开启深度宝箱：返回收益摘要或 null（未就绪） */
-  openDeepChest(idx) {
-    const ch = this.deepChests[idx];
-    if (!ch || !this.chestReady(ch)) return null;
-    const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
-    this.deepChests.splice(idx, 1);
-    const rnd = (a) => a[0] + Math.floor(Math.random() * (a[1] - a[0] + 1));
-    const gain = {
-      gold: rnd(tier.gold),
-      shards: rnd(tier.shards),
-      diamond: tier.diamond || (tier.diamondChance && Math.random() < tier.diamondChance ? 1 : 0),
-      stone: tier.stone || (tier.stoneChance && Math.random() < tier.stoneChance ? 1 : 0),
-      card: null,
-    };
-    // 圣遗物卡：按 cardChance 出卡，黄金档 25% 升金卡
-    if (Math.random() < tier.cardChance) {
-      let rar = tier.cardRarity;
-      if (tier.goldCardChance && Math.random() < tier.goldCardChance) rar = 'ssr';
-      gain.card = CONFIG.randomShardCardId(rar);
-      if (gain.card) this.addShard(gain.card, 5);   // 卡=直接注入 5 碎片（简化：卡即碎片包）
-    }
-    this.gold += gain.gold;
-    if (gain.diamond) this.diamond += gain.diamond;
-    if (gain.stone) this.starStones += gain.stone;
-    return gain;
-  }
+  openDeepChest(idx) { return DeepChests.openDeepChest(this, idx); }
   /** 钻石速开：成功返回 true */
-  speedOpen(idx) {
-    const ch = this.deepChests[idx];
-    if (!ch) return false;
-    const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
-    const remainMin = Math.max(0, Math.ceil((ch.openAt - Date.now()) / 60000));
-    const cost = Math.max(1, Math.ceil(remainMin / 60 * 4));   // ≈4💎/小时
-    if (this.diamond < cost) return false;
-    this.diamond -= cost; this.totalDiamondSpent += cost;
-    ch.openAt = Date.now();
-    return true;
-  }
+  speedOpen(idx) { return DeepChests.speedOpen(this, idx); }
   /* ---------- 每日首战加成（v1.16.76） ---------- */
   dailyFirstBonus(field, now) {
     const d = todayStr(now);
@@ -166,8 +97,8 @@ class Meta {
   }
 
   /* ---------- 局内圣遗物图鉴 ---------- */
-  codexOwned(id) { return (this.runCodex[id] || 0) > 0; }
-  codexUnlock(id) { this.runCodex[id] = 1; }
+  codexOwned(id) { return RelicProgression.codexOwned(this, id); }
+  codexUnlock(id) { return RelicProgression.codexUnlock(this, id); }
 
   /* ---------- 圣物 ---------- */
   relicDef(id) { return CONFIG.RELIC.list.find((r) => r.id === id) || null; }
@@ -220,72 +151,18 @@ class Meta {
   }
 
   /* ---------- 每日碎片精选（v5.3c 0 点刷新，碎片奖励） ---------- */
-  ensureDailyPicks(nowMs) {
-    const date = todayStr(nowMs);
-    // 旧存档兼容：同日缓存若为旧结构（无 shards/rar 或非新体系 id），视为过期重建
-    if (this.dailyPicks && this.dailyPicks.date === date) {
-      const picks = this.dailyPicks.picks || [];
-      const fresh = picks.length === CONFIG.DAILY.perDay && picks.every((p) =>
-        p && p.shards > 0 && p.rar && CONFIG.relicRunDef(p.relic) && CONFIG.GO.RARITY[p.rar]);
-      if (fresh) return this.dailyPicks;
-    }
-    const picks = [];
-    const rars = ['r', 'sr', 'ssr'];
-    while (picks.length < CONFIG.DAILY.perDay) {
-      const rar = rars[Math.floor(Math.random() * 3)];
-      const id = CONFIG.randomShardCardId(rar);
-      if (!id || picks.some((p) => p.relic === id)) continue;
-      picks.push({ relic: id, rar, shards: CONFIG.DAILY.shards[rar], price: CONFIG.DAILY.price[rar] });
-    }
-    this.dailyPicks = { date, picks };
-    return this.dailyPicks;
-  }
+  buyShardOffer(offer) { return ShopService.buyShardOffer(this, offer); }
+  ensureDailyPicks(nowMs) { return ShopService.ensureDailyPicks(this, nowMs); }
 
   /* ---------- 技能解锁（v5.3c） ---------- */
-  skillUnlocked(slot, id) {
-    const un = this.skillUnlocks[slot];
-    const defs = CONFIG.SKILL_UNLOCK.defaults[slot] || [];
-    return defs.includes(id) || !!(un && un.includes(id));
-  }
+  skillUnlocked(slot, id) { return SkillUnlocks.skillUnlocked(this, slot, id); }
   /** 解锁技能：金币购买；成功返回 { ok:true }，失败 { ok:false, reason:'gold'|'owned' } */
-  unlockSkill(slot, id) {
-    const price = CONFIG.SKILL_UNLOCK.price[slot];
-    if (this.skillUnlocked(slot, id)) return { ok: false, reason: 'owned' };
-    if (this.gold < price) return { ok: false, reason: 'gold' };
-    this.gold -= price;
-    if (!this.skillUnlocks[slot]) this.skillUnlocks[slot] = (CONFIG.SKILL_UNLOCK.defaults[slot] || []).slice();
-    this.skillUnlocks[slot].push(id);
-    return { ok: true };
-  }
+  unlockSkill(slot, id) { return SkillUnlocks.unlockSkill(this, slot, id); }
 
   /* ---------- 商店圣物宝箱（v5.3c 每日限购） ---------- */
-  shopChestLeft(key) {
-    const def = CONFIG.SHOP_CHEST[key];
-    if (!def) return 0;
-    if (!this.shopDaily || this.shopDaily.date !== todayStr(Date.now())) return def.daily;
-    return Math.max(0, def.daily - (this.shopDaily.chests[key] || 0));
-  }
+  shopChestLeft(key) { return ShopService.shopChestLeft(this, key); }
   /** 购买圣物宝箱：返回 { ok, reason|gains }；gains = [{ id, n }] 聚合碎片 */
-  buyShopChest(key) {
-    const def = CONFIG.SHOP_CHEST[key];
-    if (this.shopChestLeft(key) <= 0) return { ok: false, reason: 'limit' };
-    if (this.gold < def.price) return { ok: false, reason: 'gold' };
-    this.gold -= def.price;
-    const date = todayStr(Date.now());
-    if (!this.shopDaily || this.shopDaily.date !== date) this.shopDaily = { date, chests: {} };
-    this.shopDaily.chests[key] = (this.shopDaily.chests[key] || 0) + 1;
-    const n = def.shards[Math.floor(Math.random() * def.shards.length)];
-    const agg = {};
-    for (let i = 0; i < n; i++) {
-      const rar = def.rarities[Math.floor(Math.random() * def.rarities.length)];
-      const rid = CONFIG.randomShardCardId(rar);
-      if (!rid) continue;
-      agg[rid] = (agg[rid] || 0) + 1;
-    }
-    const gains = Object.keys(agg).map((rid) => ({ id: rid, n: agg[rid] }));
-    gains.forEach((g) => this.addShard(g.id, g.n));
-    return { ok: true, gains };
-  }
+  buyShopChest(key) { return ShopService.buyShopChest(this, key); }
 
   /* ---------- 宝箱 ---------- */
   /** 开箱倒计时剩余秒数（0=可开启，null=无进行中） */

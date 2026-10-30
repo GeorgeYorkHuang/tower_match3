@@ -287,5 +287,16 @@ t('左上功能菜单：口令、音乐、我的信息与独立测试档登出',
   delete wx.showModal;
 });
 
+t('每日碎片购买经真实菜单路由：不足不扣款，足额扣款并入账',()=>{
+  game.state='menu';game.menuPanel=null;
+  const offer={relic:'fire_seed',shards:3,price:300,icon:'',name:'测试碎片'};
+  game.menuHits=[{key:'shopShard',data:offer,hit:()=>true}];
+  const shards=game.meta.shards.fire_seed||0;
+  game.meta.gold=299;game.onMenuTap({x:0,y:0});
+  assert.strictEqual(game.meta.gold,299);assert.strictEqual(game.meta.shards.fire_seed||0,shards);
+  game.meta.gold=300;game.onMenuTap({x:0,y:0});
+  assert.strictEqual(game.meta.gold,0);assert.strictEqual(game.meta.shards.fire_seed,shards+3);
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);

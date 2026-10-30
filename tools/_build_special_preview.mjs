@@ -23,8 +23,19 @@ const MODULES = [
   'js/game/icons/special-blocks.js',
   'js/game/icons/chip-skin.js',
   'js/game/ui.js',
+  'js/game/screens/codex.js',
   'js/config.js',
+  'js/config/monsters.js',
+  'js/config/towers.js',
+  'js/config/skills.js',
+  'js/config/relics.js',
+  'js/relics/queries.js',
+  'js/game/screens/account-menu.js',
+
   'js/global-skills.js',
+  'js/skills/global-catalog.js',
+  'js/skills/global-loadout.js',
+  'js/skills/global-runtime.js',
   'js/config/global-balance.js',
 ];
 
