@@ -1,4 +1,4 @@
-// v1.16.135 回归：①更名深窟远征 ②结算页去 emoji（贴图化）③结算「返回主界面」可点 ④设置音乐开关文案联动
+// v1.16.135 回归：①更名圣坛裂痕 ②结算页去 emoji（贴图化）③结算「返回主界面」可点 ④设置音乐开关文案联动
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const store = {};
@@ -34,11 +34,11 @@ game.state = 'menu'; game.menuTab = 'battle';
 texts.length = 0;
 game.renderer.menuLayer(ctx2d, game.menuState ? game.menuState() : {}, {});
 // v1.17.14：标题可能被逐字绘制（'深','窟','远','征'），拼接后断言
-if (!texts.join('').replace(/\s/g, '').includes('深窟远征')) {
-  console.error('FAIL: 主菜单标题未改为「深窟远征」:', texts.slice(0, 20).join('|'));
+if (!texts.join('').replace(/\s/g, '').includes('圣坛裂痕')) {
+  console.error('FAIL: 主菜单标题未改为「圣坛裂痕」:', texts.slice(0, 20).join('|'));
   process.exit(1);
 }
-console.log('① 主菜单标题 = 深窟远征 OK');
+console.log('① 主菜单标题 = 圣坛裂痕 OK');
 
 // ---- ② 结算页无 emoji：圣遗物图案贴图化 + 无 🚪💀🧩🪙📦🏆 ----
 const su = {

@@ -4106,7 +4106,7 @@ class Renderer {
     this._menuHeader(ctx, s, push);
     // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
     // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
-    if (s.tab === 'battle') drawArchedTitle(ctx, '深窟远征', 375, 352, 98, 1200, false);
+    if (s.tab === 'battle') drawArchedTitle(ctx, '圣坛裂痕', 375, 352, 98, 1200, false);
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);

@@ -31,7 +31,7 @@ function createHomeScreen({ drawImg, skillRow }) {
       ctx.beginPath(); ctx.arc(375, iy + iw / 2, iw / 2, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill();
       text(ctx, isTest ? '🧪' : '🏰', 375, iy + iw / 2 + 12, 130, '#ffffff', 'center');
     }
-    // 战场名（v1.17.47：54px 金色渐变 + 立体投影，与页面主标题「深窟远征」同款工艺）
+    // 战场名（v1.17.47：54px 金色渐变 + 立体投影，与页面主标题「圣坛裂痕」同款工艺）
     ctx.font = 'bold 54px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillText(F.name, 375 + 3, nameY + 4);

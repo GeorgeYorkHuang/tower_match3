@@ -120,8 +120,8 @@ module.exports = {
   },
 
   FIELDS: {
-    ancient: { name: '远古战场', short: '🏰 远古战场', tint: '#2ecc71', tintDark: '#1f8c5f',
-      subtitle: '城墙防守 · 怪物攻城 · 深窟远征', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
+    ancient: { name: '圣坛花园', short: '🏰 圣坛花园', tint: '#2ecc71', tintDark: '#1f8c5f',
+      subtitle: '城墙防守 · 怪物攻城 · 圣坛裂痕', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
     lava:    { name: '熔岩矿场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
       subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 0 },
     frost:   { name: '霜风峡谷', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',

@@ -26,7 +26,7 @@ const ctx = _c ? _c.ctx : null;
 if (!ctx) {
   module.exports = null;
 } else if (typeof console !== 'undefined' && console.info) {
-  console.info('[深窟远征] 启动：canvas', _c.canvas.width + 'x' + _c.canvas.height,
+  console.info('[圣坛裂痕] 启动：canvas', _c.canvas.width + 'x' + _c.canvas.height,
     'scale', (Math.min(_c.canvas.width / CONFIG.DESIGN.W, _c.canvas.height / CONFIG.DESIGN.H)).toFixed(3));
 }
 const LOGIC_W = CONFIG.DESIGN.W;      // 750
@@ -349,7 +349,7 @@ class GameMain {
       this.pixelCheck();
       requestAnimationFrame(this.loop.bind(this));
     } catch (e) {
-      console.error('[深窟远征] 帧循环错误：', e && e.stack ? e.stack : e);
+      console.error('[圣坛裂痕] 帧循环错误：', e && e.stack ? e.stack : e);
       // 一次渲染/逻辑异常不应卡死整局：继续调度帧循环（保留最后画面，触摸仍可响应）
       requestAnimationFrame(this.loop.bind(this));
     }
@@ -362,9 +362,9 @@ class GameMain {
     try {
       const w = _c.canvas.width, h = _c.canvas.height;
       const img = ctx.getImageData(Math.floor(w / 2), Math.floor(h / 2), 1, 1);
-      console.info('[深窟远征] 画布中心像素采样：', Array.prototype.slice.call(img.data));
+      console.info('[圣坛裂痕] 画布中心像素采样：', Array.prototype.slice.call(img.data));
     } catch (e) {
-      console.info('[深窟远征] 画布像素采样不可用：', e && e.message);
+      console.info('[圣坛裂痕] 画布像素采样不可用：', e && e.message);
     }
   }
 

@@ -88,10 +88,10 @@ function writeBlock(name,body){
 const globals=require('../js/global-skills.js');
 // —— 主页段（战场所选卡 + 技能配置单行双分区）：内容哈希钉扎，--update-home 再生 ——
 const HOME_BASELINE = /* HOME_HASHES_START */ {
-   "ancient|0|false": "e7ed9e9610b1c1cc",
-   "ancient|0|true": "7318c656b3b5bde7",
-   "ancient|999|false": "e7ed9e9610b1c1cc",
-   "ancient|999|true": "7318c656b3b5bde7",
+   "ancient|0|false": "c00394cbea0d1c1c",
+   "ancient|0|true": "871de55eb3ca9581",
+   "ancient|999|false": "c00394cbea0d1c1c",
+   "ancient|999|true": "871de55eb3ca9581",
    "lava|0|false": "406307ef8ceb4003",
    "lava|0|true": "c1decca20f1bd61d",
    "lava|999|false": "406307ef8ceb4003",
@@ -108,10 +108,10 @@ const HOME_BASELINE = /* HOME_HASHES_START */ {
    "test|0|true": "a4e58349d49d83ea",
    "test|999|false": "077fc7c1e2e7d741",
    "test|999|true": "a4e58349d49d83ea",
-   "unknown|0|false": "aed0b9a0df5d2605",
-   "unknown|0|true": "0ed1494fa97aa2a1",
-   "unknown|999|false": "aed0b9a0df5d2605",
-   "unknown|999|true": "0ed1494fa97aa2a1"
+   "unknown|0|false": "4175f9ce8e87f572",
+   "unknown|0|true": "7dfe63b2f6fa1227",
+   "unknown|999|false": "4175f9ce8e87f572",
+   "unknown|999|true": "7dfe63b2f6fa1227"
  } /* HOME_HASHES_END */;
 let homeUpdated=false;
 for(const stage of [...Object.keys(config.FIELDS),'unknown']) for(const bestWave of [0,999]) {
