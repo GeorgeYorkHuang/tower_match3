@@ -59,10 +59,10 @@
       <span id="zoomV" style="min-width:56px;font-size:12px">2.00×</span>
     </div>
     <div class="row"><label>预设</label>
-      <button data-z="1">1×审图</button>
-      <button data-z="2">2×</button>
-      <button data-z="4">4×</button>
-      <button data-z="0.45">实战≈0.45×</button>
+      <button data-z="0.5625">普通72px</button>
+      <button data-z="0.4688">快速60px</button>
+      <button data-z="0.75">重坦96px</button>
+      <button data-z="4">4×审图</button>
     </div>
 
     <div class="row"><label>底色</label>
@@ -121,8 +121,8 @@
 <script>
 "use strict";
 /* ===== 怪物表：名称/类型/帧数/逐帧时长/移速——与任务单一致 ===== */
-const TYPE_DUR = { normal:240, fast:160, tank:300 };
-const TYPE_CN  = { normal:"普通", fast:"快速", tank:"重坦" };
+const TYPE_DUR = { normal:240, fast:160, tank:300, boss:320 };
+const TYPE_CN  = { normal:"普通", fast:"快速", tank:"重坦", boss:"Boss" };
 const MONSTERS = [
   {lv:1,  name:"苔露团",     type:"normal", frames:6, durs:[140,160,200,310,200,220], spd:1.5},
   {lv:2,  name:"疾芽鼠",     type:"fast",   frames:5, spd:2.7},
@@ -138,6 +138,9 @@ const MONSTERS = [
   {lv:12, name:"盘根巨卫",   type:"tank",   frames:5, spd:1.12},
   {lv:13, name:"圣庭执戟者", type:"normal", frames:5, spd:1.91},
   {lv:14, name:"凋风掠影",   type:"fast",   frames:5, spd:3.6},
+  // ---- Boss（192×192 规格，P1/P2 两状态独立图集）----
+  {lv:"20·P1", lvStr:"20波P1", name:"缠根司祭·萝赛", type:"boss", frames:6, durs:[320]*6, spd:0.75, fw:192, fh:192, atlas:"boss20_luosai_p1"},
+  {lv:"20·P2", lvStr:"20波P2", name:"萝赛·花绽狂暴", type:"boss", frames:6, durs:[180]*6, spd:1.20, fw:192, fh:192, atlas:"boss20_luosai_p2"},
 ];
 MONSTERS.forEach(m=>{ if(!m.durs) m.durs = Array(m.frames).fill(TYPE_DUR[m.type]); });
 const FW=128, FH=128; // 新规格单帧
@@ -154,8 +157,8 @@ let marchers = [];           // 行进模拟的实例
 
 /* ===== 内置占位图：按类型程序化生成走循环 ===== */
 function makeDemo(m){
-  const N=m.frames, fw=FW, fh=FH;
-  const cols={normal:["#7fb069","#5c8a4e","#3f5e36"],fast:["#79c0d8","#3f7fa6","#2c5468"],tank:["#c8a878","#a66a3f","#6e4526"]};
+  const N=m.frames, fw=m.fw||FW, fh=m.fh||FH;
+  const cols={normal:["#7fb069","#5c8a4e","#3f5e36"],fast:["#79c0d8","#3f7fa6","#2c5468"],tank:["#c8a878","#a66a3f","#6e4526"],boss:["#b07898","#8a5578","#5c3a50"]};
   const [c1,c2,c3]=cols[m.type];
   const cvs=document.createElement("canvas"); cvs.width=fw*N; cvs.height=fh;
   const g=cvs.getContext("2d");
@@ -310,8 +313,8 @@ function render(){
     (src==="atlas"?" ｜ 来源:拖入图集":" ｜ 来源:内置占位（验证播放器用，非真图）")+
     (mode==="march"?" ｜ 模式:行进模拟":"");
   document.getElementById("info").textContent=
-    "Lv"+m.lv+" "+m.name+" ｜ "+TYPE_CN[m.type]+" ｜ 标准"+TYPE_DUR[m.type]+"ms/帧"+(m.lv===1?"（Lv1 沿用现播放器逐帧表）":"")+" ｜ 移速 "+m.spd+
-    "\n规格：透明PNG · 单行横排 · 各帧等大128×128 · 底部中心锚点 · 帧间不越格";
+    (m.lvStr||("Lv"+m.lv))+" "+m.name+" ｜ "+TYPE_CN[m.type]+" ｜ 标准"+TYPE_DUR[m.type]+"ms/帧"+(m.lv===1?"（Lv1 沿用现播放器逐帧表）":"")+" ｜ 移速 "+m.spd+
+    "\n规格：透明PNG · 单行横排 · 各帧等大"+(m.fw||128)+"×"+(m.fh||128)+" · 底部中心锚点 · 帧间不越格";
 }
 
 /* ===== 控件 ===== */
@@ -320,7 +323,7 @@ function buildGrid(){
   const g=$("lvGrid"); g.innerHTML="";
   MONSTERS.forEach((m,i)=>{
     const b=document.createElement("button");
-    b.innerHTML="Lv"+m.lv+"<span class='t'>"+m.name+"</span>";
+    b.innerHTML=(m.lvStr||("Lv"+m.lv))+"<span class='t'>"+m.name+"</span>";
     if(i===cur)b.classList.add("on");
     b.onclick=()=>{cur=i; manualFrame=0; phase=0; marchers=[];
       [...g.children].forEach((c,j)=>c.classList.toggle("on",j===cur));
@@ -342,7 +345,28 @@ $("srcAtlas").onclick=()=>{
 $("srcExisting").onclick=()=>{ tryLoadExisting(); };
 /* 一键载入现有素材（相对路径；在 WorkBuddy 预览服务器里可能受限，失败会提示改用拖入） */
 function tryLoadExisting(){
-  const lv=MONSTERS[cur].lv;
+  const m=MONSTERS[cur], lv=m.lv;
+  // Boss 条目：按 manifest 里的图集路径加载
+  if(m.type==="boss"){
+    const p="assets/images/enemies/ancient/"+m.atlas+".png";
+    const cands=["../"+p,"../../"+p,p];
+    status("尝试载入 Boss 图集 "+m.atlas+".png …");
+    (function next(i){
+      if(i>=cands.length){ status("⚠ Boss 图集相对路径载入失败。请把 assets/images/enemies/ancient/"+m.atlas+".png 拖到页面任意位置。", true); return; }
+      const img=new Image();
+      img.onload=()=>{
+        const fr=m.frames;
+        const meta={frames:fr, fw:Math.round(img.naturalWidth/fr), fh:img.naturalHeight, durs:m.durs,
+                    name:"[Boss图集]"+m.atlas+".png（"+fr+"帧 "+Math.round(img.naturalWidth/fr)+"×"+img.naturalHeight+"）", forLv:cur};
+        overrides[cur]={img, ...meta};
+        atlasMeta=overrides[cur]; setSrc("atlas");
+        status("✓ 已载入 Boss 图集 "+m.atlas+".png："+img.naturalWidth+"×"+img.naturalHeight+"，"+fr+" 帧等分（每帧 "+(img.naturalWidth/fr).toFixed(0)+"px）。");
+      };
+      img.onerror=()=>next(i+1);
+      img.src=cands[i];
+    })(0);
+    return;
+  }
   if(lv>8){ status("现有素材只有 lv1–lv8（Lv9–14 目前回退旧图）。请拖入新图集。", true); return; }
   const fr=lv===1?6:5, dur=MONSTERS[cur].durs;
   const cands=["../assets/images/enemies/lv"+lv+".png","../../assets/images/enemies/lv"+lv+".png","assets/images/enemies/lv"+lv+".png"];
