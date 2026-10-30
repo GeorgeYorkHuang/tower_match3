@@ -4,11 +4,21 @@ const CONFIG = require('../config.js');
 const GlobalSkills = require('../global-skills.js');
 const { Meta } = require('../meta.js');
 function switchProfile(game, testing, preset) {
-  game.save.save();
+  if (game.save.save() === false) { game.toast('保存失败，未切换档案', '#ff6b6b'); return false; }
+  const previousKey = game.save.storageKey;
+  const previous = { meta: game.meta, saveData: game.saveData, testProfile: game.testProfile, lastLoadStatus: game.save.lastLoadStatus };
   game.save.storageKey = testing ? ACCESS.testSaveKey : 'xxfx_save_v1';
+  const targetData = game.save.load();
+  if (['error', 'unsupported', 'unavailable'].includes(game.save.lastLoadStatus)) {
+    game.save.storageKey = previousKey;
+    game.save.lastLoadStatus = previous.lastLoadStatus;
+    game.toast('目标档案读取失败，未切换档案', '#ff6b6b');
+    return false;
+  }
+  game._passphraseRequest = (game._passphraseRequest || 0) + 1;
   game.testProfile = !!testing;
   game.toasts = [];
-  game.saveData = game.save.load();
+  game.saveData = targetData;
   game.meta = Meta.fromJSON(game.saveData);
   if (testing && (!game.saveData || preset === 'fresh')) {
     game.meta = new Meta();
@@ -24,7 +34,12 @@ function switchProfile(game, testing, preset) {
     }
   }
   const dailyFirst = game.meta.dailyFirst ? JSON.parse(JSON.stringify(game.meta.dailyFirst)) : null;
-  game.save.save();
+  if (game.save.save() === false) {
+    game.meta = previous.meta; game.saveData = previous.saveData; game.testProfile = previous.testProfile;
+    game.save.storageKey = previousKey; game.save.lastLoadStatus = previous.lastLoadStatus;
+    game.toast('测试档保存失败，已保留原档案', '#ff6b6b');
+    return false;
+  }
   game.newRun(false);
   game.meta.dailyFirst = dailyFirst;
   game.save.save();
@@ -36,9 +51,11 @@ function switchProfile(game, testing, preset) {
 function promptPassphrase(game) {
   if (!ACCESS.enabled) { game.toast('测试入口已关闭', '#ff6b6b'); return; }
   if (typeof wx === 'undefined' || !wx.showModal) { game.toast('当前环境不支持口令输入', '#ff6b6b'); return; }
+  const request = game._passphraseRequest = (game._passphraseRequest || 0) + 1;
+  const storageKey = game.save.storageKey, panel = game.menuPanel;
   wx.showModal({ title: '测试口令', editable: true, placeholderText: '请输入测试口令',
     success(res) {
-      if (!res.confirm || game.state !== 'menu') return;
+      if (!res.confirm || game.state !== 'menu' || game._passphraseRequest !== request || game.save.storageKey !== storageKey || game.menuPanel !== panel) return;
       if (String(res.content || '').trim() !== ACCESS.passphrase) { game.toast('口令不正确', '#ff6b6b'); return; }
       game.menuPanel = { type: 'testProfile' };
     },

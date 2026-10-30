@@ -32,6 +32,8 @@ js/
   run.js / combat.js             单局状态与结算 / 攻击、弹道、伤害
   effects.js / wave.js           塔技能构筑与分支 / 敌人生成
   meta.js / save.js              玩家档案、兼容委托 / 本地存档
+  save/snapshot.js              存档深层快照，恢复/导出不共享嵌套对象
+  save/migrations.js            旧版存档与技能改名迁移
   global-skills.js               全局技能兼容出口
   economy/
     calendar.js / shop.js        每日日期 / 精选与宝箱购买、限购
@@ -62,7 +64,7 @@ docs/                           设计、数值字典和重构记录
 
 ## 数据隔离与重构进度（2026-10-30）
 
-领域配置是共享定义；玩家的金币、碎片、星级属于 `Meta`，棋盘、塔能量、技能分支和冷却属于当前 `Run`/战斗实例。业务状态不得写回配置表。兼容入口保留同一配置对象引用，不复制第二套数值。
+领域配置是共享定义；玩家的金币、碎片、星级属于 `Meta`，棋盘、塔能量、技能分支和冷却属于当前 `Run`/战斗实例。业务状态不得写回配置表。 `Meta.fromJSON/toJSON` 与存储读取边界均复制嵌套数据；读取失败或未知版本存档不会被自动空档覆盖，详见 [R08验收说明](docs/存档隔离-R08验收说明.md)。兼容入口保留同一配置对象引用，不复制第二套数值。
 
 已分离：四类领域数据、触摸与菜单路由、塔图鉴绘制、圣遗物成长、深度宝箱、局外商店、技能解锁和全局技能目录/槽位/运行逻辑。定义模块不反向依赖 `config.js`；查询函数通过聚合配置上下文调用。服务显式接收档案或对局，不缓存玩家引用；绘制模块只返回点击区域，扣款、发奖归业务模块。
 
@@ -84,6 +86,7 @@ docs/                           设计、数值字典和重构记录
 在项目根目录用 Node.js 运行：
 
 ```powershell
+node tools/_test_save_isolation.cjs
 node tools/_test_domain_config.cjs
 node tools/_test_touch_channels.cjs
 node tools/_test_canvas_adaptation.cjs

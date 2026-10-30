@@ -1,3 +1,4 @@
+const { copySaveData } = require('./save/snapshot.js');
 const ShopService = require('./economy/shop.js');
 const SkillUnlocks = require('./skills/unlocks.js');
 const { todayStr } = require('./economy/calendar.js');
@@ -196,7 +197,7 @@ class Meta {
 
   /* ---------- 序列化 ---------- */
   toJSON() {
-    return {
+    return copySaveData({
       version: 5,
       gold: this.gold,
       diamond: this.diamond,
@@ -224,11 +225,12 @@ class Meta {
       globalSkills: this.globalSkills,
       skillUnlocks: this.skillUnlocks,
       shopDaily: this.shopDaily,
-    };
+    });
   }
   static fromJSON(d) {
     const m = new Meta();
     if (!d) return m;
+    d = copySaveData(d);
     m.gold = d.gold || 0;
     m.diamond = d.diamond || 0;
     m.relics = d.relics || {};

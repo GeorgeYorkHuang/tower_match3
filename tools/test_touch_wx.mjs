@@ -298,5 +298,35 @@ t('每日碎片购买经真实菜单路由：不足不扣款，足额扣款并�
   assert.strictEqual(game.meta.gold,0);assert.strictEqual(game.meta.shards.fire_seed,shards+3);
 });
 
+t('口令旧回调不跨档案/页面生效，切档读写失败保留原档',()=>{
+  const Account=require('../js/game/account.js'),access=require('../js/config/test-access.js');
+  const previousShow=wx.showModal,get=wx.getStorageSync,set=wx.setStorageSync;
+  const callbacks=[];
+  game.state='menu';game.menuPanel={type:'accountMenu'};
+  wx.showModal=options=>callbacks.push(options.success);
+  try {
+    Account.handle(game,'accountPass');
+    game.menuPanel={type:'accountInfo'};
+    callbacks.shift()({confirm:true,content:access.passphrase});
+    assert.strictEqual(game.menuPanel.type,'accountInfo');
+    game.menuPanel={type:'accountMenu'};Account.handle(game,'accountPass');
+    Account.switchProfile(game,true);
+    callbacks.shift()({confirm:true,content:access.passphrase});
+    assert.strictEqual(game.menuPanel,null);
+    Account.switchProfile(game,false);
+    const meta=game.meta,run=game.run,key=game.save.storageKey;
+    wx.getStorageSync=k=>{if(k===access.testSaveKey)throw Error('test read failure');return get(k);};
+    assert.strictEqual(Account.switchProfile(game,true),false);
+    assert.strictEqual(game.meta,meta);assert.strictEqual(game.run,run);assert.strictEqual(game.save.storageKey,key);
+    wx.getStorageSync=get;
+    wx.setStorageSync=(k,v)=>{if(k===access.testSaveKey)throw Error('test write failure');set(k,v);};
+    assert.strictEqual(Account.switchProfile(game,true),false);
+    assert.strictEqual(game.meta,meta);assert.strictEqual(game.run,run);assert.strictEqual(game.testProfile,false);
+    assert.strictEqual(game.save.storageKey,key);
+    wx.setStorageSync=()=>{throw Error('source write failure');};
+    assert.strictEqual(Account.switchProfile(game,true),false);assert.strictEqual(game.meta,meta);assert.strictEqual(game.save.storageKey,key);
+  } finally {wx.showModal=previousShow;wx.getStorageSync=get;wx.setStorageSync=set;}
+});
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 process.exit(fail ? 1 : 0);
