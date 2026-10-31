@@ -1,3 +1,4 @@
+const { createChestRewards } = require('./screens/chest-rewards.js');
 const { createBattleScene } = require('./layers/battle.js');
 const { createGroundLayer } = require('./layers/ground.js');
 const { createChestLayer } = require('./layers/chests.js');
@@ -806,6 +807,10 @@ class Renderer {
    * s.panel = { type:'chestOpen', mode:'deep'|'relic', gain?, reward?, tier? }
    */
   menuChestOpen(ctx, s, push) {
+    if (s.panel.mode === 'deep') {
+      if (!this._chestRewards) this._chestRewards = createChestRewards({ drawImg, IMG_SRC, relicIconSrc });
+      return this._chestRewards.draw(ctx, s.panel, push);
+    }
     const p = s.panel;
     const gain = p.gain || null;
     const reward = p.reward || null;
@@ -1131,7 +1136,7 @@ function drawArchedTitle(ctx, text, cx, baseY, size, archR, stereo) {
     // 立体（仅 stereo=true）：深色底层（偏移 4px）→ 暗金中层（偏移 2px）
     if (st) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillText(ch, 4, 5);
+      ctx.fillText(ch, 4, 9);
       ctx.fillStyle = 'rgba(120,80,20,0.9)';
       ctx.fillText(ch, 2, 2.5);
     }

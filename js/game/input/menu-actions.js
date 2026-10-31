@@ -250,7 +250,7 @@ function onMenuTap(game, p) {
           if (m.chestReady(ch)) {
             const gain = m.openDeepChest(it.data);
             game.save.save();
-            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier };   // v1.17.9d 开箱弹窗：收益一次弹出
+            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // v1.17.9d 开箱弹窗：收益一次弹出
             return;
           }
           const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
@@ -259,7 +259,7 @@ function onMenuTap(game, p) {
           if (m.diamond >= cost && m.speedOpen(it.data)) {
             const gain = m.openDeepChest(it.data);
             game.save.save();
-            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier };   // v1.17.9d 速开同样弹窗
+            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // v1.17.9d 速开同样弹窗
             return;
           }
           game.toast(`${tier.name} 开启中 · 还需 ${remainMin} 分钟（${cost}💎 立即开启）`, '#9fb2c3');

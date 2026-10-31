@@ -24,7 +24,7 @@ function createDeepChestService(options = {}) {
     const ch = meta.deepChests[idx];
     if (!ch || !chestReady(meta, ch)) return null;
     const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
-    meta.deepChests.splice(idx, 1);
+    if (!tier) return null;
     const rnd = (a) => a[0] + Math.floor(random() * (a[1] - a[0] + 1));
     const gain = {
       gold: rnd(tier.gold),
@@ -32,14 +32,26 @@ function createDeepChestService(options = {}) {
       diamond: tier.diamond || (tier.diamondChance && random() < tier.diamondChance ? 1 : 0),
       stone: tier.stone || (tier.stoneChance && random() < tier.stoneChance ? 1 : 0),
       card: null,
+      shardDetail: {},
     };
     // 圣遗物卡：按 cardChance 出卡，黄金档 25% 升金卡
     if (random() < tier.cardChance) {
       let rar = tier.cardRarity;
       if (tier.goldCardChance && random() < tier.goldCardChance) rar = 'ssr';
       gain.card = pickCard(rar);
-      if (gain.card) meta.addShard(gain.card, 5);   // 卡=直接注入 5 碎片（简化：卡即碎片包）
+      if (gain.card && !CONFIG.relicRunDef(gain.card)) return null;
+      if (gain.card) gain.shardDetail[gain.card] = CONFIG.DEPTH_CHEST.bonusCardShards;
     }
+    // Resolve actual fragment identities once, before animation; repeated IDs merge into one reward card.
+    const parts = Math.min(gain.shards, Math.max(1, CONFIG.DEPTH_CHEST.fragmentCards | 0));
+    for (let i = 0; i < parts; i++) {
+      const id = pickCard(tier.cardRarity);
+      if (!id || !CONFIG.relicRunDef(id)) return null; // Keep the chest if a reward cannot be resolved.
+      const n = Math.floor(gain.shards / parts) + (i < gain.shards % parts ? 1 : 0);
+      gain.shardDetail[id] = (gain.shardDetail[id] || 0) + n;
+    }
+    meta.deepChests.splice(idx, 1);
+    Object.entries(gain.shardDetail).forEach(([id, n]) => meta.addShard(id, n));
     meta.gold += gain.gold;
     if (gain.diamond) meta.diamond += gain.diamond;
     if (gain.stone) meta.starStones += gain.stone;

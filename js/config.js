@@ -110,6 +110,8 @@ module.exports = {
   },
 
   DEPTH_CHEST: {
+    fragmentCards: 3,           // 基础碎片分成最多3份抽取，重复圣遗物合并展示
+    bonusCardShards: 5,        // 额外圣遗物卡折算碎片数
     // 单局最深波次 → 宝箱档位（50 波顶配）
     tiers: [
       { key: 'wood',   name: '木质宝箱', max: 9,   openSec: 15 * 60,      speedDiamond: 2,  gold: [100, 200], shards: [2, 4],  cardChance: 0.20, cardRarity: 'r',    diamond: 0, stone: 0 },
