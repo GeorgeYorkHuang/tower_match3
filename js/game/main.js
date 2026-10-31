@@ -4,6 +4,7 @@ const RunSettlement = require('./flows/run-settlement.js');
 const MATCH_GLOW = require('../config/match-glow.js');
 const Bosses = require('../bosses/index.js');
 const RoseaFx = require('./fx/boss-rosea.js');
+const VeraFx = require('./fx/boss-vera.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
 const BattleActions = require('./input/battle-actions.js');
 const RelicScroll = require('./input/relic-scroll.js');
@@ -861,10 +862,14 @@ class GameMain {
     this.funcHits = this.renderer.funcHits || [];
     // v1.16.1 地面持续效果（毒池毒液池/毒棒召唤物）画在敌人下层
     this.renderer.groundFx(ctx, this.combat);
+    const veraView = { encounter: this.run.bossEncounter, boss: this.run.bossEnemy,
+      enemies: this.enemies, layout: this.ly, lock: this.run.bossLock };
+    VeraFx.drawGround(ctx, veraView);
     this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（暂停状态冻结）
     this.renderer.enemies(ctx, this.enemies, this.run.bossEncounter && this.run.bossEncounter.splitVisual);
     // v1.17.46 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
+    VeraFx.drawBody(ctx, veraView);
     this.renderer.fx(ctx, this.fx);
     this.renderer.damageNumbers(ctx, this.dmgNumbers);
     // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）

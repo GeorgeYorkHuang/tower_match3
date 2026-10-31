@@ -65,11 +65,13 @@ function tick(g, dt) {
     q.elapsed = next;
     if (q.nextSummonAt <= next + EPS) { summon(g, q); q.nextSummonAt += B.summonPeriod; }
     if (q.nextWardAt <= next + EPS) {
+      q.wardVisual = { at: next };
       e.armor = Math.min(B.wardArmorCap, e.armor + B.wardArmorStep);
       q.hasteMultiplier = B.hasteMultiplier; q.nextWardAt += B.wardPeriod;
       g.fx.push({ type: 'floatText', text: '圣坛庇护 · 减伤' + Math.round(e.armor * 100) + '%', x: e.x, y: e.y - 50, t: 0, dur: 1.5, size: 23, color: '#ffdf88' });
     }
     if (q.nextRiftAt <= next + EPS) {
+      q.riftVisual = { at: next, x: e.x, y: e.y };
       const damage = (g.run.lineMaxHp || CONFIG.LINE.hp) * B.riftWallRatio;
       const before = Math.max(0, g.run.lineHp);
       g.run.lineHp = Math.max(0, before - damage); q.wallDamage += before - g.run.lineHp;

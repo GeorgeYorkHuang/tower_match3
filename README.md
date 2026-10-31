@@ -602,3 +602,7 @@ tests/test_galvin_animation.cjs验证RGBA格式、16个裁帧边界样本、8帧
 ## 60波薇拉帧动画（2026-10-31）
 
 薇拉已替换通用Boss占位图：浅绿色藤蔓/叶片组成长裙，下半身无腿无脚，通过裙摆、藤梢与发丝摆动表现悬浮。图集`assets/images/monsters/bosses/altar_vera/hover-v1.png`为透明4列×2行8帧，180ms/帧、1.44秒循环；`enemy-visuals.js`集中配置，帧内12%透明留白由绘制裁切，不修改原图alpha。60波提前预载，沿用已有战斗动画时钟，暂停时冻结。三阶段共用基础悬浮图集；独立施法/受击/死亡动画尚未制作。未改数值、阶段技能、终极1.5倍体型与命中规则。预览`preview_vera_animation.html`、生成记录及测试存于`towerdefence_share`。
+
+## 薇拉技能表现·庇护与裂痕（2026-10-31）
+
+`js/game/fx/boss-vera.js`以Canvas只读绘制技能表现，样式/时长集中于`js/config/boss-effects.js`。裂痕按Boss现有`nextRiftAt`在结算前1.2秒开始地面预警，标出城墙目标点；原结算瞬间出现亮裂纹、城墙闪光和扩散环，仍按原8秒周期扣3%最大城墙生命。庇护在原15秒触发点记录表现快照，展开金绿护纹，敌群短暂叶环后消退，Boss保留薄护甲轮廓。表现时钟来自单局Boss elapsed，暂停冻结、战斗倍速同步，退出/死亡自动隐藏；无随机调用、无额外伤害、无新增贴图，也不遮挡棋盘。召唤和阶段转换专属特效尚待后续制作。测试与可暂停/慢速预览`preview_vera_skills.html`保存在`towerdefence_share`。
