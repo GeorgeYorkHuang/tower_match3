@@ -8,7 +8,7 @@
 
 ## 当前代码框架（2026-10-31）
 
-本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十二批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十三批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
 
 ### 启动与运行关系
 
@@ -129,6 +129,7 @@ js/
       settlement.js             结算摘要与阶段动画绘制
       upgrade-pick.js           升级技能三选一绘制
       test-field.js             测试战场与测试技能配置面板绘制
+    layers/enemies.js           怪物/Boss本体、帧动画与异常状态绘制
     icons/
       skills.js                 技能图标绘制
       chip-skin.js              特殊块底板/图案查表与加载
@@ -175,20 +176,20 @@ js/
 
 协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
 
-### 本轮重构路线：8批目标已完成3批，预计剩余5批
+### 本轮重构路线：8批目标已完成4批，预计剩余4批
 
 | 顺序 | 内容 |
 |---|---|
 | 1（已完成） | 火柱、火墙、火雨特效绘制，已迁入fx/fire.js |
 | 2（已完成） | 炮击、地雷、炮台、毒藤/毒刺、旋风，已迁入fx/cannon、poison、boomerang |
 | 3（已完成） | 六塔普攻/连消及旧shot兼容类型，已迁入fx/projectiles.js |
-| 4 | 怪物帧动画、Boss外观与异常状态绘制 |
+| 4（已完成） | 怪物帧动画、Boss外观与异常状态，已迁入layers/enemies.js |
 | 5 | 棋盘、交换/补落/扫描与障碍绘制 |
 | 6 | 战斗场景组件：塔位、全局技能、地面效果和掉落宝箱 |
 | 7 | Main职责整理：测试操作、圣遗物获取和结算协调 |
 | 8 | 依赖/数据隔离审计、必要回归和文档收口 |
 
-上表是本轮目标范围，前三项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
+上表是本轮目标范围，前四项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
 
 ## 本地测试档
 
@@ -207,6 +208,7 @@ js/
 
 ```powershell
 node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
+node F:/workspace/towerdefence_share/tests/test_enemy_layer_split.cjs
 node F:/workspace/towerdefence_share/tests/test_projectile_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_tower_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_fire_fx_split.cjs
@@ -478,3 +480,8 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第十二批：六塔普攻与连消弹道绘制提取（2026-10-31）
 
 `js/game/fx/projectiles.js`接管fxShot，含六塔普攻/连消弹体、实时projectile/ref读取，以及原shot下电弧/雷暴/冰墙/冬珠/瘴气等兼容表现；Renderer保持同名入口和原分发。布局每次传入，连消内部复用弹体的递归在模块内完成，不缓存战斗对象。固定656e092基线2268组Canvas/图片/随机调用次数顺序/事件只读对比通过，覆盖12种kind、缩放/aim、目标存活/死亡、完成状态、连消位置/时间驱动旋转、图集回退。真实连消六塔轨迹/追踪、Run连消、Boss接触、多弹道替换、其他塔特效1682组、Main绘制和110个JS语法/依赖检查通过。运动/碰撞/伤害逻辑未改。本轮8批已完成3批，剩余约5批；下一批为怪物帧动画、Boss外观与异常状态绘制。记录/测试仍在towerdefence_share。
+
+
+## R16第十三批：怪物与异常状态绘制提取（2026-10-31）
+
+`js/game/layers/enemies.js`接管Boss资源预热、怪物本体/帧动画、六类异常表现、可选血条及状态图标共13个绘制入口；Renderer保留同名委托，继续使用宿主animNow和原体型计算。Lv1—14图集/8帧参数、Boss/幼芽优先级、缺图/绘制异常回退、状态层级及默认隐藏血条不变。固定e5da013基线3520组Canvas/随机调用顺序/敌人只读对比通过，另验证Lv12—14八帧及Lv1非等时长边界和animNow=0；弹道2268组、测试战场实际交互、Boss接触/出场、Main绘制和111个JS语法/依赖审计通过。体型、碰撞、血量与状态逻辑未改。本轮8批目标完成4批、剩余约4批；下一批为棋盘/交换/补落/扫描与障碍绘制。说明/测试仍在towerdefence_share。
