@@ -3,6 +3,7 @@ const CONFIG = require('../../config.js');
 const Presentation = require('../../config/combat-presentation.js');
 const enemySize = require('../../enemy-size.js');
 const ENEMY_VISUAL = require('../../config/enemy-visuals.js');
+const EliteFx = require('../fx/elite.js');
 const { fillRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
 // 怪物表现读取原Renderer的animNow；状态/血量/时钟仍由原战斗实例持有。
@@ -91,50 +92,27 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
     const art = bossArt || summonArt;
     const animSrc = e.bossPlaceholder ? null : (art ? art.src : IMG_SRC['lv' + imgLv]);
     const animFrames = art ? art.frames : 0;
+    const visualType = isElite ? CONFIG.ENEMY.levelOf(imgLv).type : e.type;
     const src = e.isBoss ? IMG_SRC.boss
-      : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
-    const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#9b59b6' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
+      : (visualType === 'runner' ? IMG_SRC.runner : (visualType === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
+    const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#6e8566' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
     const fallbackText = e.isBoss ? 'BOSS' : (isElite ? '精' : (e.type === 'runner' ? '快' : (e.type === 'tank' ? '盾' : '👾')));
-    let drawn = false;
-    if (isElite) {
-      // v1.17.7 精英描边特效：绘制贴图时开启金色发光轮廓（shadow 描边），贴图/旧图均自动带外描边
-      ctx.save();
-      ctx.shadowColor = '#ffd54f';
-      ctx.shadowBlur = 7;
-      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
-      if (!drawn && drawImg(ctx, src, x, y, size, size)) drawn = true;
-      ctx.restore();
-    } else {
-      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
-    }
+    const elite = isElite && EliteFx.eligible(e);
+    if (elite) EliteFx.drawBase(ctx, e, x, y, size);
+    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
-      if (isElite) { // 几何回退也带描边：金色发光方框
-        ctx.save();
-        ctx.shadowColor = '#ffd54f'; ctx.shadowBlur = 7;
-        ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 2.5;
-        ctx.strokeRect(x - 2, y - 2, size + 4, size + 4);
+    }
+    if (elite) {
+      const band = drawn && EliteFx.sweep(e, x, y, size);
+      if (band && band.alpha > 0) {
+        ctx.save(); ctx.beginPath(); ctx.rect(band.x, band.y, band.w, band.h); ctx.clip();
+        ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha *= band.alpha;
+        this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames);
         ctx.restore();
       }
-    } else if (isElite) {
-      // 精英染色：紫红色罩（source-atop 只染已绘区域，保持透明底）
-      ctx.save();
-      ctx.globalCompositeOperation = 'source-atop';
-      ctx.globalAlpha = 0.42;
-      ctx.fillStyle = '#a55eea';
-      ctx.fillRect(x, y, size, size);
-      ctx.restore();
-      // 精英专属标识：紫金光环 + 顶部 ★ 角标
-      const cx = x + size / 2, cy = y + size / 2;
-      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(Date.now() / 260);
-      ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, size * 0.62, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#f1c40f';
-      ctx.beginPath();
-      ctx.moveTo(cx, y - 8); ctx.lineTo(cx + 5, y + 1); ctx.lineTo(cx - 5, y + 1);
-      ctx.closePath(); ctx.fill();
+      EliteFx.drawBadge(ctx, e, x, y, size);
     }
   }
 
@@ -158,7 +136,7 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
         const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
         // v1.17.51 D 卡 8 帧按等周期换算（12:190 / 13:150 / 14:100），其余按类型表
         const dur = (atlas && atlas.frameMs) || ENEMY_ART_DUR[imgLv]
-          || (e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal)));
+          || (e.isBoss ? FRAME_DUR.boss : (FRAME_DUR[isElite ? CONFIG.ENEMY.levelOf(imgLv).type : e.type] || FRAME_DUR.normal));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
         f = Math.floor((now + phase) / dur) % frameCount;
       }

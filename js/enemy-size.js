@@ -1,3 +1,4 @@
+const MONSTERS = require('./config/monsters.js').ENEMY;
 const VISUAL = require('./config/enemy-visuals.js');
 const BOSSES = require('./config/bosses.js');
 
@@ -12,6 +13,10 @@ module.exports = function enemySize(enemy, sizes) {
     const final = enemy.isFinalBoss === true || (def && def.tier === 'final') || enemy.waveNo === VISUAL.finalBossWave;
     size *= final ? VISUAL.finalBossScale : VISUAL.bossScale;
   }
-  if (enemy.type === 'elite') size = Math.round(size * 1.35);
+  if (enemy.type === 'elite' && !enemy.isBoss && !enemy.isSummon) {
+    const lv = Number.isFinite(enemy.genLv) && enemy.genLv >= 1 ? Math.floor(enemy.genLv) : 1;
+    const baseType = MONSTERS.levelOf(lv).type;
+    size = Math.round((VISUAL.generationSizes[lv] || sizes[baseType] || sizes.normal) * VISUAL.elite.scale);
+  }
   return size;
 };

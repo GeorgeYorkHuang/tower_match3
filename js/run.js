@@ -77,6 +77,7 @@ class Run {
     this.shuffleAmmo = 0; this.refillAmmo = 0;  // v1.12.4 全局技能累计充能（每 chargePerUse 点 → 可释放 1 次）
     this.freeShuffle = 0;   // v1.16.78 战术转移：每波免费洗牌次数（优先于充能消耗）
     this._globalMap = null;            // 剩余 2 色的全局技能归属（4 塔确定后初始化）
+    this.eliteBursts = [];
     this.storeTimers = {}; this.pickRerolls = 0;
     this.store = {};                 // 本局购买次数；强化强度只读取storeTimers，不读取次数
     this.fieldCfg = null;              // v1.16.78 战场被动配置（由主流程注入：风场/诅咒触发器）
@@ -577,6 +578,7 @@ class Run {
 
   /** run 间重置：特效构筑/待选/整体经验清空（金币由 session 保留——见 simulateSession） */
   resetRunBuild() {
+    this.eliteBursts = [];
     this.store = {}; this.storeTimers = {}; this.pickRerolls = 0;
     this.gsState = {};
     Object.keys(this.effects.towers).forEach((k) => this.effects.tower(k).resetRunBuild());

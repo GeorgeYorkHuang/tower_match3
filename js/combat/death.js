@@ -1,3 +1,4 @@
+const EliteFx = require('../game/fx/elite.js');
 'use strict';
 // Preserve active-tower snapshot order and synchronous nested deaths; no cached state.
 const SKILL_NUM = require('../config/tower-skills.js');
@@ -94,8 +95,11 @@ function onKill(combat, e) {
   });
   // 爆炸表现 + 音效（按最近伤害来源着色）
   const KILL_COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };
+  if (EliteFx.eligible(e)) EliteFx.emitDeath(g.run, e);
+  else {
   g.fx.push({ type: 'boom', x: e.x, y: e.y, t: 0, dur: 0.5, color: KILL_COLOR[e.lastDmgKey] || '#ff9f43' });
   combat.fxRing(e.x, e.y, KILL_COLOR[e.lastDmgKey] || '#ff9f43', 40, 0.35, 4);
+  }
   g.playSfx('boom', 0.35);
   // 击杀奖励钩子：经验（圣物加成）/ 精英圣物掉落 / Boss 宝箱掉落（game 层实现）
   if (rewardAllowed && g.onKillReward) g.onKillReward(e);

@@ -1,3 +1,4 @@
+const EliteFx = require('./fx/elite.js');
 const BattleShop = require('../economy/battle-shop.js');
 const PickReroll = require('../economy/pick-reroll.js');
 const TestOperations = require('./flows/test-operations.js');
@@ -387,6 +388,7 @@ class GameMain {
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
+    EliteFx.step(this.run, this.enemies, dt);
     BattleShop.tick(this.run, dt);
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     Bosses.tick(this,dt);
@@ -841,6 +843,7 @@ class GameMain {
     if (this.state === 'testfield' || (this.state === 'relicpick' && this._relicReturnState === 'testfield')) {
       this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（relicpick 冻结）
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat, this.dmgNumbers);
+      EliteFx.drawDeaths(ctx, this.run);
       if (this.testProfile) this.renderer.toast(ctx, this.toasts);
       if (this.relicDetail) {   // v1.16.113 测试战场圣遗物详情弹层
         this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
@@ -869,6 +872,7 @@ class GameMain {
     // v1.17.46 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
     VeraFx.drawBody(ctx, veraView);
+    EliteFx.drawDeaths(ctx, this.run);
     if (this.run.bossEncounter && this.run.bossEncounter.id === 'altar_galvin') {
       GalvinFx.draw(ctx, { ...veraView, towers: [...new Set(this.run.slotOrder)].map(key =>
         ({ key, ...this.combat.towerMuzzle(key) })) });
