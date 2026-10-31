@@ -1433,8 +1433,9 @@ class GameMain {
     const items = this.testHits || [];
     for (const it of items) {
       if (!it.hit(p.x, p.y)) continue;
-      // 面板打开时只响应面板项（panel_*）
-      if (this.testPanel && !String(it.id).startsWith('panel_')) return true;
+      // 边界只用于外部关闭，不能抢先吞掉面板按钮；跳过被覆盖的底层控件。
+      if (it.id === 'panel_bounds') continue;
+      if (this.testPanel && !String(it.id).startsWith('panel_')) continue;
       switch (it.id) {
         case 'tf_back': this.goMenu(); return true;
         case 'tf_speed': this.cycleTestSpeed(); return true;
@@ -1456,7 +1457,7 @@ class GameMain {
         default: return true;
       }
     }
-    return false;
+    return !!this.testPanel; // 面板空白处也消费点击，避免穿透。
   }
 
   /** 主界面触摸分发：命中 menuHits（渲染时重建）中第一个按键；面板打开时仅响应面板项 */
