@@ -617,7 +617,10 @@ class GameMain {
     this._overlapWave = false;
     this.wave.start(keep); // run.wave += 1
     // v1.17.46 20 波专属 Boss 贴图预热：进波即开始加载，避免 Boss 出场首秒回退旧 boss.png
-    if (this.run.wave === 20 && this.renderer && this.renderer.preloadBoss) this.renderer.preloadBoss('altar_rosea');
+    if (this.renderer && this.renderer.preloadBoss) {
+      if (this.run.wave === 20) this.renderer.preloadBoss('altar_rosea');
+      if (this.run.wave === 40) this.renderer.preloadBoss('altar_galvin');
+    }
     const w = this.run.wave || 1; // v1.16.124 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
     this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;

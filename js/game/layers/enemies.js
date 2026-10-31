@@ -2,13 +2,15 @@
 const CONFIG = require('../../config.js');
 const Presentation = require('../../config/combat-presentation.js');
 const enemySize = require('../../enemy-size.js');
+const ENEMY_VISUAL = require('../../config/enemy-visuals.js');
 const { fillRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
 // 怪物表现读取原Renderer的animNow；状态/血量/时钟仍由原战斗实例持有。
 function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
-/* v1.17.50 专属 Boss 帧动画表：id → { src, frames, frameSize }（每帧等大，横向排列） */
+/* v1.17.50 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
+  altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
 };
 /* v1.17.50 代际小怪图集上限：C 卡（Lv9-11）+ v1.17.51 D 卡（Lv12-14）后最高到 Lv14；
  * 超界代（Lv15 起，61+ 波递推怪）按类型回退到最近一代已有形象，避免画成老代 */
@@ -100,8 +102,9 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
     // v1.17 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
-      // frames：专属 Boss 表传入的帧数（6）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
+      // frames：专属 Boss 表传入的帧数（6或8）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
       const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
+      const atlas = e.isBoss && BOSS_ART[e.bossId];
       let f;
       if (!frames && imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
@@ -112,10 +115,19 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
       } else {
         const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
         // v1.17.51 D 卡 8 帧按等周期换算（12:190 / 13:150 / 14:100），其余按类型表
-        const dur = ENEMY_ART_DUR[imgLv]
+        const dur = (atlas && atlas.frameMs) || ENEMY_ART_DUR[imgLv]
           || (e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal)));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
         f = Math.floor((now + phase) / dur) % frameCount;
+      }
+      if (atlas && atlas.columns) {
+        // Round cell boundaries independently: generated atlases may have odd pixel dimensions.
+        const col = f % atlas.columns, row = Math.floor(f / atlas.columns);
+        const sx = Math.round(col * img.width / atlas.columns), sy = Math.round(row * img.height / atlas.rows);
+        const sw = Math.round((col + 1) * img.width / atlas.columns) - sx;
+        const sh = Math.round((row + 1) * img.height / atlas.rows) - sy;
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
+        return true;
       }
       const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);

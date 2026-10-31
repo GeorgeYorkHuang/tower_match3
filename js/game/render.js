@@ -105,6 +105,7 @@ const IMG_SRC = {
   lv14: 'assets/images/monsters/enemies/lv14.png',
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
+  boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
   coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',
   silver: 'assets/images/resources/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
@@ -461,7 +462,7 @@ class Renderer {
 
   drawEnemyBody(ctx, e, x, y, size, isElite) { return this._getEnemyLayer().drawEnemyBody.call(this, ctx, e, x, y, size, isElite); }
 
-  /** 按等级动画表裁剪绘制当前帧（横向帧循环）；图未就绪/绘制异常返回 false
+  /** 按动画表裁剪绘制当前帧（兼容横向与多行图集）；图未就绪/绘制异常返回 false
    *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
    *  其余等级为等时长（v1.17.51 Lv12-14 八帧按等周期 190/150/100ms，其它 5 帧按类型表）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) { return this._getEnemyLayer().drawEnemyAnim.call(this, ctx, src, e, x, y, size, isElite, imgLv, frames); }

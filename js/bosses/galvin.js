@@ -36,7 +36,7 @@ function configure(g, e, twin) {
   e.hp = e.maxHp = twin ? B.hp * B.twinHpRatio : B.hp; e.delayHp = e.maxHp;
   e.armor = twin ? B.twinArmor : B.armor; e.attack = B.attack;
   e.speed = (g.wave.ly.wallY - g.wave.ly.areaY - g.wave.ly.entryH) / CONFIG.WAVE.seconds * (twin ? B.twinSpeed : B.speed) / 1.5;
-  e.controlResist = B.controlResist; e.bossPlaceholder = true;
+  e.controlResist = B.controlResist; e.bossPlaceholder = false;
 }
 function spawn(g, e, id) {
   if (id !== B.id) return;
