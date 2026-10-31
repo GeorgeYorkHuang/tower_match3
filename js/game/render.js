@@ -379,7 +379,7 @@ class Renderer {
       const b=s.miniBoss;
       text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');
       progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
-      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/3',375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
+      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/'+(b.shieldMaxLayers||1),375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
     }
     // 塔位区（v1.17.11 即城墙，先画背景）
     this.towerRow(ctx, s);
