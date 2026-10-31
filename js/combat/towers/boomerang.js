@@ -159,7 +159,7 @@ function tryAttackDebuff(combat, o, dmg) {
 function tickBoomerang(combat, dt) {
   const g = combat.game;
   const stormBalance=SKILL_NUM.boomerang['风暴镖'], bounceBalance=SKILL_NUM.boomerang['弹力镖'];
-  // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖 10% 伤害，命中即消失；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
+  // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖10%伤害，命中不消失，每镖对同敌0.3秒冷却；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
   const cyclone = combat.lv('boomerang', '风暴镖');
   if (cyclone > 0) {
     combat.timers.storm = (combat.timers.storm || 0) + dt;
@@ -255,9 +255,11 @@ function updateStorms(combat, dt) {
       d.a += d.spd * dt;
       const dx = st.x + Math.cos(d.a) * d.r;
       const dy = st.y + Math.sin(d.a) * d.r;
-      const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - dx, o.y - dy) < 14);
-      if (hitE && !d.hitIds[hitE.id]) {
-        d.hitIds[hitE.id] = true;
+      const cooldowns = d.hitCooldowns || (d.hitCooldowns = Object.create(null));
+      for(const id of Object.keys(cooldowns)){cooldowns[id]-=dt;if(cooldowns[id]<=1e-9)delete cooldowns[id];}
+      for(const hitE of combat.enemies()) {
+        if(hitE.hp<=0 || cooldowns[hitE.id]>0 || Math.hypot(hitE.x-dx,hitE.y-dy)>=SKILL_NUM.boomerang['风暴镖'].hitRadius)continue;
+        cooldowns[hitE.id] = SKILL_NUM.boomerang['风暴镖'].hitCooldown;
         combat.damage(hitE, st.perDmg, 'boomerang');
         combat.fxFlash(dx, dy, '#c39bd3');
         combat.fxParticle(dx, dy, '#c39bd3', 3, 16, 0.25, 80, 4);
