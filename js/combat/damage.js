@@ -83,10 +83,11 @@ function damage(combat, e, dmg, srcKey, kind = 'hit') {
   const m = g.meta;
   const dmgLv = (m && m.relicBonus && m.relicBonus().dmg) || 0;
   if (dmgLv > 0) v *= (1 + 0.08 * dmgLv);
+  const shieldBefore = Math.max(0, Number(e.shield) || 0);
   v = Rosea.absorb(e,v);
   const hpBefore = e.hp;
   e.hp -= v;
-  recordDamage(combat, e, hpBefore, srcKey, kind);
+  recordDamage(combat, e, hpBefore, srcKey, kind, shieldBefore);
   e.lastDmgKey = srcKey || e.lastDmgKey;
   if (e.hp <= 0 && !e._dying) {
     e._dying = true;
