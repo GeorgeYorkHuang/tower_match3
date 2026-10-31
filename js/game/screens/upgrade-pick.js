@@ -1,13 +1,14 @@
 'use strict';
 const CONFIG = require('../../config.js');
+const PickLayout = require('./pick-layout.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H, L = CONFIG.LAYOUT;
 // 仅绘制升级候选卡；激活、分支锁定、pending扣除仍由原Run/effects及点击路由处理。
 function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }) {
-  function pickLayer(ctx, group, pending, onPick) {
-    const w = L.pickLayer.w, h = L.pickLayer.h;
-    // v1.16.56：面板整体上移 110px（y≈373，面板底 1033 在塔位区顶 1042 上方）——露出下方防御塔区，暂停时可点击查看塔详情
-    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 160;
+  function pickLayer(ctx, group, pending, onPick, reroll) {
+    const box = PickLayout.geometry('skill', reroll);
+    const { x, y, w, h } = box;
+    // 由实际slotY限制窗口底边，保留完整塔区用于查看详情。
     // v1.16.7 入场动效：面板淡入 + 三卡错峰上浮（首次渲染锁定时间基准）
     if (!group._pickT0) group._pickT0 = Date.now();
     const now = Date.now();
@@ -15,7 +16,7 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
     const inK = Math.min(1, inT / 0.28);          // 面板整体淡入
     // 遮罩（v1.16.56 透明度 0.42→0.28：面板上移后需让下方防御塔区清晰可见可点）
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(0, 0, 750, LOGIC_H);
+    PickLayout.backdrop(ctx, box);
     ctx.globalAlpha = inK;
     // 中央面板：投影厚度 + 半透明玻璃底 + 高光描边（立体感）
     fillRoundRect(ctx, x + 4, y + 6, w, h, 20, 'rgba(0,0,0,0.38)');       // 右下投影
@@ -342,6 +343,14 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       text(ctx, btnTxt, btnX + btnW / 2, btnY + btnH / 2, 26, upgrading ? '#5c4a00' : '#ffffff', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
+    if (reroll) {
+      const rx = 210, ry = y + h - 64, rw = 330, rh = 44;
+      const affordable = reroll.gold >= reroll.cost;
+      fillRoundRect(ctx, rx, ry, rw, rh, 22, affordable ? '#514222' : '#2d343c');
+      strokeRoundRect(ctx, rx, ry, rw, rh, 22, affordable ? '#f1cf7d' : '#66717b', 1.5);
+      text(ctx, '重掷 · ' + reroll.cost + ' 银币', 375, ry + rh / 2, 23, affordable ? '#ffe3a0' : '#9da7b1', 'center');
+      onPick.reroll = { hit: (px, py) => px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
+    }
     ctx.globalAlpha = 1;
   }
 

@@ -10,8 +10,6 @@ module.exports = {
 
   RELIC_PICK_WEIGHT: { r: 0.50, sr: 0.38, ssr: 0.12 },   // 三选一稀有度权重（设计文档 2.2：蓝50/紫38/金12）
 
-  RELIC_REROLL: { costs: [200, 400, 800, 1600] },
-
   RELIC_FX: { cooldown: 0.8 },
 
   DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8, ur: 10 },     // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金/红）

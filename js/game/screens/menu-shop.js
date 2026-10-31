@@ -33,7 +33,7 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned }) {
     // —— 2. 圣遗物宝箱（金币购买随机碎片，每日限购；蓝/紫/金 3 档稀有度）——
     text(ctx, '圣遗物宝箱', 55, 500, 26, '#ffffff', 'left');
     const chests = [CONFIG.SHOP_CHEST.blue, CONFIG.SHOP_CHEST.purple, CONFIG.SHOP_CHEST.gold];
-    const cbw = 205, cbh = 150, cgap = 12;
+    const cbw = 205, cbh = 176, cgap = 12;
     chests.forEach((cd, i) => {
       const cx = 55 + i * (cbw + cgap), cy = 528;
       const left = (s.shopLeft && s.shopLeft[cd.key] !== undefined) ? s.shopLeft[cd.key] : cd.daily;
@@ -41,16 +41,16 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned }) {
       push('shopChest', { key: cd.key }, cx, cy, cbw, cbh);
       fillRoundRect(ctx, cx, cy, cbw, cbh, 16, '#1b2230');
       strokeRoundRect(ctx, cx, cy, cbw, cbh, 16, cd.color, 1.5);
-      if (!drawImg(ctx, cImg, cx + cbw / 2 - 34, cy + 22, 68, 68)) text(ctx, cd.icon, cx + cbw / 2, cy + 56, 46, cd.color, 'center');
-      text(ctx, cd.name, cx + cbw / 2, cy + 98, 17, '#ffffff', 'center');
-      text(ctx, `随机 ${cd.shards.join('~')} 个碎片 · 剩 ${left}/${cd.daily}`, cx + cbw / 2, cy + 122, 12, left > 0 ? '#9fb2c3' : '#ff6b6b', 'center');
+      if (!drawImg(ctx, cImg, cx + cbw / 2 - 40.8, cy + 8, 81.6, 81.6)) text(ctx, cd.icon, cx + cbw / 2, cy + 49, 55.2, cd.color, 'center');
+      text(ctx, cd.name, cx + cbw / 2, cy + 108, 17, '#ffffff', 'center');
+      text(ctx, `随机 ${cd.shards.join('~')} 个碎片 · 剩 ${left}/${cd.daily}`, cx + cbw / 2, cy + 132, 12, left > 0 ? '#9fb2c3' : '#ff6b6b', 'center');
       if (left > 0) {
-        fillRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#2c3542');
-        strokeRoundRect(ctx, cx + cbw / 2 - 45, cy + 130, 90, 32, 9, '#f7c948', 1.2);
-        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw / 2 - 38, cy + 137, 16, 16)) text(ctx, '🪙', cx + cbw / 2 - 32, cy + 144, 14, '#f7c948', 'center');
-        text(ctx, `${cd.price}`, cx + cbw / 2 - 16, cy + 148, 16, '#f7c948', 'left');
+        fillRoundRect(ctx, cx + cbw / 2 - 45, cy + 142, 90, 32, 9, '#2c3542');
+        strokeRoundRect(ctx, cx + cbw / 2 - 45, cy + 142, 90, 32, 9, '#f7c948', 1.2);
+        if (!drawImg(ctx, IMG_SRC.coin, cx + cbw / 2 - 38, cy + 149, 16, 16)) text(ctx, '🪙', cx + cbw / 2 - 32, cy + 156, 14, '#f7c948', 'center');
+        text(ctx, `${cd.price}`, cx + cbw / 2 - 16, cy + 160, 16, '#f7c948', 'left');
       } else {
-        text(ctx, `明日再来 ${left}/${cd.daily}`, cx + cbw / 2, cy + 148, 13, '#ff6b6b', 'center');
+        text(ctx, `明日再来 ${left}/${cd.daily}`, cx + cbw / 2, cy + 160, 13, '#ff6b6b', 'center');
       }
     });
     // —— 3. 技能解锁（三消 2 组 + 全局 2 款，金币购买；v1.17.45 连消技配置下架，不再售卖）——

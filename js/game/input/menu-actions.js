@@ -198,11 +198,11 @@ function onMenuTap(game, p) {
             return;
           }
           game.save.save();
-          const names = res.gains.map((g) => {
-            const dd = CONFIG.relicRunDef(g.id) || { id: g.id, name: g.id, icon: '' };
-            return `${dd.icon || ''}${dd.name || g.id}×${g.n}`;
-          }).join(' ');
-          game.toast(`宝箱开启：${names}`, '#f7c948');
+          game.menuPanel = { type: 'chestOpen', mode: 'shop',
+            tier: ({ blue: 'bronze', purple: 'silver', gold: 'gold' })[it.data.key],
+            gain: { shardDetail: Object.fromEntries(res.gains.map(g => [g.id, g.n])) }, openedAt: Date.now() };
+          game.menuHits = []; // 防止旧商店命中区被连续点击重复购买。
+
           return;
         }
         case 'shopSkill': {

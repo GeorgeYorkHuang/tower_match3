@@ -136,9 +136,10 @@ class CombatSystem {
     const TOWER_ASPD = { fire: 'fire_forge', ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
     const aspR = this.relicVal(TOWER_ASPD[key]);
     if (aspR > 0) iv /= (1 + aspR / 100);
-    // v1.16.77 局内商店·攻速强化：+15%/层（本局临时）
+    // 局内商店限时攻速乘区；购买次数不影响强度。
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
-    if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
+    if (store.speedMultiplier != null) iv /= store.speedMultiplier;
+    else if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
     // v1.16.101 快充3★：充能满层释放过载脉冲，全塔攻速 +20%（持续 3 秒，触发后清层重计）

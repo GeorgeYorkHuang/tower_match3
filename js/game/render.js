@@ -109,6 +109,7 @@ const IMG_SRC = {
   boss_altar_vera: 'assets/images/monsters/bosses/altar_vera/hover-v1.png',
   boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
+  miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
   coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',
   silver: 'assets/images/resources/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
   chestWood: 'assets/images/resources/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
@@ -619,7 +620,7 @@ class Renderer {
     return this._upgradePick;
   }
 
-  pickLayer(ctx, group, pending, onPick) { return this._getUpgradePick().pickLayer.call(this, ctx, group, pending, onPick); }
+  pickLayer(ctx, group, pending, onPick, reroll) { return this._getUpgradePick().pickLayer.call(this, ctx, group, pending, onPick, reroll); }
 
   /** 波次结束弹窗：展示奖励，点击「继续」进入三选一或下一波；返回按钮命中检测 */
   waveClearLayer(ctx, s, prevBtn) {
@@ -810,7 +811,7 @@ class Renderer {
    * s.panel = { type:'chestOpen', mode:'deep'|'relic', gain?, reward?, tier? }
    */
   menuChestOpen(ctx, s, push) {
-    if (s.panel.mode === 'deep') {
+    if (s.panel.mode === 'deep' || s.panel.mode === 'shop') {
       if (!this._chestRewards) this._chestRewards = createChestRewards({ drawImg, IMG_SRC, relicIconSrc });
       return this._chestRewards.draw(ctx, s.panel, push);
     }

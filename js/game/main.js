@@ -1,3 +1,5 @@
+const BattleShop = require('../economy/battle-shop.js');
+const PickReroll = require('../economy/pick-reroll.js');
 const TestOperations = require('./flows/test-operations.js');
 const RelicAcquisition = require('./flows/relic-acquisition.js');
 const RunSettlement = require('./flows/run-settlement.js');
@@ -385,6 +387,7 @@ class GameMain {
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
+    BattleShop.tick(this.run, dt);
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     Bosses.tick(this,dt);
     if (this.run.broken) return;
@@ -682,32 +685,25 @@ class GameMain {
 
   /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
   buyStoreItem(idx) {
-    const item = (CONFIG.STORE.items || [])[idx];
-    if (!item) return;
-    const bought = this.run.store[item.id] || 0;
-    if (bought >= item.max) { this.toast('已达上限', '#9fb2c3'); return; }
-    const cost = item.cost[bought];
-    if (this.run.gold < cost) { this.toast('银币不足', '#ff6b6b'); return; }
-    this.run.gold -= cost;
-    this.run.store[item.id] = bought + 1;
-    if (item.id === 'energy') {
-      // 所有已解锁塔能量 +15（封顶能量上限）
-      this.run.slotOrder.forEach((k) => {
-        const t = this.run.effects.tower(k);
-        if (t && t.level > 0) t.energy = Math.min(this.run.armoryEnergyMax(), t.energy + 15);
-      });
-      this.toast(`⚡ 能量补给 +15`, '#7ef0a3');
-    } else if (item.id === 'wall') {
-      const maxHp = this.run.lineMaxHp || CONFIG.LINE.hp;
-      const heal = Math.round(maxHp * 0.3);
-      this.run.lineHp = Math.min(maxHp, this.run.lineHp + heal);
-      this.toast(`🛡️ 城墙修复 +${heal}`, '#7fd4ff');
-    } else if (item.id === 'atk') {
-      this.toast(`⚔️ 全塔攻击 +20%`, '#ff8c42');
-    } else if (item.id === 'spd') {
-      this.toast(`⏩ 全塔攻速 +15%`, '#7ca8ff');
+    const item = CONFIG.STORE.items[idx];
+    if (!item) return false;
+    const res = BattleShop.buy(this.run, item.id);
+    if (!res.ok) {
+      this.toast(({ limit: '本局已售罄', gold: '银币不足', full: '城墙生命已满', energy: '塔能量已满' })[res.reason] || '暂不可购买', '#ffb480');
+      return false;
     }
-    this.save.save();
+    this.toast(item.name + ' · ' + item.desc, item.color);
+    return true;
+  }
+
+  rerollUpgradePick() {
+    const group = this.pickQueue[this.pickIndex];
+    if (this.state !== 'picking' || !group) return false;
+    const res = PickReroll.reroll(this.run, () => this.run.effects.rerollUpgradeCandidates(this.run.slotOrder));
+    if (!res.ok) { this.toast(res.reason === 'gold' ? '银币不足（需' + res.cost + '）' : '暂无可用候选', '#ffb480'); return false; }
+    group.candidates = res.result.candidates; group.target = res.result.target;
+    delete group._pickT0; this.pickHits = {};
+    return true;
   }
 
   /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（v1.17 币种分离） */
@@ -852,8 +848,10 @@ class GameMain {
       if (this.state === 'relicpick') {
         // v1.16.109 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
         if (!this.relicPick.t) this.relicPick.t = Date.now();
-        this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
+        this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: 1053, towerBottom: 1153 }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
       }
+      if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
+      else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
       return;
     }
     const st = this.sceneState();
@@ -886,11 +884,11 @@ class GameMain {
     if (this.state === 'picking') {
       const group = this.pickQueue[this.pickIndex];
       const pending = this.remainingPending(group.tower);
-      this.renderer.pickLayer(ctx, group, pending, this.pickHits);
+      this.renderer.pickLayer(ctx, group, pending, this.pickHits, { gold: this.run.gold, cost: PickReroll.cost(this.run), towerTop: this.ly.slotY, towerBottom: this.ly.slotY + this.ly.slotSize });
     }
     if (this.state === 'relicpick') {
       if (!this.relicPick.t) this.relicPick.t = Date.now(); // 弹出动画首帧
-      this.renderer.relicPickLayer(ctx, this.relicPick, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // v1.17 修复：漏传银币导致重掷按钮恒显"银币不足"
+      this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: this.ly.slotY, towerBottom: this.ly.slotY + this.ly.slotSize }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // v1.17 修复：漏传银币导致重掷按钮恒显"银币不足"
     }
     // v1.16.73 本局圣遗物详情弹层（战斗暂停）
     if (this.relicDetail) {
@@ -974,7 +972,7 @@ class GameMain {
       stage: this.menuStage,   // v1.16.82 战斗态也需要战场标识（行动区主题背景切换）
       anim: this.anim,
       waveClear: this.waveClear,
-      lineHp: run.lineHp, lineMaxHp: CONFIG.LINE.hp,
+      lineHp: run.lineHp, lineMaxHp: run.lineMaxHp || CONFIG.LINE.hp,
       grid: run.board.grid,
       selected: this.selected || this.pickCell, // 滑动高亮 / 点击选中高亮
       towers: slots,
@@ -991,6 +989,7 @@ class GameMain {
       chargePerUse: CONFIG.GLOBAL_SKILL.chargePerUse,
       runSpeed: this.runSpeed,   // v1.16.13 主战斗倍速（底部功能栏右下角按钮显示）
       shopOpen: this.shopOpen,   // v1.16.90 局内商店开关（此前缺失导致商店面板永不渲染 → 点击无效果）
+      storeTimers: run.storeTimers,
       store: run.store,          // v1.16.90 局内商店已购层数
     };
   }

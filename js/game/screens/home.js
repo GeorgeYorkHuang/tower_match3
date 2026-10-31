@@ -21,7 +21,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     push('stageNext', null, aRx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
     push('stage', { id: stage }, ix, iy, iw, iw + 62);
 
-    const requirement = stage === 'abyss' ? (!s.normalFieldCleared ? '通关任一普通战场解锁' : '') : (stage === 'lava' || stage === 'frost') && (s.ancientBestWave || 0) < 40 ? '圣坛花园达到40波解锁' : '';
+    const requirement = s.testProfile ? '' : (stage === 'abyss' ? (!s.normalFieldCleared ? '通关任一普通战场解锁' : '') : (stage === 'lava' || stage === 'frost') && (s.ancientBestWave || 0) < 40 ? '圣坛花园达到40波解锁' : '');
     const locked = !!requirement;
 
     // v1.16.78 战场图标：无背景直出（v1.17.48 放大 30% → 338px；锁定态整体压暗）

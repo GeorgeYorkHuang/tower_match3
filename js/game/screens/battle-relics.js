@@ -1,5 +1,6 @@
 'use strict';
 const CONFIG = require('../../config.js');
+const PickLayout = require('./pick-layout.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 // 仅负责局内圣遗物三选一/详情绘制；奖励、重掷、暂停与关闭归原游戏逻辑。
@@ -7,29 +8,28 @@ const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
   function relicPickLayer(ctx, pick, onPick, elapsed, gold) {
     if (!pick || !pick.candidates) return;
+    const box = PickLayout.geometry('relic', pick), { x, y, w, h } = box;
     // v1.16.74 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
     const pe = Math.min(1, (elapsed || 0) / 500);
     const es = 1 + 2.70158 * Math.pow(pe - 1, 3) + 1.70158 * Math.pow(pe - 1, 2);
-    const sc = pe >= 1 ? 1 : Math.max(0.2, es);
+    const sc = pe >= 1 ? 1 : Math.min(1, Math.max(0.2, es));
     const al = pe >= 1 ? 1 : Math.min(1, pe * 1.6);
     ctx.save();
     ctx.globalAlpha = al;
-    ctx.translate(375, 560);
-    ctx.scale(sc, sc);
-    ctx.translate(-375, -560);
 
-    const w = 640, h = 540; // v1.16.73 纵向扩容 420→500；v1.17 +40 容纳重掷按钮，描述三行防出框
-    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
+
     // 全屏遮罩：中心暖光、四角压暗（比纯黑更有"显现"感）
     const mask = ctx.createRadialGradient(375, 560, 60, 375, 560, 900);
     mask.addColorStop(0, 'rgba(30,20,6,0.78)');
     mask.addColorStop(1, 'rgba(8,6,10,0.92)');
     ctx.fillStyle = mask;
-    ctx.fillRect(0, 0, 750, LOGIC_H);
+    PickLayout.backdrop(ctx, box);
+    // Only the panel animates; its bounded scale can never cover the exposed tower strip.
+    ctx.translate(375, y + h / 2); ctx.scale(sc, sc); ctx.translate(-375, -y - h / 2);
     // 背景星光粒子（确定性伪随机闪烁）
     const now = Date.now();
     for (let i = 0; i < 26; i++) {
-      const sx = (i * 97.3) % 750, sy = ((i * 61.7) % LOGIC_H);
+      const sx = x + (i * 97.3) % w, sy = y + ((i * 61.7) % h);
       const tw = 0.4 + 0.6 * Math.abs(Math.sin(now / 700 + i * 1.37));
       ctx.fillStyle = i % 3 ? '#ffd34d' : '#fff6d8';
       ctx.globalAlpha = 0.35 * tw;
@@ -117,12 +117,9 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
       text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, '#ffd34d', 'center');
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
-    // v1.17 重掷按钮（局内银币付费 200/400/800/1600 指数增长，每窗口 4 次封顶；gold 为当前局内银币）
-    const rn = pick.rerolls || 0;
-    const rrCosts = CONFIG.RELIC_REROLL.costs;
-    const maxReached = rn >= rrCosts.length;
-    const cost = maxReached ? 0 : rrCosts[rn];
-    const canPay = !maxReached && (gold || 0) >= cost;
+    // 本局共享重掷计数，500银币起、每次+500，无窗口次数上限。
+    const cost = pick.rerollCost || CONFIG.PICK_REROLL.first;
+    const canPay = (gold || 0) >= cost;
     const ry = y + h - 96, rw = 300, rh = 44, rx = (750 - rw) / 2;
     const rbG = ctx.createLinearGradient(0, ry, 0, ry + rh);
     rbG.addColorStop(0, canPay ? '#4a3a18' : '#332c22');
@@ -130,12 +127,10 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     fillRoundRect(ctx, rx, ry, rw, rh, 14, rbG);
     strokeRoundRect(ctx, rx, ry, rw, rh, 14, canPay ? '#ffd34d' : '#5a5448', 1.5);
     if (canPay) {
-      if (!drawImg(ctx, IMG_SRC.silver, rx + 96, ry + 10, 24, 24)) text(ctx, '🪙', rx + 108, ry + 24, 18, '#c9d6e4', 'center');
-      text(ctx, `🔄 重掷 · ${cost}`, rx + 126, ry + rh / 2 + 2, 24, '#ffd34d', 'left');
-    } else if (maxReached) {
-      text(ctx, '🔄 已达重掷上限', 375, ry + rh / 2 + 2, 20, '#7a7468', 'center');
+      text(ctx, `重掷 · ${cost} 银币`, 375, ry + rh / 2 + 2, 22, '#ffd34d', 'center');
+
     } else {
-      text(ctx, `🔄 银币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
+      text(ctx, `银币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
     }
     onPick.reroll = { hit: (px, py) => px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
     // 底部提示

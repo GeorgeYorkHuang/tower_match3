@@ -1,3 +1,4 @@
+const PickReroll = require('../../economy/pick-reroll.js');
 // Workflow methods run on the current GameMain host; no game state is cached here.
 const CONFIG = require('../../config.js');
 const RelicKill = require('../../relics/kill-hooks.js');
@@ -133,16 +134,11 @@ module.exports = {
 
   rerollRelicPick() {
     if (!this.relicPick) return false;
-    const n = this.relicPick.rerolls || 0;
-    const costs = CONFIG.RELIC_REROLL.costs;
-    if (n >= costs.length) { this.toast('已达重掷上限', '#9fb2c3'); return false; }
-    const cost = costs[n];
-    if (this.run.gold < cost) { this.toast(`银币不足（需 ${cost}）`, '#ff6b6b'); return false; }
-    const cands = this._rollRelicCandidates(!!this.relicPick.star3);
-    if (!cands || !cands.length) { this.toast('暂无可用候选', '#9fb2c3'); return false; }
-    this.run.gold -= cost;
-    this.relicPick.rerolls = n + 1;
-    this.relicPick.candidates = cands;
+    const res = PickReroll.reroll(this.run, () => this._rollRelicCandidates(!!this.relicPick.star3));
+    if (!res.ok) { this.toast(res.reason === 'gold' ? '银币不足（需' + res.cost + '）' : '暂无可用候选', '#ffb480'); return false; }
+    const cost = res.cost;
+    this.relicPick.rerolls = (this.relicPick.rerolls || 0) + 1;
+    this.relicPick.candidates = res.result;
     this.relicPickHits = []; // 命中区随候选刷新
     this.toast(`已重掷 · 消耗 ${cost} 🪙`, '#f7c948');
     return true;

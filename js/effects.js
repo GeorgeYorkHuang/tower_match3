@@ -394,6 +394,12 @@ class EffectManager {
     return res;
   }
 
+  /** 重抽当前窗口，不创建/扣除pending，不改变触发升级的塔。 */
+  rerollUpgradeCandidates(ownedKeys) {
+    const group = this._buildGroup(ownedKeys);
+    return group ? { candidates: group.cands, target: group.target } : null;
+  }
+
   /**
    * 生成升级三选一队列：每组 3 张候选分别来自随机 3 座已激活塔（v1.16.28 跨塔三选一；
    * ownedKeys 限制塔池为出战塔，level>0 过滤未拥有塔）。

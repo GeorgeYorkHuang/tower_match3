@@ -1,3 +1,4 @@
+const BattleShop = require('./economy/battle-shop.js');
 const ChainAttacks = require('./skills/chain-attacks.js');
 const WaveRelics = require('./relics/wave-hooks.js');
 const MatchRelics = require('./relics/match-hooks.js');
@@ -76,7 +77,8 @@ class Run {
     this.shuffleAmmo = 0; this.refillAmmo = 0;  // v1.12.4 全局技能累计充能（每 chargePerUse 点 → 可释放 1 次）
     this.freeShuffle = 0;   // v1.16.78 战术转移：每波免费洗牌次数（优先于充能消耗）
     this._globalMap = null;            // 剩余 2 色的全局技能归属（4 塔确定后初始化）
-    this.store = { atk: 0, spd: 0 };   // v1.16.77 局内商店临时强化层数（本局生效，局末清零）
+    this.storeTimers = {}; this.pickRerolls = 0;
+    this.store = {};                 // 本局购买次数；强化强度只读取storeTimers，不读取次数
     this.fieldCfg = null;              // v1.16.78 战场被动配置（由主流程注入：风场/诅咒触发器）
     this.windStacks = 0;               // v1.16.78 霜风峡谷：风场增速层数（每 windEvery 波 +1，移速 ×1.10^n）
     this.curseStacks = 0;              // v1.16.78 深渊裂隙：诅咒层数（每 curseEvery 波 +1，怪物血量 ×1.15^n）
@@ -431,23 +433,10 @@ class Run {
     return true;
   }
 
-  /** v1.16.77 局内商店强化查询：攻击层数 / 攻速层数（战斗时直接乘以 1+0.2×atk、1/(1+0.15×spd) 档） */
-  storeBuff() {
-    return { atk: this.store.atk || 0, spd: this.store.spd || 0 };
-  }
+  /** 局内限时道具乘区；到期恢复，不将购买次数视为永久层数。 */
+  storeBuff() { return BattleShop.buffs(this); }
 
-  /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（失败返回 false） */
-  buyStoreItem(id) {
-    const item = (CONFIG.STORE.items || []).find((s) => s.id === id);
-    if (!item) return false;
-    const bought = this.store[id] || 0;
-    if (bought >= item.max) return false;
-    const cost = item.cost[bought];
-    if (this.gold < cost) return false;
-    this.gold -= cost;
-    this.store[id] = bought + 1;
-    return true;
-  }
+  buyStoreItem(id) { return BattleShop.buy(this, id).ok; }
 
   /** 真实路径：棋盘交换 → 按连锁步逐组结算（每步单独成组，供逐级连锁动画逐级 toast）＋ v5.2 连消技 */
   trySwap(r1, c1, r2, c2) {
@@ -588,6 +577,7 @@ class Run {
 
   /** run 间重置：特效构筑/待选/整体经验清空（金币由 session 保留——见 simulateSession） */
   resetRunBuild() {
+    this.store = {}; this.storeTimers = {}; this.pickRerolls = 0;
     this.gsState = {};
     Object.keys(this.effects.towers).forEach((k) => this.effects.tower(k).resetRunBuild());
     this.wave = 0; this.lineHp = CONFIG.LINE.hp; this.broken = false;

@@ -1,6 +1,7 @@
 'use strict';
 const CONFIG=require('./config.js');
 function reason(id,meta,test){
+ if(test)return ''; // 测试档只绕过战场准入，不回写普通档通关记录。
  if(id==='test')return test?'':'仅测试账号可进入测试战场';
  if(id==='lava'||id==='frost')return (meta.ancientBestWave||0)>=40?'':'圣坛花园达到40波后解锁';
  if(id==='abyss')return meta.normalFieldCleared?'':'通关一次普通战场（完整清除第60波）后解锁';

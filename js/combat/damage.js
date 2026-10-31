@@ -10,9 +10,10 @@ function shotDmg(combat, key, isSkill) {
   const dps = combat.game.run.effects.towerDps(key);
   const iv = CONFIG.TOWERS[key].atkInterval;
   let dmg = dps * iv * (combat.game.run.gsState && combat.game.run.gsState.forge > 0 ? GS_BALANCE.forge.damageMultiplier : 1);
-  // v1.16.77 局内商店·攻击强化：+20%/层（本局临时）
+  // 局内商店只读取限时乘区；旧最小测试桩仍兼容atk字段。
   const store = combat.game.run.storeBuff ? combat.game.run.storeBuff() : { atk: 0 };
-  if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
+  if (store.damageMultiplier != null) dmg *= store.damageMultiplier;
+  else if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
   // v1.16.78 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
   // v1.16.96 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
   const run = combat.game.run;

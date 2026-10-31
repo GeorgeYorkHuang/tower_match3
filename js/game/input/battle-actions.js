@@ -149,17 +149,20 @@ function dispatchTouch(game, p, version) {
   if (game.state === 'testfield') {
     if (game.onTestFieldTap(p)) return true;
   }
+  // 两种三选一均保留塔详情入口；仅打开详情，不更改选择状态/候选/pending。
+  if (game.state === 'picking' || game.state === 'relicpick') {
+    let si = -1;
+    if (game.state === 'relicpick' && game._relicReturnState === 'testfield') {
+      if (Array.isArray(game.testHits) && game.testHits.some(h => h.id === 'tf_slot' && h.hit(p.x, p.y))) si = 0;
+    } else si = game.towerSlotAt(p);
+    const slot = si >= 0 && game.sceneState().towers[si];
+    if (slot) { game.towerInfo = { ...slot, slotIdx: si }; return true; }
+  }
   // 弹层按钮判定
   if (game.state === 'picking') {
+    if (game.pickHits.reroll && game.pickHits.reroll.hit(p.x, p.y)) { game.rerollUpgradePick(); return true; }
     const group = game.pickQueue[game.pickIndex];
     if (!group || !group.candidates || !group.candidates.length) return true;
-    // v1.16.56：三选一暂停中，点击下方露出的防御塔位 → 打开塔详情（可查看技能详情，关闭后回到三选一）
-    const si = game.towerSlotAt(p);
-    const slot = game.sceneState().towers[si] || null;
-    if (si >= 0 && slot) {
-      game.towerInfo = { ...slot, slotIdx: si };
-      return true;
-    }
     for (let i = 0; i < group.candidates.length; i++) {
       if (game.pickHits[i] && game.pickHits[i].hit(p.x, p.y)) {
         const res = game.run.applyChoice(group.tower, group.candidates[i]);

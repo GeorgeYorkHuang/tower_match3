@@ -49,14 +49,8 @@ module.exports = {
 
   DIRECT_FIRST: 2,              // 新手/标准路径：前 2 次消除定向红/绿（引导协同开局）
 
-  STORE: {
-    items: [
-      { id: 'atk',    icon: '⚔️', name: '攻击强化', desc: '本局全塔攻击 +20%',  cost: [120, 240],        max: 2 },
-      { id: 'spd',    icon: '⏩', name: '攻速强化', desc: '本局全塔攻速 +15%',  cost: [100, 200],        max: 2 },
-      { id: 'energy', icon: '⚡', name: '能量补给', desc: '所有塔能量 +15',     cost: [80, 160, 240],    max: 3 },
-      { id: 'wall',   icon: '🛡️', name: '城墙修复', desc: '城墙回复 30% 最大血量', cost: [150, 300],        max: 2 },
-    ],
-  },
+  STORE: require('./config/shop.js').store,
+  PICK_REROLL: require('./config/shop.js').reroll,
 
   DEBUG_ACCOUNT: false,    // 调试账号开关：true 时主菜单显示 🛠 测试工具（金币/钻石/碎片/解锁/星辉箱）——正式发布必须为 false
 
@@ -194,9 +188,9 @@ module.exports = {
   },
 
   SHOP_CHEST: {
-    blue:   { key: 'blue',   name: '圣物宝箱·蓝', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 5 },
-    purple: { key: 'purple', name: '圣物宝箱·紫', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 3 },
-    gold:   { key: 'gold',   name: '圣物宝箱·金', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 2 },
+    blue:   { key: 'blue',   name: '圣物宝箱·蓝', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 3 },
+    purple: { key: 'purple', name: '圣物宝箱·紫', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 2 },
+    gold:   { key: 'gold',   name: '圣物宝箱·金', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 1 },
   },
 
   SAVE: {

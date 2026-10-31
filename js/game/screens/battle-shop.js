@@ -1,46 +1,41 @@
 'use strict';
 const CONFIG = require('../../config.js');
+const Shop = require('../../economy/battle-shop.js');
+const { shopItemIcon } = require('../icons/shop-items.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
-// No Run/Meta retention; purchase handling remains in the battle action route.
 function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
   function battleShop(ctx, s) {
     if (!s.shopOpen) return;
-    let shopPanelRect, shopItemRects, shopCloseRect;
-    // 面板（居中偏上，避开灵动岛/微信胶囊）
-    const w = 560, h = 640, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 80;
-    shopPanelRect = { x, y, w, h };
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, 750, LOGIC_H);
-    fillRoundRect(ctx, x, y, w, h, 18, '#232a34');
-    strokeRoundRect(ctx, x, y, w, h, 18, '#3a6ea5', 3);
-    text(ctx, '🛒 局内商店', x + w / 2, y + 58, 34, '#ffffff', 'center');
-    // v1.17 局内商店消耗银币（局内临时货币）
-    if (!drawImg(ctx, IMG_SRC.silver, x + w / 2 - 170, y + 84, 34, 34)) text(ctx, '🪙', x + w / 2 - 170 + 17, y + 84 + 17, 26, '#c9d6e4', 'center');
-    text(ctx, `银币 ${fmtNum(s.gold)}`, x + w / 2 - 128, y + 108, 24, '#c9d6e4', 'left');
-    const items = (CONFIG.STORE.items || []);
-    const gw = 236, gh = 182, gx0 = x + 24, gy0 = y + 138, gGap = 40;
-    shopItemRects = [];
-    items.forEach((it, i) => {
-      const col = i % 2, row = Math.floor(i / 2);
-      const gx = gx0 + col * (gw + gGap), gy = gy0 + row * (gh + 46);
-      const bought = (s.store && s.store[it.id]) || 0;
-      const maxed = bought >= it.max;
-      const cost = it.cost[Math.min(bought, it.cost.length - 1)];
-      const afford = s.gold >= cost;
-      shopItemRects.push({ x: gx, y: gy, w: gw, h: gh });
-      fillRoundRect(ctx, gx, gy, gw, gh, 14, maxed ? 'rgba(255,255,255,0.04)' : afford ? 'rgba(247,201,72,0.08)' : 'rgba(22,29,40,0.9)');
-      strokeRoundRect(ctx, gx, gy, gw, gh, 14, maxed ? '#3a4553' : afford ? '#f7c948' : '#3a4553', maxed ? 1 : 1.4);
-      text(ctx, it.icon, gx + 30, gy + 36, 24, '#ffffff', 'center');
-      text(ctx, it.name, gx + 58, gy + 38, 22, '#ffffff', 'left');
-      text(ctx, it.desc, gx + 26, gy + 80, 16, '#9fb2c3', 'left');
-      text(ctx, `🪙 ${cost} · 已购 ${bought}/${it.max}`, gx + 26, gy + 116, 17, maxed ? '#5a6c80' : afford ? '#c9d6e4' : '#a05a3c', 'left');
-      text(ctx, maxed ? '已达上限' : (afford ? '点击购买' : '银币不足'), gx + 26, gy + 158, 17, maxed ? '#5a6c80' : afford ? '#7ef0a3' : '#ff6b6b', 'left');
+    const w = 650, h = 1000, x = 50, y = (LOGIC_H - h) / 2 - 40;
+    const shopPanelRect = { x, y, w, h }, shopItemRects = [];
+    ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(0, 0, 750, LOGIC_H);
+    fillRoundRect(ctx, x, y, w, h, 24, '#18252e');
+    strokeRoundRect(ctx, x, y, w, h, 24, '#bca66d', 2);
+    text(ctx, '战地补给', 375, y + 42, 32, '#fff0c5', 'center');
+    if (!drawImg(ctx, IMG_SRC.silver, 283, y + 67, 28, 28)) text(ctx, '银', 297, y + 81, 22, '#d3e1ed', 'center');
+    text(ctx, fmtNum(s.gold), 323, y + 81, 26, '#d3e1ed', 'left');
+    const cw = 284, ch = 250, gap = 22, top = y + 120;
+    CONFIG.STORE.items.forEach((item, i) => {
+      const cx = x + 30 + (i % 2) * (cw + gap), cy = top + Math.floor(i / 2) * (ch + 20);
+      const offer = Shop.offer({ store: s.store }, item), afford = s.gold >= offer.cost;
+      shopItemRects.push({ x: cx, y: cy, w: cw, h: ch });
+      fillRoundRect(ctx, cx, cy, cw, ch, 18, offer.sold ? '#222b31' : '#233641');
+      strokeRoundRect(ctx, cx, cy, cw, ch, 18, offer.sold ? '#52616b' : item.color, 1.5);
+      ctx.save(); ctx.globalAlpha = offer.sold ? 0.35 : 1;
+      shopItemIcon(ctx, item.id, cx + (cw - 116) / 2, cy + 5, 116, item.color); ctx.restore();
+      if (item.duration) text(ctx, item.duration + '秒', cx + cw - 34, cy + 22, 21, item.color, 'center');
+      // 上半张卡为图标区，下半张为名称、功能与价格；正文不小于21px。
+      text(ctx, item.name, cx + cw / 2, cy + 141, 25, offer.sold ? '#88949b' : '#ffffff', 'center');
+      text(ctx, item.desc, cx + cw / 2, cy + 173, 23, '#d4e3e9', 'center');
+      const timer = s.storeTimers && s.storeTimers[item.id] || 0;
+      const sub = offer.sold ? '本局已售罄' : item.max === 1 ? '本局限购1次' : timer > 0 ? '剩余' + Math.ceil(timer) + '秒' : '可重复购买';
+      text(ctx, sub, cx + cw / 2, cy + 201, 21, offer.sold ? '#81929e' : item.max === 1 ? '#ffe1a0' : '#a9c0cc', 'center');
+      text(ctx, offer.sold ? '已购买' : offer.cost + ' 银币', cx + cw / 2, cy + 231, 25, offer.sold ? '#81929e' : afford ? '#ffe2a0' : '#ffad9a', 'center');
     });
-    // 关闭
-    shopCloseRect = { x: x + w / 2 - 90, y: y + h - 76, w: 180, h: 54 };
-    fillRoundRect(ctx, shopCloseRect.x, shopCloseRect.y, 180, 54, 12, '#3a6ea5');
-    text(ctx, '关闭', x + w / 2, shopCloseRect.y + 36, 24, '#ffffff', 'center');
+    const shopCloseRect = { x: 280, y: y + h - 66, w: 190, h: 48 };
+    fillRoundRect(ctx, shopCloseRect.x, shopCloseRect.y, 190, 48, 24, '#bca66d');
+    text(ctx, '关闭', 375, shopCloseRect.y + 24, 25, '#202a2b', 'center');
     return { shopPanelRect, shopItemRects, shopCloseRect };
   }
   return { battleShop };
