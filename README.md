@@ -279,3 +279,54 @@ Boss实施与派工见[开发计划](docs/Boss体系-开发计划与W美工任�
 冰火棋盘、绕障碍补落与战场解锁已接入；局内全局技能改图标与分豆进度，加速按钮更新。行为、存档迁移与真机检查见[接入说明](docs/冰火棋盘与战场权限-2026-10-31.md)。
 
 战斗状态栏已更新为等级经验环与1—60波进度；圣坛20波萝赛小Boss首版逻辑已接入，美术待W；五消自动扫描修复为合法交换+白色横向扫描演出。详见[接入记录](docs/状态栏-萝赛-自动扫描接入记录-2026-10-31.md)。
+
+## D资产整理计划（2026-10-31，已确认可执行，尚未迁移）
+
+本节是D开工基准，不代表资产已移动。README保留在项目根目录；文档、工具、原稿和预览统一放F:/workspace/towerdefence_share，禁止重新堆回小游戏项目目录。
+
+### 与勘察稿的差异
+
+- README已经恢复，不能按“不存在”处理。
+- 当前assets/images共269个文件、15个一级子目录，根散件仅bullet.png。7个JS文件含81次assets/images文本出现（包含注释和动态模板，不等于81个独立有效资源引用），不能按64处固定清单验收。
+- chip-skin.js的specialSrc已使用glyph_<shape>.png，预载19张，不再使用已删tint六色副本；不要再次修改其图案选择/配色/子雷逻辑。
+- special-chip.js仍声明旧board/special/路径，而该目录当前不存在；它的回退行为要登记并验证，迁移不能假设文件存在，更不能为消除grep而制造空图或恢复废素材。
+- 统一三消资源目标为interface/chips/，不是interface/battle/chips/。anims只能迁一次，归towers/fx/anims/；冰花与毒棒是技能/实体表现，不应作为debuff误分类。
+
+### 唯一迁移映射
+
+|原位置|新位置|说明|
+|---|---|---|
+|ui/战斗背景、墙、棋盘背景、塔区背景|interface/battle/|保留原文件名；逐个列清旧版本与现用项|
+|menubg/|interface/home/|主页与战场图标，保留动态stage命名|
+|board/六塔棋盘图标|interface/board/|与board2图案区分；不存在的special子目录只更新其声明前缀并验证回退|
+|board2/|interface/chips/|底板/图案/彩虹，文件名不变，运行逻辑不变|
+|enemies/|monsters/enemies/|包含将来存在的子目录，不能只按lv1—8平面枚举|
+|bosses/|monsters/bosses/|萝赛与幼芽，不覆盖通用占位图|
+|towers/原六塔图片|towers/icons/|只迁原图片，避免将新建icons再递归搬进自身|
+|skillicons/|towers/skills/|保留按塔子目录|
+|fx/firewall、fx/firepillar|towers/fx/firewall、towers/fx/firepillar|序列命名与索引保持|
+|turret/、icebloom/、poisonstick/、anims/|towers/fx/下同名子目录|不重复归入interface或debuff|
+|burn/|towers/debuff/burn/|燃烧状态表现|
+|bullet.png|towers/fx/bullet.png|弹道图片|
+|relic/|relics/|原六塔及universal子目录完整保留|
+|ui/金币、银币、宝箱等资源图|resources/|逐文件映射，不整目录粗暴归类|
+|未归类但确实需要的其余图|misc/|先记录清单；没有文件不必建空目录|
+
+### 执行与协作
+
+1. 开工先记录HEAD、git status、逐文件旧→新清单、字节数/SHA256；核对W在途素材。当前未提交文件不覆盖、不清理、不一并提交，必要时用独立worktree。
+2. 仅移动目录/更新路径，文件名与图片内容哈希保持不变。不在本轮混入美术替换、缩图、技能重构或清理遗留逻辑。根towers的移动需先枚举图片再建icons，避免递归自身。
+3. 按实际当前引用改render.js、wave.js、fx/firepillar.js、fx/firewall.js、icons/chip-skin.js、icons/special-chip.js、screens/home.js；覆盖IMG_SRC、模板字符串、DIR常量、relicIconSrc、资源序列和预载。不要只替换引号里的静态完整路径。
+4. 同时核对game.json与project.config.json的packOptions（两份目前都存在），同步旧ui忽略正则。assets分包根仍为assets，不擅自改包结构。README忽略打包项保留即可，不代表文件应删除。
+5. 资源路径测试、预览构建器和W的manifest现在位于share，按需更新活跃交付；历史归档不要求“旧路径零残留”，不为通过grep重写全部历史文档。
+6. 验收后提交一个纯路径迁移批次，只提交清单内文件；不git add全目录，不混入他人改动。默认只提交本地；推送和微信上传另按owner指令执行。
+
+### 验收门禁
+
+- 文件数/逐文件哈希对应一致，无丢失、覆盖或重复迁移；新路径无大小写错误。
+- 运行代码和有效打包规则中不再使用旧资源根；注释、历史归档与有意保留的不存在资源回退单独说明，不能把“全仓grep零”当唯一结论。
+- 枚举动态来源：三战场/深渊/测试背景、六塔图标与技能、全部圣遗物、19张chip-skin预载、火墙/火柱选帧、萝赛/幼芽。有效资源不存在则失败；原来就缺失的回退路径须单列，不得悄悄变成新的缺图。
+- 实际绘制冒烟覆盖主页/战斗/两张障碍棋盘/彩虹和子雷/技能特效/怪物/圣遗物/宝箱；记录加载错误与回退次数，不能因有兜底就视为通过。
+- 用户在微信开发者工具与真机核对分包加载、冷启动、首次进入战场。D提交路径清单、验证日志和待验项目到share；工具不回迁项目目录。
+
+结论：以上修正后可交D执行。文件数和引用数仅为本次快照，开工时重新扫描，不硬编码为永远不变的断言。
