@@ -14,7 +14,17 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
     this.entryStatus(ctx,s);
-    if(s.miniBoss) {
+    if (s.bossEncounter && s.bossEncounter.id === 'altar_galvin') {
+      const group = s.bossEncounter;
+      text(ctx, '双生圣像·迦尔文 · ' + (group.phase === 1 ? '圣像本体' : '双体裂生'), 375, AREA_Y + ENTRY_H + 16, 16, '#ead3ff', 'center');
+      const members = group.members;
+      members.forEach((e, i) => {
+        const x = members.length === 1 ? 220 : 140 + i * 250;
+        const w = members.length === 1 ? 338 : 220;
+        progressBar(ctx, x, AREA_Y + ENTRY_H + 28, w, 9, Math.max(0, e.hp / e.maxHp), '#ba82e7', '#30253d');
+        if (members.length > 1) text(ctx, '圣像' + (i + 1) + (e.hp <= 0 ? ' · 已击败' : ''), x + w / 2, AREA_Y + ENTRY_H + 48, 13, '#d1c393', 'center');
+      });
+    } else if(s.miniBoss) {
       const b=s.miniBoss;
       text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');
       progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');

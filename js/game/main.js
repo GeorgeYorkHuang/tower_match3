@@ -2,7 +2,7 @@ const TestOperations = require('./flows/test-operations.js');
 const RelicAcquisition = require('./flows/relic-acquisition.js');
 const RunSettlement = require('./flows/run-settlement.js');
 const MATCH_GLOW = require('../config/match-glow.js');
-const Rosea = require('../bosses/rosea.js');
+const Bosses = require('../bosses/index.js');
 const RoseaFx = require('./fx/boss-rosea.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
 const BattleActions = require('./input/battle-actions.js');
@@ -311,13 +311,8 @@ class GameMain {
       // v1.17.8 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 3s（场上残怪保留，叠加波继续打）
       //   （波时长不再固定；出怪节奏=0.5s/批，每批随机 1~⌈w/5⌉ 只）
       if(this.run.bossLock) {
-        const boss=this.run.bossEnemy;
-        if(boss&&boss.hp<=0){
-          this.run.bossLock=false;this.wave.plan=[];
-          this.enemies=this.enemies.filter(e=>e.waveNo!==20);
-          // v1.17.48 Boss 战清场：20 波剩余怪被直接移除（不逐个走死亡），存活计数归零，避免银币完成度被误判
-          if(this._waveAlive)this._waveAlive[20]=0;
-          if(!this._waveCleared[20]){this._waveCleared[20]=true;this.run.clearedWaves++;}
+        if(Bosses.defeated(this)) {
+          Bosses.clearVictory(this);
           this._overlapWave=this.enemies.length>0;this.waveEnd();
         }
         return;
@@ -365,7 +360,7 @@ class GameMain {
     const fx = this.bossFx;
     if (!fx) return;
     const b = this.run.bossEnemy;
-    if (!b || !b.bossId || b.hp <= 0 || !this.run.bossLock) {
+    if (!b || b.bossId !== 'altar_rosea' || b.hp <= 0 || !this.run.bossLock) {
       if (this._bossFxOn) { fx.reset(); this._bossFxOn = false; this._bossPhaseSeen = 0; this._summonSeen = 0; }
       return;
     }
@@ -388,7 +383,7 @@ class GameMain {
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
-    Rosea.tick(this,dt);
+    Bosses.tick(this,dt);
     this.tickBossFx(dt);
     GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
@@ -940,6 +935,7 @@ class GameMain {
     const enemyHp = this.enemies.reduce((sum, e) => sum + Math.max(0, e.hp), 0);
     return {
       miniBoss: run.bossEnemy && run.bossEnemy.hp>0 ? run.bossEnemy : null,
+      bossEncounter: run.bossEncounter || null,
       gold: run.gold,
       wave: run.wave,
       waveTime: this.waveTime,

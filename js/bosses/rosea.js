@@ -2,7 +2,7 @@
 const B=require('../config/bosses.js').altar_rosea;
 function enabled(g){return g.menuStage===B.field&&g.run.wave===B.wave&&g.state!=='testfield';}
 function entry(g,lv){const c=require('../config.js').ENEMY.levelOf(lv);return {lv,type:c.type,hp:c.hp,offset:0.5,isBoss:false};}
-function setup(director){const g=director.game;if(!enabled(g))return false;g.run.bossLock=true;g.run.bossEnemy=null;director.plan=[{lv:6,type:'boss',hp:B.hp,offset:0.5,isBoss:true,bossId:B.id},...B.adds[0].map(lv=>entry(g,lv))];director.hasBoss=true;director.enemyTotalHp=B.hp+B.adds.flat().reduce((n,lv)=>n+entry(g,lv).hp,0)+B.summonCount*B.summonHp;g.run.bossWaveHp=director.enemyTotalHp;
+function setup(director){const g=director.game;if(!enabled(g))return false;g.run.bossLock=true;g.run.bossEnemy=null;director.plan=[{lv:6,type:'boss',hp:B.hp,offset:0.5,isBoss:true,bossId:B.id},...B.adds[0].map(lv=>entry(g,lv))];director.hasBoss=true;director.enemyTotalHp=B.hp+B.adds.flat().reduce((n,lv)=>n+entry(g,lv).hp,0)+B.summonCount*B.summonHp;g.run.bossWaveHp=director.enemyTotalHp;g.run.bossWaveNo=B.wave;
  if(!g.run.roseaAnnounced && g.fx){
    g.run.roseaAnnounced=true;
    const y=((director.ly||{}).areaY||140)+((director.ly||{}).entryH||68)+100;

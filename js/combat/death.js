@@ -1,10 +1,12 @@
 'use strict';
 // Preserve active-tower snapshot order and synchronous nested deaths; no cached state.
 const SKILL_NUM = require('../config/tower-skills.js');
+const Bosses = require('../bosses/index.js');
 const RelicKill = require('../relics/kill-hooks.js');
 
 function onKill(combat, e) {
   const g = combat.game;
+  const rewardAllowed = Bosses.onDeath(g, e);
   // 毒·致死：低血死亡（此处仅为触发记录，实际致死在命中时判断）
   // 按所有激活塔触发死亡技能
   g.run.slotOrder.slice().forEach((key) => {
@@ -96,7 +98,7 @@ function onKill(combat, e) {
   combat.fxRing(e.x, e.y, KILL_COLOR[e.lastDmgKey] || '#ff9f43', 40, 0.35, 4);
   g.playSfx('boom', 0.35);
   // 击杀奖励钩子：经验（圣物加成）/ 精英圣物掉落 / Boss 宝箱掉落（game 层实现）
-  if (g.onKillReward) g.onKillReward(e);
+  if (rewardAllowed && g.onKillReward) g.onKillReward(e);
 }
 
 module.exports = { onKill };

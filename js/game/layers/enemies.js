@@ -45,7 +45,7 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
     const summonArt = (!e.isBoss && e.isSummon) ? { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 } : null;
     const art = bossArt || summonArt;
-    const animSrc = art ? art.src : IMG_SRC['lv' + imgLv];
+    const animSrc = e.bossPlaceholder ? null : (art ? art.src : IMG_SRC['lv' + imgLv]);
     const animFrames = art ? art.frames : 0;
     const src = e.isBoss ? IMG_SRC.boss
       : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));

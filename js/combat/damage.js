@@ -1,4 +1,4 @@
-const Rosea = require('../bosses/rosea.js');
+const Bosses = require('../bosses/index.js');
 const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
 // One damage path, explicit Combat context. Preserve multiplier and reentrant death order.
@@ -84,11 +84,23 @@ function damage(combat, e, dmg, srcKey, kind = 'hit') {
   const dmgLv = (m && m.relicBonus && m.relicBonus().dmg) || 0;
   if (dmgLv > 0) v *= (1 + 0.08 * dmgLv);
   const shieldBefore = Math.max(0, Number(e.shield) || 0);
-  v = Rosea.absorb(e,v);
+  v = Bosses.absorb(e,v);
+  applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore);
+}
+
+// Carry already-mitigated threshold overflow into the new bodies without applying multipliers twice.
+function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0) {
+  if (e.hp <= 0) return;
+  const phase = Bosses.transition(combat.game, e, v);
   const hpBefore = e.hp;
-  e.hp -= v;
+  e.hp -= phase ? phase.damage : v;
   recordDamage(combat, e, hpBefore, srcKey, kind, shieldBefore);
   e.lastDmgKey = srcKey || e.lastDmgKey;
+  if (phase) {
+    const members = Bosses.split(combat.game, e);
+    if (phase.overflow > 0) for (const child of members) applyResolvedDamage(combat, child, phase.overflow / members.length, srcKey, kind);
+    return;
+  }
   if (e.hp <= 0 && !e._dying) {
     e._dying = true;
     // v1.17.23 fix：总击杀此前恒 0——kills 只在 reset 初始化、从不自增；按伤害来源（塔/DoT 元素）计数
@@ -133,4 +145,4 @@ function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude) {
   combat.fxParticle(x, y, col, 6, r, 0.45, 130, 5);
 }
 
-module.exports = { shotDmg, damage, explode };
+module.exports = { shotDmg, damage, explode, applyResolvedDamage };

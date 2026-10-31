@@ -1,3 +1,5 @@
+const Bosses = require('../bosses/index.js');
+const Damage = require('./damage.js');
 const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
 // Enemy status instances are caller-owned. Keep effect/death order and original tick cadence.
@@ -164,11 +166,16 @@ function tickBaseStatus(combat, e, dt) {
       e._corrodeD -= 60;
       const pct = e.isBoss ? 0.01 : 0.02;
       const v0 = (e.maxHp || e.hp) * pct;
-      const hpBefore = e.hp;
-      e.hp -= v0;
-      recordDamage(combat, e, hpBefore, 'poison', 'true');
-      if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
+      if (Bosses.transition(combat.game, e, v0)) {
+        Damage.applyResolvedDamage(combat, e, v0, 'poison', 'true');
+      } else {
+        const hpBefore = e.hp;
+        e.hp -= v0;
+        recordDamage(combat, e, hpBefore, 'poison', 'true');
+        if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }
+      }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
       combat.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);
+      if (e._bossRetired) break;
     }
   }
   // DoT
