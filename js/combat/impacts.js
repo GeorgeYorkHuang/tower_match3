@@ -37,7 +37,7 @@ function tryAttackDebuff(combat, key, o, dmg) {
       const prob = SKILL_NUM.ice['冰冻'].baseProbability + SKILL_NUM.ice['冰冻'].prob[combat.branchLv('ice', '冰冻', 'A')];
       if (Math.random() < prob) {
         const dur = SKILL_NUM.ice['冰冻'].baseDuration + SKILL_NUM.ice['冰冻'].dur[combat.branchLv('ice', '冰冻', 'B')];
-        o.frozen = Math.max(o.frozen || 0, dur);
+        if (!o.immuneFreeze) o.frozen = Math.max(o.frozen || 0, dur);
         combat.fxFlash(o.x, o.y, '#d6f0ff', 0.28);
         combat.fxRing(o.x, o.y, '#7fd4ff', 46, 0.4, 4);
         combat.fxParticle(o.x, o.y, '#b8e6ff', 10, 60, 0.5, 130, 5);

@@ -186,7 +186,7 @@ function hitIce(combat, e, dmg) {
       combat.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
       // C 冻结：命中 5%/10%/15% 几率冻结 2s
       if (frzP > 0 && Math.random() < frzP) {
-        o.frozen = Math.max(o.frozen || 0, SKILL_NUM.ice['碎冰'].freezeDuration);
+        if (!o.immuneFreeze) o.frozen = Math.max(o.frozen || 0, SKILL_NUM.ice['碎冰'].freezeDuration);
         combat.fxFlash(o.x, o.y, '#d6f0ff', 0.3);
         combat.fxRing(o.x, o.y, '#7fd4ff', 40, 0.35, 3);
       }

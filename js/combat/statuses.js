@@ -114,6 +114,7 @@ function applySlow(combat, e, mult, ttl) {
 }
 
 function freezeE(combat, e, dur) {
+  if (e.immuneFreeze) return;
   const d = (e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
@@ -172,6 +173,7 @@ function tickBaseStatus(combat, e, dt) {
         const hpBefore = e.hp;
         e.hp -= v0;
         recordDamage(combat, e, hpBefore, 'poison', 'true');
+        Bosses.afterDamage(combat.game, e);
         if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }
       }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
       combat.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);

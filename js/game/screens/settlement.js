@@ -48,7 +48,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     // 绶带 118–162：h44/r14 胶囊，自上滑入；英文逐字距 8（中文标题不用字距）
     const rp = this._goPh(T, TL.ribbon, 320);
     if (rp > 0) {
-      const str = win ? 'EVACUATION SUCCESS' : 'DEFENSE FAILED';
+      const str = su.victory ? 'FINAL VICTORY' : win ? 'EVACUATION SUCCESS' : 'DEFENSE FAILED';
       ctx.font = 'bold 20px sans-serif';
       let total = 0; const ws = [];
       for (const ch of str) { const w = ctx.measureText(ch).width; ws.push(w); total += w + 8; }
@@ -69,7 +69,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, tp * 1.6);
       ctx.translate(375, 250); ctx.scale(sc, sc);
-      text(ctx, win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
+      text(ctx, su.victory ? '终局胜利' : win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
       ctx.restore();
     }
     // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（v1.17.22），旧摘要回退 wave
@@ -129,7 +129,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       ctx.fillStyle = win ? '#f7c948' : '#e74c3c'; ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
       const near = CONFIG.MILESTONES.some((m) => m <= wave && Math.abs(fx(m) - ex) < TR.labelGap);
-      text(ctx, wave + '波 · ' + (win ? '撤离' : '失守'), ex, TR.lineY + (near ? 88 : 60), 22, win ? '#ffd34d' : '#ff8a8a', 'center');
+      text(ctx, wave + '波 · ' + (su.victory ? '胜利' : win ? '撤离' : '失守'), ex, TR.lineY + (near ? 88 : 60), 22, win ? '#ffd34d' : '#ff8a8a', 'center');
     }
     ctx.globalAlpha = 1;
   }

@@ -60,7 +60,7 @@ function onKill(combat, e) {
         const next = combat.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= vr)
           .sort((a, b) => b.y - a.y)[0];
         if (next) {
-          next.frozen = Math.max(next.frozen || 0, 2);
+          if (!next.immuneFreeze) next.frozen = Math.max(next.frozen || 0, 2);
           next._vineT = Math.max(next._vineT || 0, 2);
           RelicKill.poisonTrail(combat, next);
           combat.fxBeam(e.x, e.y, next.x, next.y, '#2ecc71', 1, 4);

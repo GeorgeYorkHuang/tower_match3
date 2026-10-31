@@ -23,6 +23,7 @@ class WaveDirector {
   /** 开始新一波：结算 run、清场（叠加波 keepEnemies=true 时保留场上剩余敌人）、生成投放计划、切战斗状态 */
   start(keepEnemies) {
     const g = this.game;
+    if (g.run.finalVictory) return;
     g.run.startWave();
     g.waveTime = 0;
     if (!keepEnemies) g.enemies = [];   // v1.17.3 40s 超时叠加波：不清残怪，新一波继续出
@@ -101,6 +102,7 @@ class WaveDirector {
     const born=this.game.enemies[this.game.enemies.length-1];
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
     if(it.isSummon)born.isSummon=true;
+    if(Number.isFinite(it.spawnX)) born.x=it.spawnX;
     if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // v1.17.5 投放完成时间戳
   }
 
@@ -154,7 +156,7 @@ class WaveDirector {
       }
       if (this.game.run.relic3('cm_freeze')) {
         const cands = this.game.enemies.filter((o) => o.hp > 0 && !(o.frozen > 0) && Math.abs(o.y - en.y) <= 60 && o.y > en.y);
-        cands.slice(0, 2).forEach((o) => { o.frozen = Math.max(o.frozen || 0, 2); });
+        cands.slice(0, 2).forEach((o) => { if (!o.immuneFreeze) o.frozen = Math.max(o.frozen || 0, 2); });
       }
       this._freezeDone = true;
     }

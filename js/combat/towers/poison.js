@@ -66,7 +66,7 @@ function tickPoison(combat, dt) {
       const picks = alive.slice(0, n);
       const mus = combat.towerMuzzle('poison');
       picks.forEach((e) => {
-        e.frozen = Math.max(e.frozen || 0, dur);
+        if (!e.immuneFreeze) e.frozen = Math.max(e.frozen || 0, dur);
         e._vineT = Math.max(e._vineT || 0, dur);
         // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
         g.fx.push({ type: 'vine', x: mus.x, y: mus.y, tx: e.x, ty: e.y, t: 0, dur: 0.55, seed: Math.random() * 100 });

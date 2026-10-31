@@ -130,7 +130,7 @@ function _fireMultiShot(combat, e, dmg) {
           if (bgIgnite > 0 && Math.random() < bgIgnite) combat.applyBurn(o2, dmg, 'fire');
           // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
           if (g.run.relic3('fire_nuke') && d2 > bgr * 0.5) {
-            o2.y = Math.max(50, o2.y - 40);
+            if (!o2.immuneKnockback) o2.y = Math.max(50, o2.y - 40);
             combat.applyBurn(o2, dmg, 'fire');
             combat.fxParticle(o2.x, o2.y, '#ff9f43', 3, 24, 0.3, 100, 4);
           }
@@ -203,7 +203,7 @@ function _fireSingleBlast(combat, e, dmg) {
       if (igniteProb > 0 && Math.random() < igniteProb) combat.applyBurn(o, dmg, 'fire');
       // v1.16.96 爆核3★：爆炸边缘敌人被击退 40码 并点燃
       if (combat.game.run.relic3('fire_nuke') && d2 > r0 * 0.5) {
-        o.y = Math.max(50, o.y - 40);
+        if (!o.immuneKnockback) o.y = Math.max(50, o.y - 40);
         combat.applyBurn(o, dmg, 'fire');
         combat.fxParticle(o.x, o.y, '#ff9f43', 3, 24, 0.3, 100, 4);
       }

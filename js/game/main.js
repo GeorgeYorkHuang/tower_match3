@@ -312,6 +312,7 @@ class GameMain {
       //   （波时长不再固定；出怪节奏=0.5s/批，每批随机 1~⌈w/5⌉ 只）
       if(this.run.bossLock) {
         if(Bosses.defeated(this)) {
+          if (this.run.bossEncounter && this.run.bossEncounter.final) this.run.finalVictory = true;
           Bosses.clearVictory(this);
           this._overlapWave=this.enemies.length>0;this.waveEnd();
         }
@@ -384,6 +385,7 @@ class GameMain {
   stepEnemies(dt) {
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     Bosses.tick(this,dt);
+    if (this.run.broken) return;
     this.tickBossFx(dt);
     GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
@@ -423,7 +425,7 @@ class GameMain {
       if (this._waveAlive[wn] <= 0 && (wn < this.run.wave || !this.wave.plan.length)) {
         this._waveCleared[wn] = true;
         this.run.clearedWaves += 1;
-        if (wn === 60 && ['ancient','lava','frost'].includes(this.menuStage) && this.state !== 'testfield') { this.meta.normalFieldCleared = true; this.save.save(); }
+        if (wn === 60 && ['ancient','lava','frost'].includes(this.menuStage) && this.state !== 'testfield' && !(this.run.bossEncounter && this.run.bossEncounter.final)) { this.meta.normalFieldCleared = true; this.save.save(); }
       }
     });
   }
@@ -484,7 +486,7 @@ class GameMain {
   moveEnemy(e, dt) {
     if (e.frozen > 0 || e._bossStun > 0) return;
     const lineY = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10;   // v1.17.11 攻城线（塔位区即城墙）
-    if (e.y >= lineY) return;
+    if (e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY)) return;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
     if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
     // v1.16.100 缓毒3★：中毒减速与冰缓/麻痹叠加时，总减速上限 +15%（移动再减 15%）
@@ -496,7 +498,8 @@ class GameMain {
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
     // v1.16.78 霜风峡谷风场被动：移速 ×1.10^风场层数
     const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
-    e.y += e.speed * slowEff * stasisMul * windMul * dt;
+    e.y += e.speed * slowEff * stasisMul * windMul * Bosses.moveScale(this) * dt;
+    if (e.bossStandoffY != null) e.y = Math.min(e.y, e.bossStandoffY);
   }
 
   playSfx(kind, minGap) {
@@ -513,6 +516,7 @@ class GameMain {
   }
 
   waveEnd() {
+    if (this.run.finalVictory && this.runSummary && this.runSummary.victory) return;
     // v1.17.48 波末银币完成度回填：本波已出场怪中已死亡的比例（叠加波按 waveNo 只算本波）
     //   此前银币纯按波数发放，完全不消块/不出弹也拿满额，导致「挂机第一波 107 金币」。
     const _wn = this.run.wave || 1;
@@ -527,6 +531,16 @@ class GameMain {
     // v1.17 波末银币只入「局内银币」（run.endWave 已累加 _waveGold），不再发放局外金币；
     //   招财符加成移至战斗结束统一结算（finishRun）
     this.save.save();
+    if (this.run.finalVictory && this.run.lineHp > 0) {
+      const EV = CONFIG.EVAC;
+      this.depthPool += res.waveGold * EV.poolShare * this.depthMult * (this.firstBonus || 1) * (this.field.goldMult || 1);
+      this.meta.normalFieldCleared = true;
+      this.run.broken = false;
+      this.enemies = []; this.wave.plan = [];
+      this.finishRun(true);
+      this.runSummary.victory = true;
+      return;
+    }
     if (res.broken) {
       this.finishRun(false);   // v1.16.76 破防 → 局末结算（深度收益保底 30%）
       return;
@@ -596,6 +610,7 @@ class GameMain {
 
   /** v1.16.73 自动进入下一波 + 2s 透明提示；每 5 波弹 4s Boss 闪烁警告（均不暂停进度） */
   startNextWave() {
+    if (this.run.finalVictory) return;
     this.state = 'fighting';
     // v1.17.3 叠加波（40s 超时残留怪）：保留场上剩余敌人，新一波继续投放
     const keep = !!this._overlapWave;

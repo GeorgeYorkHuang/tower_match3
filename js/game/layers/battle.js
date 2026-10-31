@@ -15,7 +15,19 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
     this.entryStatus(ctx,s);
-    if (s.bossEncounter && s.bossEncounter.id === 'altar_galvin') {
+    if (s.bossEncounter && s.bossEncounter.id === 'altar_vera') {
+      const q = s.bossEncounter, e = q.members[0];
+      const B = require('../../config/bosses.js').altar_vera;
+      text(ctx, B.name + ' · ' + B.phaseNames[q.phase - 1], 375, AREA_Y + ENTRY_H + 16, 17, '#ffd17b', 'center');
+      if (e) {
+        progressBar(ctx, 190, AREA_Y + ENTRY_H + 28, 380, 11, Math.max(0, e.hp / e.maxHp), '#dcac5c', '#30253d');
+        ctx.strokeStyle = '#fff0be'; ctx.lineWidth = 2;
+        for (const mark of B.thresholds) { ctx.beginPath(); ctx.moveTo(190 + 380 * mark, AREA_Y + ENTRY_H + 27); ctx.lineTo(190 + 380 * mark, AREA_Y + ENTRY_H + 40); ctx.stroke(); }
+        const summon = Math.max(0, q.nextSummonAt - q.elapsed).toFixed(1);
+        const status = q.phase === 3 ? '裂痕 ' + Math.max(0, q.nextRiftAt - q.elapsed).toFixed(1) + 's' : q.phase === 2 ? '庇护 ' + Math.round(e.armor * 100) + '%' : '播种';
+        text(ctx, status + ' · 召唤 ' + summon + 's', 375, AREA_Y + ENTRY_H + 57, 15, '#f3d9b1', 'center');
+      }
+    } else if (s.bossEncounter && s.bossEncounter.id === 'altar_galvin') {
       const group = s.bossEncounter;
       text(ctx, '双生圣像·迦尔文 · ' + (group.phase === 1 ? '圣像本体' : '双体裂生'), 375, AREA_Y + ENTRY_H + 16, 16, '#ead3ff', 'center');
       const members = group.members;

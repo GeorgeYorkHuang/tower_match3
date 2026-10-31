@@ -23,10 +23,10 @@ module.exports = {
     }
     // Boss：掉落战场宝箱（点击三选一）+ 主界面宝箱计数（每 5 波）
     if (e.isBoss) {
-      this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
+      if (!e.isFinalBoss) this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
       this.run._waveChestDropped = true;
       this.meta.chests += 1;
-      this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
+      this.toast(e.isFinalBoss ? '终极Boss宝箱已存入主界面' : 'Boss 掉落宝箱 📦 点击开启', '#f7c948');
       this.save.save();
     }
     /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀银币 */

@@ -13,9 +13,9 @@ function cast(combat,id){
  case 'barrier':s.shield=BALANCE.barrier.shield;s.shieldWave=r.wave;break;
  case 'heal':r.lineHp=Math.min(r.lineMaxHp||require('../config.js').LINE.hp,r.lineHp+(r.lineMaxHp||require('../config.js').LINE.hp)*BALANCE.heal.maxHpRatio);break;
  case 'reflect':s.reflect=BALANCE.reflect.duration;break;
- case 'freeze':g.enemies.filter(e=>e.hp>0).forEach(e=>{ e.frozen=Math.max(e.frozen||0,e.isBoss?BALANCE.freeze.bossDuration:BALANCE.freeze.duration); });break;
+ case 'freeze':g.enemies.filter(e=>e.hp>0).forEach(e=>{ if (!e.immuneFreeze) e.frozen=Math.max(e.frozen||0,e.isBoss?BALANCE.freeze.bossDuration:BALANCE.freeze.duration); });break;
  case 'tide':g.enemies.filter(e=>e.hp>0).forEach(e=>combat.applySlow(e,BALANCE.tide.slowRatio,BALANCE.tide.duration));break;
- case 'pull':g.enemies.filter(e=>e.hp>0).forEach(e=>{e.y=Math.max(g.ly.areaY||0,e.y-BALANCE.pull.distance);e.attackT=0;combat.fxRing(e.x,e.y,def.color,35,0.6,3);});break;
+ case 'pull':g.enemies.filter(e=>e.hp>0).forEach(e=>{if (!e.immuneKnockback) { e.y=Math.max(g.ly.areaY||0,e.y-BALANCE.pull.distance);e.attackT=0; }combat.fxRing(e.x,e.y,def.color,35,0.6,3);});break;
  case 'chainstorm':s.chainstorm=true;break;case 'twins':s.twins=true;break;case 'charge':s.charge=true;break;case 'gold':s.gold=BALANCE.gold.duration;break;
  default:return false;
  }

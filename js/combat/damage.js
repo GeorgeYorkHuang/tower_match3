@@ -101,6 +101,7 @@ function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0) {
     if (phase.overflow > 0) for (const child of members) applyResolvedDamage(combat, child, phase.overflow / members.length, srcKey, kind);
     return;
   }
+  Bosses.afterDamage(combat.game, e);
   if (e.hp <= 0 && !e._dying) {
     e._dying = true;
     // v1.17.23 fix：总击杀此前恒 0——kills 只在 reset 初始化、从不自增；按伤害来源（塔/DoT 元素）计数
@@ -121,7 +122,7 @@ function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude) {
     const d = Math.hypot(o.x - x, o.y - y);
     if (d > r) return;
     combat.damage(o, dmg * mult, key);
-    if (knock > 0) {
+    if (knock > 0 && !o.immuneKnockback) {
       o.y = Math.max(entryY + 10, o.y - knock * (1 - d / r));
       // v1.16.103 震地3★：击退的敌人撞墙时受到 20% 伤害（击退落点结算）
       if (g.run.relic3('can_quake')) combat.damage(o, dmg * 0.2, key);
