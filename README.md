@@ -358,3 +358,7 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第六批：升级技能三选一绘制提取（2026-10-31）
 
 `js/game/screens/upgrade-pick.js`接管pickLayer候选卡绘制，Renderer保留原入口及branchName工具。新技能/选择分支/确认升级三态、跨塔配色、错峰动画与按钮命中方式不变；候选生成、技能激活、分支锁定及pending扣除仍归原effects/Run/battle-actions。固定5286120基线900组Canvas/渐变/采样命中区域与入场时间戳对比通过，真实Main验证B分支选定后只升级B、拒绝C、满级排除、跨塔成长/pending归属、暂停及塔详情查看。结算460组与实际交互、塔详情交互及102个JS语法/依赖审计通过。记录/测试位于towerdefence_share。下一批候选为测试战场绘制与测试技能面板，保持测试权限及刷怪逻辑原位。
+
+## R16第七批：测试战场绘制提取（2026-10-31）
+
+`js/game/screens/test-field.js`接管testFieldLayer/testSkillPanel绘制，Renderer保留原入口；地面/敌人/特效/伤害数字仍按原顺序调用宿主，relicBarHit和命中列表保持原归属。权限、单塔切换、刷怪、技能注入和倍速仍在原Main。固定1de44ad基线876组Canvas/渐变/矩形及采样命中区域、子系统绘制顺序对比通过；升级900组、升级/圣遗物实际交互与103个JS语法/依赖检查通过。实际面板核验另发现原有panel_bounds抢先吞按钮，绘制拆分保持基线；该输入问题以独立修复提交处理。说明与测试位于towerdefence_share。
