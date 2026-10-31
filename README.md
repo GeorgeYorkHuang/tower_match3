@@ -326,3 +326,5 @@ Boss实施与派工见[开发计划](docs/Boss体系-开发计划与W美工任�
 ## 重构进度更新（2026-10-31）
 
 三消联动/周期施放公共入口已提取到js/combat/linkage.js，3600组固定基线对比及连消/反馈/多弹道替换回归通过。测试和接入记录保存在F:/workspace/towerdefence_share，不重新引入项目工具目录。剩余：全局技能入口边界、公共工具审查与最终回归，约2批。README继续保留在项目根目录。
+
+全局释放/技能齐发入口已迁入js/combat/global-cast.js，具体catalog技能效果仍在skills/global-runtime.js；3072组固定基线对比与连消/反馈/多弹道回归通过。剩余最后一批：公共工具归属审查、依赖审计和最终回归。测试/说明位于towerdefence_share。
