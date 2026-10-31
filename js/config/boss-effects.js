@@ -2,6 +2,8 @@
 'use strict';
 module.exports = {
   vera: {
+    summonCast: 0.9, summonBirth: 0.85, phasePulse: 1.0, maxBirthRings: 16,
+    phaseRed: '#ff916d', seedRadius: 5,
     warning: 1.2, impact: 0.65, wardPulse: 1.1, leafPulse: 1.0,
     wardRadius: 76, wardHeight: 92, maxLeafRings: 64,
     gold: '#f6d987', green: '#b9eb9a', darkGreen: '#487656',

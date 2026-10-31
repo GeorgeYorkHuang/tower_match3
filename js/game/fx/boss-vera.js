@@ -47,7 +47,9 @@ function drawGround(ctx, s) {
   const warning = q.phase >= 3 && remaining >= 0 && remaining <= C.warning;
   const impactAge = age(q, q.riftVisual), hitting = impactAge < C.impact;
   const pulseAge = age(q, q.wardVisual);
-  if (!warning && !hitting && pulseAge >= C.leafPulse) return;
+  const births = (s.enemies || []).filter(child => child.hp > 0 && child._veraBirthAt != null
+    && q.elapsed - child._veraBirthAt < C.summonBirth).slice(0, C.maxBirthRings);
+  if (!warning && !hitting && pulseAge >= C.leafPulse && !births.length) return;
   ctx.save(); clipArena(ctx, ly);
   if (pulseAge < C.leafPulse) {
     const p = pulseAge / C.leafPulse;
@@ -65,6 +67,20 @@ function drawGround(ctx, s) {
     }
   }
   ctx.restore();
+  for (const child of births) {
+    const p = clamp((q.elapsed - child._veraBirthAt) / C.summonBirth, 0, 1);
+    ctx.save(); clipArena(ctx, ly);
+    ctx.globalAlpha *= (1 - p) * 0.9;
+    ctx.strokeStyle = C.green; ctx.fillStyle = C.gold; ctx.lineWidth = 2;
+    ellipse(ctx, child.x, child.y + 16, 15 + p * 24, 5 + p * 9);
+    for (let i = 0; i < C.leafCount; i++) {
+      const a = i * Math.PI * 2 / C.leafCount + p * Math.PI * 1.5;
+      const x = child.x + Math.cos(a) * (15 + p * 13), y = child.y + 12 + Math.sin(a) * 7;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + Math.cos(a) * 8, y - 12, x + Math.cos(a) * 4, y - 28 * p); ctx.stroke();
+      leaf(ctx, x, y - 25 * p, a, 3);
+    }
+    ctx.restore();
+  }
   if (!warning && !hitting) return;
   ctx.save(); clipArena(ctx, ly);
   const origin = hitting ? q.riftVisual : e;
@@ -88,6 +104,8 @@ function drawGround(ctx, s) {
 function drawBody(ctx, s) {
   if (!visible(s)) return;
   const q = s.encounter, e = s.boss;
+  drawSummonCast(ctx, s);
+  drawPhase(ctx, s);
   if (!q.wardVisual) return;
   const t = age(q, q.wardVisual), pulse = Math.max(0, 1 - t / C.wardPulse);
   ctx.save();
@@ -104,6 +122,51 @@ function drawBody(ctx, s) {
   if (pulse > 0) {
     ctx.strokeStyle = C.gold; ctx.lineWidth = 2;
     ellipse(ctx, e.x, e.y - 18, 8 + (1 - pulse) * 55, 10 + (1 - pulse) * 60);
+  }
+  ctx.restore();
+}
+function drawSummonCast(ctx, s) {
+  const q = s.encounter, e = s.boss, t = age(q, q.summonVisual);
+  if (t >= C.summonCast) return;
+  const p = t / C.summonCast;
+  ctx.save(); ctx.globalAlpha *= Math.sin(Math.PI * Math.min(0.95, p + 0.1));
+  ctx.fillStyle = C.gold; ctx.strokeStyle = C.green; ctx.lineWidth = 1.5;
+  // Two seed lights hover at the outstretched hands; no projectiles or damage entities.
+  for (const side of [-1, 1]) {
+    const x = e.x + side * 53, y = e.y - 11 - Math.sin(p * Math.PI) * 7;
+    ctx.beginPath(); ctx.arc(x, y, C.seedRadius + Math.sin(p * Math.PI) * 3, 0, Math.PI * 2); ctx.fill();
+    ellipse(ctx, x, y, 11 + p * 10, 7 + p * 7);
+    leaf(ctx, x + side * 8, y - 7, side * p * 2, 4);
+  }
+  ctx.restore();
+}
+function drawPhase(ctx, s) {
+  const q = s.encounter, e = s.boss, v = q.phaseVisual;
+  if (!v || age(q, v) >= C.phasePulse) return;
+  const p = age(q, v) / C.phasePulse, final = v.phase === 3;
+  const color = final ? C.phaseRed : C.green;
+  ctx.save(); ctx.globalAlpha *= Math.sin(Math.PI * Math.min(0.97, p + 0.08));
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+  ellipse(ctx, e.x, e.y + 35, 35 + p * 62, 11 + p * 15);
+  ctx.fillStyle = C.gold;
+  for (let i = 0; i < 6; i++) {
+    const a = i * Math.PI / 3 - Math.PI / 2;
+    const x = e.x + Math.cos(a) * (45 + p * 32), y = e.y + Math.sin(a) * (60 + p * 30);
+    leaf(ctx, x, y, a, 5);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    if (final) {
+      // Red-gold fissures fan out from the vine skirt, without deforming the sprite or hitbox.
+      ctx.lineTo(x + Math.cos(a) * 7, y + 8); ctx.lineTo(x - Math.cos(a) * 5, y + 19);
+    } else {
+      ctx.lineTo(x + Math.cos(a + 0.6) * 9, y + Math.sin(a + 0.6) * 9);
+    }
+    ctx.stroke();
+  }
+  if (final) {
+    for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(e.x + side * 22, e.y + 12);
+      ctx.bezierCurveTo(e.x + side * (45 + p * 40), e.y + 25, e.x + side * (55 + p * 35), e.y + 65, e.x + side * (65 + p * 25), e.y + 74); ctx.stroke();
+    }
   }
   ctx.restore();
 }

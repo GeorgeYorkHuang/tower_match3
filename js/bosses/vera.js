@@ -40,6 +40,7 @@ function afterDamage(g, e) {
   // A large hit may cross both thresholds: enter each phase once without swallowing damage.
   while (q.phase < 3 && e.hp <= e.maxHp * B.thresholds[q.phase - 1]) {
     q.phase++; e.phase = q.phase; e._bossStun = B.phaseStun;
+    q.phaseVisual = { at: q.elapsed, phase: q.phase };
     g.wave.plan.push(...entries(B.adds[q.phase - 1])); g.wave.planDoneAt = null;
     if (q.phase === 2) q.nextWardAt = q.elapsed + B.wardPeriod;
     if (q.phase === 3) { q.nextRiftAt = q.elapsed + B.riftPeriod; e.speed *= B.phaseSpeedMultiplier; }
@@ -47,6 +48,7 @@ function afterDamage(g, e) {
   }
 }
 function summon(g, q) {
+  q.summonVisual = { at: q.elapsed };
   const ly = g.wave.ly, half = CONFIG.LAYOUT.enemy.runner / 2;
   for (let i = 0; i < B.summonCount; i++) g.wave.plan.push({
     lv: B.summonLv, type: 'runner', hp: B.summonHp, offset: 0.5, isBoss: false,
@@ -58,6 +60,10 @@ function summon(g, q) {
 function tick(g, dt) {
   const q = g.run.bossEncounter, e = g.run.bossEnemy;
   if (!g.run.bossLock || !q || q.id !== B.id || q.finished || !e || e.hp <= 0) return;
+  // Wave spawning happens immediately before this tick. Mark actual births, not queued plans.
+  for (const child of g.enemies) {
+    if (child.isSummon && child.waveNo === q.waveNo && child._veraBirthAt == null) child._veraBirthAt = q.elapsed;
+  }
   e._bossStun = Math.max(0, (e._bossStun || 0) - dt);
   const end = q.elapsed + Math.max(0, dt);
   while (q.elapsed < end - EPS) {
