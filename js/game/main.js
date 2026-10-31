@@ -620,6 +620,7 @@ class GameMain {
     if (this.renderer && this.renderer.preloadBoss) {
       if (this.run.wave === 20) this.renderer.preloadBoss('altar_rosea');
       if (this.run.wave === 40) this.renderer.preloadBoss('altar_galvin');
+      if (this.run.wave === 60) this.renderer.preloadBoss('altar_vera');
     }
     const w = this.run.wave || 1; // v1.16.124 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };

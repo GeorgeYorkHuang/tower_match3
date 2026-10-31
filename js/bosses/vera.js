@@ -30,7 +30,7 @@ function spawn(g, e, id) {
   e.bossId = B.id; e.bossName = B.name; e.phase = 1;
   e.hp = e.maxHp = e.delayHp = B.hp; e.armor = B.armor; e.attack = B.attack;
   e.speed = (ly.wallY - entry) / CONFIG.WAVE.seconds * B.speed / 1.5;
-  e.isFinalBoss = true; e.bossPlaceholder = true; e.immuneFreeze = true; e.immuneKnockback = true; e.frozen = 0;
+  e.isFinalBoss = true; e.bossPlaceholder = false; e.immuneFreeze = true; e.immuneKnockback = true; e.frozen = 0;
   e.bossStandoffY = entry + (ly.wallY - entry) * B.standoffRatio;
   g.run.bossEnemy = e; g.run.bossEncounter.members = [e];
 }

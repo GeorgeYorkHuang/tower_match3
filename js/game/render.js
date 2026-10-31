@@ -106,6 +106,7 @@ const IMG_SRC = {
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
   boss_altar_galvin_twin: 'assets/images/monsters/bosses/altar_galvin/twin-float-v1.png',
+  boss_altar_vera: 'assets/images/monsters/bosses/altar_vera/hover-v1.png',
   boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
   coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',

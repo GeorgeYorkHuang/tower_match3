@@ -598,3 +598,7 @@ tests/test_galvin_animation.cjs验证RGBA格式、16个裁帧边界样本、8帧
 ## Lv1–Lv9显示体型校正（2026-10-31）
 
 `js/config/enemy-visuals.js`的`generationSizes`统一管理代际图集显示边长，Lv1–Lv9分别为84/72/96/76/60/104/80/64/108px（含素材透明留白），由`enemy-size.js`读取；怪物本体及异常状态一起适配。保留普通/快速/重坦的体型区分，不修改素材、帧数、血量、移速和命中容差。精英、召唤物、Boss及Lv10以上沿用原尺寸。对比预览和核对记录存于`towerdefence_share`。
+
+## 60波薇拉帧动画（2026-10-31）
+
+薇拉已替换通用Boss占位图：浅绿色藤蔓/叶片组成长裙，下半身无腿无脚，通过裙摆、藤梢与发丝摆动表现悬浮。图集`assets/images/monsters/bosses/altar_vera/hover-v1.png`为透明4列×2行8帧，180ms/帧、1.44秒循环；`enemy-visuals.js`集中配置，帧内12%透明留白由绘制裁切，不修改原图alpha。60波提前预载，沿用已有战斗动画时钟，暂停时冻结。三阶段共用基础悬浮图集；独立施法/受击/死亡动画尚未制作。未改数值、阶段技能、终极1.5倍体型与命中规则。预览`preview_vera_animation.html`、生成记录及测试存于`towerdefence_share`。

@@ -9,6 +9,7 @@ const L = CONFIG.LAYOUT;
 function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
 /* v1.17.50 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
+  altar_vera: { src: IMG_SRC.boss_altar_vera, ...ENEMY_VISUAL.bossAnimations.altar_vera },
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
   altar_galvin_twin: { src: IMG_SRC.boss_altar_galvin_twin, ...ENEMY_VISUAL.bossAnimations.altar_galvin_twin },
   altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
@@ -167,7 +168,10 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
         const sx = Math.round(col * img.width / atlas.columns), sy = Math.round(row * img.height / atlas.rows);
         const sw = Math.round((col + 1) * img.width / atlas.columns) - sx;
         const sh = Math.round((row + 1) * img.height / atlas.rows) - sy;
-        ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
+        // Generated Vera atlas has generous gutters; crop only transparent inset, keeping full silhouette.
+        const inset = atlas.inset || 0;
+        const ix = Math.round(sw * inset), iy = Math.round(sh * inset);
+        ctx.drawImage(img, sx + ix, sy + iy, sw - ix * 2, sh - iy * 2, x, y, size, size);
         return true;
       }
       const fw = img.width / frameCount, fh = img.height;
