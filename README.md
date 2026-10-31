@@ -594,3 +594,7 @@ tests/test_galvin_animation.cjs验证RGBA格式、16个裁帧边界样本、8帧
 ## 迦尔文分裂表现（2026-10-31）
 
 40波P1保留双头悬浮圣像，P2两个分裂体共用单头8帧图集`assets/images/monsters/bosses/altar_galvin/twin-float-v1.png`（4列×2行、180ms/帧）。沿用原60%血量转阶段与0.5秒停顿：本体左右裂开、金色裂纹/碎光、单头双体渐显。分裂表现记录由单局Boss实例持有，随战斗时钟暂停/倍速，不改变碰撞、伤害、血量和奖励。两套图集提前预载，缺图沿用Boss绘制回退。制作记录、测试及`preview_galvin_split.html`在`towerdefence_share`，未替代用户真机验收。
+
+## Lv1–Lv9显示体型校正（2026-10-31）
+
+`js/config/enemy-visuals.js`的`generationSizes`统一管理代际图集显示边长，Lv1–Lv9分别为84/72/96/76/60/104/80/64/108px（含素材透明留白），由`enemy-size.js`读取；怪物本体及异常状态一起适配。保留普通/快速/重坦的体型区分，不修改素材、帧数、血量、移速和命中容差。精英、召唤物、Boss及Lv10以上沿用原尺寸。对比预览和核对记录存于`towerdefence_share`。
