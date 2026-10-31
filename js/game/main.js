@@ -861,7 +861,7 @@ class GameMain {
     // v1.16.1 地面持续效果（毒池毒液池/毒棒召唤物）画在敌人下层
     this.renderer.groundFx(ctx, this.combat);
     this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（暂停状态冻结）
-    this.renderer.enemies(ctx, this.enemies);
+    this.renderer.enemies(ctx, this.enemies, this.run.bossEncounter && this.run.bossEncounter.splitVisual);
     // v1.17.46 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
     this.renderer.fx(ctx, this.fx);

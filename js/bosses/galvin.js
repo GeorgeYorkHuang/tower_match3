@@ -2,6 +2,7 @@
 const CONFIG = require('../config.js');
 const B = require('../config/bosses.js').altar_galvin;
 const enemySize = require('../enemy-size.js');
+const ART = require('../config/enemy-visuals.js').bossAnimations.altar_galvin;
 function enabled(g) { return g.menuStage === B.field && g.run.wave === B.wave && g.state !== 'testfield'; }
 function entries(levels) {
   return levels.map(lv => { const c = CONFIG.ENEMY.levelOf(lv); return { lv, type: c.type, hp: c.hp, offset: 0.5, isBoss: false }; });
@@ -37,6 +38,7 @@ function configure(g, e, twin) {
   e.armor = twin ? B.twinArmor : B.armor; e.attack = B.attack;
   e.speed = (g.wave.ly.wallY - g.wave.ly.areaY - g.wave.ly.entryH) / CONFIG.WAVE.seconds * (twin ? B.twinSpeed : B.speed) / 1.5;
   e.controlResist = B.controlResist; e.bossPlaceholder = false;
+  e.bossArtKey = twin ? 'altar_galvin_twin' : B.id;
 }
 function spawn(g, e, id) {
   if (id !== B.id) return;
@@ -64,6 +66,10 @@ function split(g, e) {
     child.x = Math.max(minX, Math.min(maxX, e.x + (i ? 1 : -1) * B.splitSeparation / 2));
     child.y = e.y; group.members.push(child);
   }
+  group.splitVisual = { t: 0, duration: B.phaseStun, x: e.x, y: e.y,
+    size: enemySize(e, CONFIG.LAYOUT.enemy),
+    frame: Math.floor(((g.animClock || 0) + ((e.id || 0) * 53) % 1000) / ART.frameMs) % ART.frames,
+    childIds: group.members.map(child => child.id) };
   g.run.bossEnemy = group.members[0];
   g.wave.plan.push(...entries(B.adds[1])); g.wave.planDoneAt = null;
   g.fx.push({ type: 'floatText', text: '圣像裂生 · 两尊均需击败', x: e.x, y: e.y - 70, t: 0, dur: 2, size: 24, color: '#f4cf72' });
@@ -112,6 +118,7 @@ function tick(g, dt) {
   const group = active(g);
   if (!group || !group.members.some(e => e.hp > 0)) return;
   const alive = group.members.filter(e => e.hp > 0);
+  if (group.splitVisual) group.splitVisual.t = Math.min(group.splitVisual.duration, group.splitVisual.t + Math.max(0, dt));
   for (const e of alive) e._bossStun = Math.max(0, (e._bossStun || 0) - dt);
   const end = group.elapsed + Math.max(0, dt);
   // Integrate healing between event boundaries: a long frame must not apply a new stack retroactively.

@@ -590,3 +590,7 @@ tests/test_vera_final_boss.cjs通过28组数值/参数比较及三阶段/召唤/
 enemy-visuals.js集中帧数/行列/时长；敌人层增加多行裁帧，奇数尺寸按格边界独立取整，保留原单行规则。主体与两体复用图集并沿用独立ID相位，继续使用Renderer.animNow，因此战斗暂停时冻结；缺图回退通用Boss，40波进波时预载。只改表现，体型、碰撞与Boss技能不变。
 
 tests/test_galvin_animation.cjs验证RGBA格式、16个裁帧边界样本、8帧循环/双体相位、只读与缺图回退；3520组旧怪物绘制、20/40/60波Boss相关回归及123个JS语法/依赖检查通过。281条枚举资源路径均存在（既有火柱第8帧未配置另见历史登记）。真实敌人层浏览器预览位于towerdefence_share/preview_galvin_animation.html，截图与提示词/制作记录在share。图集由内置imagegen生成，未使用CLI。真机与最终美术风格仍由owner验收。
+
+## 迦尔文分裂表现（2026-10-31）
+
+40波P1保留双头悬浮圣像，P2两个分裂体共用单头8帧图集`assets/images/monsters/bosses/altar_galvin/twin-float-v1.png`（4列×2行、180ms/帧）。沿用原60%血量转阶段与0.5秒停顿：本体左右裂开、金色裂纹/碎光、单头双体渐显。分裂表现记录由单局Boss实例持有，随战斗时钟暂停/倍速，不改变碰撞、伤害、血量和奖励。两套图集提前预载，缺图沿用Boss绘制回退。制作记录、测试及`preview_galvin_split.html`在`towerdefence_share`，未替代用户真机验收。

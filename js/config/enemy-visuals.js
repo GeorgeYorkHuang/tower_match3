@@ -4,6 +4,7 @@ module.exports = {
   finalBossScale: 1.5,
   finalBossWave: 60,
   bossAnimations: {
+    altar_galvin_twin: { frames: 8, columns: 4, rows: 2, frameMs: 180 },
     altar_galvin: { frames: 8, columns: 4, rows: 2, frameMs: 180 },
   },
 };

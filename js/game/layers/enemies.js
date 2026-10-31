@@ -10,6 +10,7 @@ function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
 /* v1.17.50 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
+  altar_galvin_twin: { src: IMG_SRC.boss_altar_galvin_twin, ...ENEMY_VISUAL.bossAnimations.altar_galvin_twin },
   altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
 };
 /* v1.17.50 代际小怪图集上限：C 卡（Lv9-11）+ v1.17.51 D 卡（Lv12-14）后最高到 Lv14；
@@ -22,18 +23,58 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
   function preloadBoss(id) {
     const a = BOSS_ART[id];
     if (a && a.src) loadImg(a.src);
+    if (id === 'altar_galvin' && IMG_SRC.boss_altar_galvin_twin) loadImg(IMG_SRC.boss_altar_galvin_twin);
   }
 
-  function enemies(ctx, enemies) {
+  function enemies(ctx, enemies, splitVisual) {
+    const split = splitVisual && splitVisual.t < splitVisual.duration ? splitVisual : null;
     enemies.forEach((e) => {
       const isElite = e.type === 'elite';
       const size = enemySize(e, L.enemy);
-      const x = e.x - size / 2, y = e.y - size / 2;
+      let x = e.x - size / 2, y = e.y - size / 2;
+      const entering = split && split.childIds.includes(e.id);
+      if (entering) {
+        const p = split.t / split.duration, ease = 1 - Math.pow(1 - p, 3);
+        x = split.x + (e.x - split.x) * ease - size / 2;
+        y = split.y + (e.y - split.y) * ease - size / 2;
+        ctx.save(); ctx.globalAlpha *= Math.min(1, p * 1.8);
+      }
       this.drawEnemyBody(ctx, e, x, y, size, isElite);
       this.drawEnemyDebuffs(ctx, e, x, y, size);
       this.drawEnemyBar(ctx, e, x, y, size);
       this.drawEnemyDebuffIcons(ctx, e, x, y, size);
+      if (entering) ctx.restore();
     });
+    if (split && enemies.some(e => e.hp > 0 && split.childIds.includes(e.id))) drawSplit(ctx, split);
+  }
+
+  function drawSplit(ctx, v) {
+    const img = loadImg(IMG_SRC.boss_altar_galvin);
+    if (!img || !img.width || !img.height) return;
+    const p = v.t / v.duration, col = v.frame % 4, row = Math.floor(v.frame / 4);
+    const sx = Math.round(col * img.width / 4), sy = Math.round(row * img.height / 2);
+    const sw = Math.round((col + 1) * img.width / 4) - sx;
+    const sh = Math.round((row + 1) * img.height / 2) - sy, cut = Math.floor(sw / 2);
+    ctx.save();
+    ctx.globalAlpha *= Math.max(0, 1 - p / 0.85);
+    for (let side = 0; side < 2; side++) {
+      const offset = side ? cut : 0, width = side ? sw - cut : cut;
+      ctx.drawImage(img, sx + offset, sy, width, sh,
+        v.x - v.size / 2 + offset / sw * v.size + (side ? 1 : -1) * p * v.size * 0.32,
+        v.y - v.size / 2, width / sw * v.size, v.size);
+    }
+    ctx.restore(); ctx.save();
+    ctx.globalAlpha *= Math.sin(p * Math.PI);
+    ctx.strokeStyle = '#fff3b0'; ctx.lineWidth = Math.max(1, v.size * 0.035 * (1 - p));
+    ctx.beginPath(); ctx.moveTo(v.x, v.y - v.size * 0.32);
+    ctx.lineTo(v.x - 4, v.y); ctx.lineTo(v.x + 3, v.y + v.size * 0.3); ctx.stroke();
+    ctx.fillStyle = '#f9d67d';
+    for (let i = 0; i < 8; i++) {
+      const angle = i * Math.PI / 4, distance = p * v.size * 0.6;
+      const x = v.x + Math.cos(angle) * distance, y = v.y + Math.sin(angle) * distance;
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
+    ctx.restore();
   }
 
   function drawEnemyBody(ctx, e, x, y, size, isElite) {
@@ -43,7 +84,7 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
     const genLv = e.genLv || 1;
     const imgLv = (genLv >= 1 && genLv <= ENEMY_ART_MAX_LV) ? genLv : (ENEMY_ART_FALLBACK[e.type] || 13);
     // v1.17.46 fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
-    const bossArt = (e.isBoss && e.bossId && BOSS_ART[e.bossId]) || null;
+    const bossArt = (e.isBoss && e.bossId && BOSS_ART[e.bossArtKey || e.bossId]) || null;
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
     const summonArt = (!e.isBoss && e.isSummon) ? { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 } : null;
     const art = bossArt || summonArt;
@@ -104,7 +145,7 @@ const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
     try {
       // frames：专属 Boss 表传入的帧数（6或8）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
       const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
-      const atlas = e.isBoss && BOSS_ART[e.bossId];
+      const atlas = e.isBoss && BOSS_ART[e.bossArtKey || e.bossId];
       let f;
       if (!frames && imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）

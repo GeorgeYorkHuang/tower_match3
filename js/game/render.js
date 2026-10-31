@@ -105,6 +105,7 @@ const IMG_SRC = {
   lv14: 'assets/images/monsters/enemies/lv14.png',
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
+  boss_altar_galvin_twin: 'assets/images/monsters/bosses/altar_galvin/twin-float-v1.png',
   boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
   coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',
@@ -458,7 +459,7 @@ class Renderer {
   preloadBoss(id) { return this._getEnemyLayer().preloadBoss.call(this, id); }
 
   /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（v1.16.43 重构拆分子方法） */
-  enemies(ctx, enemies) { return this._getEnemyLayer().enemies.call(this, ctx, enemies); }
+  enemies(ctx, enemies, splitVisual) { return this._getEnemyLayer().enemies.call(this, ctx, enemies, splitVisual); }
 
   drawEnemyBody(ctx, e, x, y, size, isElite) { return this._getEnemyLayer().drawEnemyBody.call(this, ctx, e, x, y, size, isElite); }
 
