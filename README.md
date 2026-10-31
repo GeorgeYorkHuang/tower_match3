@@ -8,7 +8,7 @@
 
 ## 当前代码框架（2026-10-31）
 
-本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十六批界面/特效与流程提取，当前进入最终审计收口。兼容入口继续保留，不以清空main.js/render.js为目标。
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十六批界面/特效与流程提取及第十七批最终审计，本轮拆分已收口。兼容入口继续保留，不以清空main.js/render.js为目标。
 
 ### 启动与运行关系
 
@@ -184,7 +184,7 @@ js/
 
 协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
 
-### 本轮重构路线：8批目标已完成7批，剩余1批审计收口
+### 本轮重构路线：8批目标全部完成（2026-10-31收口）
 
 | 顺序 | 内容 |
 |---|---|
@@ -195,9 +195,9 @@ js/
 | 5（已完成） | 棋盘、交换/补落/扫描与障碍，已迁入layers/board.js |
 | 6（已完成） | 战斗场景组件：已迁入layers/battle.js、ground.js和chests.js |
 | 7（已完成） | Main职责整理：已迁入flows/test-operations、relic-acquisition和run-settlement |
-| 8 | 依赖/数据隔离审计、必要回归和文档收口 |
+| 8（已完成） | 依赖/数据隔离审计、37个脚本回归及文档收口 |
 
-上表是本轮目标范围，前七项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
+上表8项已全部完成，不再安排为了减少行数的机械拆分；八大功能待办仍独立推进。Main/Renderer继续保留实例持有、场景调度、公共工具与兼容入口。当前main.js 1119行、render.js 1214行、combat.js 464行（含注释及空行）；后续按具体功能维护对应领域模块。
 
 ## 本地测试档
 
@@ -215,7 +215,11 @@ js/
 当前可执行检查示例（需本机Node.js，以及本地Git历史）：
 
 ```powershell
+node F:/workspace/towerdefence_share/tests/run_r16_final.cjs
 node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
+node F:/workspace/towerdefence_share/tests/audit_data_ownership_final.cjs
+node F:/workspace/towerdefence_share/tests/audit_assets_final.cjs
+node F:/workspace/towerdefence_share/tests/test_session_reset_final.cjs
 node F:/workspace/towerdefence_share/tests/test_main_flows_split.cjs
 node F:/workspace/towerdefence_share/tests/test_board_layer_split.cjs
 node F:/workspace/towerdefence_share/tests/test_battle_layers_split.cjs
@@ -237,6 +241,10 @@ node F:/workspace/towerdefence_share/tests/test_settlement_route.cjs
 真机统一由项目owner测试，按当批提供的短清单验收；代码层检查不代替真机。重点包括手势只交换一次、弹窗层级/外部关闭、设备坐标适配、正常/测试档切换，以及购买/升星/开箱/局末入账。share未纳入本仓库，交接时需要另行携带测试和设计资料。
 
 已登记但不在机械重构中改变的经济口径：深度宝箱gain.shards尚未分配到具体圣遗物，速开沿用约4钻/小时公式；P2/P3平衡提案单独实施和验证。
+
+最终审计遗留：火柱时间轴仍有8帧，但firepillar.ASSETS[8]被注释，末帧走程序化回退；恢复素材或调整时间轴需另做表现验收。已枚举280条图片/音频路径均存在，不包含未使用的旧special-chip兼容资源，也不代表图片解码、分包上传或所有动态路径已验证。
+
+数据隔离验收覆盖Meta/序列化/存储边界、v1—v5迁移、普通/测试档切换、四战场的新Run容器及敌人实例。Run._weights.keys有意只读引用难度颜色配置列表，Main注入的fieldCfg/metaRef/combatRef属于明确的跨层连接；不能把这些引用误判为局内状态拷贝或声称完全无共享对象。
 
 ## 资源与分包约定（新增素材前必读）
 
@@ -511,3 +519,12 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第十六批：Main流程职责整理（2026-10-31）
 
 `game/flows/test-operations.js`接管测试战场进入/切塔/技能配置/刷怪、测试输入和调试动作11个方法；`relic-acquisition.js`接管击杀奖励、候选池/重掷/选择6个方法；`run-settlement.js`接管局末收益、碎片折算、退出结算和摘要卡4个方法。Main保留21个同名委托，主循环、实例所有权及场景协调不变；流程模块使用调用时的宿主，不缓存Meta/Run/敌人或反向依赖Main。main.js从1615行降至1111行。固定a93003b基线21个迁移方法体逐字核对与568组固定随机种子流程对比通过，覆盖状态、Meta/存档、收益、随机消费、测试操作和圣遗物获取；真实Main测试战场、圣遗物、升级与结算交互及118个JS语法/依赖检查通过。未进行真机测试。测试与说明在towerdefence_share；本轮8批完成7批，下一批仅做最终依赖/数据隔离审计、必要回归及文档收口。
+
+
+## R16第十七批：最终审计与文档收口（2026-10-31）
+
+本轮8项计划全部完成。118个JS文件语法/字面量依赖检查通过，无检测到的循环依赖；18个combat模块、3个流程模块和37个表现模块通过对应边界规则，wx同步存储仅由SaveManager调用。3333项数据所有权断言通过，检查Meta嵌套快照、重复恢复、存储/迁移、普通/测试档往返、四战场及怪物实例；已知只读配置引用单独允许。280条枚举资源路径存在，火柱第8帧未配置单独登记。最终37个脚本37通过/0失败，明细和脚本保存在towerdefence_share/tests。
+
+审计复现并以独立提交699b14b修复两处旧生命周期残留：newRun现在清空上一局的待选圣遗物队列/当前选择/返回状态/测试星级标志/列表及上次银币折算缓存，避免重开或换档带入旧候选，以及零银币结算显示上次金额。新增失败→修复通过的生命周期用例，并复跑全部37个脚本。经济规则、伤害与掉落权重未调整。
+
+没有进行真机验收，由owner按需检查：重开后不再弹旧圣遗物候选；普通档与测试档来回切换不带旧选择；新局零银币结算显示0。历史深度宝箱碎片总量未入具体圣遗物、速开费用多来源及P2/P3平衡任务仍独立登记，不能因拆分完成视为已修复。
