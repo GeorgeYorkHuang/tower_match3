@@ -6,88 +6,186 @@
 
 设计文档见 `F:\workspace\towerdefence_share`（设计稿、数值字典、重构记录、任务单、美术源文件、预览器与测试脚本都在这里，本仓库只保留运行时代码与 `assets/`）；正文中提到的 `docs/...`、`tools/...`、`art/...` 路径，对应 share 下 `project-support-20261031-105746/` 的同名相对路径。
 
-## 源码目录介绍
+## 当前代码框架（2026-10-31）
+
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
+
+### 启动与运行关系
 
 ```text
-game.js → js/loading.js → js/game/main.js
-assets/                         图片、音频、动画帧素材分包
-js/
-  config.js                     兼容聚合入口；布局、战场和部分经济配置
-  config/
-    monsters.js                 怪物等级、波次、精英与 Boss
-    towers.js                   塔基础属性、塔位、经验成长
-    skills.js                   技能池、说明、消耗、选择与解锁规则
-    tower-skills.js             六塔分支行为数值
-    global-balance.js           全局技能行为数值
-    combat-common.js            通用战斗数值
-    relics.js                   圣遗物定义、稀有度、升星规则
-    test-access.js              本地测试入口开关与口令
-  board.js / match3.js           棋盘算法 / 交换与连锁动画控制
-  run.js / combat.js             单局状态与结算 / 攻击、弹道、伤害
-  effects.js / wave.js           塔技能构筑与分支 / 敌人生成
-  meta.js / save.js              玩家档案、兼容委托 / 本地存档
-  save/snapshot.js              存档深层快照，恢复/导出不共享嵌套对象
-  save/migrations.js            旧版存档与技能改名迁移
-  global-skills.js               全局技能兼容出口
-  economy/
-    calendar.js / shop.js        每日日期 / 精选与宝箱购买、限购
-  skills/
-    unlocks.js                  技能解锁与扣费
-    global-catalog.js           全局技能目录与动态说明
-    global-loadout.js           双槽归一化和旧配置兼容
-    global-runtime.js           全局技能施放、计时和波次清理
-  combat/
-    lifecycle.js                战斗逐帧顺序、死亡清场与实例重置
-    attacks.js                  公共攻击计时、能耗与普攻发射
-    targeting.js                公共选敌、额外目标、塔口位置与射程判断
-    projectiles.js              弹道登记、终点命中、散射碰撞与回旋轨迹
-    damage.js                   攻击伤害乘区、扣血/死亡入口与范围爆炸
-    statuses.js                 灼烧/毒/流血、减速/冻结及公共状态推进
-    areas.js                    延迟落点/回调、地面区域伤害与叠毒推进
-    death.js                    六塔死亡触发协调、传播与奖励调用顺序
-    towers/
-      fire.js                   火塔攻击/命中、火柱/火墙/火雨周期与队列结算
-      ice.js                    冰塔攻击/命中、冰花/冬珠/冰墙及实体推进
-      electric.js               电塔命中/麻痹/电磁场、极光电击与雷暴周期
-      poison.js                 毒塔命中/传染、毒池/毒藤周期与毒棒推进
-      cannon.js                 炮塔命中/周期、炮火支援及地雷/炮台推进
-      boomerang.js              回旋镖攻击/周期、风暴镖/弹力镖与风痕推进
-  relics/
-    queries.js                  定义查询、分类与随机抽取
-    progression.js              碎片、手动解锁、升星
-    match-hooks.js              消除/溢出相关圣遗物触发
-    kill-hooks.js               死亡触发、击杀经验与精英宝箱概率加成
-    wave-hooks.js               波初洗牌/宝箱计数、波末银币/回血/护盾
-    deep-chests.js               深度宝箱、等待、速开及奖励入账
-  game/
-    main.js / render.js          主循环与协调 / 渲染兼容入口
-    canvas.js / audio.js / ui.js  画布适配 / 声音 / 基础绘制
-    account.js                  本地测试档切换、机型信息
-    input/
-      touch.js / coordinates.js  手势生命周期 / 坐标换算
-      relic-scroll.js            圣遗物惯性滚动（参数见config/relic-scroll.js）
-      menu-actions.js           菜单动作、弹窗、购买操作分发
-      battle-actions.js         战斗弹层优先级、点击消费与战斗动作分发
-    screens/
-      home.js / menu-header.js  战场主页 / 顶部功能与货币栏
-      menu-shop.js              局外商店绘制（不执行购买）
-      battle-shop.js            局内商店绘制与点击矩形（不执行购买）
-      skill-loadout.js          技能配置卡片与选择面板
-      account-menu.js           功能菜单和我的信息
-      codex.js                  塔图鉴主页和技能详情
-      relics.js                 圣遗物滚动页、图鉴、详情与升星
-    icons/ / fx/                图标及部分特效播放参数
+game.js
+  └─ js/loading.js：初始化加载界面，加载assets分包
+      └─ js/game/main.js：GameMain，持有玩家/单局/战斗与界面状态
+          ├─ account.js + save.js + meta.js：选择本地档案、读取/保存进度
+          ├─ input/touch.js → menu-actions.js / battle-actions.js：输入分发
+          ├─ match3.js → run.js → board.js / effects.js：交换、消除收益、技能构筑
+          ├─ wave.js + bosses/rosea.js：波次投放、Boss阶段和锁关
+          ├─ combat.js → combat/*：选敌、攻击、碰撞、伤害、状态与周期技能
+          └─ render.js → screens/* + icons/* + fx/*：按层级绘制和生成点击区域
 ```
 
-## 数据隔离与重构进度（2026-10-30）
+主要业务流程：
 
-领域配置是共享定义；玩家的金币、碎片、星级属于 `Meta`，棋盘、塔能量、技能分支和冷却属于当前 `Run`/战斗实例。业务状态不得写回配置表。 `Meta.fromJSON/toJSON` 与存储读取边界均复制嵌套数据；读取失败或未知版本存档不会被自动空档覆盖，详见 [R08验收说明](docs/存档隔离-R08验收说明.md)。兼容入口保留同一配置对象引用，不复制第二套数值。
+- **消除**：触摸控制器限制单次手势交换一次；Match3发起交换，Run/Board计算消除与收益，Match3按交换/扫描/消除/下落阶段播放，并在对应阶段发射连消攻击。现状是部分收益在Run.trySwap中提前结算，不能把它理解为全部收益随动画逐帧结算。
+- **战斗**：Main协调投放、移动/攻城、Boss、Combat与波末；Combat子模块处理攻击和伤害，击杀后调用既有奖励路径。Main根据状态决定是否推进战斗，表现事件的推进并非全部与战斗暂停采用同一规则。
+- **结算**：Main.finishRun计算收益与碎片入账，生成runSummary；settlement.js只展示摘要。点击跳过/重开/返回仍由输入路由处理，绘制不能重复发奖。
+- **局外操作**：screens生成点击项，menu-actions分发；商品购买、解锁、升星分别交由economy/skills/relics业务模块，Save统一持久化。
 
-已分离：四类领域数据、触摸与菜单路由、主页/顶部栏/局外商店绘制、塔图鉴与圣遗物页面绘制、圣遗物成长、深度宝箱、局外商店、技能解锁和全局技能目录/槽位/运行逻辑。定义模块不反向依赖 `config.js`；查询函数通过聚合配置上下文调用。服务显式接收档案或对局，不缓存玩家引用；绘制模块只返回点击区域，扣款、发奖归业务模块。
+### 运行时代码目录与职责
 
-仍待分离：`combat.js` 中各塔攻击与圣遗物触发、`run.js` 中消除收益挂点、其余界面和战斗弹窗、旧版圣物成长与宝箱。尚未完成全部硬编码数值迁移，P2/P3 平衡提案也不属于本轮机械重构。
+```text
+assets/
+  images/
+    interface/                  battle、home、board、chips界面与棋盘素材
+    monsters/                   小怪/Boss图集；Lv1—14已有代际素材
+    towers/                     塔图标、技能图标、fx、debuff素材
+    relics/                     六塔和通用圣遗物图标
+    resources/                  货币与宝箱
+  audio/                        声音素材
+js/
+  loading.js                    分包加载与启动
+  config.js                     配置聚合；仍含布局、战场和部分经济定义
+  config/
+    monsters.js / bosses.js     小怪代际、波次、精英/Boss规则 / 已接入Boss参数
+    towers.js                   塔基础属性、经验成长与塔位规则
+    skills.js / tower-skills.js 技能池/文案/选择规则 / 六塔技能行为数值
+    global-balance.js           全局技能行为数值
+    relics.js                   圣遗物定义、稀有度、解锁升星定义
+    combat-common.js            公共战斗约束
+    combat-presentation.js      伤害数字等战斗反馈配置
+    enemy-visuals.js            Boss普通/终极显示倍率
+    chain-flight.js             连消弹道下落、加速与旋转参数
+    match-glow.js               星芒下落/停留/上升时序
+    match-feedback.js           combo显示门槛、配色、描边与震动参数
+    relic-scroll.js             惯性滚动参数
+    test-access.js              本地测试入口开关与口令
+  board.js                      棋盘匹配、特殊块、障碍与补落算法
+  match3.js                     交换/扫描/消除/下落状态机、分级特效和连消发射
+  run.js                        单局资源、消除奖励、经验、全局充能与结算协调
+  effects.js                    塔构筑、候选生成、分支锁定与成长
+  wave.js                       波次计划、敌人生成和投放
+  field-access.js               战场可见性、解锁条件与提示节流
+  enemy-size.js                 显示体型纯计算（供绘制和Boss接触半径共用）
+  chain-flight.js               连消弹道运动、加速和追踪
+  combat.js                     CombatSystem实例、公共查询和兼容协调入口
+  combat/
+    lifecycle.js                逐帧调用顺序和实例重置
+    attacks.js                  攻击计时、能耗和普攻发射
+    targeting.js                选敌、额外目标、塔口与射程
+    projectiles.js              弹道登记、目标解析、散射与回旋几何
+    collision.js                接触技能的Boss体型半径补偿
+    damage.js                   伤害乘区、扣血/死亡门禁和范围爆炸
+    impacts.js                  命中与普攻异常效果分发
+    statuses.js                 公共DoT、控制与状态计时
+    areas.js                    延迟落点/回调、地面持续区
+    death.js                    死亡技能、圣遗物挂点与奖励调用顺序
+    linkage.js                  三消额外攻击、连消、周期技能公共施放入口
+    global-cast.js              双槽释放、洗牌/补给与技能齐发协调
+    towers/{fire,ice,electric,poison,cannon,boomerang}.js
+                                六塔攻击、命中、周期技和专属实体推进
+  bosses/rosea.js               圣坛20波萝赛机制；其他Boss体系尚待开发
+  global-skills.js              全局技能兼容聚合出口
+  skills/
+    unlocks.js                  技能解锁与扣费
+    global-catalog.js           技能目录和说明
+    global-loadout.js           双槽配置与旧配置兼容
+    global-runtime.js           具体全局技能效果、持续状态与波次清理
+    chain-attacks.js            消除快照转连消弹道计划，不直接扣血/发奖
+  meta.js                       玩家档案与局外成长兼容入口
+  save.js                       本地存储统一读写入口
+  save/{snapshot,migrations}.js 深层快照 / 存档版本及技能改名迁移
+  economy/{calendar,shop}.js    每日日期 / 精选、宝箱购买与限购
+  relics/
+    queries.js / progression.js 定义查询与抽取 / 碎片、解锁、升星
+    match-hooks.js              消除、溢出触发
+    kill-hooks.js               击杀、经验与精英宝箱概率挂点
+    wave-hooks.js               波初/波末圣遗物触发
+    deep-chests.js              深度宝箱、等待、速开与收益
+  game/
+    main.js                     实例持有、状态切换、主循环和业务协调
+    render.js                   场景层级、兼容绘制入口及尚未提取的表现代码
+    canvas.js / audio.js / ui.js 画布适配 / 声音 / Canvas绘制原语
+    account.js                  正常/测试档案切换与设备信息
+    enemy-size.js               体型计算的绘制兼容出口
+    combo-feedback.js          分级连消文字、颜色与震动事件
+    input/
+      touch.js / coordinates.js 手势生命周期 / 逻辑坐标换算
+      relic-scroll.js           圣遗物页惯性滚动
+      panel-scroll.js           全局技能候选面板惯性滚动
+      menu-actions.js           菜单购买、配置、解锁与弹窗动作
+      battle-actions.js         战斗/弹层点击优先级与动作分发
+    screens/
+      home.js / menu-header.js  主页战场卡 / 顶部功能与货币栏
+      menu-shop.js              局外商店
+      skill-loadout.js           技能配置卡和滚动候选面板
+      account-menu.js           功能菜单与我的信息
+      codex.js / relics.js       塔图鉴 / 圣遗物页面、图鉴、详情、升星
+      stage-drops.js            战场说明与专属掉落信息
+      battle-hud.js             银币、等级经验环、波次进度、圣遗物行
+      battle-shop.js            局内商店绘制与购买命中矩形
+      tower-details.js          战斗塔详情与技能二级详情
+      battle-relics.js           局内圣遗物三选一与详情
+      battle-overlays.js         设置、帮助、撤离决策
+      settlement.js             结算摘要与阶段动画绘制
+      upgrade-pick.js           升级技能三选一绘制
+      test-field.js             测试战场与测试技能配置面板绘制
+    icons/
+      skills.js                 技能图标绘制
+      chip-skin.js              特殊块底板/图案查表与加载
+      special-blocks.js          特殊块矢量标识与子雷符号
+      special-chip.js           旧特殊块素材兼容与回退
+    fx/
+      common.js                 飘字、命中、爆炸、粒子、扩散环、连线
+      match.js                  星芒飞光、特殊块生成/引爆及五消表现
+      fire.js                   火柱/火墙/火雨及程序化回退绘制
+      firewall.js / firepillar.js 火墙/火柱资源、选帧和布局参数
+      damage-numbers.js         伤害数字队列与格式化
+      combat-feedback.js        命中反馈和伤害数字接入
+      boss-rosea.js             萝赛专属表现
+```
 
-完整范围、依赖和下一批顺序见 [领域数据隔离与代码分离](docs/领域数据隔离与代码分离-第二阶段.md)。 剩余排期见 [后续重构计划](docs/后续重构计划-2026-10-30.md)。 具体领取范围与验收见 [下一批任务单](docs/下一批可领取任务单-2026-10-30.md)。共享入口由集成人员修改，各成员优先在独立模块工作；不得将他人未提交的素材或数值改动混入自己的提交。
+### 数据归属与模块边界
+
+| 层 | 持有的数据 | 修改规则 |
+|---|---|---|
+| Config | 怪物、塔、技能、圣遗物定义和数值/表现参数 | 作为共享定义读取，业务不得回写玩家或战斗状态 |
+| Meta | 金币/钻石、碎片、解锁、星级、局外进度和偏好 | 局外成长与结算按业务接口修改，经Save持久化 |
+| Run / EffectManager | 当前棋盘、单局银币/经验/充能、出战塔、技能分支、局内圣遗物和全局技能状态 | 每局独立；不能把塔当前能量、分支和冷却写进配置 |
+| Combat / 敌人实例 | 弹道、周期计时、延迟队列、DoT、敌人血量/控制/Boss阶段 | 随当前战斗推进，重开/切场按生命周期清理 |
+| Main / Renderer / 输入与表现事件 | 页面状态、弹窗、候选队列、命中区、动画时钟、特效与滚动状态 | 绘制可更新命中区、入场时间戳和事件拖尾；不得在绘制中扣款或发奖 |
+| Save | 存储快照与版本迁移 | 正常档/测试档分键，存储及Meta恢复边界复制嵌套数据 |
+
+`combat.js`、`global-skills.js`、`meta.js`、`render.js`继续保留兼容入口。领域实现可以调用传入的上下文，但不应反向依赖聚合入口形成循环。模块不缓存跨局玩家/敌人实例；当前静态审计不等于证明所有动态路径均不存在共享状态。
+
+### 修改功能时从哪里入手
+
+| 工作 | 主要修改位置 | 必须同步检查 |
+|---|---|---|
+| 塔技能调整 | config/tower-skills.js、config/skills.js、combat/towers/ | 文案/数值一致、分支锁定、命中与伤害分类 |
+| 塔技能效果制作 | game/fx/；未迁移部分仍在render.js | 实际伤害窗口、暂停/倍速、素材路径及缺图回退 |
+| 圣遗物调整 | config/relics.js、relics/*；部分触发仍在塔模块/Main | 星级、叠加、触发次数、碎片及金币入账 |
+| 新手提示 | game/screens/、Main状态和输入路由 | 引导顺序、暂停、误操作与正常账号展示 |
+| 局内/局外商店 | economy/shop.js、battle-shop/menu-shop.js、对应输入与Main购买入口 | 币种、价格、限购、扣款与发奖一次 |
+| 怪物平衡/Boss机制 | config/monsters.js、config/bosses.js、wave.js、bosses/ | 逐波数量、移动/减伤、阶段/召唤、锁关与结算 |
+| Boss效果制作 | game/fx/boss-*.js、对应怪物/Boss图集 | 阶段同步、预警/命中窗口、体型与碰撞 |
+| 账号/存档 | game/account.js、save.js、save/*、meta.js | 正常/测试档隔离、迁移与失败保护 |
+
+协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
+
+### 本轮重构路线：8批目标已完成1批，预计剩余7批
+
+| 顺序 | 内容 |
+|---|---|
+| 1（已完成） | 火柱、火墙、火雨特效绘制，已迁入fx/fire.js |
+| 2 | 其他塔专属特效：炮击、地雷、炮台、毒藤、旋风等 |
+| 3 | 六塔普攻与连消弹道绘制 |
+| 4 | 怪物帧动画、Boss外观与异常状态绘制 |
+| 5 | 棋盘、交换/补落/扫描与障碍绘制 |
+| 6 | 战斗场景组件：塔位、全局技能、地面效果和掉落宝箱 |
+| 7 | Main职责整理：测试操作、圣遗物获取和结算协调 |
+| 8 | 依赖/数据隔离审计、必要回归和文档收口 |
+
+上表是本轮目标范围，第一项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
 
 ## 本地测试档
 
@@ -100,43 +198,27 @@ js/
 
 ## 重构回归与验收
 
-在项目根目录用 Node.js 运行：
+项目根目录不再存放tools/docs/art。当前测试和说明在 `F:/workspace/towerdefence_share`；旧测试/工具/设计稿在 `project-support-20261031-105746/` 归档。请勿照历史记录在已不存在的项目tools目录运行命令。
+
+当前可执行检查示例（需本机Node.js，以及本地Git历史）：
 
 ```powershell
-node tools/_test_save_isolation.cjs
-node tools/_test_domain_config.cjs
-node tools/_test_touch_channels.cjs
-node tools/_test_canvas_adaptation.cjs
-node tools/test_touch_wx.mjs
-node tools/_test_codex_split.cjs
-node tools/_test_relic_screen_equiv.cjs
-node tools/_test_relic_inertia.cjs
-node tools/_test_relic_progression.cjs
-node tools/_test_deep_chests.cjs
-node tools/_test_shop_unlocks.cjs
-node tools/_test_global_skills_split.cjs
-node tools/_test_skill_cfg_v11728.mjs
-node tools/_test_shard_settle_v11720.mjs
-node tools/_test_shard_unlock_ui_v11720.mjs
-node tools/_test_multi_replacement.cjs
-node tools/_test_rainbow_charge.cjs
+node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
+node F:/workspace/towerdefence_share/tests/test_fire_fx_split.cjs
+node F:/workspace/towerdefence_share/tests/test_common_fx_split.cjs
+node F:/workspace/towerdefence_share/tests/test_match_fx_split.cjs
+node F:/workspace/towerdefence_share/tests/test_upgrade_pick_route.cjs
+node F:/workspace/towerdefence_share/tests/test_test_field_route.cjs
+node F:/workspace/towerdefence_share/tests/test_settlement_route.cjs
 ```
 
-其中 `codex_split / relic_progression / deep_chests / shop_unlocks / global_skills_split` 使用本地 Git 中固定提交 `1b72edb` 作为重构前基线，逐项比较旧新返回值、状态或绘制指令；需保留该提交历史，源码ZIP不能直接运行这些历史对比测试。`_test_relic_screen_equiv.cjs`另用固定提交`a4c4699`作为圣遗物页面基线，覆盖1746个输入组合（含图片加载与缺图回退），详见[接入说明](docs/圣遗物页面拆分-接入说明.md)。这些测试证明迁移等价，不代表原规则没有缺陷。
+固定基线测试从本地Git读取旧代码，对照Canvas指令、状态或命中函数采样。须保留基线提交历史；源码ZIP和仅下载当前代码不能直接复现所有历史比较。绘制指令一致不代表所有机型像素一致，也不代表原规则没有缺陷。
 
-预览重新构建与校验：
+旧CommonJS测试可通过 `tests/run_archived_test.cjs <原测试文件名>` 虚拟原项目路径运行，但仅用于适用的只读测试；ESM、需要写文件或路径假设已变化的旧工具要单独适配，不能默认全部兼容。
 
-```powershell
-node tools/_build_skill_preview.mjs
-node tools/_verify_skill_preview.cjs
-node tools/_build_menu_audit.mjs
-node tools/_build_special_preview.mjs
-```
+真机统一由项目owner测试，按当批提供的短清单验收；代码层检查不代替真机。重点包括手势只交换一次、弹窗层级/外部关闭、设备坐标适配、正常/测试档切换，以及购买/升星/开箱/局末入账。share未纳入本仓库，交接时需要另行携带测试和设计资料。
 
-预览会内联当前工作区模块，构建前应检查并行未提交改动。真机由项目 owner 测试，重点复核：菜单连续点击、单次滑动一次交换、弹窗外关闭、机型适配、正常档/测试档切换、购买/升星/开箱入账。
-
-已登记且未在重构中修改的经济口径：深度宝箱 `gain.shards` 摘要尚未分配到具体圣遗物；速开沿用约4钻/小时公式，未使用档位 `speedDiamond`。详见重构记录。
-
+已登记但不在机械重构中改变的经济口径：深度宝箱gain.shards尚未分配到具体圣遗物，速开沿用约4钻/小时公式；P2/P3平衡提案单独实施和验证。
 
 ## 资源与分包约定（新增素材前必读）
 
@@ -148,7 +230,7 @@ node tools/_build_special_preview.mjs
 | 禁止 | 在根目录新建 `images/`、`audio/` 等素材目录（会直接进主包） |
 | 分包加载 | `js/loading.js` 启动时 `wx.loadSubpackage('assets')`，带进度条与失败重试；加载成功后才 `new Game()`，故所有素材引用都发生在分包就绪之后 |
 | 包体校验 | 以开发者工具当前编译、上传结果及平台规则为准，历史体积不作为当前测量 |
-| 上传前自检 | `python tools/_check_pack.py` —— 模拟打包，报主包/分包体积与残留文件 |
+| 上传前自检 | 核对开发者工具打包体积、分包和忽略项；旧检查脚本已归档到share，使用前需核对路径假设 |
 | 忽略规则 | `game.json`（后台上传用）与 `project.config.json`（工具本地编译用）的 `packOptions.ignore` **必须两边同步**，否则工具显示体积与后台上传结果不一致 |
 
 > 已排除出包：`tools art docs .workbuddy .creative-design`、工具临时目录（`_doc_draft` / `doc-fetch-resources` / `draft_*`）、根目录文档与测试脚本。
@@ -166,6 +248,10 @@ node tools/_build_special_preview.mjs
 8. **Boss的技能效果制作**：制作各Boss技能的预警、施放、命中、阶段切换与召唤效果，确保表现与实际判定同步。
 
 以上为当前主要功能方向，不代表已完成。原细项（战场差异、经济、留存、埋点、合规等）保留在 `F:/workspace/towerdefence_share/开发待办-历史细项-2026-10-31.md`，后续排期时再展开。
+
+## 历史开发与重构记录
+
+以下按交付时间保留，数值、路径和“下一批”是当时快照；当前框架与后续范围以文首章节为准。
 
 R12已完成主页、顶部栏与局外商店绘制提取，66组状态与固定基线逐绘制指令/命中区对比通过；见[接入说明](docs/主页商店页面拆分-接入说明.md)。
 
@@ -372,3 +458,8 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第九批：通用粒子与命中特效绘制提取（2026-10-31）
 
 `js/game/fx/common.js`接管飘字/白描边、城墙受击、旧子弹、爆炸、命中闪光、通用粒子、扩散环和两点连线8个handler；Renderer保持同名委托和原分发顺序，图片加载/动画选帧沿用宿主，事件只读。固定8fe62fd基线4482组逐Canvas指令对比通过，覆盖六色/默认值、文字描边、粒子/范围参数、图片就绪/回退与时间边界。三消4382组、连消提示/弹道、真实Main绘制及105个JS语法/依赖检查通过。伤害、生命周期和动画参数未调整；测试/说明在towerdefence_share。下一批候选为火系技能特效绘制，沿用现有火墙/火柱选帧模块。
+
+
+## R16第十批：火系技能特效绘制提取（2026-10-31）
+
+`js/game/fx/fire.js`接管火柱、火墙、火雨范围/落点，以及两种程序化回退，共6个绘制入口；Renderer保留同名委托。继续使用firepillar.js/firewall.js的资源、选帧、布局和粒子参数，素材加载及图集工具沿用宿主。固定a803f31基线1316组Canvas/渐变/事件只读对比通过，覆盖火柱TL/0.6秒边界、火墙12fps与错相/淡入淡出、火雨落地、缺图和兼容辅助入口。火塔周期496组、通用4482组、三消4382组、Main绘制及106个JS语法/依赖审计通过；伤害、周期、半径和队列逻辑未改。当前框架已同步，本轮8批目标已完成首批，剩余约7批；下一批为其他塔专属特效绘制。说明/测试保存在towerdefence_share。
