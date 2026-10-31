@@ -1,3 +1,4 @@
+const ChainFlight = require('./chain-flight.js');
 const GlobalCast = require('./combat/global-cast.js');
 const Linkage = require('./combat/linkage.js');
 const Impacts = require('./combat/impacts.js');
@@ -212,6 +213,7 @@ class CombatSystem {
     const g = this.game;
     s.t += dt;
     if (s.t < 0) return true;
+    if (s.chainFlight) return ChainFlight.advance(this, s, dt);
     if (s.orb) return ElectricTower.stepOrb(this, s, dt);
     if (s.bounce) return BoomerangTower.stepBounce(this, s, dt);
     if (s.scatter) {

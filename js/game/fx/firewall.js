@@ -7,10 +7,10 @@
  * 纯函数、零依赖（不 require render.js，避免循环）。
  */
 const ASSETS = {
-  1: 'assets/images/fx/firewall/anim_firewall_01.png',
-  2: 'assets/images/fx/firewall/anim_firewall_02.png',
-  3: 'assets/images/fx/firewall/anim_firewall_03.png',
-  4: 'assets/images/fx/firewall/anim_firewall_04.png',
+  1: 'assets/images/towers/fx/firewall/anim_firewall_01.png',
+  2: 'assets/images/towers/fx/firewall/anim_firewall_02.png',
+  3: 'assets/images/towers/fx/firewall/anim_firewall_03.png',
+  4: 'assets/images/towers/fx/firewall/anim_firewall_04.png',
 };
 
 /** v1.17.17/18 帧动画参数：4 帧 512×160 透明底贴图，12fps 循环 */

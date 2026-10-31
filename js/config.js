@@ -81,11 +81,13 @@ module.exports = {
     RARITY: { r: '#4aa3ff', sr: '#a86bff', ssr: '#f7c948' },   // v1.17.22 大卡边框/胶囊用，先登记
     TRAIL: { x0: 70, x1: 680, lineY: 404, waveMax: 50, nodeR: 10, endR: 14, flagH: 34, labelGap: 34 },
     // 时间轴关键帧（ms），与计划文档「六、动画时间轴」一致
+    // v1.17.48 旗帜/轨迹段放慢近一倍：已走段生长 380→720，里程碑旗逐个亮起 60→120ms 间隔，
+    //   末端与后续账单按新节奏顺延（末节点完成 ≈1.36s，整场演出 2.16→2.72s，仍有「点击跳过」）
     TL: {
       stage: 0, ribbon: 120, title: 140, meta: 260,
-      trail: 340, trailGrow: 380, node0: 520, nodeGap: 60, endPin: 760,
-      lootTitle: 900, card0: 980, cardGap: 140, shardNum: 1400,
-      billL: 1760, billR: 1840, mile: 1960, btn: 2160,
+      trail: 340, trailGrow: 720, node0: 640, nodeGap: 120, endPin: 1360,
+      lootTitle: 1440, card0: 1520, cardGap: 140, shardNum: 1960,
+      billL: 2240, billR: 2320, mile: 2440, btn: 2720,
     },
   },
 
@@ -121,15 +123,29 @@ module.exports = {
 
   FIELDS: {
     ancient: { name: '圣坛花园', short: '🏰 圣坛花园', tint: '#2ecc71', tintDark: '#1f8c5f',
-      subtitle: '城墙防守 · 怪物攻城 · 圣坛裂痕', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0 },
+      subtitle: '城墙防守 · 怪物攻城 · 圣坛裂痕', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0,
+      desc: ['城墙防守：怪物沿唯一路径推进，攻破城墙即失守',
+             '无地形障碍，弹药上限与金币收益均为标准值',
+             '20 / 40 / 60 波各有一场锁关 Boss 战'] },
     lava:    { name: '熔岩矿场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
-      subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 40, boardObstacles: [[1,3],[2,8],[3,3],[4,8]] },
+      subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 40, boardObstacles: [[1,3],[2,8],[3,3],[4,8]],
+      desc: ['高血精英：怪物血量与护甲更厚，推进更慢但更难打穿',
+             '弹药上限 -30%，棋盘固定 4 格熔岩障碍',
+             '掉落偏向攻击类碎片，20 / 40 / 60 波各一场锁关 Boss 战'] },
     frost:   { name: '霜风峡谷', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',
-      subtitle: '高速成群 · 每15波风场增速 · 控制类碎片', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'control', unlockWave: 40, boardObstacles: [[1,4],[1,7],[3,4],[3,7]], windEvery: 15 },
+      subtitle: '高速成群 · 每15波风场增速 · 控制类碎片', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'control', unlockWave: 40, boardObstacles: [[1,4],[1,7],[3,4],[3,7]], windEvery: 15,
+      desc: ['高速成群：数量多、移速快，每 15 波风场再抬一次速度',
+             '棋盘固定 4 格冰障，掉落偏向控制类碎片',
+             '20 / 40 / 60 波各一场锁关 Boss 战'] },
     abyss:   { name: '深渊裂隙', short: '🕳️ 深渊裂隙', tint: '#a86bff', tintDark: '#5c33a8',
-      subtitle: '每10波诅咒 · 深度结算×2 · 全资源 · 计入排行', goldMult: 1.5, ammoCapMult: 1.0, dropAttr: 'all', unlockWave: 0, curseEvery: 10, deepMult: 2 },
+      subtitle: '每10波诅咒 · 深度结算×2 · 全资源 · 计入排行', goldMult: 1.5, ammoCapMult: 1.0, dropAttr: 'all', unlockWave: 0, curseEvery: 10, deepMult: 2,
+      desc: ['每 10 波叠加一层诅咒，敌人强度持续攀升',
+             '深度结算 ×2，全资源掉落，成绩计入排行榜',
+             'Boss 复用圣坛花园三只并按诅咒乘算'] },
     test:    { name: '测试战场', short: '🧪 测试战场', tint: '#a88bff', tintDark: '#6d5bd0',
-      subtitle: '免三消直测塔技能效果', goldMult: 0, ammoCapMult: 1.0, dropAttr: 'none', unlockWave: 0 },
+      subtitle: '免三消直测塔技能效果', goldMult: 0, ammoCapMult: 1.0, dropAttr: 'none', unlockWave: 0,
+      desc: ['免三消：跳过棋盘，直接摆塔测试技能与特效',
+             '无金币收益、无掉落、无 Boss 战'] },
   },
 
   FIELD_ORDER: ['ancient', 'lava', 'frost', 'abyss', 'test'],

@@ -24,7 +24,7 @@ const TINT = {
 const TINT_ALPHA = 0.78;
 const RES = 128;   // 离屏合成分辨率（显示 56 逻辑 px，最高 DPR 场景约 150 物理 px）
 
-const DIR = 'assets/images/board/special/';
+const DIR = 'assets/images/interface/board/special/';
 const BODY = {
   cross: DIR + 'body_cross.png', split: DIR + 'body_split.png', sub: DIR + 'body_sub.png',
   row: DIR + 'body_row.png', col: DIR + 'body_col.png', rand: DIR + 'body_rand.png',

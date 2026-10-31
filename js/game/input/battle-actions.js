@@ -1,6 +1,5 @@
 'use strict';
 const CONFIG = require('../../config.js');
-const GlobalSkills = require('../../global-skills.js');
 
 // Preserve modal priority and consume each event once. Player state belongs to game.
 function dispatchTouch(game, p, version) {
@@ -24,15 +23,6 @@ function dispatchTouch(game, p, version) {
   }
   // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
   if (game.state === 'menu') { game.onMenuTap(p); return true; }
-  // v1.17.47 全局技能说明弹窗：先于一切战斗输入判定——点弹窗内不响应；点窗外关闭
-  //   例外：点在全局技能图标上 → 视为「再释放一次」，关掉旧弹窗并落到下面的释放分支刷新说明
-  if (game.gsInfo) {
-    const h = game.gsInfoHits || {};
-    if (h.card && h.card.hit(p.x, p.y)) return true;
-    const btn = (game.renderer.globalBtns || []).find((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
-    game.gsInfo = null;
-    if (!btn) return true;
-  }
   // 技能二级详情弹层打开中：点返回/遮罩 → 回到塔详情；再次点关闭逻辑在塔详情分支
   if (game.towerSkill) {
     const h = game.towerSkillHits;
@@ -139,23 +129,11 @@ function dispatchTouch(game, p, version) {
         return true;
       }
     }
-    // 战斗中点全局技能按钮 → 释放技能 + 弹出该技能效果说明（v1.17.47：原仅释放，玩家无处查效果）
+    // 战斗中点全局技能按钮直接释放，不打开说明弹层。
     const btns = game.renderer.globalBtns || [];
     for (const b of btns) {
       if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-        const idx = b.key === 'shuffle' ? 0 : 1;
-        const skillId = ((game.renderer._equippedGlobalSlots || ['shuffle', 'refill'])[idx]) || b.key;
-        const def = GlobalSkills.get(skillId) || {};
-        const casted = !!game.combat.castGlobal(b.key);
-        // 充能读数取「释放之后」：弹窗显示的是剩余格数（未释放时即当前值）
-        const stt = game.sceneState();
-        const maxCells = 3, perUse = Math.max(1, stt.chargePerUse || 30);
-        const ammo = b.key === 'shuffle' ? (stt.shuffleAmmo || 0) : (stt.refillAmmo || 0);
-        game.gsInfo = {
-          key: b.key, id: skillId, name: def.name || '', category: def.category || '全局',
-          desc: def.desc || '', color: def.color || '#7ca8ff',
-          charge: Math.min(maxCells, ammo / perUse), casted,
-        };
+        game.combat.castGlobal(b.key);
         return true;
       }
     }

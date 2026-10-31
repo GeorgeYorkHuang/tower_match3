@@ -105,7 +105,7 @@ class WaveDirector {
   }
 
   /** v1.16.131 出怪 X 坐标：避开行动区两侧灌木贴图障碍。
-   *  背景图 assets/images/ui/action_area_edges.jpg 实测：左右边缘各一排灌木丛（左 0-72px / 右 678-750px，
+   *  背景图 assets/images/interface/battle/action_area_edges.jpg 实测：左右边缘各一排灌木丛（左 0-72px / 右 678-750px，
    *  含过渡带），取安全边距 75px → 出怪中心落在 [areaX+75, areaX+areaW-75] 内（含自身尺寸内缩） */
   spawnX(size) {
     const edge = 75;
@@ -142,6 +142,9 @@ class WaveDirector {
     const ga = this.game;
     ga._waveAlive = ga._waveAlive || {};
     ga._waveAlive[en.waveNo] = (ga._waveAlive[en.waveNo] || 0) + 1;
+    // v1.17.48 本波出场总数（波末银币按「已击杀/已出场」折算，见 run.endWave 与 main.waveEnd）
+    ga._waveTotal = ga._waveTotal || {};
+    ga._waveTotal[en.waveNo] = (ga._waveTotal[en.waveNo] || 0) + 1;
     // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；v1.16.96 3★：其后 60 码内 2 名敌人各冻 2 秒
     if (!this._freezeDone) {
       const frz = this.game.run.relicNum('cm_freeze');

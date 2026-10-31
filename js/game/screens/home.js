@@ -26,7 +26,7 @@ function createHomeScreen({ drawImg, skillRow }) {
 
     // v1.16.78 战场图标：无背景直出（v1.17.48 放大 30% → 338px；锁定态整体压暗）
     ctx.globalAlpha = locked ? 0.4 : 1;
-    const badge = drawImg(ctx, isTest ? 'assets/images/menubg/icon_stage_test.png' : `assets/images/menubg/icon_stage_${stage}.png`, ix, iy, iw, iw);
+    const badge = drawImg(ctx, isTest ? 'assets/images/interface/home/icon_stage_test.png' : `assets/images/interface/home/icon_stage_${stage}.png`, ix, iy, iw, iw);
     ctx.globalAlpha = 1;
     if (!badge) {
       ctx.beginPath(); ctx.arc(375, iy + iw / 2, iw / 2, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill();

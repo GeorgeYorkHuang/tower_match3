@@ -1,3 +1,4 @@
+const Collision = require('./collision.js');
 'use strict';
 // Shared projectile bookkeeping, target resolution and geometry. No cached game state.
 const COMBAT_BALANCE = require('../config/combat-common.js');
@@ -27,7 +28,7 @@ function scatterCheck(combat, s) {
   for(const e of combat.enemies()) {
     if(e.hp<=0 || e===s.ignoreTarget) continue;
     const u=len2?Math.max(0,Math.min(1,((e.x-ax)*dx+(e.y-ay)*dy)/len2)):0;
-    if(Math.hypot(e.x-ax-u*dx,e.y-ay-u*dy)<=r && u<at){first=e;at=u;}
+    if(Math.hypot(e.x-ax-u*dx,e.y-ay-u*dy)<=Collision.reach(e,r) && u<at){first=e;at=u;}
   }
   return first;
 }

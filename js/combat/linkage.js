@@ -1,3 +1,4 @@
+const ChainFlight = require('../chain-flight.js');
 'use strict';
 const CONFIG = require('../config.js');
 // Queues, energy and timing remain on the caller-owned combat/run.
@@ -45,7 +46,9 @@ function spawnChainShots(combat, ent) {
   const dur = cfg.shot.dur;
   // 每枚独立寻敌：主目标上方 40px 截面带内随机敌人（带内无其他敌人则回退主目标），避免所有子弹打向同一个敌人
   const target = combat.pickAltTarget(key, main);
-  combat.addProjectile({ key, target, dmg, t: 0, dur, sx: x, sy: y }, { type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur, key });
+  const chainFlight = ChainFlight.create(x, y, target.x, target.y, dur);
+  const totalDuration = require('../config/chain-flight.js').maxFlightTime;
+  combat.addProjectile({ key, target, dmg, t: 0, dur: totalDuration, sx: x, sy: y, x, y, chainFlight }, { type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur: totalDuration, key, chainFlight });
   g.playSfx('shot', 0.25);
   // 消除格迸发小闪光（连消触发反馈）
   combat.fxFlash(x, y, tint);

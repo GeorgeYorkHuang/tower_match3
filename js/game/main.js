@@ -1,3 +1,4 @@
+const MATCH_GLOW = require('../config/match-glow.js');
 const Rosea = require('../bosses/rosea.js');
 const RoseaFx = require('./fx/boss-rosea.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
@@ -60,8 +61,6 @@ class GameMain {
     this.towerInfoHits = {};     // 详情弹层命中：{bg, close, skill[]}
     this.towerSkill = null;      // v1.16.11 技能二级详情弹层：{key, skillName, icon, desc, color, lv, lvMax, branches, bA, bB, bC, branchDesc}
     this.towerSkillHits = {};    // 二级弹层命中：{bg, back}
-    this.gsInfo = null;          // v1.17.47 全局技能说明弹窗：{key, id, name, category, desc, color, charge, casted}
-    this.gsInfoHits = {};        // 说明弹窗命中：{bg, card}
     // v1.14 测试战场：塔技能配置面板 + 倍速 + 刷怪控制
     this.testPanel = null;       // {key} 当前配置的塔
     this.testHits = {};          // 测试战场命中区（渲染时重建）
@@ -145,6 +144,7 @@ class GameMain {
     this.runShardDetail = {};    // v1.17 本局碎片明细（圣遗物id→数量，只记账不入账；v1.17.20 局末统一结算）
     this.runUnlocked = [];       // v1.17.20 本局因「三选一选中」直接解锁的圣遗物 id（结算页可提示）
     this._waveAlive = {};        // v1.17.22 各波存活怪计数（全歼统计，见 _tallyWaveDeaths）
+    this._waveTotal = {};        // v1.17.48 各波出场总数（波末银币按「已击杀/已出场」折算完成度）
     this._waveCleared = {};      // v1.17.22 已记全歼的波次集合（防重复计数）
     this.animClock = 0;          // v1.17 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
@@ -450,6 +450,8 @@ class GameMain {
         if(boss&&boss.hp<=0){
           this.run.bossLock=false;this.wave.plan=[];
           this.enemies=this.enemies.filter(e=>e.waveNo!==20);
+          // v1.17.48 Boss 战清场：20 波剩余怪被直接移除（不逐个走死亡），存活计数归零，避免银币完成度被误判
+          if(this._waveAlive)this._waveAlive[20]=0;
           if(!this._waveCleared[20]){this._waveCleared[20]=true;this.run.clearedWaves++;}
           this._overlapWave=this.enemies.length>0;this.waveEnd();
         }
@@ -651,6 +653,12 @@ class GameMain {
   }
 
   waveEnd() {
+    // v1.17.48 波末银币完成度回填：本波已出场怪中已死亡的比例（叠加波按 waveNo 只算本波）
+    //   此前银币纯按波数发放，完全不消块/不出弹也拿满额，导致「挂机第一波 107 金币」。
+    const _wn = this.run.wave || 1;
+    const _aliveN = (this._waveAlive && this._waveAlive[_wn]) || 0;
+    const _totalN = (this._waveTotal && this._waveTotal[_wn]) || 0;
+    this.run._waveGoldRatio = (_totalN > 0) ? Math.max(0, Math.min(1, 1 - _aliveN / _totalN)) : 1;
     // 真实战斗路径：城墙血已由「怪物攻城」实时扣减，跳过抽象漏怪模型扣血（skipLeak=true）
     const res = this.run.endWave(true);
     // 波末全塔少量经验（打怪为主渠道，波末是补充；v1.8 统一入整体池）
@@ -693,7 +701,6 @@ class GameMain {
         this.relicDetail = null;
         this.towerInfo = null;
         this.towerSkill = null;
-        this.gsInfo = null;
         this.state = 'evacuation';
         this.evacHits = {};
         return;
@@ -930,7 +937,6 @@ class GameMain {
     this.menuPanel = null;
     this.enemies = [];
     this.towerInfo = null;
-    this.gsInfo = null;
     this.funcLayer = null;
     this.pickQueue = [];
     this.pickIndex = 0;
@@ -1177,7 +1183,7 @@ class GameMain {
           ex = isShuffle ? (8 + 51) : (750 - 8 - 102 + 51);
           ey = towerRowY + 12 + 75 / 2;
         }
-        this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, t: 0, dur: 0.65 });   // v1.16.40 dur 0.65：0.4s 下坠段(约100px/s减速) + 0.25s 加速段
+        this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, blockColor: m.color, t: 0, dur: MATCH_GLOW.duration });   // 星芒：下落0.3s、停留0.05s、上升0.65s
       });
     });
   }
@@ -1252,8 +1258,6 @@ class GameMain {
     // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
     if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
     else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
-    // v1.17.47 全局技能说明弹窗（点图标弹出，无关闭键，点外部关闭）——最上层
-    if (this.gsInfo) this.renderer.gsInfoLayer(ctx, this.gsInfo, this.gsInfoHits);
     // 底部功能弹层（商店/设置/图鉴/帮助）
     if (this.funcLayer) this.renderer.funcLayer(ctx, this.funcLayer, st, this.funcLayerHits);
   }

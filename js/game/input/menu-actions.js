@@ -146,11 +146,8 @@ function onMenuTap(game, p) {
           return;
         }
         case 'stage': {
-          const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);
-          if(why){FieldAccess.prompt(game,why);return;}
-          // v1.16.76 战场卡本体：提示当前所选战场合约
-          const F = CONFIG.FIELDS[game.menuStage] || CONFIG.FIELDS.ancient;
-          game.toast(`当前：${F.name} · ${F.subtitle}`, '#7cd6a6');
+          // v1.17.48 战场卡改为信息层：战场说明 + 专属掉落（不再提示未解锁/解锁条件，进场校验仍在 enter）
+          game.menuPanel = { type: 'stageDrops', stage: game.menuStage };
           return;
         }
         case 'stagePrev':

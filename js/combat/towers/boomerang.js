@@ -1,3 +1,4 @@
+const Collision = require('../collision.js');
 'use strict';
 // Tower behavior acts only on caller-owned Combat, tower and enemy state.
 const CONFIG = require('../../config.js');
@@ -43,14 +44,14 @@ function sweepDamage(combat, s) {
       // v1.16.102 镖群3★：多镖呈环状回收时命中路径上的所有敌人（每敌额外一次回程命中）
       const wantReturn = g.run.relic3('boo_return') && combat.lv('boomerang', '折返增伤') > 0 && !s.hitIds[e.id + '_r'];
       const wantMulti = g.run.relic3('boo_multi') && combat.lv('boomerang', '多镖') > 0 && !s.hitIds[e.id + '_2'];
-      if ((wantReturn || wantMulti) && Math.hypot(e.x - bx, e.y - by) <= r) {
+      if ((wantReturn || wantMulti) && Math.hypot(e.x - bx, e.y - by) <= Collision.reach(e, r)) {
         if (wantReturn) s.hitIds[e.id + '_r'] = true;
         if (wantMulti) s.hitIds[e.id + '_2'] = true;
         combat.damage(e, s.dmg * (wantReturn ? 1.5 : 1), 'boomerang');
       }
       continue;
     }
-    if (Math.hypot(e.x - bx, e.y - by) <= r) {
+    if (Math.hypot(e.x - bx, e.y - by) <= Collision.reach(e, r)) {
       s.hitIds[e.id] = true;
       // v1.16.102 回旋3★：飞镖速度提升使命中率提高，Miss 补偿为 +10% 伤害
       const spinV = g.run.relic3('boo_spin') ? 1.1 : 1;
@@ -258,7 +259,7 @@ function updateStorms(combat, dt) {
       const cooldowns = d.hitCooldowns || (d.hitCooldowns = Object.create(null));
       for(const id of Object.keys(cooldowns)){cooldowns[id]-=dt;if(cooldowns[id]<=1e-9)delete cooldowns[id];}
       for(const hitE of combat.enemies()) {
-        if(hitE.hp<=0 || cooldowns[hitE.id]>0 || Math.hypot(hitE.x-dx,hitE.y-dy)>=SKILL_NUM.boomerang['风暴镖'].hitRadius)continue;
+        if(hitE.hp<=0 || cooldowns[hitE.id]>0 || Math.hypot(hitE.x-dx,hitE.y-dy)>=Collision.reach(hitE,SKILL_NUM.boomerang['风暴镖'].hitRadius))continue;
         cooldowns[hitE.id] = SKILL_NUM.boomerang['风暴镖'].hitCooldown;
         combat.damage(hitE, st.perDmg, 'boomerang');
         combat.fxFlash(dx, dy, '#c39bd3');
@@ -309,7 +310,7 @@ function stepBounce(combat, s, dt) {
   else if (s.x > aX + aW) { s.x = aX + aW; s.ang = Math.PI - s.ang; s.bounces++; }
   if (s.y < aY) { s.y = aY; s.ang = -s.ang; s.bounces++; }
   else if (s.y > aY + aH) { s.y = aY + aH; s.ang = -s.ang; s.bounces++; }
-  const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < (s.hitR || 30));
+  const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < Collision.reach(o, s.hitR || 30));
   if (hitE) {
     if (!s.hitIds[hitE.id]) {
       s.hitIds[hitE.id] = true;

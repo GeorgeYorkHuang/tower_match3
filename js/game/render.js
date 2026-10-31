@@ -1,9 +1,15 @@
+const MATCH_GLOW = require('../config/match-glow.js');
+const ChainFlight = require('../chain-flight.js');
+const CHAIN_STYLE = require('../config/chain-flight.js');
+const { createBattleHud } = require('./screens/battle-hud.js');
+const enemySize = require('./enemy-size.js');
 const Presentation = require('../config/combat-presentation.js');
 const { createBattleShop } = require('./screens/battle-shop.js');
 const { createMenuHeader } = require('./screens/menu-header.js');
 const { createMenuShopScreen } = require('./screens/menu-shop.js');
 const { createHomeScreen } = require('./screens/home.js');
 const { createRelicScreen } = require('./screens/relics.js');
+const { createStageDropsScreen } = require('./screens/stage-drops.js');
 const { createCodexScreen } = require('./screens/codex.js');
 const AccountMenuScreen = require('./screens/account-menu.js');
 const FirewallFx = require('./fx/firewall.js');
@@ -68,35 +74,35 @@ const TOME_ROWS = [
 
 /* 图片资源映射（微信小游戏相对路径）；加载失败/未完成时回退色块+字符 */
 const IMG_SRC = {
-  fire: 'assets/images/towers/fire.png', ice: 'assets/images/towers/ice.png',
-  poison: 'assets/images/towers/poison.png', electric: 'assets/images/towers/electric.png',
-  boomerang: 'assets/images/towers/boomerang.png', cannon: 'assets/images/towers/cannon.png',
-  enemy: 'assets/images/enemies/normal.png', boss: 'assets/images/enemies/boss.png',
-  runner: 'assets/images/enemies/runner.png', tank: 'assets/images/enemies/tank.png',
+  fire: 'assets/images/towers/icons/fire.png', ice: 'assets/images/towers/icons/ice.png',
+  poison: 'assets/images/towers/icons/poison.png', electric: 'assets/images/towers/icons/electric.png',
+  boomerang: 'assets/images/towers/icons/boomerang.png', cannon: 'assets/images/towers/icons/cannon.png',
+  enemy: 'assets/images/monsters/enemies/normal.png', boss: 'assets/images/monsters/enemies/boss.png',
+  runner: 'assets/images/monsters/enemies/runner.png', tank: 'assets/images/monsters/enemies/tank.png',
   // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；v1.16.124 改主包直连，量化 512×102）
-  lv1: 'assets/images/enemies/lv1.png', lv2: 'assets/images/enemies/lv2.png',
-  lv3: 'assets/images/enemies/lv3.png', lv4: 'assets/images/enemies/lv4.png',
-  lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
-  lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
+  lv1: 'assets/images/monsters/enemies/lv1.png', lv2: 'assets/images/monsters/enemies/lv2.png',
+  lv3: 'assets/images/monsters/enemies/lv3.png', lv4: 'assets/images/monsters/enemies/lv4.png',
+  lv5: 'assets/images/monsters/enemies/lv5.png', lv6: 'assets/images/monsters/enemies/lv6.png',
+  lv7: 'assets/images/monsters/enemies/lv7.png', lv8: 'assets/images/monsters/enemies/lv8.png',
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
-  boss_altar_rosea: 'assets/images/bosses/altar_rosea/march.png',
-  boss_altar_rosea_summon: 'assets/images/bosses/altar_rosea/sapling_runner.png',
-  coin: 'assets/images/ui/coin.png', bullet: 'assets/images/bullet.png',
-  silver: 'assets/images/ui/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
-  chestWood: 'assets/images/ui/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
-  chestBronze: 'assets/images/ui/chest_bronze.png', // 青铜
-  chestSilver: 'assets/images/ui/chest_silver.png', // 白银
-  chestGold: 'assets/images/ui/chest_gold.png',     // 黄金
-  chestStar: 'assets/images/ui/chest_star.png',     // 星辉
-  chestClosed: 'assets/images/ui/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
-  chestQuarter: 'assets/images/ui/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
-  chestHalf: 'assets/images/ui/chest_half.png',      // 半开帧（帧3）
-  chestFast: 'assets/images/ui/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
-  chestOpen: 'assets/images/ui/chest_open.png',      // 全开帧（帧5，金光绽放）
-  actionArea: 'assets/images/ui/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
-  wall: 'assets/images/ui/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
-  towerRow: 'assets/images/ui/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
-  boardBg: 'assets/images/ui/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
+  boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
+  boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
+  coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',
+  silver: 'assets/images/resources/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
+  chestWood: 'assets/images/resources/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
+  chestBronze: 'assets/images/resources/chest_bronze.png', // 青铜
+  chestSilver: 'assets/images/resources/chest_silver.png', // 白银
+  chestGold: 'assets/images/resources/chest_gold.png',     // 黄金
+  chestStar: 'assets/images/resources/chest_star.png',     // 星辉
+  chestClosed: 'assets/images/resources/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
+  chestQuarter: 'assets/images/resources/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
+  chestHalf: 'assets/images/resources/chest_half.png',      // 半开帧（帧3）
+  chestFast: 'assets/images/resources/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
+  chestOpen: 'assets/images/resources/chest_open.png',      // 全开帧（帧5，金光绽放）
+  actionArea: 'assets/images/interface/battle/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
+  wall: 'assets/images/interface/battle/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
+  towerRow: 'assets/images/interface/battle/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
+  boardBg: 'assets/images/interface/battle/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
   // v1.17.17 火墙技能 4 帧动画（512×160 黑底，加法混合 lighter；12fps 循环）
   firewall1: FirewallFx.ASSETS[1],
   firewall2: FirewallFx.ASSETS[2],
@@ -118,9 +124,9 @@ const BOSS_ART = {
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
-  red: 'assets/images/board/fire.png', blue: 'assets/images/board/ice.png',
-  green: 'assets/images/board/poison.png', yellow: 'assets/images/board/electric.png',
-  purple: 'assets/images/board/boomerang.png', orange: 'assets/images/board/cannon.png',
+  red: 'assets/images/interface/board/fire.png', blue: 'assets/images/interface/board/ice.png',
+  green: 'assets/images/interface/board/poison.png', yellow: 'assets/images/interface/board/electric.png',
+  purple: 'assets/images/interface/board/boomerang.png', orange: 'assets/images/interface/board/cannon.png',
 };
 const imgCache = {};
 // v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
@@ -177,7 +183,7 @@ function createOffscreen() {
 }
 ChipSkin.configure({ loadImage: loadImg });   // v1.17.44 两层方块皮肤
 
-/* v1.16.27 技能图标（美术资源 assets/images/skillicons/<塔>/<文件名>.png，缺失时回退 emoji） */
+/* v1.16.27 技能图标（美术资源 assets/images/towers/skills/<塔>/<文件名>.png，缺失时回退 emoji） */
 const SKILL_ICON = {
   fire:      { 点燃: 'ignite', 灼烧: 'burnstack', 火柱: 'pillar', 大火球: 'bigfireball', 爆燃: 'detonate', 多重火球: 'multifireball', 火雨: 'firerain' },
   ice:       { 寒霜: 'frost', 冰冻: 'freeze', 冰穿刺: 'pierce', 多重冰锥: 'multiicicle', 冰花: 'frostflower', 冬珠: 'winterorb', 碎冰: 'shatter', 冰墙: 'icewall' },
@@ -188,7 +194,7 @@ const SKILL_ICON = {
 };
 function skillIconSrc(towerKey, skillName) {
   const f = (SKILL_ICON[towerKey] || {})[skillName];
-  return f ? `assets/images/skillicons/${towerKey}/${f}.png` : null;
+  return f ? `assets/images/towers/skills/${towerKey}/${f}.png` : null;
 }
 
 /** v1.16.80 hex → rgba（图鉴卡片塔色渲染用） */
@@ -198,11 +204,11 @@ function hexA(hex, a) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/* v1.16.74 技能帧动画（精灵表横向条带，assets/images/anims/<set>_<variant>.png） */
+/* v1.16.74 技能帧动画（精灵表横向条带，assets/images/towers/fx/anims/<set>_<variant>.png） */
 const ANIM_SHEETS = {
-  explosion: { orange: ['assets/images/anims/anim_explosion_orange.png', 10], blue: ['assets/images/anims/anim_explosion_blue.png', 10], green: ['assets/images/anims/anim_explosion_green.png', 10] },
-  fallstrike: { orange: ['assets/images/anims/anim_fallstrike_orange.png', 8], blue: ['assets/images/anims/anim_fallstrike_blue.png', 8] },
-  spark: { gold: ['assets/images/anims/anim_spark_gold.png', 6] },
+  explosion: { orange: ['assets/images/towers/fx/anims/anim_explosion_orange.png', 10], blue: ['assets/images/towers/fx/anims/anim_explosion_blue.png', 10], green: ['assets/images/towers/fx/anims/anim_explosion_green.png', 10] },
+  fallstrike: { orange: ['assets/images/towers/fx/anims/anim_fallstrike_orange.png', 8], blue: ['assets/images/towers/fx/anims/anim_fallstrike_blue.png', 8] },
+  spark: { gold: ['assets/images/towers/fx/anims/anim_spark_gold.png', 6] },
 };
 /* fx 颜色 → 帧动画变体：绿系→green、蓝系→blue、其余→orange */
 function animVariantOf(color) {
@@ -229,11 +235,11 @@ function drawAnimSheet(ctx, set, variant, x, y, size, p) {
   return true;
 }
 
-/* v1.16.61 局内圣遗物图标（assets/images/relic/<塔系>/<id>.png，缺失时回退 emoji） */
+/* v1.16.61 局内圣遗物图标（assets/images/relics/<塔系>/<id>.png，缺失时回退 emoji） */
 function relicIconSrc(id) {
   const dir = { fire_: 'fire', ice_: 'ice', poison_: 'poison', elec_: 'electric', boo_: 'boomerang', can_: 'cannon', cm_: 'universal' };
   for (const [pre, cat] of Object.entries(dir)) {
-    if (typeof id === 'string' && id.startsWith(pre)) return `assets/images/relic/${cat}/${id}.png`;
+    if (typeof id === 'string' && id.startsWith(pre)) return `assets/images/relics/${cat}/${id}.png`;
   }
   return null;
 }
@@ -318,66 +324,20 @@ class Renderer {
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
 
   /** 状态条：银币（局内临时货币）+ 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
-  status(ctx, s) {
-    const goldIcon = 40;
-    // v1.17.2 局内银币（左下安全区 18,70：整体避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
-    if (!drawImg(ctx, IMG_SRC.silver, 18, 70, goldIcon, goldIcon)) {
-      fillRoundRect(ctx, 18, 70, goldIcon, goldIcon, 10, '#c9d6e4');
-      text(ctx, '¥', 38, 90, 20, '#5b6b7c', 'center');
-    }
-    text(ctx, fmtNum(s.gold), 72, 94, 26, '#c9d6e4');
-
+  _getBattleHud() {
+    if (!this._battleHud) this._battleHud = createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_Y, AREA_W, ENTRY_H });
+    return this._battleHud;
   }
 
-  entryStatus(ctx,s) {
-    // 等级圆与经验外环：12点起顺时针；进度条下沿高于圆心。
-    const cx=AREA_X+30,cy=AREA_Y+32,radius=22,outer=28;
-    const xp=Math.max(0,Math.min(1,Number(s.expRatio)||0));
-    ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fillStyle='#f7cf45';ctx.fill();
-    text(ctx,String(s.expLevel||0),cx,cy,25,'#111111','center');
-    ctx.beginPath();ctx.arc(cx,cy,outer,0,Math.PI*2);ctx.strokeStyle='rgba(247,207,69,0.22)';ctx.lineWidth=4;ctx.stroke();
-    if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp,false);ctx.strokeStyle='#f7cf45';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();}
-    const wx=AREA_X+74,wy=AREA_Y+20,ww=AREA_W-74,wh=10;
-    const wave=Math.max(1,Math.min(60,Number(s.wave)||1));
-    progressBar(ctx,wx,wy,ww,wh,(wave-1)/59,'#e8c76b','rgba(255,255,255,0.12)');
-    for(let n=5;n<=60;n+=5){
-      const mx=wx+(n-1)/59*ww;
-      const major=n===20||n===40||n===60;
-      ctx.beginPath();ctx.arc(mx,wy+wh/2,major?5:2.5,0,Math.PI*2);ctx.fillStyle=n<=wave?(n===60?'#ff826f':'#f8dd8a'):'#66717e';ctx.fill();
-      if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,AREA_Y+7,13,n===60?'#ffab95':'#e5d7aa',n===60?'right':'center');
-    }
-    text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,AREA_Y+7,14,'#e9dfc4','left');
-    // v1.17.2 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
-    const rels = s.battleRelics || [];
-    if (rels.length) {
-      const rx = wx, ry = AREA_Y + 42, rIcon = 22, rGap = 28, rMax = 10;
-      const shown = rels.slice(0, rMax);
-      shown.forEach((rc, i) => {
-        const icx = rx + i * rGap + rIcon / 2;
-        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 12, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
-        const rSrc = relicIconSrc(rc.id);
-        if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
-          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 13, '#ffffff', 'center');
-        }
-        if (rc.star3) {   // v1.16.113 3★ 质变角标
-          fillRoundRect(ctx, icx + 8, ry - 3, 17, 12, 6, '#ffb347');
-          text(ctx, '★3', icx + 16, ry + 9, 9, '#5c3800', 'center');
-        }
-      });
-      text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.55)', 'left');
-      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: Math.min(rIcon + 16, AREA_Y + ENTRY_H - (ry - 8)) }; // 圣遗物行点击区
-    } else {
-      this.relicBarHit = null;
-    }
-  }
+  status(ctx, s) { return this._getBattleHud().status.call(this, ctx, s); }
+
+  entryStatus(ctx, s) { return this._getBattleHud().entryStatus.call(this, ctx, s); }
 
   /** 行动区底：入口带 + 敌人 + 城墙 + 塔位区 + 棋盘（按状态分层调用） */
   actionArea(ctx, s) {
     // 行动区背景图（y128 起 720 高 = 怪物行走区）；v1.16.77 按战场切换主题背景；加载失败回退深色底
     const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
-      ? `assets/images/ui/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
+      ? `assets/images/interface/battle/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
@@ -478,64 +438,6 @@ class Renderer {
   }
 
   /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX；v1.16.11 美化+卡可点击进二级详情） */
-  /** v1.17.47 全局技能说明弹窗（战斗界面点击全局技能图标 → 显示该技能效果）
-   *  无关闭键：点弹窗以外任意位置关闭（backend 由 battle-actions 的 hits.bg 判定） */
-  gsInfoLayer(ctx, info, hits) {
-    const w = 620, h = 452, x = (750 - w) / 2, y = 372;
-    // 遮罩：点击弹窗外任意位置关闭
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, 750, LOGIC_H);
-    hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + h };
-    hits.card = { hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
-    const tint = info.color || '#7ca8ff';
-    // 卡片：深色渐变 + 技能主题色描边 + 顶部光带
-    const bg = ctx.createLinearGradient(0, y, 0, y + h);
-    bg.addColorStop(0, '#232c39'); bg.addColorStop(1, '#141a23');
-    fillRoundRect(ctx, x, y, w, h, 20, bg);
-    strokeRoundRect(ctx, x, y, w, h, 20, tint, 3);
-    const band = ctx.createLinearGradient(x, 0, x + w, 0);
-    band.addColorStop(0, 'rgba(255,255,255,0)');
-    band.addColorStop(0.2, tint); band.addColorStop(0.5, '#ffffff'); band.addColorStop(0.8, tint);
-    band.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = band;
-    ctx.fillRect(x + 24, y + 10, w - 48, 3); ctx.restore();
-    // 图标（居中 132px，主题色圆底光环）
-    const icx = 375, icy = y + 108, ir = 66;
-    ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    ctx.strokeStyle = tint; ctx.lineWidth = 2.5; ctx.stroke();
-    this._skillIcon(ctx, info.id, icx, icy, 100, tint);
-    // 名称 + 分类胶囊
-    text(ctx, info.name || '全局技能', 375, y + 200, 40, '#ffffff', 'center');
-    const catW = 132, catY = y + 222;
-    fillRoundRect(ctx, 375 - catW / 2, catY, catW, 34, 17, tint + '33');
-    strokeRoundRect(ctx, 375 - catW / 2, catY, catW, 34, 17, tint, 1.4);
-    text(ctx, info.category || '全局', 375, catY + 18, 19, tint, 'center');
-    // 效果说明（自动换行，最多 3 行，避免压到下方充能条）
-    const lines = this.wrapText(ctx, info.desc || '暂无描述', w - 96, 25).slice(0, 3);
-    const descTop = catY + 56;
-    lines.forEach((ln, i) => text(ctx, ln, 375, descTop + i * 34, 25, '#cfd8e3', 'center'));
-    // 充能状态：本次点击已释放 / 未充能
-    const maxCells = 3;
-    const chargeRaw = Math.max(0, Math.min(maxCells, Number(info.charge) || 0));
-    const full = Math.floor(chargeRaw), frac = chargeRaw - full;
-    const segW = 40, segH = 14, segGap = 10;
-    const sx0 = 375 - (maxCells * segW + (maxCells - 1) * segGap) / 2;
-    const segY = y + h - 78;
-    for (let i = 0; i < maxCells; i++) {
-      const sx = sx0 + i * (segW + segGap);
-      fillRoundRect(ctx, sx, segY, segW, segH, 7, '#253039');
-      if (i < full) fillRoundRect(ctx, sx, segY, segW, segH, 7, '#62df97');
-      else if (i === full && frac > 0) fillRoundRect(ctx, sx, segY, Math.max(3, segW * frac), segH, 7, '#f4cd52');
-      strokeRoundRect(ctx, sx, segY, segW, segH, 7, i < full ? '#b0f3cc' : '#4a5561', 1);
-    }
-    text(ctx, info.casted ? `已释放 · 充能 ${full}/${maxCells}`
-      : (full >= 1 ? `可释放 · 充能 ${full}/${maxCells}` : `充能中 ${full}/${maxCells} · 三消可充能`),
-    375, segY + 44, 21, info.casted ? '#7ef0a3' : (full >= 1 ? '#ffe08a' : '#8ea3b8'), 'center');
-    // 关闭提示（无关闭键）
-    text(ctx, '点击其他区域关闭', 375, y + h - 18, 17, '#5f6d7c', 'center');
-  }
-
   towerInfoLayer(ctx, info, hits) {
     // v1.16.62 三技能卡横向一排（面板回到适中高度）：卡片 205×320 ×3，元素整体小于竖排版
     const w = 688, hgt = 880, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
@@ -1163,9 +1065,7 @@ class Renderer {
   enemies(ctx, enemies) {
     enemies.forEach((e) => {
       const isElite = e.type === 'elite';
-      let size = e.isBoss ? L.enemy.boss : (L.enemy[e.type] || L.enemy.normal);
-      // v1.17.7 精英怪：放大 35% + 金色发光描边 + 紫金染色，同种怪物一眼可辨
-      if (isElite) size = Math.round(size * 1.35);
+      const size = enemySize(e, L.enemy);
       const x = e.x - size / 2, y = e.y - size / 2;
       this.drawEnemyBody(ctx, e, x, y, size, isElite);
       this.drawEnemyDebuffs(ctx, e, x, y, size);
@@ -1235,7 +1135,7 @@ class Renderer {
   }
 
   /** 按等级动画表裁剪绘制当前帧（横向帧循环）；图未就绪/绘制异常返回 false
-   *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
+   *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
    *  其余等级仍为 5 帧等时长；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) {
     const img = loadImg(src);
@@ -1388,7 +1288,7 @@ class Renderer {
           const cx = x + size / 2, cy = y + size / 2;
           const fw = size * (0.68 + 0.05 * Math.min(2, fireI)), fh = size * (0.68 + 0.05 * Math.min(2, fireI));
           const frameIdx = Math.floor(Date.now() / 120) % 4;
-          if (!drawImg(ctx, `assets/images/burn/burn${frameIdx + 1}.png`, cx - fw / 2, y + size - fh, fw, fh)) {
+          if (!drawImg(ctx, `assets/images/towers/debuff/burn/burn${frameIdx + 1}.png`, cx - fw / 2, y + size - fh, fw, fh)) {
             // 贴图未加载时回退：火光圆 + 跳动火苗（确定性），位置与贴图一致（下边界贴齐）
             const fireCy = y + size - fh / 2;
             ctx.fillStyle = '#ff9f43'; ctx.globalAlpha = 0.35;
@@ -1742,7 +1642,7 @@ class Renderer {
           frameIdx = Math.floor(ph * 3);
         }
         const fw = 30, fh = 36;
-        if (!drawImg(ctx, `assets/images/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
+        if (!drawImg(ctx, `assets/images/towers/fx/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
           // 贴图未加载回退：简化几何（木柄 + 毒囊）
           const pulse2 = 1 + 0.08 * Math.sin(tNow / 280 + seed);
           ctx.save();
@@ -1782,12 +1682,31 @@ class Renderer {
   fxFloatText(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 1));
     ctx.globalAlpha = Math.max(0, 1 - p);
+    if (f.outlineColor) {
+      ctx.save();
+      ctx.font = `bold ${f.size || 22}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.strokeStyle = f.outlineColor; ctx.lineWidth = f.outlineWidth || 3;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(f.text, f.x, f.y - 34 * p);
+      ctx.restore();
+    }
     text(ctx, f.text, f.x, f.y - 34 * p, f.size || 22, f.color || '#ffd24a', 'center');
     ctx.globalAlpha = 1;
   }
 
   fxShot(ctx, f) {
     if (f.projectile && f.projectile.finished) return;
+    if (f.chainFlight) {
+      const shot=f.projectile;
+      const pos=shot ? {x:shot.x,y:shot.y} : {x:f.x,y:f.y};
+      const angle=shot && shot.angle!==undefined ? shot.angle : Math.PI/2;
+      // 复用各塔原有弹体绘制，只替换实时位置与朝向。
+      const dx=Math.cos(angle)*30,dy=Math.sin(angle)*30;
+      return this.fxShot(ctx,{...f,chainFlight:null,projectile:null,target:null,_flightPos:pos,_flightTime:shot ? shot.t : f.t,
+        x:pos.x-dx,y:pos.y-dy,tx:pos.x+dx,ty:pos.y+dy,t:0.5,dur:1});
+    }
+
       // 塔攻击弹道：line=直线弹（火球/冰锥/毒液，按塔 key 区分形状）、bolt=闪电折线（电）、
       // arc=往返弧线回旋镖（回旋镖）、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
       // v1.5：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
@@ -1798,8 +1717,8 @@ class Renderer {
       // v1.13.3：多重火球等放大弹体（scale）
       const sc = f.scale || 1;
       const p = Math.min(1, f.t / f.dur);
-      const x = f.x + (endX - f.x) * p;
-      const y = f.y + (endY - f.y) * p;
+      const x = f._flightPos ? f._flightPos.x : f.x + (endX - f.x) * p;
+      const y = f._flightPos ? f._flightPos.y : f.y + (endY - f.y) * p;
       if (f.kind === 'bolt') {
         // v1.16.49 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
         // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
@@ -1850,7 +1769,7 @@ class Renderer {
           const cs = Math.cos(ang), sn = Math.sin(ang);
           return { x: cx + a * cs * cxn - arcH * sn * cyn, y: cy + a * cs * cyn + arcH * sn * cxn };
         };
-        const pos = arcPos(f, p);
+        const pos = f._flightPos || arcPos(f, p);
         const bx = pos.x, by = pos.y;
         // v1.12.4 完全去掉弧线轨迹（不画任何路线/拖尾，只保留镖头旋转飞行）
         // 镖头朝向：瞬时速度方向（数值差分）
@@ -1859,7 +1778,9 @@ class Renderer {
         const pb = arcPos(f, Math.max(0, p - step));
         const ang = Math.atan2(pa.y - pb.y, pa.x - pb.x);
         // 镖体自旋（v1.12.4：转速加倍，全程转 8 圈）
-        const spin = p * Math.PI * 16;
+        const spin = f._flightTime !== undefined
+          ? f._flightTime * Math.PI * 2 * CHAIN_STYLE.boomerangRotationsPerSecond
+          : p * Math.PI * 16;
         // 巨镖（v1.10）：体积放大 1 + 0.30/级
         const lg = f.large || 0;
         const sc = 1 + 0.30 * lg;
@@ -2073,11 +1994,11 @@ class Renderer {
         ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === 'icebloom') {
-        // v1.13.28 冰花帧动画：4 帧绽放序列（assets/images/icebloom/icebloom1-4.png，按进度选帧）
+        // v1.13.28 冰花帧动画：4 帧绽放序列（assets/images/towers/fx/icebloom/icebloom1-4.png，按进度选帧）
         const fp = Math.min(1, f.t / f.dur);
         const frameIdx = Math.min(3, Math.floor(fp * 4));
         const fw = (f.r || 100) * 1.9, fh = (f.r || 100) * 1.9;
-        if (!drawImg(ctx, `assets/images/icebloom/icebloom${frameIdx + 1}.png`, f.x - fw / 2, f.y - fh / 2, fw, fh)) {
+        if (!drawImg(ctx, `assets/images/towers/fx/icebloom/icebloom${frameIdx + 1}.png`, f.x - fw / 2, f.y - fh / 2, fw, fh)) {
           // 回退：六瓣雪花展开 + 冰晶高光 + 扩散（贴图未加载时）
           const bloomR = (f.r || 100) * (0.25 + 0.75 * fp);
           const rot = Date.now() / 200;
@@ -2139,8 +2060,8 @@ class Renderer {
       } else if (f.kind === 'mortar') {
         // 抛物线炮弹（炮塔）：高弧下坠 + 黑壳弹体 + 出膛口焰 + 火焰尾迹 + 落地爆炸冲击波
         const arcH = 46;
-        const mx = f.x + (f.tx - f.x) * p;
-        const my = f.y + (f.ty - f.y) * p - arcH * Math.sin(Math.PI * p);
+        const mx = f._flightPos ? f._flightPos.x : f.x + (f.tx - f.x) * p;
+        const my = f._flightPos ? f._flightPos.y : f.y + (f.ty - f.y) * p - arcH * Math.sin(Math.PI * p);
         // 出膛口焰（0~12% 阶段塔口闪光）
         if (p < 0.12) {
           const kf = p / 0.12;
@@ -2590,7 +2511,7 @@ class Renderer {
         frameIdx = Math.floor(ph * 3);
       }
       const fw = 34, fh = 36;
-      if (!drawImg(ctx, `assets/images/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
+      if (!drawImg(ctx, `assets/images/towers/fx/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
         // 贴图未加载回退：简化几何炮台（底座 + 摆动炮管）
         const sway = Math.sin(p * 8 + seed) * 0.12;
         ctx.fillStyle = '#7a5a30';
@@ -2890,24 +2811,22 @@ class Renderer {
 
   fxBeamp(ctx, f) {
       // v1.16.38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮
-      // v1.16.40 轨迹优化（反向抛物线）：分段运动——
-      //   ① 下坠段 p∈[0,0.4]：光球竖直下落，速度 2·24/0.4=120px/s → 匀减速至 0（≈用户 100px/s 初速量级），
-      //      位移 s=24·w(2-w)（w=p/0.4，先快后慢=减速），深度 24px；
-      //   ② 加速段 p∈(0.4,1]：从最低点 (x0,y0+24) 以 q² 加速弧线冲向目标（速度 0 → 快），轨迹先下沉后上扬 = 反向抛物线
-      //   · 动态拖尾（前 8 帧位置渐变光点）· 三层光晕（外柔光/中彩光/白芯）· 到达涟漪 + 星芒闪光
-      const p = Math.min(1, f.t / f.dur);
-      let x, y;
-      if (p <= 0.4) {
-        const w = p / 0.4;
-        const s = 24 * w * (2 - w);
-        x = f.x0; y = f.y0 + s;
-      } else {
-        const q = (p - 0.4) / 0.6;
-        const qq = q * q;
-        x = f.x0 + (f.x1 - f.x0) * qq;
-        y = f.y0 + 24 + (f.y1 - f.y0 - 24) * qq;
+      // 200px匀减速下落0.3s → 最低点停留0.05s → 加速上升0.65s。
+      const elapsed=Math.max(0,Math.min(MATCH_GLOW.duration,f.t));
+      const p=elapsed/MATCH_GLOW.duration;
+      const riseStart=MATCH_GLOW.dropDuration+MATCH_GLOW.holdDuration;
+      let x,y;
+      if(elapsed<=MATCH_GLOW.dropDuration){
+        const w=elapsed/MATCH_GLOW.dropDuration;
+        x=f.x0;y=f.y0+CHAIN_STYLE.dropDistance*w*(2-w);
+      }else if(elapsed<=riseStart){
+        x=f.x0;y=f.y0+CHAIN_STYLE.dropDistance;
+      }else{
+        const q=Math.min(1,(elapsed-riseStart)/MATCH_GLOW.riseDuration),qq=q*q;
+        x=f.x0+(f.x1-f.x0)*qq;
+        y=f.y0+CHAIN_STYLE.dropDistance+(f.y1-f.y0-CHAIN_STYLE.dropDistance)*qq;
       }
-      const col = f.color || '#ffffff';
+      const col = COLOR_FILL[f.blockColor] || f.color || '#ffffff';
       if (!f.trail) f.trail = [];
       f.trail.push({ x, y });
       if (f.trail.length > 8) f.trail.shift();
@@ -2921,12 +2840,16 @@ class Renderer {
       }
       // 本体：三层光晕（外柔光 → 中彩光 → 白芯，v1.16.41 ×1.5）
       ctx.globalAlpha = 0.20 * (1 - p * 0.4);
-      ctx.fillStyle = col;
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(x, y, 19.5 + 6 * p, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.arc(x, y, 9 + 3.75 * p, 0, Math.PI * 2); ctx.fill();
+      const midRadius=9+3.75*p;
+      const gradient=ctx.createRadialGradient(x,y,4.2,x,y,midRadius);
+      gradient.addColorStop(0,col);gradient.addColorStop(1,'#ffffff');
+      ctx.fillStyle=gradient;
+      ctx.beginPath();ctx.arc(x,y,midRadius,0,Math.PI*2);ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2); ctx.fill();
       // 末端：到达终点 → 扩散涟漪 + 星芒闪光（停留 0.35s 视觉，v1.16.41 涟漪同步 ×1.5）
       if (p >= 0.8) {
@@ -2964,8 +2887,11 @@ class Renderer {
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.arc(f.x, f.y, r + 3 + p * 10, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 3 + (1 - p) * 4, 0, Math.PI * 2); ctx.fill();
+      const midRadius=9+3.75*p;
+      const gradient=ctx.createRadialGradient(f.x,f.y,4.2,f.x,f.y,midRadius);
+      gradient.addColorStop(0,col);gradient.addColorStop(1,'#ffffff');
+      ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(f.x,f.y,midRadius,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(f.x,f.y,4.2,0,Math.PI*2);ctx.fill();
   }
 
   /** v5.6 特殊块生成"降临"：地面光圈 + 升空光柱 + 类型符号旋转放大定格 */
@@ -3744,7 +3670,7 @@ class Renderer {
     }
     // 里程碑节点（10/20/30/40/50，位置与撤离点重合）：m≤wave 实心紫+旗，否则空心灰
     CONFIG.MILESTONES.forEach((m, i) => {
-      const np = this._goPh(T, TL.node0 + i * TL.nodeGap, 180);
+      const np = this._goPh(T, TL.node0 + i * TL.nodeGap, 240);   // v1.17.48 淡入 180→240，配 nodeGap 120 让旗子逐个「走过去」
       if (np <= 0) return;
       const nx = fx(m), hitM = m <= wave;
       ctx.globalAlpha = base * np;
@@ -3813,13 +3739,13 @@ class Renderer {
       const rc = CONFIG.GO.RARITY[c.rarity] || '#e8402f';
       fillRoundRect(ctx, X, Y, CW, CH, 10, '#20262f');
       strokeRoundRect(ctx, X, Y, CW, CH, 10, rc, 2);
-      const icon = Math.min(66, CH * 0.55);
+      const icon = Math.min(92, CH * 0.77);   // v1.17.48 图标放大 40%（66 → 92），卡宽 124 仍留 16px 边距
       this._goIcon(ctx, c.id, X + (CW - icon) / 2, Y + 8, icon);
       const def = CONFIG.relicRunDef(c.id);
       const name = def ? def.name : '?';
       const font = Math.min(19, 110 / Math.max(1, name.length), CH * 0.24);
       text(ctx, name, X + CW / 2, Y + CH - 16, font, '#eef3f8', 'center');
-      text(ctx, '收益 ' + c.shards + ' 张', X + CW / 2, Y + CH + 15, 18, '#c9a6ff', 'center');
+      text(ctx, '×' + c.shards, X + CW / 2, Y + CH + 14, 22, '#c9a6ff', 'center');
     });
   }
 
@@ -4198,7 +4124,7 @@ class Renderer {
     const theme = MENU_TAB_THEME[s.tab] || MENU_TAB_THEME.battle;
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    drawImg(ctx, `assets/images/menubg/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
+    drawImg(ctx, `assets/images/interface/home/menu_${s.tab}.png`, 0, 0, 750, LOGIC_H);
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
@@ -4260,6 +4186,7 @@ class Renderer {
       else if (s.panel.type === 'chestOpen') this.menuChestOpen(ctx, s, push);   // v1.17.9d 开箱弹窗（收益一次弹出）
       else if (s.panel.type === 'matchCfg') this.menuMatchCfg(ctx, s, push);     // v5.3 三消技能配置面板
       else if (s.panel.type === 'globalCfg') this.menuGlobalCfg(ctx, s, push);   // v5.3 全局技能配置面板
+      else if (s.panel.type === 'stageDrops') this.menuStageDrops(ctx, s, push);  // v1.17.48 战场说明 + 专属掉落
     }
     // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
     if (s.debug) {
@@ -4385,6 +4312,17 @@ class Renderer {
   }
 
   _relicRunList() { return this._getRelicScreen()._relicRunList(); }
+
+  /** v1.17.48 战场卡信息层：战场说明 + 专属掉落（战场图标点击入口） */
+  _getStageDropsScreen() {
+    if (!this._stageDropsScreen) this._stageDropsScreen = createStageDropsScreen({
+      drawImg, relicIconSrc, wrapText: this.wrapText.bind(this),
+    });
+    return this._stageDropsScreen;
+  }
+
+  menuStageDrops(ctx, s, push) { return this._getStageDropsScreen().draw(ctx, s, push, this._menuPanelShell.bind(this)); }
+
   _relicUnlocked(s, id) { return this._getRelicScreen()._relicUnlocked(s, id); }
   /** v1.17.20 可解锁态：未解锁但碎片已够阈值（蓝2/紫4/金8），由玩家在详情面板手动解锁 */
   _relicUnlockable(s, id) { return this._getRelicScreen()._relicUnlockable(s, id); }

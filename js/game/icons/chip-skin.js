@@ -1,7 +1,7 @@
 /**
  * 方块皮肤：来源色底板 × 统一图案 两层查表
  *
- * 资产结构（assets/images/board2/）：
+ * 资产结构（assets/images/interface/chips/）：
  *   base_<color>.png            6 张无符号玻璃底板
  *   glyph_<part>.png            普通图案（flame/snow/flask/bolt/blade/bomb）
  *   glyph_<shape>.png           特殊图案（row/col/cross/split/sub/rand/rainbow），各形状只保留一份
@@ -13,7 +13,7 @@
  */
 'use strict';
 
-const DIR = 'assets/images/board2/';
+const DIR = 'assets/images/interface/chips/';
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 const SHAPES = ['row', 'col', 'cross', 'split', 'sub', 'rand', 'rainbow'];
 const NORMAL_PART = {

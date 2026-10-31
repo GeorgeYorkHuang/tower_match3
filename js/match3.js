@@ -1,3 +1,5 @@
+const MATCH_GLOW = require('./config/match-glow.js');
+const ComboFeedback = require('./game/combo-feedback.js');
 /**
  * match3.js —— 三消控制器：交换触发 + 两阶段动画（交换→消除）+ 逐级连锁状态机 + 收益提示
  * 动画数据挂 game.anim（渲染层 sceneState/board 读取），本模块只管理其生命周期。
@@ -100,8 +102,13 @@ class Match3Controller {
     if (!cs.fired) cs.fired = new Set();
     if (cs.fired.has(cs.index)) return;
     cs.fired.add(cs.index);
+    ComboFeedback.show(g, cs.steps[cs.index], cs.index + 1);
     for (const shot of (cs.chainShotsByStep || [])[cs.index] || []) {
-      if (g.combat) g.combat.spawnChainShots({ key: shot.towerKey, x: shot.x, y: shot.y, color: shot.color });
+      if (shot.kind === 'charge') {
+        // 未激活塔只表现原有充能回退，不生成伤害或再次入账。
+        const which=g.run._globalSkillOf ? g.run._globalSkillOf(shot.color) : 'shuffle';
+        g.fx.push({type:'beamp',x0:shot.x,y0:shot.y,x1:which==='shuffle'?59:691,y1:g.ly.towerRowY+49.5,blockColor:shot.color,t:0,dur:MATCH_GLOW.duration});
+      } else if (g.combat) g.combat.spawnChainShots({ key: shot.towerKey, x: shot.x, y: shot.y, color: shot.color });
     }
   }
 

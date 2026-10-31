@@ -7,14 +7,14 @@
  * 纯函数、零依赖（不 require render.js，避免循环）。
  */
 const ASSETS = {
-  1: 'assets/images/fx/firepillar/anim_firepillar_01.png',
-  2: 'assets/images/fx/firepillar/anim_firepillar_02.png',
-  3: 'assets/images/fx/firepillar/anim_firepillar_03.png',
-  4: 'assets/images/fx/firepillar/anim_firepillar_04.png',
-  5: 'assets/images/fx/firepillar/anim_firepillar_05.png',
-  6: 'assets/images/fx/firepillar/anim_firepillar_06.png',
-  7: 'assets/images/fx/firepillar/anim_firepillar_07.png',
-  // 8: 'assets/images/fx/firepillar/anim_firepillar_08.png',
+  1: 'assets/images/towers/fx/firepillar/anim_firepillar_01.png',
+  2: 'assets/images/towers/fx/firepillar/anim_firepillar_02.png',
+  3: 'assets/images/towers/fx/firepillar/anim_firepillar_03.png',
+  4: 'assets/images/towers/fx/firepillar/anim_firepillar_04.png',
+  5: 'assets/images/towers/fx/firepillar/anim_firepillar_05.png',
+  6: 'assets/images/towers/fx/firepillar/anim_firepillar_06.png',
+  7: 'assets/images/towers/fx/firepillar/anim_firepillar_07.png',
+  // 8: 'assets/images/towers/fx/firepillar/anim_firepillar_08.png',
 };
 
 /** v1.17.25 帧动画参数：8 帧 512×640 透明底贴图（75° 俯视） */

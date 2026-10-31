@@ -484,21 +484,10 @@ class Run {
           activeTowers: this.slotOrder.slice(),
           layout: { cols: L.cols, cell: this.boardCell || L.size,
             originX: this.boardX, originY: this.boardY || 1089 } });
-        chainShotsByStep[si] = plan.shots.filter(shot => shot.kind === 'tower')
+        chainShotsByStep[si] = plan.shots.filter(shot => shot.kind === 'tower' || shot.kind === 'charge')
           .map(shot => ({ ...shot, stepIndex: si, group: si + 1 }));
       }
-      // v5.2 combo 弹字：连锁位置弹出 combo ×N（增强互动感）
-      if (isChain && st.clearedCells && st.clearedCells.length && this.fxTarget) {
-        const [cr, cc] = st.clearedCells[0];
-        const L = CONFIG.LAYOUT.boardCell;
-        this.fxTarget.push({
-          type: 'floatText',
-          text: `Combo ×${si + 1}`,
-          x: (750 - L.cols * L.size) / 2 + cc * L.size + L.size / 2,
-          y: (this.boardY || 1089) + cr * L.size + L.size / 2,
-          t: 0, dur: 1.1, size: 30, color: '#f7c948',
-        });
-      }
+      // 连消飘字随 Match3 实际消除阶段播放，避免所有连消一次性提前弹出。
       settled.push(...stepSettled);
       settledByStep.push(stepSettled);
     });
@@ -553,7 +542,11 @@ class Run {
       if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
     }
     WaveRelics.startWave(this);
-    this._waveGold = CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
+    // v1.17.48 波末银币拆成「满额基准 × 本波击杀完成度」：基准在开波时算，
+    //   完成度由真实战斗在波末回填（一只没打 → 0；全歼 → 满额）。此前纯按波数发放，挂机也有全额收益。
+    this._waveGoldBase = CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
+    this._waveGold = this._waveGoldBase;
+    this._waveGoldRatio = 1;
     return this.wave;
   }
 
@@ -564,6 +557,12 @@ class Run {
    * @returns {broken, leak, enemyHp, totalDps, waveGold, firstSynergyWave}
    */
   endWave(skipLeak) {
+    // v1.17.48 银币按本波击杀完成度折算（模拟路径无完成度回填 → 默认 1，保持原口径）
+    const ratio = (typeof this._waveGoldRatio === 'number' && isFinite(this._waveGoldRatio))
+      ? Math.max(0, Math.min(1, this._waveGoldRatio)) : 1;
+    const base = (this._waveGoldBase != null) ? this._waveGoldBase
+      : CONFIG.ECONOMY.goldPerWaveBase * Math.pow(CONFIG.ECONOMY.goldPerWaveGrowth, this.wave - 1);
+    this._waveGold = Math.round(base * ratio * 10) / 10;
     WaveRelics.endWave(this);
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；v1.16.78 战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);

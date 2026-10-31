@@ -1,3 +1,4 @@
+const Collision = require('../collision.js');
 'use strict';
 // Electric impacts and shared electromagnetic/paralysis hooks. No instance state is cached.
 const SKILL_NUM = require('../../config/tower-skills.js');
@@ -361,7 +362,7 @@ function stepOrb(combat, s, dt) {
   s.ang += (Math.random() - 0.5) * SKILL_NUM.electric['活电'].turnJitter;
   s.x += Math.cos(s.ang) * s.speed * dt;
   s.y += Math.sin(s.ang) * s.speed * dt;
-  const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < SKILL_NUM.electric['活电'].hitRadius);
+  const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < Collision.reach(o, SKILL_NUM.electric['活电'].hitRadius));
   if (hitE) {
     if (s.fx) s.fx.t = s.fx.dur;
     combat.damage(hitE, s.dmg, 'electric');

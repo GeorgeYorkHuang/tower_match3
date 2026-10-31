@@ -8,9 +8,8 @@ Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => l.forEach((d) => { RELIC_DE
 CONFIG.RELIC_RUN.common.forEach((d) => { RELIC_DEF_MAP[d.id] = d; });
 (CONFIG.RELIC_RUN.ur || []).forEach((d) => { RELIC_DEF_MAP[d.id] = d; });   // v1.17.47 红色战场专属
 
-/** v1.17.47 红色（ur）战场专属：图鉴里单独标「专属」，未获得也可见（给收藏目标） */
+/** v1.17.48 红色（ur）圣遗物：与其它稀有度走同一套「未获得=问号」规则，不再单独标注与揭示来源 */
 const UR_COLOR = '#ff5a3c';
-const UR_COLOR_DEEP = '#8e2418';
 function isUrRarity(rar) { return rar === 'ur'; }
 function urFieldName(def) {
   const f = CONFIG.FIELDS && CONFIG.FIELDS[def && def.field];
@@ -102,22 +101,12 @@ function createRelicScreen(deps = {}) {
         text(ctx, `${CONFIG.relicRarity(d.id).toUpperCase()}${star > 1 ? ' ' + star + '★' : ''}`, rx + 14, ry2 + 128, 15, rc, 'left');
         text(ctx, d.desc ? d.desc.slice(0, 12) + (d.desc.length > 12 ? '…' : '') : '', rx + 14, ry2 + 72, 14, '#9fb2c3', 'left');
       } else if (rar === 'ur') {
-        // v1.17.47 红色战场专属：占位展示（轮廓 + 专属角标 + 战场来源），未获得也可点开看 3★
-        strokeRoundRect(ctx, rx, ry2, cw, ch, 12, UR_COLOR, 1.6);
-        fillRoundRect(ctx, rx + cw - 62, ry2 + 6, 54, 24, 12, UR_COLOR);
-        text(ctx, '专属', rx + cw - 35, ry2 + 18, 14, '#2a0b06', 'center');
-        const srcU = relicIconSrc(d.id);
-        ctx.globalAlpha = 0.45;
-        if (!(srcU && drawImg(ctx, srcU, rx + 12, ry2 + 34, 34, 34))) {
-          ctx.beginPath(); ctx.arc(rx + 29, ry2 + 51, 17, 0, Math.PI * 2);
-          ctx.fillStyle = UR_COLOR_DEEP; ctx.fill();
-          text(ctx, d.icon, rx + 29, ry2 + 53, 17, '#ffd9cf', 'center');
-        }
-        ctx.globalAlpha = 1;
-        text(ctx, d.name, rx + 54, ry2 + 44, 17, '#ffb3a3', 'left');
-        text(ctx, `UR · ${urFieldName(d)}`, rx + 54, ry2 + 64, 13, UR_COLOR, 'left');
-        text(ctx, '20/40/60 波 Boss 掉落', rx + 12, ry2 + 92, 12, '#8e6a62', 'left');
-        text(ctx, d.desc ? d.desc.slice(0, 13) + (d.desc.length > 13 ? '…' : '') : '', rx + 12, ry2 + 118, 12, '#9a837e', 'left');
+        // v1.17.48 红色圣遗物：未获得一律问号占位（与其它未解锁卡一致，不暴露名称/来源/专属标签）
+        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
+        ctx.fillStyle = '#151a22'; ctx.fill();
+        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
+        text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
       } else {
         const needG = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const shG = s.shards[d.id] || 0;
@@ -136,8 +125,8 @@ function createRelicScreen(deps = {}) {
           text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
         }
       }
-      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；红卡 → 详情（看 3★）；其余未解锁 → 无操作
-      const clickableG = owned || rar === 'ur' || _relicUnlockable(s, d.id);
+      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；红卡未获得 → 无操作（问号态不可点开）
+      const clickableG = owned || (rar !== 'ur' && _relicUnlockable(s, d.id));
       push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
@@ -237,23 +226,13 @@ function createRelicScreen(deps = {}) {
         else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; ct3 = '#8fb6ff'; cb3 = '#5b86d6'; }
         _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, ratio3, lbl3, ct3, cb3);
       } else if (rar === 'ur') {
-        // v1.17.47 红色战场专属：未获得也占位展示（轮廓图标 + 「专属」角标 + 掉落来源），不显示碎片进度
-        strokeRoundRect(ctx, rx, ry2, cw, ch, 12, UR_COLOR, 1.6);
-        fillRoundRect(ctx, rx + cw - 68, ry2 + 8, 60, 26, 13, UR_COLOR);
-        text(ctx, '专属', rx + cw - 38, ry2 + 21, 15, '#2a0b06', 'center');
-        const srcU = relicIconSrc(d.id);
-        ctx.globalAlpha = 0.42;
-        if (!(srcU && drawImg(ctx, srcU, icx - 52, icy - 52, 104, 104))) {
-          ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
-          ctx.fillStyle = UR_COLOR_DEEP; ctx.fill();
-          ctx.globalAlpha = 0.75;
-          ctx.strokeStyle = UR_COLOR; ctx.lineWidth = 2; ctx.stroke();
-          text(ctx, d.icon, icx, icy + 2, 44, '#ffd9cf', 'center');
-        }
-        ctx.globalAlpha = 1;
-        text(ctx, d.name, icx, ry2 + 150, 24, '#ffb3a3', 'center');
-        text(ctx, `掉落 · ${urFieldName(d)}`, icx, ry2 + 180, 16, UR_COLOR, 'center');
-        text(ctx, '20/40/60 波 Boss', icx, ry2 + 198, 13, '#8e6a62', 'center');
+        // v1.17.48 红色圣遗物：未获得=问号占位（不显示名称、来源与专属标签）
+        ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
+        ctx.fillStyle = '#151a22'; ctx.fill();
+        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
+        text(ctx, '?', icx, icy + 5, 46, rc, 'center');
+        text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
+        _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, 0, '? / ?', '#5a6b80', '#3d4c5e');
       } else {
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
@@ -288,8 +267,8 @@ function createRelicScreen(deps = {}) {
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
-      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）；v1.17.47 红卡始终可点开看 3★
-      const clickable = owned || rar === 'ur' || _relicUnlockable(s, d.id);
+      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）；v1.17.48 红卡未获得为问号态，不可点开
+      const clickable = owned || (rar !== 'ur' && _relicUnlockable(s, d.id));
       if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();
@@ -332,12 +311,12 @@ function createRelicScreen(deps = {}) {
     const gx = 375, gy = oy + 168, dia = 200;
     const src = relicIconSrc(id);
     if (!(src && drawImg(ctx, src, gx - dia / 2, gy - dia / 2, dia, dia))) text(ctx, d.icon, gx, gy, 150, '#ffffff', 'center');
-    // ---- v1.17.47 红色（战场专属）来源条：替代碎片进度（红件只能由指定战场 Boss 掉落）----
+    // ---- v1.17.48 红色来源条：替代碎片进度（红件只由指定战场的 20/40/60 波 Boss 掉落）----
     if (rar === 'ur') {
       const by0 = oy + 268;
       fillRoundRect(ctx, cardX, by0, 560, 40, 20, 'rgba(60,16,10,0.85)');
       strokeRoundRect(ctx, cardX, by0, 560, 40, 20, UR_COLOR, 1.6);
-      text(ctx, `战场专属 · ${urFieldName(d)} · 20/40/60 波 Boss 掉落`, 375, by0 + 21, 18, '#ffb3a3', 'center');
+      text(ctx, `红色圣遗物 · ${urFieldName(d)} · 20/40/60 波 Boss 掉落`, 375, by0 + 21, 18, '#ffb3a3', 'center');
     }
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
