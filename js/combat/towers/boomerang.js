@@ -1,3 +1,4 @@
+const Bosses = require('../../bosses/index.js');
 const Collision = require('../collision.js');
 'use strict';
 // Tower behavior acts only on caller-owned Combat, tower and enemy state.
@@ -81,8 +82,9 @@ function sweepDamage(combat, s) {
 function tickAttack(combat, dt) {
   const g = combat.game, key = 'boomerang';
   const flying = combat.shots.some((s) => s.sweep && s.key === key);
-  if (flying) return;                       // 镖在飞行中不投（也不累计攻速计时）
+  if (flying) { Bosses.attackStep(g, key, dt, true); return; }
   const catchSkill = combat.lv('boomerang', '接镖') > 0;
+  let caughtWithSkill = false;
   if (combat.bWait[key]) {
     combat.bWait[key] = false;
     // v1.16.114 疾接1★/2★：接镖后下一镖造成的伤害提升 15%/20%（叠加在接镖 C 续投之上）
@@ -92,13 +94,15 @@ function tickAttack(combat, dt) {
     if (catchSkill) {
       const cnt = combat.branchLv('boomerang', '接镖', 'C');
       if (cnt > 0) combat._nextDmg[key] = (combat._nextDmg[key] || 0) + 0.10 * cnt;
-      combat.attackOnce(key);
-      return;
-    }
-    combat.bCatch[key] = 0;                   // 未学接镖：开始 0.5s 接镖冷却
+      caughtWithSkill = true;
+    } else combat.bCatch[key] = 0;                   // 未学接镖：开始 0.5s 接镖冷却
   }
+  // Catch rewards/invulnerability happen on arrival; only the next throw pays the suppression delay.
+  const attackDt = Bosses.attackStep(g, key, dt, false);
+  if (attackDt < 0) { if (caughtWithSkill) delete combat.bCatch[key]; return; }
+  if (caughtWithSkill) { combat.attackOnce(key); return; }
   if (combat.bCatch[key] !== undefined) {
-    combat.bCatch[key] += dt;
+    combat.bCatch[key] += attackDt;
     if (combat.bCatch[key] >= SKILL_NUM.boomerang['接镖'].catchCd) { combat.bCatch[key] = undefined; combat.attackOnce(key); }
   } else {
     combat.attackOnce(key);                   // 空闲/无目标：直接尝试（attackOnce 内部无目标时复位等待）

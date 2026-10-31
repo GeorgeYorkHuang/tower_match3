@@ -22,6 +22,7 @@ function defeated(g) {
 }
 function clearVictory(g) {
   const wave = (g.run.bossEncounter && g.run.bossEncounter.waveNo) || g.run.bossWaveNo || g.run.wave;
+  Galvin.clearTemporary(g);
   g.run.bossLock = false; g.wave.plan = [];
   g.enemies = g.enemies.filter(e => e.waveNo !== wave);
   if (g._waveAlive) g._waveAlive[wave] = 0;
@@ -29,4 +30,5 @@ function clearVictory(g) {
   if (!g._waveCleared[wave]) { g._waveCleared[wave] = true; g.run.clearedWaves++; }
 }
 module.exports = { setup, spawn, tick, defeated, clearVictory,
+  attackScale: Galvin.attackScale, attackStep: Galvin.attackStep, clearTemporary: Galvin.clearTemporary,
   absorb: Rosea.absorb, transition: Galvin.transition, split: Galvin.split, onDeath: Galvin.onDeath };

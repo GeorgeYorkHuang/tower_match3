@@ -6,6 +6,11 @@ altar_galvin: {
   threshold: 0.60, twinHpRatio: 0.30, twinArmor: 0.125, twinSpeed: 0.96,
   controlResist: 0.5, phaseStun: 0.5, spawnInterval: 0.25,
   splitSeparation: 180, edgeInset: 75,
+  echoPeriod: 10, echoTowerCount: 3, echoSlow: 0.10, echoDuration: 3,
+  resonancePeriod: 10, resonanceMax: 3, resonanceAttackPerStack: 0.12,
+  // Design text says ~350HP/s at full stacks: 0.25% max HP/s total, not per stack.
+  resonanceHealPerStack: 0.0025 / 3,
+  syncWindow: 8, survivorHealRatio: 0.15, syncChestTier: 'silver',
   adds: [[9,9,9,9,9,9,10,10,10,10,10], [9,9,9,9,9,9,9,9,10,10,10,10,10]],
 }
 };

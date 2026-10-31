@@ -12,7 +12,12 @@ function setup(director) {
   // Prior-wave survivors may still be present; their IDs must not alias either twin's hit cooldowns.
   director._eid = g.enemies.reduce((next, e) => Math.max(next, Number(e.id) + 1 || 0), director._eid);
   g.run.bossLock = true; g.run.bossEnemy = null;
-  g.run.bossEncounter = { id: B.id, waveNo: B.wave, phase: 1, members: [], finished: false, rewardGranted: false };
+  g.run.bossEncounter = {
+    id: B.id, waveNo: B.wave, phase: 1, members: [], finished: false, rewardGranted: false,
+    elapsed: 0, nextEchoAt: B.echoPeriod, slowUntil: {}, attackDebt: {},
+    resonanceStacks: 0, nextResonanceAt: Infinity,
+    firstDeathAt: null, syncExpired: false, syncSuccess: false, syncBonusResolved: false,
+  };
   director.plan = [{ lv: B.genLv, type: 'boss', hp: B.hp, offset: 0.5, isBoss: true, bossId: B.id }, ...entries(B.adds[0])];
   director.hasBoss = true; director.interval = B.spawnInterval;
   director.enemyTotalHp = B.hp * (1 - B.threshold) + 2 * B.hp * B.twinHpRatio
@@ -46,7 +51,7 @@ function transition(g, e, value) {
 function split(g, e) {
   const group = g.run.bossEncounter;
   if (!group || group.id !== B.id || group.phase !== 1) return [];
-  group.phase = 2; group.members = [];
+  group.phase = 2; group.members = []; group.nextResonanceAt = group.elapsed + B.resonancePeriod;
   // Retiring a body is not a kill: invalidate old targets, without invoking death skills/rewards.
   e.hp = 0; e._dying = true; e._bossRetired = true;
   const ly = g.wave.ly;
@@ -64,18 +69,99 @@ function split(g, e) {
   g.fx.push({ type: 'floatText', text: '圣像裂生 · 两尊均需击败', x: e.x, y: e.y - 70, t: 0, dur: 2, size: 24, color: '#f4cf72' });
   return group.members;
 }
+const EPS = 1e-9;
+function active(g) {
+  const group = g.run && g.run.bossEncounter;
+  return g.run && g.run.bossLock && group && group.id === B.id && !group.finished ? group : null;
+}
+function clearTemporary(g) {
+  const group = g.run && g.run.bossEncounter;
+  if (group && group.id === B.id) { group.slowUntil = {}; group.attackDebt = {}; }
+}
+function attackScale(g, key) {
+  const group = active(g);
+  if (!group || ['menu', 'gameover', 'testfield'].includes(g.state)) return 1;
+  return (group.slowUntil[key] || 0) > group.elapsed + EPS ? 1 - B.echoSlow : 1;
+}
+// Boomerangs have a flight/return cadence instead of a normal attack interval.
+// Accumulate lost action time while flying, then pay it before the next throw.
+function attackStep(g, key, dt, flying) {
+  const group = active(g), scale = attackScale(g, key);
+  if (!group || scale === 1) {
+    if (group) delete group.attackDebt[key];
+    return dt;
+  }
+  if (flying) { group.attackDebt[key] = (group.attackDebt[key] || 0) + dt * (1 - scale); return 0; }
+  const wait = (group.attackDebt[key] || 0) / scale;
+  const used = Math.min(dt, wait);
+  group.attackDebt[key] = Math.max(0, (wait - used) * scale);
+  return group.attackDebt[key] > EPS ? -1 : Math.max(0, dt - used) * scale;
+}
+function castEcho(g, group) {
+  const alive = group.members.filter(e => e.hp > 0);
+  const candidates = [...new Set(g.run.slotOrder)].filter(key => {
+    const t = g.run.effects.tower(key); return t && t.level > 0;
+  }).map(key => {
+    const pos = g.combat.towerMuzzle(key);
+    return { key, distance: Math.min(...alive.map(e => Math.hypot(e.x - pos.x, e.y - pos.y))) };
+  }).sort((a, b) => a.distance - b.distance).slice(0, B.echoTowerCount);
+  for (const item of candidates) group.slowUntil[item.key] = group.elapsed + B.echoDuration;
+  if (candidates.length) g.fx.push({ type: 'floatText', text: '圣坛回响 · 攻速 −' + Math.round(B.echoSlow * 100) + '%', x: 375, y: g.ly.wallY - 45, t: 0, dur: 1.2, size: 20, color: '#e4c88d' });
+}
 function tick(g, dt) {
-  const group = g.run.bossEncounter;
-  if (!g.run.bossLock || !group || group.id !== B.id) return;
-  for (const e of group.members) if (e.hp > 0) e._bossStun = Math.max(0, (e._bossStun || 0) - dt);
-  g.run.bossEnemy = group.members.find(e => e.hp > 0) || group.members[group.members.length - 1] || null;
+  const group = active(g);
+  if (!group || !group.members.some(e => e.hp > 0)) return;
+  const alive = group.members.filter(e => e.hp > 0);
+  for (const e of alive) e._bossStun = Math.max(0, (e._bossStun || 0) - dt);
+  const end = group.elapsed + Math.max(0, dt);
+  // Integrate healing between event boundaries: a long frame must not apply a new stack retroactively.
+  while (group.elapsed < end - EPS) {
+    const both = group.phase === 2 && alive.length === 2;
+    const nextResonance = both && group.resonanceStacks < B.resonanceMax ? group.nextResonanceAt : Infinity;
+    const next = Math.min(end, group.nextEchoAt, nextResonance);
+    const duration = Math.max(0, next - group.elapsed);
+    if (both && group.resonanceStacks > 0) for (const e of alive) {
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * B.resonanceHealPerStack * group.resonanceStacks * duration);
+    }
+    group.elapsed = next;
+    if (nextResonance <= next + EPS) {
+      group.resonanceStacks++;
+      for (const e of alive) e.attack = Math.round(B.attack * (1 + B.resonanceAttackPerStack * group.resonanceStacks));
+      group.nextResonanceAt += B.resonancePeriod;
+    }
+    if (group.nextEchoAt <= next + EPS) { castEcho(g, group); group.nextEchoAt += B.echoPeriod; }
+  }
+  group.elapsed = end;
+  if (group.firstDeathAt !== null && !group.syncExpired && end - group.firstDeathAt > B.syncWindow + EPS) {
+    group.syncExpired = true;
+    const survivor = alive[0];
+    if (survivor) {
+      survivor.hp = Math.min(survivor.maxHp, survivor.hp + survivor.maxHp * B.survivorHealRatio);
+      g.fx.push({ type: 'floatText', text: '同步超时 · 圣像回复' + Math.round(B.survivorHealRatio * 100) + '%', x: survivor.x, y: survivor.y - 55, t: 0, dur: 1.5, size: 21, color: '#a4e7b2' });
+    }
+  }
+  g.run.bossEnemy = alive[0] || group.members[group.members.length - 1] || null;
+}
+function syncBonus(g, group) {
+  if (group.syncBonusResolved) return;
+  group.syncBonusResolved = true;
+  const tier = CONFIG.DEPTH_CHEST.tiers.find(t => t.key === B.syncChestTier);
+  group.syncChestGranted = !!tier && g.meta.grantDeepChest(tier);
+  g.toast(group.syncChestGranted ? '同步击破 · 额外' + tier.name + '已存入' : tier ? '同步击破 · 宝箱槽位已满' : '同步击破 · 奖励配置不可用', '#f4cf72');
+  if (group.syncChestGranted) g.save.save();
 }
 function onDeath(g, e) {
   if (e.bossId !== B.id) return true;
   const group = g.run.bossEncounter;
-  if (!group || group.id !== B.id || group.phase !== 2 || !group.members.includes(e) || group.rewardGranted) return false;
-  if (group.members.some(member => member.hp > 0)) return false;
+  if (!group || group.id !== B.id || group.phase !== 2 || !group.members.includes(e) || group.rewardGranted || e.hp > 0) return false;
+  if (group.members.some(member => member.hp > 0)) {
+    if (group.firstDeathAt === null) group.firstDeathAt = group.elapsed;
+    return false;
+  }
+  group.syncSuccess = !group.syncExpired && (group.firstDeathAt === null || group.elapsed - group.firstDeathAt <= B.syncWindow + EPS);
   group.finished = true; group.rewardGranted = true;
+  clearTemporary(g);
+  if (group.syncSuccess) syncBonus(g, group);
   return true; // The existing Boss reward path runs exactly once for the encounter.
 }
-module.exports = { enabled, setup, spawn, transition, split, tick, onDeath };
+module.exports = { enabled, setup, spawn, transition, split, tick, onDeath, attackScale, attackStep, clearTemporary };

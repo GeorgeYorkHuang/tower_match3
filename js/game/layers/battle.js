@@ -4,6 +4,7 @@ const GlobalSkills = require('../../global-skills.js');
 const GS_BALANCE = require('../../config/global-balance.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text, progressBar } = require('../ui.js');
 const L = CONFIG.LAYOUT;
+const CONFIG_BOSS = require('../../config/bosses.js').altar_galvin;
 // 场景组件只绘制与登记命中；Main仍决定层级，点击和技能释放仍归原路由。
 function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y, TOWER_ROW_Y, BOARD_Y }) {
   function actionArea(ctx, s) {
@@ -24,6 +25,11 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
         progressBar(ctx, x, AREA_Y + ENTRY_H + 28, w, 9, Math.max(0, e.hp / e.maxHp), '#ba82e7', '#30253d');
         if (members.length > 1) text(ctx, '圣像' + (i + 1) + (e.hp <= 0 ? ' · 已击败' : ''), x + w / 2, AREA_Y + ENTRY_H + 48, 13, '#d1c393', 'center');
       });
+      const echo = Math.max(0, group.nextEchoAt - group.elapsed).toFixed(1);
+      let info = '圣坛回响 ' + echo + 's';
+      if (group.phase === 2) info = '共鸣 ' + group.resonanceStacks + '/' + CONFIG_BOSS.resonanceMax + ' · ' + info;
+      if (group.firstDeathAt !== null) info = group.syncExpired ? '同步超时 · 独存圣像已回复' : '同步击破 ' + Math.max(0, CONFIG_BOSS.syncWindow - (group.elapsed - group.firstDeathAt)).toFixed(1) + 's';
+      text(ctx, info, 375, AREA_Y + ENTRY_H + (group.phase === 1 ? 48 : 68), 15, group.firstDeathAt !== null ? '#ffda82' : '#d1c393', 'center');
     } else if(s.miniBoss) {
       const b=s.miniBoss;
       text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');

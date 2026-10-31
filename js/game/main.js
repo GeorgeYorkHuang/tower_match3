@@ -691,6 +691,7 @@ class GameMain {
 
   /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（v1.17 币种分离） */
   goMenu() {
+    Bosses.clearTemporary(this);
     this.anim = null;
     this.combat.reset();
     // v1.17.20 碎片局末入账：战斗中直接返回主界面时先按失守比例兜底结算（结算后 runShardDetail 已清空 → 再调无副作用）

@@ -1,3 +1,4 @@
+const Bosses = require('./bosses/index.js');
 const ChainFlight = require('./chain-flight.js');
 const GlobalCast = require('./combat/global-cast.js');
 const Linkage = require('./combat/linkage.js');
@@ -144,7 +145,7 @@ class CombatSystem {
     if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
-    return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1));
+    return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1)) / Bosses.attackScale(this.game, key);
   }
 
   /** 塔当前射程（射程/技能叠加） */
