@@ -115,6 +115,14 @@ class GameMain {
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle) {
+    // New runs and profile switches must not inherit the previous run's reward UI or payout cache.
+    this.pendingRelicPicks = [];
+    this.runRelics = [];
+    this.relicPick = null;
+    this.relicPickHits = [];
+    this._relicReturnState = null;
+    this._lastPickStar3 = false;
+    this.silverGained = 0;
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
     this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能局外三槽配置
