@@ -8,7 +8,7 @@
 
 ## 当前代码框架（2026-10-31）
 
-本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十四批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十五批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
 
 ### 启动与运行关系
 
@@ -131,6 +131,9 @@ js/
       test-field.js             测试战场与测试技能配置面板绘制
     layers/board.js             棋盘、交换/扫描/消除/补落与方块绘制
     layers/enemies.js           怪物/Boss本体、帧动画与异常状态绘制
+    layers/battle.js            战斗场景调度、塔位、全局技能、城墙与功能按钮
+    layers/ground.js            风痕、毒池与毒棒等地面效果
+    layers/chests.js            战斗掉落宝箱、金光与开启/飞行动画
     icons/
       skills.js                 技能图标绘制
       chip-skin.js              特殊块底板/图案查表与加载
@@ -177,7 +180,7 @@ js/
 
 协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
 
-### 本轮重构路线：8批目标已完成5批，预计剩余3批
+### 本轮重构路线：8批目标已完成6批，预计剩余2批
 
 | 顺序 | 内容 |
 |---|---|
@@ -186,11 +189,11 @@ js/
 | 3（已完成） | 六塔普攻/连消及旧shot兼容类型，已迁入fx/projectiles.js |
 | 4（已完成） | 怪物帧动画、Boss外观与异常状态，已迁入layers/enemies.js |
 | 5（已完成） | 棋盘、交换/补落/扫描与障碍，已迁入layers/board.js |
-| 6 | 战斗场景组件：塔位、全局技能、地面效果和掉落宝箱 |
+| 6（已完成） | 战斗场景组件：已迁入layers/battle.js、ground.js和chests.js |
 | 7 | Main职责整理：测试操作、圣遗物获取和结算协调 |
 | 8 | 依赖/数据隔离审计、必要回归和文档收口 |
 
-上表是本轮目标范围，前五项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
+上表是本轮目标范围，前六项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
 
 ## 本地测试档
 
@@ -210,6 +213,7 @@ js/
 ```powershell
 node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
 node F:/workspace/towerdefence_share/tests/test_board_layer_split.cjs
+node F:/workspace/towerdefence_share/tests/test_battle_layers_split.cjs
 node F:/workspace/towerdefence_share/tests/test_enemy_layer_split.cjs
 node F:/workspace/towerdefence_share/tests/test_projectile_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_tower_fx_split.cjs
@@ -492,3 +496,8 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第十四批：棋盘与动画阶段绘制提取（2026-10-31）
 
 `js/game/layers/board.js`接管board/drawCell/_sourceRow，Renderer保留原方法与特殊块矢量入口。棋盘快照、实际交换/匹配/补落/扫描计划及收益仍由Board/Match3/Run负责，ChipSkin预载/路径与原加载器复用。固定00f1735基线1542组Canvas/渐变/随机消费/输入快照只读对比通过，覆盖静态/交换/消除/等待/下落/绕障碍路径/扫描、三主题、选择与抖动、彩虹/子雷以及完整/旧整图/缺图三种资产状态。另120轮障碍补落、五消扫描、彩虹单次使用/逐块充能、真实Run连消、三消4382组和112个JS语法/依赖检查通过。本轮8批完成5批、剩余约3批；下一批为塔位/全局技能、地面效果与宝箱等战斗场景组件。说明/测试在towerdefence_share。
+
+
+## R16第十五批：战斗场景组件提取（2026-10-31）
+
+`layers/battle.js`接管战斗区域协调、城墙、功能栏、塔位、全局按钮与倍速图标6个入口；`layers/ground.js`接管地面效果，`layers/chests.js`接管掉落宝箱绘制，Renderer保留同名委托。原绘制层级、布局、命中区域、充能显示和宝箱动画参数不变；技能释放、收益与宝箱点击/生命周期仍归原Main/Combat。固定aef84ee基线1060组Canvas/输入只读/命中区域/调用顺序对比通过，覆盖塔位与双全局槽、充能、城墙护盾、地面实体、宝箱开启/飞行/缺图。真实Main全局技能、设置/帮助/撤离、测试战场、60帧绘制与115个JS语法/依赖审计通过。未进行真机测试；测试与说明在towerdefence_share。本轮8批完成6批、剩余2批，下一批整理Main的测试操作、圣遗物获取和结算协调职责，最后统一审计收口。

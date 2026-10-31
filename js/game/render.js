@@ -1,3 +1,6 @@
+const { createBattleScene } = require('./layers/battle.js');
+const { createGroundLayer } = require('./layers/ground.js');
+const { createChestLayer } = require('./layers/chests.js');
 const { createBoardLayer } = require('./layers/board.js');
 const { createEnemyLayer } = require('./layers/enemies.js');
 const { createProjectileFx } = require('./fx/projectiles.js');
@@ -29,13 +32,11 @@ const { createSkillLoadout } = require('./screens/skill-loadout.js');
 const { skillIcon } = require('./icons/skills.js');
 const { specialBlockMark, subBlockGlyph, COLOR_FILL } = require('./icons/special-blocks.js');
 const ChipSkin = require('./icons/chip-skin.js');          // v1.17.44 底板 × 图案两层查表（替换 v1.17.35 方案）
-const GS_BALANCE = require('../config/global-balance.js');
 /**
  * render.js —— 主界面渲染（设计稿 750×1626 逻辑坐标，定版 v7：iPhone 15 比例）
  * 分区：状态条 72 / 行动区 700×970（入口带 68、城墙 24）/ 塔位区 122 / 棋盘区 462
  */
 const CONFIG = require('../config.js');
-const GlobalSkills = require('../global-skills.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text, progressBar, button } = require('./ui.js');
 
 const L = CONFIG.LAYOUT;
@@ -347,88 +348,17 @@ class Renderer {
   entryStatus(ctx, s) { return this._getBattleHud().entryStatus.call(this, ctx, s); }
 
   /** 行动区底：入口带 + 敌人 + 城墙 + 塔位区 + 棋盘（按状态分层调用） */
-  actionArea(ctx, s) {
-    // 行动区背景图（y128 起 720 高 = 怪物行走区）；v1.16.77 按战场切换主题背景；加载失败回退深色底
-    const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
-      ? `assets/images/interface/battle/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
-    if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
-      fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
-    }
-    this.entryStatus(ctx,s);
-    if(s.miniBoss) {
-      const b=s.miniBoss;
-      text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');
-      progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
-      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/'+(b.shieldMaxLayers||1),375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
-    }
-    // 塔位区（v1.17.11 即城墙，先画背景）
-    this.towerRow(ctx, s);
-    // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
-    this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
-    // 棋盘（v1.17.29 传入 _shake 支持消除抖动）
-    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage);
-    // 底部功能键区（棋盘下方）
-    this.funcBar(ctx, s);
-    // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
+  _getBattleScene() {
+    if (!this._battleScene) this._battleScene = createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y, TOWER_ROW_Y, BOARD_Y });
+    return this._battleScene;
   }
 
-  wall(ctx, hp, maxHp, barY, shield) {
-    // v1.17.11 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
-    // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
-    const barH = 14;
-    const by = barY !== undefined ? barY : (TOWER_ROW_Y + L.towerRow.h - barH);
-    const ratio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
-    // 槽（深棕阴影底 + 淡描边）
-    fillRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, '#241a12');
-    strokeRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, 'rgba(255,255,255,0.18)', 1);
-    // 血量填充（分级变色）
-    if (ratio > 0) {
-      const barCol = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff5252';
-      fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, 5, barCol);
-    }
-    if (shield > 0) {
-      fillRoundRect(ctx,AREA_X,by-8,AREA_W*Math.min(1,shield/GS_BALANCE.barrier.shield),5,2,'#86caff');
-      text(ctx,'护盾 '+Math.ceil(shield),AREA_X+AREA_W-5,by-18,16,'#a6e8ff','right');
-    }
-    // 血量数字（血条内居中）
-    text(ctx, `${Math.max(0, Math.ceil(hp))}`, AREA_X + AREA_W / 2, by + barH / 2 + 1, 15, '#ffffff', 'center');
-  }
+  actionArea(ctx, s) { return this._getBattleScene().actionArea.call(this, ctx, s); }
+
+  wall(ctx, hp, maxHp, barY, shield) { return this._getBattleScene().wall.call(this, ctx, hp, maxHp, barY, shield); }
 
   /** 底部功能键区（三消棋盘下方）：设置 / 帮助（v1.16.30 移除加速键；v1.16.77 移除塔图鉴弹层与商店占位弹层，图鉴移入主界面 codex 页签） */
-  funcBar(ctx, s) {
-    const fy = BOARD_Y + L.boardArea.h;           // 1524
-    const h = L.funcBar.h;                        // 102
-    fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    ctx.fillRect(0, fy, 750, 2);
-    // v1.16.89 底部功能条三键：设置 / 帮助 / 商店（商店改入分页栏，点击弹出面板）
-    const labels = ['⚙ 设置', 'ℹ 帮助', '🛒 商店'];
-    const keys = ['setting', 'help', 'shop'];
-    const kw = 150, kh = 80;
-    const gap = (750 - labels.length * kw) / (labels.length + 1);
-    this.funcHits = [];
-    for (let i = 0; i < labels.length; i++) {
-      const x = gap + i * (kw + gap);
-      const y = fy + (h - kh) / 2;
-      // v1.16.30 美化：渐变玻璃底 + 顶部高光 + 白描边 + 图标/文字两行
-      const bgrad = ctx.createLinearGradient(0, y, 0, y + kh);
-      bgrad.addColorStop(0, '#2a3342'); bgrad.addColorStop(1, '#1b222e');
-      fillRoundRect(ctx, x + 2, y + 3, kw, kh, 14, 'rgba(0,0,0,0.28)');
-      fillRoundRect(ctx, x, y, kw, kh, 14, bgrad);
-      strokeRoundRect(ctx, x, y, kw, kh, 14, 'rgba(255,255,255,0.16)', 1.5);
-      ctx.fillStyle = 'rgba(255,255,255,0.10)';
-      fillRoundRect(ctx, x + 6, y + 4, kw - 12, 16, 8, ctx.fillStyle);
-      text(ctx, labels[i].split(' ')[0], x + kw / 2, y + 42, 26, '#d7dee6', 'center');
-      text(ctx, labels[i].split(' ')[1], x + kw / 2, y + 66, 17, '#8ea3b8', 'center');
-      this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
-    }
-    // v1.16.30 加速按钮：城墙上方 · 怪物移动区右下角
-    // v1.16.48 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
-    const spX = 750 - 16 - 124, spY = WALL_Y - 8 - 66, spW = 124, spH = 66;
-    const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
-    this._speedBadge(ctx,spX,spY,spW,spH,s.runSpeed||1);
-    this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
-  }
+  funcBar(ctx, s) { return this._getBattleScene().funcBar.call(this, ctx, s); }
 
   /** v1.16.89 局内商店：按钮移入底部功能条，此处仅渲染弹出面板（战斗不暂停） */
   battleShop(ctx, s) {
@@ -488,107 +418,13 @@ class Renderer {
     return lines.length ? lines : [str];
   }
 
-  towerRow(ctx, s, count, showGlobal) {
-    const towers = s.towers;
-    const slotCount = count || this.ly.slotCount; // v1.14 测试战场传 6；正式战斗默认 4
-    const { slotSize, slotGap, slotY } = this.ly;
-    // 塔位区背景图（石板放置地面）；加载失败回退浅色条
-    if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
-      fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
-    }
-    text(ctx, '塔位', AREA_X + 14, TOWER_ROW_Y + 24, 18, 'rgba(255,255,255,0.4)');
-    // v1.17.10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
-    const showG = showGlobal !== false;
-    const itemN = showG ? slotCount + 2 : slotCount;
-    const totalX = itemN * slotSize + (itemN - 1) * slotGap;
-    const x0 = (750 - totalX) / 2;
-    let x = x0 + (showG ? slotSize + slotGap : 0);
-    for (let i = 0; i < slotCount; i++) {
-      const tw = towers[i] || null;
-      // v1.17.45 槽体完全透明（无底色）；空槽 = 半透明灰色蒙版（无文字提示）
-      if (!tw) {
-        fillRoundRect(ctx, x, slotY, slotSize, slotSize, 8, 'rgba(140,150,160,0.28)');
-      } else {
-        // 塔图标（32×32 居中，图片优先，回退自绘几何图形——emoji 在部分 canvas 环境不渲染）
-        const ix = x + (slotSize - L.towerIcon.size) / 2;
-        const iy = slotY + (slotSize - L.towerIcon.size) / 2 - 2;
-        if (!drawImg(ctx, IMG_SRC[tw.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
-          drawTowerGlyph(ctx, tw.key, ix, iy, L.towerIcon.size);
-        }
-        // v1.17.45：去掉槽底 Lv 文字；等级由弹药柱条 + 塔本体表现
-        // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
-        const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
-        const bx = x + slotSize - 9;              // 槽内右侧竖条
-        const by0 = slotY + 8;
-        const bh = slotSize - 16;
-        ctx.fillStyle = 'rgba(0,0,0,0.45)';
-        ctx.fillRect(bx, by0, 7, bh);
-        ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
-        ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
-        // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
-      }
-      x += slotSize + slotGap;
-    }
-    // v1.17.10e 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y，与 4 塔槽按 x 轴等间距（slotGap）居中
-    //   左=全局洗牌，右=弹药补给；累计充能每 chargePerUse 点 = 1 格（横向 3 段，上限 3 格）
-    // v1.14 测试战场（showGlobal=false）不渲染全局技能按钮
-    if (showG) {
-      const sz = this.ly.slotSize;
-      const perUse = Math.max(1, s.chargePerUse || 30);
-      const shuCells = Math.min(3, ((s.shuffleAmmo || 0) / perUse));
-      const refCells = Math.min(3, ((s.refillAmmo || 0) / perUse));
-      this._equippedGlobalSlots = s.globalSlots || ['shuffle','refill'];
-      this.globalBtns = [
-        this._globalBtn(ctx, 'shuffle', '', (GlobalSkills.get((s.globalSlots||['shuffle','refill'])[0])||{}).name||'洗牌', x0, this.ly.slotY, sz, sz, shuCells, '#ff8c42'),
-        this._globalBtn(ctx, 'refill', '', (GlobalSkills.get((s.globalSlots||['shuffle','refill'])[1])||{}).name||'补给', x0 + (slotCount + 1) * (slotSize + slotGap), this.ly.slotY, sz, sz, refCells, '#7ef0a3'),
-      ];
-    } else {
-      this.globalBtns = [];
-    }
-  }
+  towerRow(ctx, s, count, showGlobal) { return this._getBattleScene().towerRow.call(this, ctx, s, count, showGlobal); }
 
   /** 全局技能充能条绘制：未充能无背景色（仅淡描边）；充能 ≥1 格激活后，背景替换为技能主题色；
    *  图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y） */
-  _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
-    const maxCells = 3;
-    const ready = filled >= 1;
-    // v1.17.45：不再用整体半透明压暗；未充能改为图标上覆盖半透明灰蒙版（图标本体不透明）
-    // 背景：未充能 = 无背景色；已充能 = 主题色渐变背景（替换底色）
-    if (ready) {
-      const bg = ctx.createLinearGradient(0, by, 0, by + bh);
-      bg.addColorStop(0, tint + '66');
-      bg.addColorStop(1, tint + '30');
-      roundRect(ctx, bx, by, bw, bh, 8);
-      ctx.fillStyle = bg; ctx.fill();
-    }
-    const skillId=(this._equippedGlobalSlots||['shuffle','refill'])[key==='shuffle'?0:1];
-    // 图标按槽位68%绘制（在80%基础上再缩小15%），顶部留白；胶囊居中于图标下沿与槽位下沿之间
-    const iconSz = Math.min(bw, bh) * 0.68;
-    const iconTop = by + bh * 0.08;
-    this._skillIcon(ctx,skillId,bx+bw/2,iconTop+iconSz/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
-    // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
-    const segW = 24, segH = 12, segGap = 8;
-    const sx0 = bx + (bw - (maxCells * segW + (maxCells - 1) * segGap)) / 2;
-    const iconBottom = iconTop + iconSz;
-    const sy0 = (iconBottom + by + bh) / 2 - segH / 2;
-    for (let i = 0; i < maxCells; i++) {
-      const sx = sx0 + i * (segW + segGap);
-      const progress=Math.max(0,Math.min(1,filled-i));
-      fillRoundRect(ctx,sx,sy0,segW,segH,6,'#253039');
-      if(progress>0)fillRoundRect(ctx,sx,sy0,segW*progress,segH,Math.min(6,segW*progress/2),progress>=1?'#62df97':'#f4cd52');
-      strokeRoundRect(ctx,sx,sy0,segW,segH,6,progress>=1?'#b0f3cc':'#8f814a',1);
-    }
+  _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) { return this._getBattleScene()._globalBtn.call(this, ctx, key, icon, name, bx, by, bw, bh, filled, tint); }
 
-    ctx.globalAlpha = 1;
-    return { key, x: bx, y: by, w: bw, h: bh };
-  }
-
-  _speedBadge(ctx,x,y,w,h,speed) {
-    const accent=speed>1?'#f5ce73':'#99c8d5';
-    ctx.save();ctx.strokeStyle=accent;ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
-    for(let i=0;i<2;i++){const cx=x+w/2-24+i*10,cy=y+h/2;ctx.beginPath();ctx.moveTo(cx-4,cy-7);ctx.lineTo(cx+3,cy);ctx.lineTo(cx-4,cy+7);ctx.stroke();}
-    ctx.restore();text(ctx,'×'+speed,x+w/2+18,y+h/2,22,accent,'center');
-  }
+  _speedBadge(ctx,x,y,w,h,speed) { return this._getBattleScene()._speedBadge.call(this, ctx,x,y,w,h,speed); }
 
   _getBoardLayer() {
     if (!this._boardLayer) this._boardLayer = createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, subBlockGlyph, easeOutCubic });
@@ -655,237 +491,20 @@ class Renderer {
   /* ============ 区C · 技能特效层（地面持续效果 / 弹道与技能 fx） ============ */
 
   /** v1.16.72 战场宝箱：怪物掉落实体，点击后播放三帧开箱动画（关→半开→全开）→ 开启后弹出圣物三选一；金色宝箱图片 + 呼吸光晕 + 点击提示 */
-  fieldChests(ctx, list) {
-    if (!list || !list.length) return;
-    const now = Date.now();
-    list.forEach((c) => {
-      const s = 84;
-      const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
-      // v1.16.74 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
-      let fx = c.x, fy = c.y, scale = 1;
-      if (opening && c.stage === 'fly') {
-        const p = Math.min(1, c.flyT / 0.7);
-        const e = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p); // ease-in-out
-        fx = c.x + (375 - c.x) * e;
-        fy = c.y + (560 - c.y) * e;
-        scale = 1 + 1.6 * e; // 84 → 最大 ≈218
-      }
-      const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
-      // 呼吸光晕（开启中加强；飞行中随位置与放大）
-      const gR = s * 1.5 * scale;
-      const g = ctx.createRadialGradient(fx, fy, 4, fx, fy, gR);
-      g.addColorStop(0, '#ffd34d'); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.globalAlpha = opening ? 0.42 : 0.22 + 0.12 * b;
-      ctx.beginPath(); ctx.arc(fx, fy, gR, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 海胆状放射金光：绘于箱体背后，不改变战斗随机序列。
-      ctx.save();ctx.translate(fx,fy);ctx.rotate(now/9000);
-      const core=s*0.38*scale;
-      for(let k=0;k<32;k++) {
-        const angle=k*Math.PI*2/32;
-        const reach=s*scale*(k%3===0?1.12:k%2===0?0.92:0.72)*(0.95+0.05*b);
-        const half=k%3===0?0.024:0.016;
-        ctx.beginPath();ctx.moveTo(Math.cos(angle-half)*core,Math.sin(angle-half)*core);
-        ctx.lineTo(Math.cos(angle)*reach,Math.sin(angle)*reach);
-        ctx.lineTo(Math.cos(angle+half)*core,Math.sin(angle+half)*core);ctx.closePath();
-        ctx.fillStyle=k%3===0?'#fff0b1':'#f8c348';ctx.globalAlpha=(opening?0.7:0.4)+0.12*b;ctx.fill();
-      }
-      ctx.restore();
-      // 地面投影（仅静止时）
-      if (!opening) {
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath(); ctx.ellipse(c.x, c.y + s / 2 + 4, s / 2 * 0.85, 6, 0, 0, Math.PI * 2); ctx.fill();
-      }
-      // 五帧动画（v1.16.75）：关闭 → 微开 → 半开 → 快开 → 全开，0.4s 播完；飞行阶段恒用全开帧
-      const p = opening ? Math.min(1, c.animT / 0.4) : 0;
-      const src = (opening && c.stage === 'fly') ? IMG_SRC.chestOpen
-        : (p < 0.2 ? IMG_SRC.chestClosed : (p < 0.4 ? IMG_SRC.chestQuarter : (p < 0.6 ? IMG_SRC.chestHalf : (p < 0.8 ? IMG_SRC.chestFast : IMG_SRC.chestOpen))));
-      const ss = s * scale;
-      if (!drawImg(ctx, src, fx - ss / 2, fy - ss / 2, ss, ss)) {
-        // 回退：金色渐变箱体（图片未加载时）
-        fillRoundRect(ctx, fx - ss / 2, fy - ss / 2 + 10, ss, ss - 10, 8, 'rgba(0,0,0,0.35)');
-        const bg = ctx.createLinearGradient(fx - ss / 2, fy - ss / 2 + 10, fx - ss / 2, fy + ss / 2);
-        bg.addColorStop(0, '#ffe08a'); bg.addColorStop(1, '#c8860a');
-        fillRoundRect(ctx, fx - ss / 2, fy - ss / 2 + 10, ss, ss - 10, 8, bg);
-        fillRoundRect(ctx, fx - ss / 2 - 3, fy - ss / 2, ss + 6, 18, 6, '#f7c948');
-        strokeRoundRect(ctx, fx - ss / 2 - 3, fy - ss / 2, ss + 6, 18, 6, 'rgba(255,255,255,0.6)', 1);
-        fillRoundRect(ctx, fx - 8, fy - 6, 16, 16, 4, '#8a5c00');
-        ctx.fillStyle = '#ffd34d';
-        ctx.beginPath(); ctx.arc(fx, fy + 2, 3, 0, Math.PI * 2); ctx.fill();
-      }
-      // v1.16.74 飞行金光：轨迹粒子 + 到达中心时的光爆
-      if (opening && c.stage === 'fly') {
-        const p = Math.min(1, c.flyT / 0.7);
-        for (let k = 0; k < 8; k++) {
-          const kk = ((k * 0.618 + 0.2) % 1);
-          if (kk > p) continue;
-          const tx = c.x + (375 - c.x) * kk, ty = c.y + (560 - c.y) * kk;
-          const fade = Math.max(0, 1 - (p - kk) * 2.4);
-          ctx.fillStyle = k % 2 ? '#ffd34d' : '#fff6d8';
-          ctx.globalAlpha = 0.8 * fade;
-          ctx.beginPath(); ctx.arc(tx, ty, 2.5 + 1.6 * scale, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        // 到达中心光爆（后 30% 时间）
-        if (p > 0.7) {
-          const bp = (p - 0.7) / 0.3;
-          const br = 40 + 130 * bp;
-          const bg2 = ctx.createRadialGradient(375, 560, 6, 375, 560, br);
-          bg2.addColorStop(0, 'rgba(255,244,214,0.9)');
-          bg2.addColorStop(0.4, 'rgba(255,211,77,0.45)');
-          bg2.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx.fillStyle = bg2;
-          ctx.globalAlpha = 0.9 * (1 - bp * 0.4);
-          ctx.beginPath(); ctx.arc(375, 560, br, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      }
-      // 点击提示（未开启时显示）
-      if (!opening) text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
-    });
+  _getChestLayer() {
+    if (!this._chestLayer) this._chestLayer = createChestLayer({ drawImg, IMG_SRC });
+    return this._chestLayer;
   }
 
+  fieldChests(ctx, list) { return this._getChestLayer().fieldChests.call(this, ctx, list); }
+
   /** 地面持续效果（v1.16.1）：毒池毒液池（深绿帧动画冒泡）+ 毒棒召唤物（帧动画图标）——画在敌人下层 */
-  groundFx(ctx, combat) {
-    if (!combat) return;
-    const tNow = Date.now();
-    // v1.16.6 回旋镖·风痕：镖路径残留的旋转镖影（紫色渐淡圈），C 卷痕减速时带减速蓝光
-    if (combat.windTrails && combat.windTrails.length) {
-      combat.windTrails.forEach((w) => {
-        if (w.ttl <= 0) return;
-        const fade = Math.min(1, w.ttl / 1.6);
-        const R = w.r || 34;
-        const rot = tNow / 90;
-        // 半透明地面涡痕（双圈呼吸）
-        ctx.fillStyle = 'rgba(142,68,173,0.20)'; ctx.globalAlpha = 0.55 * fade;
-        ctx.beginPath(); ctx.arc(w.x, w.y, R * (1 + 0.06 * Math.sin(tNow / 260 + w.x)), 0, Math.PI * 2); ctx.fill();
-        // 旋转镖影（4 枚小回旋镖沿圈旋转，沿时间淡出）
-        ctx.globalAlpha = 0.8 * fade;
-        ctx.strokeStyle = w.slow ? '#7fb3d5' : '#c39bd3';
-        ctx.lineCap = 'round'; ctx.lineWidth = 4;
-        for (let k = 0; k < 4; k++) {
-          const a = rot + k * Math.PI / 2;
-          const px = w.x + Math.cos(a) * R * 0.7;
-          const py = w.y + Math.sin(a) * R * 0.7;
-          ctx.save();
-          ctx.translate(px, py); ctx.rotate(a + rot);
-          ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(0, 0); ctx.lineTo(-3, 5.2); ctx.stroke();
-          ctx.restore();
-        }
-        ctx.lineCap = 'butt';
-        // 中心涡眼
-        ctx.globalAlpha = 0.5 * fade;
-        ctx.fillStyle = w.slow ? '#aed6f1' : '#d2b4de';
-        ctx.beginPath(); ctx.arc(w.x, w.y, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      });
-    }
-    // 毒池（v1.16.1 深绿毒液池）/ 毒沼（v1.16.42 60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
-    if (combat.groundDots && combat.groundDots.length) {
-      combat.groundDots.forEach((gd) => {
-        if (gd.key !== 'poison' || gd.ttl <= 0) return;
-        const seed = gd.seed || 0;
-        const fade = Math.min(1, gd.ttl / 1.2); // 接近结束淡出
-        const R = gd.r || 130;
-        const breathe = 1 + 0.05 * Math.sin(tNow / 320 + seed);
-        if (gd.swamp) {
-          // v1.16.42 毒沼：小范围（60px）暗褐绿泥沼——泥浆底色 + 内圈 + 冒泡，与毒池（亮绿毒液池）区分
-          ctx.fillStyle = '#4d3a1e'; ctx.globalAlpha = 0.5 * fade;
-          ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.7 * breathe, 0, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#6b5325'; ctx.globalAlpha = 0.4 * fade;
-          ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * 0.62 * breathe, R * 0.44 * breathe, 0, 0, Math.PI * 2); ctx.fill();
-          // 泥浆高光斑
-          ctx.fillStyle = '#7d6a2e'; ctx.globalAlpha = 0.25 * fade;
-          ctx.beginPath(); ctx.ellipse(gd.x - R * 0.2, gd.y - R * 0.1, R * 0.3, R * 0.17, 0, 0, Math.PI * 2); ctx.fill();
-          // 泥沼气泡（暗绿气泡上升）
-          for (let k = 0; k < 5; k++) {
-            const ph = ((tNow / 850 + k / 5 + seed * 0.013) % 1);
-            const bx = gd.x + Math.sin((tNow / 620 + k * 2.1) * 2) * R * 0.35;
-            const by = gd.y + R * 0.3 - ph * R * 0.7;
-            ctx.fillStyle = '#8a9a5b'; ctx.globalAlpha = (0.5 - 0.3 * ph) * fade;
-            ctx.beginPath(); ctx.arc(bx, by, 1.6 + ph * 2.2, 0, Math.PI * 2); ctx.fill();
-          }
-          ctx.globalAlpha = 1;
-          return;
-        }
-        // 外圈深绿液池
-        ctx.fillStyle = '#145a32'; ctx.globalAlpha = 0.45 * fade;
-        ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.62 * breathe, 0, 0, Math.PI * 2); ctx.fill();
-        // 内圈稍亮毒液
-        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.38 * fade;
-        ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * 0.66 * breathe, R * 0.42 * breathe, 0, 0, Math.PI * 2); ctx.fill();
-        // 高光毒斑
-        ctx.fillStyle = '#28b463'; ctx.globalAlpha = 0.22 * fade;
-        ctx.beginPath(); ctx.ellipse(gd.x - R * 0.18, gd.y - R * 0.08, R * 0.28, R * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-        // 边缘泡沫（绕池边抖动）
-        ctx.fillStyle = '#58d68d'; ctx.globalAlpha = 0.5 * fade;
-        for (let k = 0; k < 14; k++) {
-          const ph = ((tNow / 700 + k / 14 + seed) % 1);
-          const a = ph * Math.PI * 2;
-          const rr = R * (0.94 + 0.04 * Math.sin(tNow / 220 + k * 1.7));
-          const bx = gd.x + Math.cos(a) * rr;
-          const by = gd.y + Math.sin(a) * rr * 0.62;
-          const br = 2 + ph * 2;
-          ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
-        }
-        // 气泡上升帧动画（池内随机点冒泡）
-        for (let k = 0; k < 5; k++) {
-          const ph = ((tNow / 900 + k / 5 + seed * 0.013) % 1);
-          const bx = gd.x + Math.sin((tNow / 600 + k * 2.1) * 2) * R * 0.35;
-          const by = gd.y + R * 0.3 - ph * R * 0.75;
-          ctx.fillStyle = '#a9dfbf'; ctx.globalAlpha = (0.55 - 0.35 * ph) * fade;
-          ctx.beginPath(); ctx.arc(bx, by, 1.6 + ph * 2.4, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      });
-    }
-    // 毒棒：帧动画贴图（v1.16.10）——4 帧：1 破土 / 2 成型 / 3 蓄力膨胀 / 4 喷发攻击
-    // 常态循环 1→2→3（0.9s 周期）；每次攻击（atkT 归零）后 0.32s 内显示第 4 帧喷发
-    if (combat.poisonSticks && combat.poisonSticks.length) {
-      combat.poisonSticks.forEach((st) => {
-        if (st.ttl <= 0) return;
-        const seed = st.seed || 0;
-        const fade = Math.min(1, st.ttl / 1.5);
-        const x = st.x, y = st.y;
-        // 根部毒圈（微光 + 呼吸，保留增强落地感）
-        const pulse = 1 + 0.08 * Math.sin(tNow / 280 + seed);
-        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.2 * fade * pulse;
-        ctx.beginPath(); ctx.arc(x, y, 12 * pulse, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#58d68d'; ctx.lineWidth = 1.4; ctx.globalAlpha = (0.28 + 0.18 * Math.sin(tNow / 300 + seed)) * fade;
-        ctx.beginPath(); ctx.arc(x, y, 15 * pulse, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = 1;
-        // 帧选择：攻击后 0.32s 内第 4 帧（喷发），否则 1-3 帧循环
-        const atk = st.atkT <= 0.32;
-        let frameIdx;
-        if (atk) {
-          frameIdx = 3;
-        } else {
-          const ph = (tNow / 900 + seed * 0.037) % 1;
-          frameIdx = Math.floor(ph * 3);
-        }
-        const fw = 30, fh = 36;
-        if (!drawImg(ctx, `assets/images/towers/fx/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
-          // 贴图未加载回退：简化几何（木柄 + 毒囊）
-          const pulse2 = 1 + 0.08 * Math.sin(tNow / 280 + seed);
-          ctx.save();
-          ctx.translate(x, y - 4); ctx.rotate(-0.18);
-          ctx.fillStyle = '#6d4c41'; ctx.globalAlpha = 0.95 * fade;
-          ctx.fillRect(-3, -22, 6, 24);
-          const sacR = 6.5 * pulse2;
-          ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.95 * fade;
-          ctx.beginPath(); ctx.arc(0, -26, sacR, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-        // 攻击瞬间绿色毒雾爆点（贴图第 4 帧叠加，增强命中感）
-        if (atk) {
-          ctx.globalAlpha = (0.7 - st.atkT * 2.2) * fade;
-          ctx.fillStyle = '#2e7d32';
-          ctx.beginPath(); ctx.arc(x, y - 16, 6 + st.atkT * 26, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      });
-    }
+  _getGroundLayer() {
+    if (!this._groundLayer) this._groundLayer = createGroundLayer({ drawImg });
+    return this._groundLayer;
   }
+
+  groundFx(ctx, combat) { return this._getGroundLayer().groundFx.call(this, ctx, combat); }
 
   /** 打击特效（区C）：弹道与技能 fx 统一渲染入口。
    *  分节目录：shot（塔攻击弹道，kind=line/bolt/arc/zigzag/storm/frostorb/icewall/icebloom/orb/bounce/mortar…）
