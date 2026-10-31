@@ -1,1 +1,0 @@
-{"audience":"游戏项目开发与策划（消消防线）","reader_task":"确认怪物代际设计并作为实施依据","adapter":null,"visual_plan":{"reason":"以原生表格承载属性表与每波占比表，配 HTML block 展示代际替换机制","blocks":[{"type":"html5-block","min_count":1,"purpose":"展示代际替换机制与占比轨迹"}]}}
