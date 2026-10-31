@@ -159,7 +159,7 @@ function tryAttackDebuff(combat, o, dmg) {
 function tickBoomerang(combat, dt) {
   const g = combat.game;
   const stormBalance=SKILL_NUM.boomerang['风暴镖'], bounceBalance=SKILL_NUM.boomerang['弹力镖'];
-  // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖10%伤害，命中不消失，每镖对同敌0.3秒冷却；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
+  // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖30%伤害，命中不消失，每镖对同敌0.3秒冷却；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
   const cyclone = combat.lv('boomerang', '风暴镖');
   if (cyclone > 0) {
     combat.timers.storm = (combat.timers.storm || 0) + dt;

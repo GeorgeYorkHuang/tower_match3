@@ -67,7 +67,7 @@ module.exports = {
     '折返增伤': { damage:0.65, damagePerBranch:0.25, slow:0.20, slowDuration:1 },
     '放血': { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, duration:4, durationPerBranch:1, distancePerTick:100, damage:0.40, damagePerBranch:0.20 },
     '多镖': { baseCount:1, damageDecayPerLevel:0.12, branchDecayMultiplier:0.5 },
-    '风暴镖': { hitCooldown:0.3, hitRadius:14, period:12, damage:0.10, damagePerBranch:0.2, speedPerBranch:0.25, duration:3, rings:[{r:40,base:2.6},{r:80,base:-2.0},{r:120,base:2.4}], ringCounts:[4,6,8] },
+    '风暴镖': { hitCooldown:0.3, hitRadius:14, period:12, damage:0.30, damagePerBranch:0.2, speedPerBranch:0.25, duration:3, rings:[{r:40,base:2.6},{r:80,base:-2.0},{r:120,base:2.4}], ringCounts:[4,6,8] },
     '弹力镖': { period:8, count:2, damage:0.60, damagePerBranch:0.25, bounces:10, bouncesPerBranch:5, duration:8, speed:400, hitRadius:30, spreadStep:0.5 },
     '接镖':   { speedPerBranch:0.20, catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（v1.16.42）
     '猎手标记': { spreadRadius:100, stackCap:3, stacksPerBranch:2, markDur: 5,                      // 基础：标记持续秒
