@@ -91,6 +91,12 @@ const IMG_SRC = {
   lv3: 'assets/images/monsters/enemies/lv3.png', lv4: 'assets/images/monsters/enemies/lv4.png',
   lv5: 'assets/images/monsters/enemies/lv5.png', lv6: 'assets/images/monsters/enemies/lv6.png',
   lv7: 'assets/images/monsters/enemies/lv7.png', lv8: 'assets/images/monsters/enemies/lv8.png',
+  // v1.17.50 C 卡新增 Lv9-11 代（重碑禁卫/花冠近卫/裂蕊飞奔者），同为 640×128 五帧横向
+  lv9: 'assets/images/monsters/enemies/lv9.png', lv10: 'assets/images/monsters/enemies/lv10.png',
+  lv11: 'assets/images/monsters/enemies/lv11.png',
+  // v1.17.51 D 卡新增 Lv12-14 终局代（盘根巨卫/圣庭执戟者/凋风掠影），1024×128 八帧横向
+  lv12: 'assets/images/monsters/enemies/lv12.png', lv13: 'assets/images/monsters/enemies/lv13.png',
+  lv14: 'assets/images/monsters/enemies/lv14.png',
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
@@ -125,10 +131,17 @@ const IMG_SRC = {
   firepillar7: FirepillarFx.ASSETS[7],
   firepillar8: FirepillarFx.ASSETS[8],
 };
-/* v1.17.46 专属 Boss 帧动画表：id → { src, frames, frameSize }（每帧等大，横向排列） */
+/* v1.17.50 专属 Boss 帧动画表：id → { src, frames, frameSize }（每帧等大，横向排列） */
 const BOSS_ART = {
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
 };
+/* v1.17.50 代际小怪图集上限：C 卡（Lv9-11）+ v1.17.51 D 卡（Lv12-14）后最高到 Lv14；
+ * 超界代（Lv15 起，61+ 波递推怪）按类型回退到最近一代已有形象，避免画成老代 */
+const ENEMY_ART_MAX_LV = 14;
+const ENEMY_ART_FALLBACK = { normal: 13, runner: 14, tank: 12, elite: 14 };
+/* v1.17.51 D 卡 8 帧图集的帧数与帧时长：等周期换算（与 5 帧旧代周期一致：重坦 1.5s / 普通 1.2s / 快速 0.8s） */
+const ENEMY_ART_FRAMES = { 12: 8, 13: 8, 14: 8 };
+const ENEMY_ART_DUR = { 12: 190, 13: 150, 14: 100 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
   red: 'assets/images/interface/board/fire.png', blue: 'assets/images/interface/board/ice.png',
@@ -814,11 +827,11 @@ class Renderer {
   }
 
   drawEnemyBody(ctx, e, x, y, size, isElite) {
-    // v1.16.123 敌人本体：优先按代际等级播放 5 帧循环动画（lv1-8 sprite sheet），
-    // 超界等级（genLv>8）按类型映射到表内最新一代形象（normal→lv7 / runner→lv8 / tank→lv6）；
+    // v1.16.123 敌人本体：优先按代际等级播放帧循环动画（lv1-14 sprite sheet；Lv12-14 为 8 帧，其余 5 帧），
+    // v1.17.51 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
     const genLv = e.genLv || 1;
-    const imgLv = (genLv <= 8) ? genLv : ({ normal: 7, runner: 8, tank: 6 }[e.type] || 7);
+    const imgLv = (genLv >= 1 && genLv <= ENEMY_ART_MAX_LV) ? genLv : (ENEMY_ART_FALLBACK[e.type] || 13);
     // v1.17.46 fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
     const bossArt = (e.isBoss && e.bossId && BOSS_ART[e.bossId]) || null;
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
@@ -875,15 +888,15 @@ class Renderer {
 
   /** 按等级动画表裁剪绘制当前帧（横向帧循环）；图未就绪/绘制异常返回 false
    *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
-   *  其余等级仍为 5 帧等时长；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
+   *  其余等级为等时长（v1.17.51 Lv12-14 八帧按等周期 190/150/100ms，其它 5 帧按类型表）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     // v1.17 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
-      // frames：专属 Boss 表传入的帧数（6）；未传时按等级表规则（lv1 六帧非等时长，其余五帧等时长）
-      const frameCount = frames || (imgLv === 1 ? 6 : 5);
+      // frames：专属 Boss 表传入的帧数（6）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
+      const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
       let f;
       if (!frames && imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
@@ -893,7 +906,9 @@ class Renderer {
         while (t >= DURS[f]) { t -= DURS[f]; f++; }
       } else {
         const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
-        const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
+        // v1.17.51 D 卡 8 帧按等周期换算（12:190 / 13:150 / 14:100），其余按类型表
+        const dur = ENEMY_ART_DUR[imgLv]
+          || (e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal)));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
         f = Math.floor((now + phase) / dur) % frameCount;
       }
