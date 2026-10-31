@@ -8,7 +8,7 @@
 
 ## 当前代码框架（2026-10-31）
 
-本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十五批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十六批界面/特效与流程提取，当前进入最终审计收口。兼容入口继续保留，不以清空main.js/render.js为目标。
 
 ### 启动与运行关系
 
@@ -108,6 +108,10 @@ js/
     account.js                  正常/测试档案切换与设备信息
     enemy-size.js               体型计算的绘制兼容出口
     combo-feedback.js          分级连消文字、颜色与震动事件
+    flows/
+      test-operations.js        测试战场配置、刷怪、测试输入与调试操作
+      relic-acquisition.js      击杀奖励、圣遗物候选/重掷与选择入账
+      run-settlement.js         局末收益、碎片折算与结算摘要
     input/
       touch.js / coordinates.js 手势生命周期 / 逻辑坐标换算
       relic-scroll.js           圣遗物页惯性滚动
@@ -180,7 +184,7 @@ js/
 
 协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
 
-### 本轮重构路线：8批目标已完成6批，预计剩余2批
+### 本轮重构路线：8批目标已完成7批，剩余1批审计收口
 
 | 顺序 | 内容 |
 |---|---|
@@ -190,10 +194,10 @@ js/
 | 4（已完成） | 怪物帧动画、Boss外观与异常状态，已迁入layers/enemies.js |
 | 5（已完成） | 棋盘、交换/补落/扫描与障碍，已迁入layers/board.js |
 | 6（已完成） | 战斗场景组件：已迁入layers/battle.js、ground.js和chests.js |
-| 7 | Main职责整理：测试操作、圣遗物获取和结算协调 |
+| 7（已完成） | Main职责整理：已迁入flows/test-operations、relic-acquisition和run-settlement |
 | 8 | 依赖/数据隔离审计、必要回归和文档收口 |
 
-上表是本轮目标范围，前六项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
+上表是本轮目标范围，前七项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
 
 ## 本地测试档
 
@@ -212,6 +216,7 @@ js/
 
 ```powershell
 node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
+node F:/workspace/towerdefence_share/tests/test_main_flows_split.cjs
 node F:/workspace/towerdefence_share/tests/test_board_layer_split.cjs
 node F:/workspace/towerdefence_share/tests/test_battle_layers_split.cjs
 node F:/workspace/towerdefence_share/tests/test_enemy_layer_split.cjs
@@ -501,3 +506,8 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第十五批：战斗场景组件提取（2026-10-31）
 
 `layers/battle.js`接管战斗区域协调、城墙、功能栏、塔位、全局按钮与倍速图标6个入口；`layers/ground.js`接管地面效果，`layers/chests.js`接管掉落宝箱绘制，Renderer保留同名委托。原绘制层级、布局、命中区域、充能显示和宝箱动画参数不变；技能释放、收益与宝箱点击/生命周期仍归原Main/Combat。固定aef84ee基线1060组Canvas/输入只读/命中区域/调用顺序对比通过，覆盖塔位与双全局槽、充能、城墙护盾、地面实体、宝箱开启/飞行/缺图。真实Main全局技能、设置/帮助/撤离、测试战场、60帧绘制与115个JS语法/依赖审计通过。未进行真机测试；测试与说明在towerdefence_share。本轮8批完成6批、剩余2批，下一批整理Main的测试操作、圣遗物获取和结算协调职责，最后统一审计收口。
+
+
+## R16第十六批：Main流程职责整理（2026-10-31）
+
+`game/flows/test-operations.js`接管测试战场进入/切塔/技能配置/刷怪、测试输入和调试动作11个方法；`relic-acquisition.js`接管击杀奖励、候选池/重掷/选择6个方法；`run-settlement.js`接管局末收益、碎片折算、退出结算和摘要卡4个方法。Main保留21个同名委托，主循环、实例所有权及场景协调不变；流程模块使用调用时的宿主，不缓存Meta/Run/敌人或反向依赖Main。main.js从1615行降至1111行。固定a93003b基线21个迁移方法体逐字核对与568组固定随机种子流程对比通过，覆盖状态、Meta/存档、收益、随机消费、测试操作和圣遗物获取；真实Main测试战场、圣遗物、升级与结算交互及118个JS语法/依赖检查通过。未进行真机测试。测试与说明在towerdefence_share；本轮8批完成7批，下一批仅做最终依赖/数据隔离审计、必要回归及文档收口。

@@ -1,8 +1,10 @@
+const TestOperations = require('./flows/test-operations.js');
+const RelicAcquisition = require('./flows/relic-acquisition.js');
+const RunSettlement = require('./flows/run-settlement.js');
 const MATCH_GLOW = require('../config/match-glow.js');
 const Rosea = require('../bosses/rosea.js');
 const RoseaFx = require('./fx/boss-rosea.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
-const RelicKill = require('../relics/kill-hooks.js');
 const BattleActions = require('./input/battle-actions.js');
 const RelicScroll = require('./input/relic-scroll.js');
 const PanelScroll = require('./input/panel-scroll.js');
@@ -180,173 +182,28 @@ class GameMain {
   }
 
   /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（v1.14.1） */
-  enterTestField() {
-    this.dmgNumbers = DamageNumbers.create();
-    this.anim = null;
-    // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
-    this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
-    this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
-    this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
-    this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
-    this.run.boardX = this.renderer.ly.boardX; this.run.boardCell = this.renderer.ly.cell;
-    this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点
-    this.save.apply(this.saveData);
-    this.run.resetRunBuild();
-    this.waveTime = 0;
-    this.enemies = [];
-    this.pickQueue = [];
-    this.pickIndex = 0;
-    this.pickCell = null;
-    this.combat.reset();
-    this.battleRelics = [];
-    this.runShardDetail = {};    // v1.17 测试战场重置碎片明细
-    this.runShardGained = 0;     // v1.17.20 同步重置掉落总数（测试战场不参与结算，避免残留计数）
-    // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
-    this.run.slotOrder = ['fire'];
-    this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
-    // v1.16.4 单塔生效：测试战场只有出战塔参与战斗/协同，切塔即旧塔取消生效
-    this.run.effects.setActiveKeys(['fire']);
-    // 城墙：测试战场不扣血（恒满）
-    this.run.lineHp = CONFIG.LINE.hp;
-    this.run.lineMaxHp = this.run.lineHp;
-    this.run.broken = false;
-    this.run.wave = 0;
-    this.testPanel = null;
-    this.testSpeed = 1;
-    this.state = 'testfield';
-    this.sfx.stopBgm();
-    this.toast('测试战场 · 点塔位配置技能 · 点“更换”切塔', '#7cd6a6');
-  }
+  enterTestField() { return TestOperations.enterTestField.call(this); }
 
   /** 测试战场：更换出战塔（单塔模式，v1.14.1；v1.16.4 切塔后旧塔立即取消生效） */
-  switchTestTower(key) {
-    const t = this.run.effects.tower(key);
-    if (!t) return;
-    t.unlock();
-    this.run.slotOrder = [key];
-    this.run.effects.setActiveKeys([key]);
-    this.testPanel = { key }; // 切塔后直接打开该塔技能面板
-    this.combat.reset();
-    this.toast(`出战塔：${CONFIG.COLORS[CONFIG.TOWERS[key].color].name}`, '#7cd6a6');
-  }
+  switchTestTower(key) { return TestOperations.switchTestTower.call(this, key); }
 
   /** 测试战场状态（出战塔槽 + 全部塔简表 + 当前技能配置） */
-  testState() {
-    const run = this.run;
-    const slots = [];
-    this.run.slotOrder.forEach((key) => {
-      const t = run.effects.tower(key);
-      if (!t) { slots.push(null); return; }
-      const skills = t.pool.map((ef) => {
-        const p = (CONFIG.EFFECT_POOLS[key] || []).find((q) => q.name === ef.name) || {};
-        return {
-          name: ef.name, icon: p.icon || '?', color: p.color || '#888',
-          level: ef.level,
-          branches: { A: ef.branches.A || 0, B: ef.branches.B || 0, C: ef.branches.C || 0 },
-        };
-      });
-      slots.push({
-        key, name: CONFIG.COLORS[t.color].name,
-        icon: TOWER_ICON[key] || '?', unlocked: true,
-        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(),   // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）；v1.16.77 能量口径
-        skills,
-      });
-    });
-    // 6 塔切换简表（v1.14.1）
-    const allTowers = Object.keys(this.run.effects.towers).map((key) => {
-      const t = run.effects.tower(key);
-      return { key, name: CONFIG.COLORS[t.color].name, icon: TOWER_ICON[key] || '?' };
-    });
-    return {
-      state: this.state,
-      lineHp: run.lineHp, lineMaxHp: run.lineMaxHp,
-      wave: run.wave, waveTime: this.waveTime, waveDuration: (this.wave && this.wave.waveDur) || WAVE_DUR,
-      towers: slots,
-      allTowers,
-      enemyCount: this.enemies.length,
-      speed: this.testSpeed,
-      panel: this.testPanel,
-      synergies: run.effects.synergyStatus(),
-      battleRelics: this.battleRelics || [],   // v1.16.113 测试战场圣遗物行
-    };
-  }
+  testState() { return TestOperations.testState.call(this); }
 
   /** 测试战场：点塔技能行分支按钮 → 该分支 0↔1↔2↔3 循环；clear 清空该技能 */
-  testSkillAction(key, name, br) {
-    const t = this.run.effects.tower(key);
-    if (!t) return;
-    const ef = t.pool.find((e) => e.name === name);
-    if (!ef) return;
-    if (br === 'clear') {
-      ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0;
-      ef.act = false; // v1.16.5 清除同时取消激活标记
-      const i = t.activeNames.indexOf(name);
-      if (i >= 0) t.activeNames.splice(i, 1);
-      t.picked.delete(name);
-    } else if (['A', 'B', 'C'].includes(br)) {
-      ef.branches[br] = (ef.branches[br] + 1) % 4; // 0→1→2→3→0
-      ef.act = (ef.branches.A + ef.branches.B + ef.branches.C) > 0; // v1.16.5 分支全归零 → 取消激活
-      if (ef.level > 0) {
-        if (!t.activeNames.includes(name)) t.activeNames.push(name);
-        t.picked.add(name);
-      } else {
-        // 分支全部归零 → 移出激活与获取记录
-        const i = t.activeNames.indexOf(name);
-        if (i >= 0) t.activeNames.splice(i, 1);
-        t.picked.delete(name);
-      }
-    }
-    this.run.effects.updateSynergies();
-    this.combat.reset(); // 技能变更后重置周期技计时，立即按新配置生效
-    this.toast(`${CONFIG.COLORS[CONFIG.TOWERS[key].color].name}·${name} A${ef.branches.A}B${ef.branches.B}C${ef.branches.C}`, '#7ef0a3');
-  }
+  testSkillAction(key, name, br) { return TestOperations.testSkillAction.call(this, key, name, br); }
 
   /** 测试战场：一键激活该塔全部技能（A 分支 Lv3，便于快速看全特效） */
-  testSkillAll(key, on) {
-    const t = this.run.effects.tower(key);
-    if (!t) return;
-    t.pool.forEach((ef) => {
-      if (on) { ef.branches.A = 3; ef.branches.B = 0; ef.branches.C = 0; ef.act = true; if (!t.activeNames.includes(ef.name)) t.activeNames.push(ef.name); t.picked.add(ef.name); }
-      else { ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0; ef.act = false; }
-    });
-    if (!on) { t.activeNames = []; t.picked = new Set(); }
-    this.run.effects.updateSynergies();
-    this.combat.reset();
-    this.toast(on ? `${CONFIG.COLORS[CONFIG.TOWERS[key].color].name} 全部技能激活` : `${CONFIG.COLORS[CONFIG.TOWERS[key].color].name} 技能已清空`, '#7ef0a3');
-  }
+  testSkillAll(key, on) { return TestOperations.testSkillAll.call(this, key, on); }
 
   /** 测试战场：召唤敌人（type: normal/runner/tank/elite/boss；hp 按类型给测试值） */
-  spawnTestEnemies(type, count) {
-    const ly = this.renderer.ly;
-    const entryY = ly.areaY + ly.entryH;
-    const wallY = this.state === 'testfield' ? 1042 : ly.wallY;   // v1.17.11 测试战场塔位行保持 1042，正式战场塔位区即城墙（967）
-    const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
-    // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
-    const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
-    // v1.16.123 测试怪按类型对应代际等级（动画表：普→lv1 / 快→lv2 / 重→lv3 / 精英→lv4 / Boss→lv6）
-    const TEST_LV = { normal: 1, runner: 2, tank: 3, elite: 4, boss: 6 };
-    for (let i = 0; i < count; i++) {
-      const isBoss = type === 'boss';
-      this.wave.pushEnemy(
-        HP[type] || 500, entryY, baseSpeed,
-        0.5 + Math.random() * 0.5, isBoss, type, TEST_LV[type] || 1
-      );
-    }
-    this.toast(`召唤 ${type === 'normal' ? '普通' : type === 'runner' ? '快速' : type === 'tank' ? '重甲' : type === 'elite' ? '精英' : 'Boss'} ×${count}`, '#f7c948');
-  }
+  spawnTestEnemies(type, count) { return TestOperations.spawnTestEnemies.call(this, type, count); }
 
   /** 测试战场：清空全部敌人与飞行弹道 */
-  clearTestEnemies() {
-    this.enemies = [];
-    this.combat.reset();
-    this.toast('已清场', '#9fb2c3');
-  }
+  clearTestEnemies() { return TestOperations.clearTestEnemies.call(this); }
 
   /** 测试战场：切换倍速 ×1/×2/×4 */
-  cycleTestSpeed() {
-    this.testSpeed = this.testSpeed >= 4 ? 1 : this.testSpeed * 2;
-    this.toast(`倍速 ×${this.testSpeed}`, '#7cd6a6');
-  }
+  cycleTestSpeed() { return TestOperations.cycleTestSpeed.call(this); }
 
   /** 主战斗：切换倍速 ×1/×2/×3/×4（战斗区右下角按钮） */
   cycleRunSpeed() {
@@ -711,63 +568,7 @@ class GameMain {
   }
 
   /** v1.16.76 局末结算：撤离/破防统一入口。深度收益按比例发放 + 里程碑首达 + 深度宝箱 */
-  finishRun(evacuated) {
-    const EV = CONFIG.EVAC;
-    // v1.16.78 深渊裂隙合约：深度结算 ×2（deepMult）
-    const deepMult = (this.field && this.field.deepMult) || 1;
-    const payout = Math.round(this.depthPool * (evacuated ? 1 : EV.deadRatio) * deepMult);
-    this.meta.gold += payout;
-    // v1.17 战斗结束统一结算金币：局内银币（波末累加 + 击杀）按深度池口径折算（poolShare=50%）
-    //   折算系数对齐 EV.poolShare，使「局内银币→局外金币」与深度结算 payout 数量级相当（招财符按星级 +20%）
-    const b = this.meta.relicBonus();
-    const silver = Math.round(this.run.gold * EV.poolShare * (1 + 0.20 * b.gold));
-    if (silver > 0) {
-      this.meta.gold += silver;
-      this.silverGained = silver;
-    }
-    this.run.gold = 0;
-    if(this.menuStage==='ancient') this.meta.ancientBestWave=Math.max(this.meta.ancientBestWave||0,this.run.wave);
-    const miles = this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
-    // v1.16.92 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
-    const noChest = !evacuated && this.run.wave <= 3;
-    const tier = noChest ? null : this.meta.tierByWave(this.run.wave);
-    let chestExtra = null;
-    const ok1 = tier ? this.meta.grantDeepChest(tier) : false;
-    if (evacuated && this.run.wave >= CONFIG.EVAC.lateWave) {
-      // 撤离成功顶配加发：星辉→黄金 / 黄金→白银（低一档宝箱）
-      const idx = CONFIG.DEPTH_CHEST.tiers.indexOf(tier);
-      const lower = CONFIG.DEPTH_CHEST.tiers[Math.max(0, idx - 1)];
-      if (this.meta.grantDeepChest(lower)) chestExtra = lower.name;
-    }
-    this.save.save();
-    // v1.16.106 结算数据补全：总击杀 + 本局圣遗物快照 + 招财符加成系数（结算界面展示）
-    const ks = this.combat && this.combat.kills ? Object.values(this.combat.kills).reduce((a, b) => a + b, 0) : 0;
-    // v1.17.20 碎片统一入账：撤离全额，失守按 SHARD_SETTLE.deadRatio 折算（floor 张数 + 随机保留）
-    const ss = this.settleRunShards(evacuated ? 1 : CONFIG.SHARD_SETTLE.deadRatio);
-    this.runSummary = {
-      evacuated, wave: this.run.wave, payout, miles,
-      cleared: this.run.clearedWaves || 0,   // v1.17.22 全歼波数（通关数口径：一波怪全部死亡才算，非「到达第几波」）
-      chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra,   // v1.17 chestKey：结算页宝箱档位图标
-      chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
-      // v1.17.20 碎片三件套：raw=掉落总张数 / kept=折算后保留 / lost=损失（失败态展示"损失 N"）
-      shards: ss.kept, depthMult: this.depthMult,
-      shardDetail: ss.finalDetail,      // 折算后明细（结算页按此绘制图标×数量）
-      shardsRaw: ss.raw, shardsLost: ss.lost,
-      unlockedThisRun: this.runUnlocked.slice(),   // 本局三选一选中即解锁的圣遗物（失败不回退）
-      relicCards: this._buildRelicCards(ss.finalDetail),   // v1.17.22 结算大卡数据（稀有度→碎片数降序）
-      silver: this.silverGained || 0,   // v1.17 局内银币按深度池口径折算的金币
-      goldBonus: 0.2 * b.gold,          // v1.16.106 招财符加成系数（结算页展示）
-      kills: ks,                        // v1.16.106 本局总击杀
-      relics: this.battleRelics.slice(), // v1.16.106 本局获取圣遗物快照（结算页图标展示）
-    };
-    this.gameoverAt = Date.now();   // v1.16.117 结算动画时间基准（圣遗物逐个弹出 → 收益最后弹出）
-    this.gameoverSkip = false;      // v1.17.21 每局结算重置跳过标记（点击任意处置 true 直达演出终点）
-    this.anim = null;
-    this.combat.shots = []; this.combat.delayed = [];
-    this.dmgNumbers.clear();
-    this.state = 'gameover';
-    this.sfx.stopBgm();
-  }
+  finishRun(evacuated) { return RunSettlement.finishRun.call(this, evacuated); }
 
   /**
    * v1.17.20 局内碎片统一入账（撤离/失守/中途退出共用）
@@ -778,44 +579,9 @@ class GameMain {
    * @returns {{finalDetail: Object, raw: number, kept: number, lost: number}}
    */
   /** v1.17.22 结算大卡数据：本局圣遗物 → [{id, rarity, star, shards}]，按 稀有度(ssr>sr>r) → 碎片数 降序；名字由渲染层按 id 取 */
-  _buildRelicCards(detail) {
-    const W = { ssr: 0, sr: 1, r: 2 };
-    return Object.keys(detail || {}).filter(id => Number(detail[id]) > 0).map(id => ({
-      id, rarity: CONFIG.relicRarity(id), star: this.meta.starOf(id) || 0,
-      shards: Number(detail[id]),
-    })).sort((a, c) => ((W[a.rarity] ?? -1) - (W[c.rarity] ?? -1)) || (c.shards - a.shards));
-  }
+  _buildRelicCards(detail) { return RunSettlement._buildRelicCards.call(this, detail); }
 
-  settleRunShards(ratio) {
-    const detail = this.runShardDetail || {};
-    const pool = [];
-    Object.keys(detail).forEach((id) => {
-      const n = detail[id] | 0;
-      for (let i = 0; i < n; i++) pool.push(id);
-    });
-    const raw = pool.length;
-    const r = (typeof ratio === 'number' && ratio >= 0) ? Math.min(1, ratio) : 1;
-    const kept = Math.max(0, Math.floor(raw * r));
-    // 只保留前 kept 张 → 先打乱（kept < raw 时才需要随机；全额时不洗牌，保证明细稳定）
-    if (kept < raw && kept > 0) {
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
-      }
-    }
-    const finalDetail = {};
-    for (let i = 0; i < kept; i++) {
-      const id = pool[i];
-      finalDetail[id] = (finalDetail[id] || 0) + 1;
-    }
-    Object.keys(finalDetail).forEach((id) => this.meta.addShard(id, finalDetail[id]));
-    const res = { finalDetail, raw, kept, lost: raw - kept };
-    // 清空本局账本，避免重复入账（goMenu/restart 与 finishRun 都会调本方法）
-    this.runShardDetail = {};
-    this.runShardGained = 0;
-    if (raw > 0) this.save.save();
-    return res;
-  }
+  settleRunShards(ratio) { return RunSettlement.settleRunShards.call(this, ratio); }
 
   /** v1.16.73 波清结算：先三选一（升级待选），无待选直接自动进入下一波；不弹确认窗 */
   waveClearNext() {
@@ -888,13 +654,7 @@ class GameMain {
   }
 
   /** v1.17.20 中途退出/重开时的碎片兜底：有账才结算，按失守比例折算并提示 */
-  settleRunShardsOnExit(reason) {
-    if (!this.runShardGained || this.runShardGained <= 0) return;
-    const ss = this.settleRunShards(CONFIG.SHARD_SETTLE.deadRatio);
-    if (ss.raw > 0) {
-      this.toast(`${reason} · 碎片按 ${Math.round(CONFIG.SHARD_SETTLE.deadRatio * 100)}% 结算 ${ss.kept}/${ss.raw}`, '#a86bff');
-    }
-  }
+  settleRunShardsOnExit(reason) { return RunSettlement.settleRunShardsOnExit.call(this, reason); }
 
   /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
   buyStoreItem(idx) {
@@ -954,167 +714,23 @@ class GameMain {
   }
 
   /** v1.16.73 测试战场：添加圣遗物 → 弹圣物三选一（可反复添加，测试任意圣遗物效果）；v1.16.104 支持 star3 模式 */
-  testAddRelic(star) {
-    this.pendingRelicPicks = []; // 测试战场逐次弹层，不积累队列
-    this.spawnRelicPick(star === 'star3' ? 'star3' : 'star1');       // 复用局内圣遗物候选生成（在场塔塔池 + 通用池）
-    if (!this.pendingRelicPicks.length) { this.toast('暂无可用圣遗物池', '#9fb2c3'); return; }
-    this._relicReturnState = 'testfield'; // 选择完成后回到测试战场
-    this.relicPick = this.pendingRelicPicks.shift();
-    this._lastPickStar3 = !!this.relicPick.star3; // v1.16.104 记录本次三选一是否为 3★ 模式
-    this.relicPickHits = [];
-    this.relicPick.t = 0; // v1.16.74 弹出动画
-    this.state = 'relicpick';
-  }
+  testAddRelic(star) { return TestOperations.testAddRelic.call(this, star); }
 
   /* ---------- 击杀奖励：经验（圣物加成，v1.8 入整体池）/ 精英圣物掉落 / Boss 宝箱 ---------- */
-  onKillReward(e) {
-    // v1.14 测试战场：无击杀奖励（不涨经验/不掉宝箱，专注技能验证）
-    if (this.state === 'testfield') return;
-    const b = this.meta.relicBonus();
-    // 经验：整体经验池（v1.8：塔不再单独获取经验，统一按整体等级成长）；v1.16.78 经验之心：击杀经验 +N%（按星级）
-    RelicKill.experience(this.run, e, b);
-    // v1.12.1：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
-    // 升级三选一统一在波末「波次完成 → 继续」时结算（v1.8 设计：波末逐次结算）
-    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）；v1.16.96 赏金猎人3★ 连续3波无宝箱必掉
-    if (e.type === 'elite') {
-      const chance = RelicKill.eliteChestChance(this.run, b);
-      if (Math.random() < chance || this.run.bountyGuarantee()) {
-        this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
-        this.run._waveChestDropped = true;
-        this.toast('精英掉落宝箱 📦 点击开启', '#f7c948');
-      }
-    }
-    // Boss：掉落战场宝箱（点击三选一）+ 主界面宝箱计数（每 5 波）
-    if (e.isBoss) {
-      this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
-      this.run._waveChestDropped = true;
-      this.meta.chests += 1;
-      this.toast('Boss 掉落宝箱 📦 点击开启', '#f7c948');
-      this.save.save();
-    }
-    /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀银币 */
-    const field = this.field || CONFIG.FIELDS.ancient;
-    if (field.dropAttr && field.dropAttr !== 'none') {
-      const KD = CONFIG.KILL_DROP;
-      let n = 0;
-      if (e.type === 'elite' && Math.random() < KD.eliteShardChance) n = Math.random() < 1 / 3 ? 2 : 1;
-      if (e.isBoss) n = KD.bossShardBase + (Math.random() < KD.bossShardBonusChance ? 2 : 0);
-      if (n > 0) {
-        const id = CONFIG.randomShardId(field.dropAttr);
-        if (id) {
-          // v1.17.20 碎片改「局内记账 → 局末入账」：此处不再直接 meta.addShard，
-          //   否则失守时无法按 30% 折算收回（详见 settleRunShards）
-          this.runShardGained += n;
-          this.runShardDetail[id] = (this.runShardDetail[id] || 0) + n;   // v1.17 碎片明细（击杀掉落）
-          this.toast(`🧩 圣遗物碎片 +${n}（局末结算）`, '#a86bff');
-        }
-      }
-      // v1.17 击杀银币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场银币倍率
-      // 替代旧 1.06^w 波次通胀：收益成长改由怪物代际等级驱动（与血量曲线同源）
-      const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0]))
-        * KD.goldLevelMult(e.genLv)
-        * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
-        * (field.goldMult || 1));
-      const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? GS_BALANCE.gold.multiplier : 1);
-      this.run.gold += earned;
-      if (earned > kg) this.fx.push({type:'floatText',text:'+'+earned,x:e.x,y:e.y,t:0,dur:0.8,size:20,color:'#ffe17c'});
-    }
-  }
+  onKillReward(e) { return RelicAcquisition.onKillReward.call(this, e); }
 
   /** v1.16.78 局内圣遗物总数（图鉴分页用）；v1.17.47 计入红色战场专属 */
-  _relicRunTotal() {
-    let n = 0;
-    Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => { n += l.length; });
-    return n + CONFIG.RELIC_RUN.common.length + (CONFIG.RELIC_RUN.ur || []).length;
-  }
+  _relicRunTotal() { return RelicAcquisition._relicRunTotal.call(this); }
 
   /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
    *   v1.16.78 过滤已解锁 + 稀有度权重三选一（蓝50/紫38/金12，按设计文档 2.2） */
-  spawnRelicPick(mode) {
-    const star3Mode = mode === 'star3';
-    const cands = this._rollRelicCandidates(star3Mode);
-    if (star3Mode && (!cands || !cands.length)) {
-      this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return;
-    }
-    if (!star3Mode && (!cands || !cands.length)) {
-      this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
-      // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
-      const shardId = CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r');
-      // v1.17.20 同样只记账，局末随其他碎片一起按比例入账
-      if (shardId) {
-        this.runShardGained += 1;
-        this.runShardDetail[shardId] = (this.runShardDetail[shardId] || 0) + 1;   // v1.17 碎片明细（全解锁折算）
-      }
-      this.save.save();
-      this._chestBusy = false;
-      return;
-    }
-    this.pendingRelicPicks.push({ candidates: cands, ...(star3Mode ? { star3: true } : {}) });
-    this._chestBusy = false; // v1.16.74 动画完成解锁战斗输入
-  }
+  spawnRelicPick(mode) { return RelicAcquisition.spawnRelicPick.call(this, mode); }
 
   /** v1.17 抽 3 个候选（三选一 / 重掷共用）：star3 模式取已拥有池 star3 文案，普通模式取未解锁池按稀有度权重 */
-  _rollRelicCandidates(star3Mode) {
-    const RR = CONFIG.RELIC_RUN;
-    const star3 = !!star3Mode;
-    // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
-    const ownedKeys = this.run.slotOrder || [];
-    const meta = this.meta;
-    const isUnlocked = (id) => meta.starOf(id) >= 1;   // v1.16.78 已解锁（图鉴/碎片达阈值）不再出现在三选一
-    let pool = [];
-    if (star3) {
-      ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: k }); }); });
-      RR.common.forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: 'common' }); });
-      if (!pool.length) return null;
-      // 3★ 模式：候选 = 已拥有池中随机 3 张（不重复），desc 取 star3
-      const cands3 = [];
-      const used3 = new Set();
-      for (let i = 0; i < 3; i++) {
-        const tier = pool.filter((p) => !used3.has(p.def.id));
-        if (!tier.length) break;
-        const pick = tier[Math.floor(Math.random() * tier.length)];
-        used3.add(pick.def.id);
-        cands3.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.star3 || pick.def.desc, run: true, tint: pick.tint });
-      }
-      return cands3;
-    }
-    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: k }); }); });
-    RR.common.forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: 'common' }); });
-    if (!pool.length) return null;
-    // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
-    const W = CONFIG.RELIC_PICK_WEIGHT;
-    const pickRar = () => { const r = Math.random(); return r < W.r ? 'r' : r < W.r + W.sr ? 'sr' : 'ssr'; };
-    const cands = [];
-    const used = new Set();
-    for (let i = 0; i < 3; i++) {
-      const rar = pickRar();
-      let tier = pool.filter((p) => CONFIG.relicRarity(p.def.id) === rar && !used.has(p.def.id));
-      if (!tier.length) tier = pool.filter((p) => !used.has(p.def.id));
-      if (!tier.length) break;
-      const pick = tier[Math.floor(Math.random() * tier.length)];
-      used.add(pick.def.id);
-      cands.push({ id: pick.def.id, name: pick.def.name, icon: pick.def.icon, desc: pick.def.desc, run: true, tint: pick.tint });
-    }
-    return cands;
-  }
+  _rollRelicCandidates(star3Mode) { return RelicAcquisition._rollRelicCandidates.call(this, star3Mode); }
 
   /** v1.17 三选一重掷：局内银币付费（200/400/800/1600 指数增长，每窗口上限 4 次），重新抽 3 个候选 */
-  rerollRelicPick() {
-    if (!this.relicPick) return false;
-    const n = this.relicPick.rerolls || 0;
-    const costs = CONFIG.RELIC_REROLL.costs;
-    if (n >= costs.length) { this.toast('已达重掷上限', '#9fb2c3'); return false; }
-    const cost = costs[n];
-    if (this.run.gold < cost) { this.toast(`银币不足（需 ${cost}）`, '#ff6b6b'); return false; }
-    const cands = this._rollRelicCandidates(!!this.relicPick.star3);
-    if (!cands || !cands.length) { this.toast('暂无可用候选', '#9fb2c3'); return false; }
-    this.run.gold -= cost;
-    this.relicPick.rerolls = n + 1;
-    this.relicPick.candidates = cands;
-    this.relicPickHits = []; // 命中区随候选刷新
-    this.toast(`已重掷 · 消耗 ${cost} 🪙`, '#f7c948');
-    return true;
-  }
+  rerollRelicPick() { return RelicAcquisition.rerollRelicPick.call(this); }
 
   /* ---------- 三消联动：圣物经验加成补差 + 塔额外攻击（多消不同特效） ---------- */
   onMatchBonus(ret) {
@@ -1417,48 +1033,7 @@ class GameMain {
   }
 
   /** 测试战场触摸分发（v1.14）：面板打开时仅响应面板项，否则控制条/塔槽/返回/倍速 */
-  onTestFieldTap(p) {
-    if (this.testPanel) {
-      const bounds = (this.testHits || []).find(it => it.id === 'panel_bounds');
-      if (bounds && !bounds.hit(p.x, p.y)) { this.testPanel = null; return true; }
-    }
-    // v1.16.113 测试战场：点击圣遗物行 → 查看本局圣遗物详情（叠加弹层，战斗不暂停）
-    if (!this.testPanel) {
-      const rb = this.renderer.relicBarHit;
-      if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
-        this.relicDetail = { page: 0, from: 'testfield' };
-        return true;
-      }
-    }
-    const items = this.testHits || [];
-    for (const it of items) {
-      if (!it.hit(p.x, p.y)) continue;
-      // 边界只用于外部关闭，不能抢先吞掉面板按钮；跳过被覆盖的底层控件。
-      if (it.id === 'panel_bounds') continue;
-      if (this.testPanel && !String(it.id).startsWith('panel_')) continue;
-      switch (it.id) {
-        case 'tf_back': this.goMenu(); return true;
-        case 'tf_speed': this.cycleTestSpeed(); return true;
-        case 'tf_spawn_n': this.spawnTestEnemies('normal', 5); return true;
-        case 'tf_spawn_r': this.spawnTestEnemies('runner', 5); return true;
-        case 'tf_spawn_t': this.spawnTestEnemies('tank', 5); return true;
-        case 'tf_spawn_e': this.spawnTestEnemies('elite', 2); return true;
-        case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
-        case 'tf_clear': this.clearTestEnemies(); return true;
-        case 'tf_addRelic': this.testAddRelic(); return true; // v1.16.73 测试战场添加圣遗物
-        case 'tf_addRelic3': this.testAddRelic('star3'); return true; // v1.16.104 测试战场添加 3★ 圣遗物
-        case 'tf_slot': this.testPanel = { key: it.data }; return true;
-        case 'tf_switch': this.switchTestTower(it.data); return true;
-        case 'panel_close': this.testPanel = null; return true;
-        case 'panel_done': this.testPanel = null; this.toast('技能配置已应用', '#7ef0a3'); return true;
-        case 'panel_all': this.testSkillAll(this.testPanel.key, true); return true;
-        case 'panel_clear': this.testSkillAll(this.testPanel.key, false); return true;
-        case 'panel_branch': this.testSkillAction(this.testPanel.key, it.data.name, it.data.br); return true;
-        default: return true;
-      }
-    }
-    return !!this.testPanel; // 面板空白处也消费点击，避免穿透。
-  }
+  onTestFieldTap(p) { return TestOperations.onTestFieldTap.call(this, p); }
 
   /** 主界面触摸分发：命中 menuHits（渲染时重建）中第一个按键；面板打开时仅响应面板项 */
   onMenuTap(p) {
@@ -1466,90 +1041,11 @@ class GameMain {
   }
 
   /** v1.16.76 调试工具动作（仅 DEBUG 构建可见入口） */
-  handleDebugTap(key) {
-    const m = this.meta;
-    switch (key) {
-      case 'dbg_gold': m.gold += 1000; this.toast('💰 +1000', '#f7c948'); break;
-      case 'dbg_diamond': m.diamond += 100; this.toast('💎 +100', '#7ca8ff'); break;
-      case 'dbg_shard': {
-        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => m.addShard(d.id, 2)));
-        CONFIG.RELIC_RUN.common.forEach((d) => m.addShard(d.id, 2));
-        this.toast('全部圣遗物碎片 +2', '#a86bff');
-        break;
-      }
-      case 'dbg_unlock': {
-        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; }));
-        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; });
-        this.toast('已解锁全部圣遗物（1★）', '#7ef0a3');
-        break;
-      }
-      case 'dbg_star3': {
-        // v1.16.105 调试：全部圣遗物直接升 3★（解锁 + 星级拉满），便于 IDE 端完整验证 3★ 养成/图鉴/战斗链路
-        Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; }));
-        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; });
-        this.toast('全部圣遗物已升至 3★', '#ffb347');
-        break;
-      }
-      case 'dbg_stone': m.starStones += 5; this.toast('星辉石 +5', '#a86bff'); break;
-      case 'dbg_chest': {
-        if (m.grantDeepChest(CONFIG.DEPTH_CHEST.tiers[4])) this.toast('已发放星辉宝箱（12h）', '#a86bff');
-        else this.toast('深度宝箱槽位已满', '#ff6b6b');
-        break;
-      }
-      default: return;
-    }
-    this.save.save();
-  }
+  handleDebugTap(key) { return TestOperations.handleDebugTap.call(this, key); }
 
   /** 圣物宝箱三选一：选择一项 → 获取圣物，回战斗；队列清空后检查升级待选
    *  v1.16.60 战场宝箱候选为局内圣遗物（run:true）：本局生效 + 图鉴解锁；非 run 走养成圣物 */
-  relicPickChoice(i) {
-    const c = this.relicPick && this.relicPick.candidates[i];
-    if (!c) return;
-    if (c.run) {
-      // v1.16.78 防御兜底：已解锁重复（三选一已过滤，正常不触发）→ 折算碎片不叠层
-      // v1.16.108 测试战场豁免：3★ 模式候选均为已拥有圣遗物，若走折算分支会 return 卡死弹层 → 测试战场直接注入本局生效
-      if (this.meta.starOf(c.id) >= 1 && this._relicReturnState !== 'testfield') {
-        const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
-        // v1.17.20 重复折算同样走「局末入账」，失守时一起按比例折算
-        this.runShardGained += n;
-        this.runShardDetail[c.id] = (this.runShardDetail[c.id] || 0) + n;   // v1.17 碎片明细（重复圣遗物折算）
-        this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}（局末结算）`, '#a86bff');
-        this.save.save();
-        return;
-      }
-      // 局内圣遗物（rougelike）：本局生效 + 图鉴解锁（跨局记录）
-      this.runRelics.push(c.id);
-      this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;
-      const wasLocked = this.meta.starOf(c.id) < 1;   // v1.17.20 记录「本局选中即解锁」，失败折算不回退
-      this.meta.codexUnlock(c.id);
-      if (wasLocked) this.runUnlocked.push(c.id);
-      // v1.16.113 记录 3★ 生效标记：测试战场 3★ 注入 或 真实已升 3★
-      const isStar3 = (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) || this.meta.starOf(c.id) >= 3;
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: isStar3 }); // v1.16.73 详情弹层需要 desc
-      this.save.save();
-      this.toast(isStar3 && this._relicReturnState === 'testfield' ? `★3 质变注入：${c.icon}${c.name}` : '获得圣遗物 ' + c.icon + c.name, '#ffb347');
-    } else {
-      this.meta.addRelic(c.id);
-      this.battleRelics.push({ id: c.id, icon: c.icon, name: c.name, desc: c.desc, star3: this.meta.starOf(c.id) >= 3 }); // v1.9：本局圣物展示；v1.16.73 带 desc
-      this.save.save();
-      this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
-      this.run.relicFx(c.id, '已生效'); // v1.17 圣遗物生效提示（★星级 + 名称 + 圣遗物色）
-    }
-    this.relicPick = null;
-    // v1.16.104 测试战场 3★ 模式：选中圣遗物按 3★ 质变注入（无需真实 3★ 解锁）
-    if (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) {
-      this.run._testStar3Mode = true;
-      this.run._testStar3 = this.run._testStar3 || {};
-      this.run._testStar3[c.id] = true;
-    }
-    this._lastPickStar3 = false;
-    // v1.16.73 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
-    this.state = this._relicReturnState || 'fighting';
-    this._relicReturnState = null;
-    if (this.pendingRelicPicks.length) return; // 还有宝箱：下帧继续弹
-    if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades(); // 顺带处理升级待选
-  }
+  relicPickChoice(i) { return RelicAcquisition.relicPickChoice.call(this, i); }
 
   /** 激励视频广告：配置广告位后播放，完整观看回调发奖；未配置/失败时提示 */
   playRewardedAd(onReward, noAdMsg) {
