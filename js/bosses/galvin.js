@@ -112,6 +112,7 @@ function castEcho(g, group) {
     return { key, distance: Math.min(...alive.map(e => Math.hypot(e.x - pos.x, e.y - pos.y))) };
   }).sort((a, b) => a.distance - b.distance).slice(0, B.echoTowerCount);
   for (const item of candidates) group.slowUntil[item.key] = group.elapsed + B.echoDuration;
+  if (candidates.length) group.echoVisual = { at: group.elapsed };
   if (candidates.length) g.fx.push({ type: 'floatText', text: '圣坛回响 · 攻速 −' + Math.round(B.echoSlow * 100) + '%', x: 375, y: g.ly.wallY - 45, t: 0, dur: 1.2, size: 20, color: '#e4c88d' });
 }
 function tick(g, dt) {
@@ -133,6 +134,7 @@ function tick(g, dt) {
     group.elapsed = next;
     if (nextResonance <= next + EPS) {
       group.resonanceStacks++;
+      group.resonanceVisual = { at: next };
       for (const e of alive) e.attack = Math.round(B.attack * (1 + B.resonanceAttackPerStack * group.resonanceStacks));
       group.nextResonanceAt += B.resonancePeriod;
     }
@@ -143,6 +145,7 @@ function tick(g, dt) {
     group.syncExpired = true;
     const survivor = alive[0];
     if (survivor) {
+      group.timeoutVisual = { at: end, id: survivor.id };
       survivor.hp = Math.min(survivor.maxHp, survivor.hp + survivor.maxHp * B.survivorHealRatio);
       g.fx.push({ type: 'floatText', text: '同步超时 · 圣像回复' + Math.round(B.survivorHealRatio * 100) + '%', x: survivor.x, y: survivor.y - 55, t: 0, dur: 1.5, size: 21, color: '#a4e7b2' });
     }

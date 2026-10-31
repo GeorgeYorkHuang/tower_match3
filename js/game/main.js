@@ -5,6 +5,7 @@ const MATCH_GLOW = require('../config/match-glow.js');
 const Bosses = require('../bosses/index.js');
 const RoseaFx = require('./fx/boss-rosea.js');
 const VeraFx = require('./fx/boss-vera.js');
+const GalvinFx = require('./fx/boss-galvin.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
 const BattleActions = require('./input/battle-actions.js');
 const RelicScroll = require('./input/relic-scroll.js');
@@ -870,6 +871,10 @@ class GameMain {
     // v1.17.46 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
     VeraFx.drawBody(ctx, veraView);
+    if (this.run.bossEncounter && this.run.bossEncounter.id === 'altar_galvin') {
+      GalvinFx.draw(ctx, { ...veraView, towers: [...new Set(this.run.slotOrder)].map(key =>
+        ({ key, ...this.combat.towerMuzzle(key) })) });
+    }
     this.renderer.fx(ctx, this.fx);
     this.renderer.damageNumbers(ctx, this.dmgNumbers);
     // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）
