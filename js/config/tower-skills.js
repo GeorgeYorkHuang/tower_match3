@@ -25,8 +25,8 @@ module.exports = {
     '冰冻':   { shatterRadius:120, bossDurationRatio:0.6, baseProbability:0.20, baseDuration:2, prob: [0, 0.15, 0.30, 0.45],       // A 冻结：冰冻概率
                 dur: [0, 1, 1.5, 2],               // B 深结：冻结时长
                 shatter: [0, 0.30, 0.40, 0.50] },  // C 碎冰：击杀爆炸伤害
-    '冰穿刺': { baseTargets:1, minProjection:20, coneLength:60, coneWidthRatio:1, pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
-                cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害
+    '冰穿刺': { baseTargets:1, minProjection:20, laneHalf:60, coneLength:60, coneWidthRatio:1, pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
+                cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害（laneHalf=横向走廊半宽，v1.17.47 新增）
     '多重冰锥': { count:3, damage:0.55, damagePerBranch:0.15, hitRadius:45, swarmDamage:0.10, swarmHitRadius:30, fanStep:0.08, swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
     '碎冰':   { count:3, baseDamage:0.45, spawnOffset:55, hitRadius:45, freezeDuration:2, halfAngle:Math.PI/6, dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
                 frz: [0, 0.05, 0.10, 0.15] },      // C 冻结：命中冻结概率

@@ -6,13 +6,15 @@ module.exports = {
     for (const k in this.RELIC_RUN.tower) {
       if (this.RELIC_RUN.tower[k].some((d) => d.id === id)) return T[k];
     }
+    // v1.17.47 红色战场专属：统一红金
+    if ((this.RELIC_RUN.ur || []).some((d) => d.id === id)) return '#ff5a3c';
     return '#f7c948';
   },
 
   relicDef(id) {
     const RR = this.RELIC_RUN;
     for (const k in RR.tower) { const d = RR.tower[k].find((x) => x.id === id); if (d) return d; }
-    return RR.common.find((x) => x.id === id) || null;
+    return RR.common.find((x) => x.id === id) || (RR.ur || []).find((x) => x.id === id) || null;
   },
 
   relicRarity(id) { return this.RELIC_RARITY[id] || 'r'; },
@@ -56,7 +58,8 @@ module.exports = {
       const d = cats[k].find((x) => x.id === id);
       if (d) return d;
     }
-    return this.RELIC_RUN.common.find((x) => x.id === id) || null;
+    return this.RELIC_RUN.common.find((x) => x.id === id)
+      || (this.RELIC_RUN.ur || []).find((x) => x.id === id) || null;
   },
 
   relicNum(id, star) {

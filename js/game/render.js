@@ -78,6 +78,9 @@ const IMG_SRC = {
   lv3: 'assets/images/enemies/lv3.png', lv4: 'assets/images/enemies/lv4.png',
   lv5: 'assets/images/enemies/lv5.png', lv6: 'assets/images/enemies/lv6.png',
   lv7: 'assets/images/enemies/lv7.png', lv8: 'assets/images/enemies/lv8.png',
+  // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
+  boss_altar_rosea: 'assets/images/bosses/altar_rosea/march.png',
+  boss_altar_rosea_summon: 'assets/images/bosses/altar_rosea/sapling_runner.png',
   coin: 'assets/images/ui/coin.png', bullet: 'assets/images/bullet.png',
   silver: 'assets/images/ui/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
   chestWood: 'assets/images/ui/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
@@ -108,6 +111,10 @@ const IMG_SRC = {
   firepillar6: FirepillarFx.ASSETS[6],
   firepillar7: FirepillarFx.ASSETS[7],
   firepillar8: FirepillarFx.ASSETS[8],
+};
+/* v1.17.46 专属 Boss 帧动画表：id → { src, frames, frameSize }（每帧等大，横向排列） */
+const BOSS_ART = {
+  altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -471,6 +478,64 @@ class Renderer {
   }
 
   /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX；v1.16.11 美化+卡可点击进二级详情） */
+  /** v1.17.47 全局技能说明弹窗（战斗界面点击全局技能图标 → 显示该技能效果）
+   *  无关闭键：点弹窗以外任意位置关闭（backend 由 battle-actions 的 hits.bg 判定） */
+  gsInfoLayer(ctx, info, hits) {
+    const w = 620, h = 452, x = (750 - w) / 2, y = 372;
+    // 遮罩：点击弹窗外任意位置关闭
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + h };
+    hits.card = { hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
+    const tint = info.color || '#7ca8ff';
+    // 卡片：深色渐变 + 技能主题色描边 + 顶部光带
+    const bg = ctx.createLinearGradient(0, y, 0, y + h);
+    bg.addColorStop(0, '#232c39'); bg.addColorStop(1, '#141a23');
+    fillRoundRect(ctx, x, y, w, h, 20, bg);
+    strokeRoundRect(ctx, x, y, w, h, 20, tint, 3);
+    const band = ctx.createLinearGradient(x, 0, x + w, 0);
+    band.addColorStop(0, 'rgba(255,255,255,0)');
+    band.addColorStop(0.2, tint); band.addColorStop(0.5, '#ffffff'); band.addColorStop(0.8, tint);
+    band.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = band;
+    ctx.fillRect(x + 24, y + 10, w - 48, 3); ctx.restore();
+    // 图标（居中 132px，主题色圆底光环）
+    const icx = 375, icy = y + 108, ir = 66;
+    ctx.beginPath(); ctx.arc(icx, icy, ir, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
+    ctx.strokeStyle = tint; ctx.lineWidth = 2.5; ctx.stroke();
+    this._skillIcon(ctx, info.id, icx, icy, 100, tint);
+    // 名称 + 分类胶囊
+    text(ctx, info.name || '全局技能', 375, y + 200, 40, '#ffffff', 'center');
+    const catW = 132, catY = y + 222;
+    fillRoundRect(ctx, 375 - catW / 2, catY, catW, 34, 17, tint + '33');
+    strokeRoundRect(ctx, 375 - catW / 2, catY, catW, 34, 17, tint, 1.4);
+    text(ctx, info.category || '全局', 375, catY + 18, 19, tint, 'center');
+    // 效果说明（自动换行，最多 3 行，避免压到下方充能条）
+    const lines = this.wrapText(ctx, info.desc || '暂无描述', w - 96, 25).slice(0, 3);
+    const descTop = catY + 56;
+    lines.forEach((ln, i) => text(ctx, ln, 375, descTop + i * 34, 25, '#cfd8e3', 'center'));
+    // 充能状态：本次点击已释放 / 未充能
+    const maxCells = 3;
+    const chargeRaw = Math.max(0, Math.min(maxCells, Number(info.charge) || 0));
+    const full = Math.floor(chargeRaw), frac = chargeRaw - full;
+    const segW = 40, segH = 14, segGap = 10;
+    const sx0 = 375 - (maxCells * segW + (maxCells - 1) * segGap) / 2;
+    const segY = y + h - 78;
+    for (let i = 0; i < maxCells; i++) {
+      const sx = sx0 + i * (segW + segGap);
+      fillRoundRect(ctx, sx, segY, segW, segH, 7, '#253039');
+      if (i < full) fillRoundRect(ctx, sx, segY, segW, segH, 7, '#62df97');
+      else if (i === full && frac > 0) fillRoundRect(ctx, sx, segY, Math.max(3, segW * frac), segH, 7, '#f4cd52');
+      strokeRoundRect(ctx, sx, segY, segW, segH, 7, i < full ? '#b0f3cc' : '#4a5561', 1);
+    }
+    text(ctx, info.casted ? `已释放 · 充能 ${full}/${maxCells}`
+      : (full >= 1 ? `可释放 · 充能 ${full}/${maxCells}` : `充能中 ${full}/${maxCells} · 三消可充能`),
+    375, segY + 44, 21, info.casted ? '#7ef0a3' : (full >= 1 ? '#ffe08a' : '#8ea3b8'), 'center');
+    // 关闭提示（无关闭键）
+    text(ctx, '点击其他区域关闭', 375, y + h - 18, 17, '#5f6d7c', 'center');
+  }
+
   towerInfoLayer(ctx, info, hits) {
     // v1.16.62 三技能卡横向一排（面板回到适中高度）：卡片 205×320 ×3，元素整体小于竖排版
     const w = 688, hgt = 880, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
@@ -849,18 +914,15 @@ class Renderer {
       roundRect(ctx, bx, by, bw, bh, 8);
       ctx.fillStyle = bg; ctx.fill();
     }
-    ctx.strokeStyle = ready ? tint : 'rgba(255,255,255,0.18)';
-    ctx.lineWidth = ready ? 2.5 : 1.5;
-    roundRect(ctx, bx, by, bw, bh, 8);
-    ctx.stroke();
     const skillId=(this._equippedGlobalSlots||['shuffle','refill'])[key==='shuffle'?0:1];
-    // 图标缩小20%，顶部对齐；胶囊居中于图标下沿与槽位下沿之间
-    const iconSz = Math.min(bw, bh) * 0.8;
-    this._skillIcon(ctx,skillId,bx+bw/2,by+iconSz/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
+    // 图标按槽位68%绘制（在80%基础上再缩小15%），顶部留白；胶囊居中于图标下沿与槽位下沿之间
+    const iconSz = Math.min(bw, bh) * 0.68;
+    const iconTop = by + bh * 0.08;
+    this._skillIcon(ctx,skillId,bx+bw/2,iconTop+iconSz/2,iconSz,(GlobalSkills.get(skillId)||{}).color||tint);
     // 横向 3 段充能条（从左到右；每段满 = 1 次释放）
     const segW = 24, segH = 12, segGap = 8;
     const sx0 = bx + (bw - (maxCells * segW + (maxCells - 1) * segGap)) / 2;
-    const iconBottom = by + iconSz;
+    const iconBottom = iconTop + iconSz;
     const sy0 = (iconBottom + by + bh) / 2 - segH / 2;
     for (let i = 0; i < maxCells; i++) {
       const sx = sx0 + i * (segW + segGap);
@@ -1091,6 +1153,12 @@ class Renderer {
 
   /* ============ 区B · 敌人层（本体 / debuff 特效 / 血条） ============ */
 
+  /** v1.17.46 专属 Boss 贴图预热（进波时调用，避免出场首帧回退旧图） */
+  preloadBoss(id) {
+    const a = BOSS_ART[id];
+    if (a && a.src) loadImg(a.src);
+  }
+
   /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（v1.16.43 重构拆分子方法） */
   enemies(ctx, enemies) {
     enemies.forEach((e) => {
@@ -1112,7 +1180,13 @@ class Renderer {
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
     const genLv = e.genLv || 1;
     const imgLv = (genLv <= 8) ? genLv : ({ normal: 7, runner: 8, tank: 6 }[e.type] || 7);
-    const animSrc = IMG_SRC['lv' + imgLv];
+    // v1.17.46 fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
+    const bossArt = (e.isBoss && e.bossId && BOSS_ART[e.bossId]) || null;
+    // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
+    const summonArt = (!e.isBoss && e.isSummon) ? { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 } : null;
+    const art = bossArt || summonArt;
+    const animSrc = art ? art.src : IMG_SRC['lv' + imgLv];
+    const animFrames = art ? art.frames : 0;
     const src = e.isBoss ? IMG_SRC.boss
       : (e.type === 'runner' ? IMG_SRC.runner : (e.type === 'tank' ? IMG_SRC.tank : IMG_SRC.enemy));
     const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#9b59b6' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
@@ -1123,11 +1197,11 @@ class Renderer {
       ctx.save();
       ctx.shadowColor = '#ffd54f';
       ctx.shadowBlur = 7;
-      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
+      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
       if (!drawn && drawImg(ctx, src, x, y, size, size)) drawn = true;
       ctx.restore();
     } else {
-      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv) : false;
+      drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
     }
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
@@ -1163,15 +1237,16 @@ class Renderer {
   /** 按等级动画表裁剪绘制当前帧（横向帧循环）；图未就绪/绘制异常返回 false
    *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
    *  其余等级仍为 5 帧等时长；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
-  drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv) {
+  drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     // v1.17 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
-      const frameCount = imgLv === 1 ? 6 : 5;
+      // frames：专属 Boss 表传入的帧数（6）；未传时按等级表规则（lv1 六帧非等时长，其余五帧等时长）
+      const frameCount = frames || (imgLv === 1 ? 6 : 5);
       let f;
-      if (imgLv === 1) {
+      if (!frames && imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
         const DURS = [140, 160, 200, 310, 200, 220];
         let t = (now + ((e.id || 0) * 53) % 1000) % DURS.reduce((a, b) => a + b, 0);
@@ -1181,7 +1256,7 @@ class Renderer {
         const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
         const dur = e.isBoss ? FRAME_DUR.boss : (isElite ? FRAME_DUR.elite : (FRAME_DUR[e.type] || FRAME_DUR.normal));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
-        f = Math.floor((now + phase) / dur) % 5;
+        f = Math.floor((now + phase) / dur) % frameCount;
       }
       const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
@@ -1462,7 +1537,7 @@ class Renderer {
     if (!list || !list.length) return;
     const now = Date.now();
     list.forEach((c) => {
-      const s = 56;
+      const s = 84;
       const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
       // v1.16.74 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
       let fx = c.x, fy = c.y, scale = 1;
@@ -1471,7 +1546,7 @@ class Renderer {
         const e = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p); // ease-in-out
         fx = c.x + (375 - c.x) * e;
         fy = c.y + (560 - c.y) * e;
-        scale = 1 + 1.6 * e; // 56 → 最大 ≈146
+        scale = 1 + 1.6 * e; // 84 → 最大 ≈218
       }
       const b = 0.6 + 0.4 * Math.sin(now / 320 + c.x);
       // 呼吸光晕（开启中加强；飞行中随位置与放大）
@@ -1481,6 +1556,19 @@ class Renderer {
       ctx.fillStyle = g; ctx.globalAlpha = opening ? 0.42 : 0.22 + 0.12 * b;
       ctx.beginPath(); ctx.arc(fx, fy, gR, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
+      // 海胆状放射金光：绘于箱体背后，不改变战斗随机序列。
+      ctx.save();ctx.translate(fx,fy);ctx.rotate(now/9000);
+      const core=s*0.38*scale;
+      for(let k=0;k<32;k++) {
+        const angle=k*Math.PI*2/32;
+        const reach=s*scale*(k%3===0?1.12:k%2===0?0.92:0.72)*(0.95+0.05*b);
+        const half=k%3===0?0.024:0.016;
+        ctx.beginPath();ctx.moveTo(Math.cos(angle-half)*core,Math.sin(angle-half)*core);
+        ctx.lineTo(Math.cos(angle)*reach,Math.sin(angle)*reach);
+        ctx.lineTo(Math.cos(angle+half)*core,Math.sin(angle+half)*core);ctx.closePath();
+        ctx.fillStyle=k%3===0?'#fff0b1':'#f8c348';ctx.globalAlpha=(opening?0.7:0.4)+0.12*b;ctx.fill();
+      }
+      ctx.restore();
       // 地面投影（仅静止时）
       if (!opening) {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';

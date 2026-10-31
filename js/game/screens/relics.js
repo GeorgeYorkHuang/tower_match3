@@ -6,6 +6,16 @@ const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const RELIC_DEF_MAP = {};
 Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => l.forEach((d) => { RELIC_DEF_MAP[d.id] = d; }));
 CONFIG.RELIC_RUN.common.forEach((d) => { RELIC_DEF_MAP[d.id] = d; });
+(CONFIG.RELIC_RUN.ur || []).forEach((d) => { RELIC_DEF_MAP[d.id] = d; });   // v1.17.47 红色战场专属
+
+/** v1.17.47 红色（ur）战场专属：图鉴里单独标「专属」，未获得也可见（给收藏目标） */
+const UR_COLOR = '#ff5a3c';
+const UR_COLOR_DEEP = '#8e2418';
+function isUrRarity(rar) { return rar === 'ur'; }
+function urFieldName(def) {
+  const f = CONFIG.FIELDS && CONFIG.FIELDS[def && def.field];
+  return f ? f.name : '对应战场';
+}
 
 function createRelicScreen(deps = {}) {
   const { drawImg, relicIconSrc, IMG_SRC, TIER_COLOR, fmtNum, panelShell, wrapText } = deps;
@@ -17,7 +27,8 @@ function createRelicScreen(deps = {}) {
     const list = [];
     Object.values(RR.tower).forEach((l) => list.push(...l));
     list.push(...RR.common);
-    const o = { ssr: 0, sr: 1, r: 2 };   // 图鉴按稀有度降序（金→紫→蓝）
+    list.push(...(RR.ur || []));      // v1.17.47 红色（战场专属）排在最前
+    const o = { ur: -1, ssr: 0, sr: 1, r: 2 };   // 图鉴按稀有度降序（红→金→紫→蓝）
     return list.slice().sort((a, b) => o[CONFIG.relicRarity(a.id)] - o[CONFIG.relicRarity(b.id)]);
   }
 
@@ -30,7 +41,8 @@ function createRelicScreen(deps = {}) {
     return need > 0 && (s.shards[id] || 0) >= need;
   }
 
-  function _relicRarColor(rar) { return rar === 'ssr' ? '#f7c948' : rar === 'sr' ? '#a86bff' : '#5dade2';
+  function _relicRarColor(rar) {
+    return rar === 'ur' ? UR_COLOR : rar === 'ssr' ? '#f7c948' : rar === 'sr' ? '#a86bff' : '#5dade2';
   }
 
   function _capsuleBar(ctx, x, y, w, h, ratio, label, colTop, colBot) {
@@ -89,8 +101,24 @@ function createRelicScreen(deps = {}) {
         text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 14, ry2 + 30, 17, rc, 'right');
         text(ctx, `${CONFIG.relicRarity(d.id).toUpperCase()}${star > 1 ? ' ' + star + '★' : ''}`, rx + 14, ry2 + 128, 15, rc, 'left');
         text(ctx, d.desc ? d.desc.slice(0, 12) + (d.desc.length > 12 ? '…' : '') : '', rx + 14, ry2 + 72, 14, '#9fb2c3', 'left');
+      } else if (rar === 'ur') {
+        // v1.17.47 红色战场专属：占位展示（轮廓 + 专属角标 + 战场来源），未获得也可点开看 3★
+        strokeRoundRect(ctx, rx, ry2, cw, ch, 12, UR_COLOR, 1.6);
+        fillRoundRect(ctx, rx + cw - 62, ry2 + 6, 54, 24, 12, UR_COLOR);
+        text(ctx, '专属', rx + cw - 35, ry2 + 18, 14, '#2a0b06', 'center');
+        const srcU = relicIconSrc(d.id);
+        ctx.globalAlpha = 0.45;
+        if (!(srcU && drawImg(ctx, srcU, rx + 12, ry2 + 34, 34, 34))) {
+          ctx.beginPath(); ctx.arc(rx + 29, ry2 + 51, 17, 0, Math.PI * 2);
+          ctx.fillStyle = UR_COLOR_DEEP; ctx.fill();
+          text(ctx, d.icon, rx + 29, ry2 + 53, 17, '#ffd9cf', 'center');
+        }
+        ctx.globalAlpha = 1;
+        text(ctx, d.name, rx + 54, ry2 + 44, 17, '#ffb3a3', 'left');
+        text(ctx, `UR · ${urFieldName(d)}`, rx + 54, ry2 + 64, 13, UR_COLOR, 'left');
+        text(ctx, '20/40/60 波 Boss 掉落', rx + 12, ry2 + 92, 12, '#8e6a62', 'left');
+        text(ctx, d.desc ? d.desc.slice(0, 13) + (d.desc.length > 13 ? '…' : '') : '', rx + 12, ry2 + 118, 12, '#9a837e', 'left');
       } else {
-        // v1.17.20 未解锁两态：碎片够 → 金框「可解锁」（点击进详情解锁）；不够 → 问号占位
         const needG = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const shG = s.shards[d.id] || 0;
         if (needG > 0 && shG >= needG) {
@@ -108,8 +136,8 @@ function createRelicScreen(deps = {}) {
           text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
         }
       }
-      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；未解锁 → 无操作
-      const clickableG = owned || _relicUnlockable(s, d.id);
+      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；红卡 → 详情（看 3★）；其余未解锁 → 无操作
+      const clickableG = owned || rar === 'ur' || _relicUnlockable(s, d.id);
       push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
@@ -122,7 +150,12 @@ function createRelicScreen(deps = {}) {
     const list = _relicRunList();
     const unlocked = list.filter((d) => _relicUnlocked(s, d.id)).length;
     // v5.3 深度宝箱槽位（4 格）：从主页移至圣遗物图鉴顶部（解锁进度与卡片整体下移）
+    // v1.17.47 宝箱图标与「收益宝箱」统一：档位图 chestWood/Bronze/Silver/Gold/Star，空槽用 chestClosed
     const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
+    const TIER_IMG = {
+      wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver,
+      gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar,
+    };
     const slots = s.deepChests || [];
     for (let i = 0; i < 4; i++) {
       const bx = 40 + i * 170, by = 262, bw = 160, bh = 128;
@@ -132,18 +165,22 @@ function createRelicScreen(deps = {}) {
       strokeRoundRect(ctx, bx, by, bw, bh, 14, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
       fillRoundRect(ctx, bx + 10, by + 6, bw - 20, 12, 6, ctx.fillStyle);
+      const iw = 64, ix = bx + (bw - iw) / 2, iy = by + 18;
       if (!ch) {
-        text(ctx, '📦', bx + bw / 2, by + 48, 30, '#3a4654', 'center');
-        text(ctx, '空槽位', bx + bw / 2, by + 84, 18, '#3a4654', 'center');
-        text(ctx, '局末按深度获得', bx + bw / 2, by + 110, 14, '#2c3644', 'center');
+        ctx.globalAlpha = 0.42;
+        if (!drawImg(ctx, IMG_SRC.chestClosed, ix, iy, iw, iw)) text(ctx, '📦', bx + bw / 2, iy + iw / 2 + 10, 30, '#3a4654', 'center');
+        ctx.globalAlpha = 1;
+        text(ctx, '空槽位', bx + bw / 2, by + 98, 16, '#3a4654', 'center');
+        text(ctx, '局末按深度获得', bx + bw / 2, by + 118, 13, '#2c3644', 'center');
       } else {
-        text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, by + 44, 28, '#ffffff', 'center');
-        text(ctx, ch.name, bx + bw / 2, by + 74, 17, TIER_COLOR[ch.tier] || '#d89e63', 'center');
-        if (ch.ready) text(ctx, '✅ 点击开启', bx + bw / 2, by + 102, 17, '#7ef0a3', 'center');
+        const tierSrc = TIER_IMG[ch.tier] || IMG_SRC.chestClosed;
+        if (!drawImg(ctx, tierSrc, ix, iy, iw, iw)) text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, iy + iw / 2 + 10, 28, '#ffffff', 'center');
+        text(ctx, ch.name, bx + bw / 2, by + 98, 16, TIER_COLOR[ch.tier] || '#d89e63', 'center');
+        if (ch.ready) text(ctx, '✅ 点击开启', bx + bw / 2, by + 118, 15, '#7ef0a3', 'center');
         else {
           const rm = ch.remainMin;
           const rt = rm >= 60 ? `${Math.floor(rm / 60)}时${rm % 60}分` : `${rm}分`;
-          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 102, 16, '#9fb2c3', 'center');
+          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 118, 14, '#9fb2c3', 'center');
         }
       }
     }
@@ -199,8 +236,25 @@ function createRelicScreen(deps = {}) {
         else if (need3 > 0 && sh3 >= need3) { ratio3 = 1; lbl3 = '可升星'; ct3 = '#f6d67c'; cb3 = '#c48a1a'; }
         else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; ct3 = '#8fb6ff'; cb3 = '#5b86d6'; }
         _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, ratio3, lbl3, ct3, cb3);
+      } else if (rar === 'ur') {
+        // v1.17.47 红色战场专属：未获得也占位展示（轮廓图标 + 「专属」角标 + 掉落来源），不显示碎片进度
+        strokeRoundRect(ctx, rx, ry2, cw, ch, 12, UR_COLOR, 1.6);
+        fillRoundRect(ctx, rx + cw - 68, ry2 + 8, 60, 26, 13, UR_COLOR);
+        text(ctx, '专属', rx + cw - 38, ry2 + 21, 15, '#2a0b06', 'center');
+        const srcU = relicIconSrc(d.id);
+        ctx.globalAlpha = 0.42;
+        if (!(srcU && drawImg(ctx, srcU, icx - 52, icy - 52, 104, 104))) {
+          ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
+          ctx.fillStyle = UR_COLOR_DEEP; ctx.fill();
+          ctx.globalAlpha = 0.75;
+          ctx.strokeStyle = UR_COLOR; ctx.lineWidth = 2; ctx.stroke();
+          text(ctx, d.icon, icx, icy + 2, 44, '#ffd9cf', 'center');
+        }
+        ctx.globalAlpha = 1;
+        text(ctx, d.name, icx, ry2 + 150, 24, '#ffb3a3', 'center');
+        text(ctx, `掉落 · ${urFieldName(d)}`, icx, ry2 + 180, 16, UR_COLOR, 'center');
+        text(ctx, '20/40/60 波 Boss', icx, ry2 + 198, 13, '#8e6a62', 'center');
       } else {
-        // v1.17.20 未解锁两态：碎片已够=可解锁（真图半透明 + 金框 + 「可解锁」角标，点击进详情解锁）
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
         const canUnlock = thr > 0 && sh4 >= thr;
@@ -234,8 +288,8 @@ function createRelicScreen(deps = {}) {
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
-      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）
-      const clickable = owned || _relicUnlockable(s, d.id);
+      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）；v1.17.47 红卡始终可点开看 3★
+      const clickable = owned || rar === 'ur' || _relicUnlockable(s, d.id);
       if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();
@@ -278,6 +332,13 @@ function createRelicScreen(deps = {}) {
     const gx = 375, gy = oy + 168, dia = 200;
     const src = relicIconSrc(id);
     if (!(src && drawImg(ctx, src, gx - dia / 2, gy - dia / 2, dia, dia))) text(ctx, d.icon, gx, gy, 150, '#ffffff', 'center');
+    // ---- v1.17.47 红色（战场专属）来源条：替代碎片进度（红件只能由指定战场 Boss 掉落）----
+    if (rar === 'ur') {
+      const by0 = oy + 268;
+      fillRoundRect(ctx, cardX, by0, 560, 40, 20, 'rgba(60,16,10,0.85)');
+      strokeRoundRect(ctx, cardX, by0, 560, 40, 20, UR_COLOR, 1.6);
+      text(ctx, `战场专属 · ${urFieldName(d)} · 20/40/60 波 Boss 掉落`, 375, by0 + 21, 18, '#ffb3a3', 'center');
+    }
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
     // v1.17.20 未解锁时进度条口径 = 解锁所需碎片（原实现取 STAR_UP.cost[1] 不存在 → 恒显 0/0）
@@ -285,17 +346,19 @@ function createRelicScreen(deps = {}) {
     const cost = CONFIG.STAR_UP.cost[star + 1];
     const need = owned ? (cost ? cost.shards : 0) : unlockNeed;
     const px0 = gx - 100, py0 = oy + 268, pw = 200, ph = 36;
-    fillRoundRect(ctx, px0, py0, pw, ph, 18, 'rgba(20,26,38,0.95)');
-    strokeRoundRect(ctx, px0, py0, pw, ph, 18, '#3a4553', 2);
-    const pr = need > 0 ? Math.min(1, shards / need) : 0;
-    if (pr > 0) {
-      const fw = Math.max(16, pw * pr);
-      const fg = ctx.createLinearGradient(0, py0, 0, py0 + ph);
-      fg.addColorStop(0, '#fff0b8'); fg.addColorStop(0.45, '#ffd34d'); fg.addColorStop(1, '#e0a825');
-      fillRoundRect(ctx, px0, py0, fw, ph, 18, fg);
-      fillRoundRect(ctx, px0 + 8, py0 + 4, fw - 16, 8, 4, 'rgba(255,255,255,0.55)');
+    if (rar !== 'ur') {
+      fillRoundRect(ctx, px0, py0, pw, ph, 18, 'rgba(20,26,38,0.95)');
+      strokeRoundRect(ctx, px0, py0, pw, ph, 18, '#3a4553', 2);
+      const pr = need > 0 ? Math.min(1, shards / need) : 0;
+      if (pr > 0) {
+        const fw = Math.max(16, pw * pr);
+        const fg = ctx.createLinearGradient(0, py0, 0, py0 + ph);
+        fg.addColorStop(0, '#fff0b8'); fg.addColorStop(0.45, '#ffd34d'); fg.addColorStop(1, '#e0a825');
+        fillRoundRect(ctx, px0, py0, fw, ph, 18, fg);
+        fillRoundRect(ctx, px0 + 8, py0 + 4, fw - 16, 8, 4, 'rgba(255,255,255,0.55)');
+      }
+      text(ctx, need > 0 ? `${shards} / ${need}` : (owned && star >= 3 ? 'MAX' : '0 / 0'), gx, py0 + ph / 2 + 1, 20, '#ffffff', 'center');
     }
-    text(ctx, need > 0 ? `${shards} / ${need}` : (owned && star >= 3 ? 'MAX' : '0 / 0'), gx, py0 + ph / 2 + 1, 20, '#ffffff', 'center');
     // ---- 名称 ----
     text(ctx, d.name, 375, py0 + ph + 14 + 21, 42, '#ffffff', 'center');
     // ---- 3★/2★/1★ 三行（420 宽居中；星标=★★★/★★/★；当前星级高亮）----
@@ -329,7 +392,10 @@ function createRelicScreen(deps = {}) {
     });
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
     const btnY = ry0 + 3 * (rh + rgap) + 24;
-    if (!owned) {
+    if (rar === 'ur' && !owned) {
+      // v1.17.47 红件无碎片渠道：只说明获取方式，不放解锁/升星按钮
+      text(ctx, `尚未获得 · 击败 ${urFieldName(d)} 的 20 / 40 / 60 波 Boss 可获得`, 375, btnY + 31, 20, '#c07a6c', 'center');
+    } else if (!owned) {
       // v1.17.20 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示
       if (_relicUnlockable(s, id)) {
         push('relicUnlock', id, rx, btnY, rw, 62);

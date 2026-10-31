@@ -1,4 +1,5 @@
 const Rosea = require('../bosses/rosea.js');
+const RoseaFx = require('./fx/boss-rosea.js');
 const DamageNumbers = require('./fx/damage-numbers.js');
 const RelicKill = require('../relics/kill-hooks.js');
 const BattleActions = require('./input/battle-actions.js');
@@ -46,6 +47,11 @@ class GameMain {
   constructor() {
     this.scale = Math.min(_c.canvas.width / LOGIC_W, _c.canvas.height / LOGIC_H); // 等比 contain：完整显示且铺满（背景延伸填充剩余区）
     this.renderer = new Renderer();
+    // v1.17.46 萝赛技能表现层（藤甲环/破壳花瓣/召唤旋涡/二阶段轮廓）：只读 Boss 状态，不参与伤害结算
+    this.bossFx = RoseaFx.create();
+    this._bossFxOn = false;
+    this._bossPhaseSeen = 0;
+    this._summonSeen = 0;
     this.ly = layout();
     this.restartBtn = {};
     this.pickHits = {};
@@ -54,6 +60,8 @@ class GameMain {
     this.towerInfoHits = {};     // 详情弹层命中：{bg, close, skill[]}
     this.towerSkill = null;      // v1.16.11 技能二级详情弹层：{key, skillName, icon, desc, color, lv, lvMax, branches, bA, bB, bC, branchDesc}
     this.towerSkillHits = {};    // 二级弹层命中：{bg, back}
+    this.gsInfo = null;          // v1.17.47 全局技能说明弹窗：{key, id, name, category, desc, color, charge, casted}
+    this.gsInfoHits = {};        // 说明弹窗命中：{bg, card}
     // v1.14 测试战场：塔技能配置面板 + 倍速 + 刷怪控制
     this.testPanel = null;       // {key} 当前配置的塔
     this.testHits = {};          // 测试战场命中区（渲染时重建）
@@ -485,10 +493,36 @@ class GameMain {
     }
   }
 
+  /** v1.17.46 萝赛表现层驱动：只读运行态（phase/盾层/坐标），驱动破壳与召唤表现；不改血量/伤害/掉落 */
+  tickBossFx(dt) {
+    const fx = this.bossFx;
+    if (!fx) return;
+    const b = this.run.bossEnemy;
+    if (!b || !b.bossId || b.hp <= 0 || !this.run.bossLock) {
+      if (this._bossFxOn) { fx.reset(); this._bossFxOn = false; this._bossPhaseSeen = 0; this._summonSeen = 0; }
+      return;
+    }
+    fx.sync({
+      phase: b.phase, shieldLayers: b.shieldLayers || 0, x: b.x, y: b.y,
+      size: CONFIG.LAYOUT.enemy.boss, elapsed: (this.animClock || 0) / 1000,
+    });
+    fx.step(dt);
+    this._bossFxOn = true;
+    if (this._bossPhaseSeen === 1 && b.phase === 2) fx.triggerBurst();   // 藤壳炸裂 → 花瓣爆开
+    this._bossPhaseSeen = b.phase;
+    // 召唤幼芽：按场上召唤数量增量补左右旋涡（左右交替）
+    const n = this.enemies.reduce((c, e) => c + (e.isSummon ? 1 : 0), 0);
+    if (n > (this._summonSeen || 0)) {
+      for (let i = this._summonSeen || 0; i < n; i++) fx.triggerSummon(i % 2 ? 'right' : 'left');
+    }
+    this._summonSeen = n;
+  }
+
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     Rosea.tick(this,dt);
+    this.tickBossFx(dt);
     GlobalSkills.tick(this.run,dt);
     // 塔是唯一伤害源：无塔（槽位未解锁）→ 不结算伤害、不产生射击与击杀表现；但攻城是怪物行为，无塔时仍推进
     if (this.run.slotOrder.length === 0) {
@@ -659,6 +693,7 @@ class GameMain {
         this.relicDetail = null;
         this.towerInfo = null;
         this.towerSkill = null;
+        this.gsInfo = null;
         this.state = 'evacuation';
         this.evacHits = {};
         return;
@@ -790,6 +825,8 @@ class GameMain {
     const keep = !!this._overlapWave;
     this._overlapWave = false;
     this.wave.start(keep); // run.wave += 1
+    // v1.17.46 20 波专属 Boss 贴图预热：进波即开始加载，避免 Boss 出场首秒回退旧 boss.png
+    if (this.run.wave === 20 && this.renderer && this.renderer.preloadBoss) this.renderer.preloadBoss('altar_rosea');
     const w = this.run.wave || 1; // v1.16.124 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
     this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;
@@ -893,6 +930,7 @@ class GameMain {
     this.menuPanel = null;
     this.enemies = [];
     this.towerInfo = null;
+    this.gsInfo = null;
     this.funcLayer = null;
     this.pickQueue = [];
     this.pickIndex = 0;
@@ -977,11 +1015,11 @@ class GameMain {
     }
   }
 
-  /** v1.16.78 局内圣遗物总数（图鉴分页用） */
+  /** v1.16.78 局内圣遗物总数（图鉴分页用）；v1.17.47 计入红色战场专属 */
   _relicRunTotal() {
     let n = 0;
     Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => { n += l.length; });
-    return n + CONFIG.RELIC_RUN.common.length;
+    return n + CONFIG.RELIC_RUN.common.length + (CONFIG.RELIC_RUN.ur || []).length;
   }
 
   /** v1.16.59 战场宝箱点击 → 生成圣物三选一；v1.16.60 候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
@@ -1180,6 +1218,8 @@ class GameMain {
     this.renderer.groundFx(ctx, this.combat);
     this.renderer.animNow = this.animClock;   // v1.17 敌人帧动画时钟注入（暂停状态冻结）
     this.renderer.enemies(ctx, this.enemies);
+    // v1.17.46 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
+    if (this.bossFx) this.bossFx.drawTo(ctx);
     this.renderer.fx(ctx, this.fx);
     this.renderer.damageNumbers(ctx, this.dmgNumbers);
     // v1.16.59 战场宝箱（怪物掉落，点击开启圣物三选一）
@@ -1212,6 +1252,8 @@ class GameMain {
     // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
     if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
     else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
+    // v1.17.47 全局技能说明弹窗（点图标弹出，无关闭键，点外部关闭）——最上层
+    if (this.gsInfo) this.renderer.gsInfoLayer(ctx, this.gsInfo, this.gsInfoHits);
     // 底部功能弹层（商店/设置/图鉴/帮助）
     if (this.funcLayer) this.renderer.funcLayer(ctx, this.funcLayer, st, this.funcLayerHits);
   }

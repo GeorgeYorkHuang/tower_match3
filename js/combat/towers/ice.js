@@ -52,7 +52,8 @@ function _iceMultiShot(combat, e, dmg) {
   };
   // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
   const aim0 = aimOf(e, 0);
-  const strikeCenter = (o) => strike(o, perDmg);
+  // v1.17.47 冰穿刺：多重冰锥下由中心锁定弹结算一次穿透（散射侧锥不叠加，保持与单发路径同频）
+  const strikeCenter = (o) => { strike(o, perDmg); applyIcePierce(combat, o, perDmg); };
   combat.addProjectile({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
   // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
   const maxOff = (n - 2) * balance.fanStep;
@@ -65,6 +66,47 @@ function _iceMultiShot(combat, e, dmg) {
     const strikeSide = (o) => strike(o, perDmg);
     combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
   }
+}
+
+/**
+ * 冰穿刺 · 穿透结算统一入口（v1.17.47）
+ * 背景：原实现把穿透写死在 hitIce 尾部，而「多重冰锥」激活后普攻走 _iceMultiShot，
+ *   hitIce 整条链（冰穿刺 / 碎冰 / 暴雪 3★）都不会执行 → 真机上「学了多重冰锥再点冰穿刺，穿透完全没反应」。
+ * 口径：每次「攻击」结算一次穿透（多重冰锥只由中心锁定那枚结算，散射侧锥不重复叠加），与单发同频。
+ * 判定：沿弹道方向（塔口 → 命中点）在命中点之后、且与命中点横向偏移 ≤ laneHalf 的敌人；
+ *   原实现只判投影不限横向，会隔半屏命中侧路敌人，视觉上完全不像"穿过去"。
+ * 表现：命中点 → 每个穿透目标连一条冰痕（fxBeam），配合各自的冰晶迸发，看得出冰锥穿过一列。
+ */
+function applyIcePierce(combat, e, dmg) {
+  if (!e || combat.lv('ice', '冰穿刺') <= 0) return 0;
+  const bal = SKILL_NUM.ice['冰穿刺'];
+  const mz = combat.towerMuzzle('ice');
+  const psx = mz.x, psy = mz.y;
+  const dirLen = Math.hypot(e.x - psx, e.y - psy) || 1;
+  const ddx = (e.x - psx) / dirLen, ddy = (e.y - psy) / dirLen;   // 弹道方向（塔→目标）
+  const aLv = combat.branchLv('ice', '冰穿刺', 'A');
+  const bLv = combat.branchLv('ice', '冰穿刺', 'B');
+  const pierceN = bal.baseTargets + aLv + combat.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
+  const laneHalf = bal.laneHalf || 60;
+  // 穿透目标：沿弹道方向位于目标身后（远离塔侧），且与目标横向偏移不超过 laneHalf，按投影距离由近到远
+  const cands = combat.enemies().filter((o) => o.hp > 0 && o !== e
+      && Math.abs(o.x - e.x) <= laneHalf
+      && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > bal.minProjection)
+    .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
+  const hitCnt = Math.min(pierceN, cands.length);
+  for (let i = 0; i < hitCnt; i++) {
+    const pT = cands[i];
+    const pDmg = dmg * (1 + bal.pierceDmg[bLv]);   // B 透射 +30/60/90%
+    combat.damage(pT, pDmg, 'ice');
+    combat.iceHitFx(pT, pDmg);                     // v1.16.98 暴雪3★
+    // v1.16.98 穿透凝冰3★：冰锥贯穿 2 名以上敌人时，对最后一名敌人造成冰冻 1 秒
+    if (combat.game.run.relic3('ice_pierce') && hitCnt >= 2 && i === hitCnt - 1) combat.freezeE(pT, 1);
+    // v1.17.47 穿透轨迹：冰痕从命中点连到每个被穿透的敌人
+    combat.fxBeam(e.x, e.y, pT.x, pT.y, '#a9d6f5', 0.26, 3);
+    combat.fxParticle(pT.x, pT.y, '#b8e6ff', 5, 40, 0.3, 110, 4);
+    combat.fxRing(pT.x, pT.y, '#a9d6f5', 20, 0.2, 2);
+  }
+  return hitCnt;
 }
 
 function hitIce(combat, e, dmg) {
@@ -161,33 +203,14 @@ function hitIce(combat, e, dmg) {
   }
   // 冰穿刺（v1.16.21 重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）
   //   A 冰穿 穿透目标 +1/+2/+3（1→2/3/4 名）；B 透射 穿透后伤害 +30%/60%/90%；C 冰霜透射 命中后对敌人身后 60px·90° 扇形造成 30%/40%/50% 伤害
+  // v1.17.47 穿透主体抽到 applyIcePierce（多重冰锥路径共用），此处只保留 C 的扇形追加
   const pierce = combat.lv('ice', '冰穿刺');
   if (pierce > 0) {
-    const g = combat.game;
-    // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
-    const mz = combat.towerMuzzle('ice');
-    const psx = mz.x, psy = mz.y;
-    const dirLen = Math.hypot(e.x - psx, e.y - psy) || 1;
-    const ddx = (e.x - psx) / dirLen, ddy = (e.y - psy) / dirLen;   // 弹道方向（塔→目标）
-    const aLv = combat.branchLv('ice', '冰穿刺', 'A');
-    const bLv = combat.branchLv('ice', '冰穿刺', 'B');
+    applyIcePierce(combat, e, dmg);
+    const mzP = combat.towerMuzzle('ice');
+    const dirLen = Math.hypot(e.x - mzP.x, e.y - mzP.y) || 1;
+    const ddx = (e.x - mzP.x) / dirLen, ddy = (e.y - mzP.y) / dirLen;   // 弹道方向（塔→目标）
     const cLv = combat.branchLv('ice', '冰穿刺', 'C');
-    const pierceN = SKILL_NUM.ice['冰穿刺'].baseTargets + aLv + combat.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
-    // 穿透目标：沿弹道方向位于目标身后（远离塔侧）的敌人，按投影距离排序
-    const cands = combat.enemies().filter((o) => o.hp > 0 && o !== e
-        && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > SKILL_NUM.ice['冰穿刺'].minProjection)
-      .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
-    const hitCnt = Math.min(pierceN, cands.length);
-    for (let i = 0; i < hitCnt; i++) {
-      const pT = cands[i];
-      const pDmg = dmg * (1 + SKILL_NUM.ice['冰穿刺'].pierceDmg[bLv]);   // B 透射 +30/60/90%
-      combat.damage(pT, pDmg, 'ice');
-      combat.iceHitFx(pT, pDmg);                 // v1.16.98 暴雪3★
-      // v1.16.98 穿透凝冰3★：冰锥贯穿 2 名以上敌人时，对最后一名敌人造成冰冻 1 秒
-      if (combat.game.run.relic3('ice_pierce') && hitCnt >= 2 && i === hitCnt - 1) combat.freezeE(pT, 1);
-      combat.fxParticle(pT.x, pT.y, '#b8e6ff', 5, 40, 0.3, 110, 4);
-      combat.fxRing(pT.x, pT.y, '#a9d6f5', 20, 0.2, 2);
-    }
     // C 冰霜透射：对敌人身后 60px·90° 扇形区域（以弹道方向为中轴 ±45°）造成伤害
     if (cLv > 0) {
       const fDmg = combat.shotDmg('ice') * SKILL_NUM.ice['冰穿刺'].cone[cLv];

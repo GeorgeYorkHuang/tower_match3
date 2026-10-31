@@ -14,7 +14,7 @@ module.exports = {
 
   RELIC_FX: { cooldown: 0.8 },
 
-  DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8 },             // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金）
+  DUPLICATE_SHARDS: { r: 2, sr: 4, ssr: 8, ur: 10 },     // 重复获得已解锁圣遗物局末折算碎片 / 未解锁碎片直接解锁阈值（蓝/紫/金/红）
 
   RELIC_ATTR: {
     attack: ['cm_power', 'cm_speed', 'cm_combo'],
@@ -36,6 +36,10 @@ module.exports = {
     can_heavy: 'sr', can_pierce: 'sr', can_airstrike: 'sr', can_minefield: 'sr', can_powder: 'sr', can_knock: 'sr',
     cm_power: 'ssr', cm_shuffle: 'ssr', cm_bounty: 'ssr',
     cm_vault: 'sr', cm_wall: 'sr', cm_ammobox: 'sr', cm_guard: 'sr', cm_stasis: 'sr', cm_freeze: 'sr',
+    // v1.17.47 红色（ur）战场专属：不进随机池，只由对应战场 Boss 掉落
+    ur_altar_rose: 'ur', ur_altar_seed: 'ur',
+    ur_forge_heart: 'ur', ur_slag_hammer: 'ur',
+    ur_frost_eye: 'ur', ur_wind_lantern: 'ur',
   },
 
   RELIC: {
@@ -184,6 +188,21 @@ module.exports = {
       { id: 'cm_bounty',    name: '赏金猎人', icon: '🪙', desc: '精英与Boss宝箱掉落概率提升50%', star2: '精英与Boss宝箱掉落概率提升80%', star3: '连续 3 波不掉宝箱时，第 4 波必掉' },
       { id: 'cm_tome',      name: '智慧典籍', icon: '📖', desc: '升级所需经验降低10%', star2: '升级所需经验降低15%', star3: '经验降低触底后，多余判定转为升级时全塔 3 秒攻速 +20%' },
       { id: 'cm_shuffle',   name: '战术转移', icon: '♻️', desc: '每波获得1次免费洗牌', star2: '每波获得2次免费洗牌', star3: '免费洗牌 +1 次，且洗牌后 2 秒内消除伤害 ×1.3' },
+    ],
+    /**
+     * v1.17.47 红色（ur）战场专属圣遗物 —— 设计稿 §16.5（每场 2 件，共 6 件）。
+     * 定位：只由该战场 Boss 掉落（20 波 25% / 40 波 40% / 60 波必掉），不进任何随机池：
+     *   randomShardId / randomShardCardId / 三选一池都只扫 RELIC_RUN.tower + RELIC_RUN.common，
+     *   本组独立挂在 RELIC_RUN.ur 下，天然不会被抽到。
+     * 当前状态：效果未接入战斗（掉率与效果挂点待做），图鉴按「战场专属」分区展示占位。
+     */
+    ur: [
+      { id: 'ur_altar_rose',    name: '裂坛玫瑰', icon: '🌹', field: 'ancient', desc: '对处于护盾/减伤状态的目标，伤害提升25%', star2: '对处于护盾/减伤状态的目标，伤害提升40%', star3: '目标处于减伤/护盾状态时，你的伤害无视其护甲' },
+      { id: 'ur_altar_seed',    name: '未凋之种', icon: '🌱', field: 'ancient', desc: '每击杀 1 只召唤物，全塔伤害 +2%（本波，上限 +20%）', star2: '每击杀 1 只召唤物，全塔伤害 +3%（本波，上限 +30%）', star3: '召唤物死亡处留下种子，3 秒后绽放为友方藤蔓：90 码内每秒 40% 攻击伤害，持续 4 秒' },
+      { id: 'ur_forge_heart',   name: '熔心炉',   icon: '⚒️', field: 'lava', desc: '能量库上限提升15%', star2: '能量库上限提升25%', star3: '能量库上限提升35%；能量溢出转为「熔芯」层数，每层全塔伤害 +2%，上限 20 层' },
+      { id: 'ur_slag_hammer',   name: '碎渣重锤', icon: '🔨', field: 'lava', desc: '所有伤害无视 15% 护甲', star2: '所有伤害无视 20% 护甲', star3: '无视 35% 护甲；对护甲 ≥40% 的目标额外 +15% 伤害' },
+      { id: 'ur_frost_eye',     name: '霜风之眼', icon: '👁️', field: 'frost', desc: '所有控制类效果时长提升20%', star2: '所有控制类效果时长提升30%', star3: '被减速或冰冻的敌人受到伤害 +12%；其中 Boss 额外 +6%' },
+      { id: 'ur_wind_lantern',  name: '风灯',     icon: '🏮', field: 'frost', desc: '敌人移速每高于基准 10%，其受到伤害 +3%（上限 +15%）', star2: '每 10% → +4%（上限 +20%）', star3: '移速高于基准 50% 的敌人死亡时爆炸：60% 伤害，半径 90 码' },
     ],
   },
 
