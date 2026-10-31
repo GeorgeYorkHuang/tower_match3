@@ -1,3 +1,6 @@
+const { createCannonFx } = require('./fx/cannon.js');
+const PoisonSkillFx = require('./fx/poison.js');
+const BoomerangSkillFx = require('./fx/boomerang.js');
 const { createFireFx } = require('./fx/fire.js');
 const { createCommonFx } = require('./fx/common.js');
 const { createMatchFx } = require('./fx/match.js');
@@ -1989,286 +1992,28 @@ class Renderer {
 
   fxBullet(ctx, f) { return this._getCommonFx().fxBullet(ctx, f); }
 
-  fxStrikeShell(ctx, f) {
-      // v1.16.31 炮火支援：逐发弹道——0.3s 从塔口升空至高点 300px 后**消失**；发射 1.0s 后
-      //   在目标头顶高 300px 处**出现**并 0.3s 垂直落下打击（第 1 发落地 1.3s，之后每发 +0.1s）
-      const t1 = f.t - (f.offset || 0);
-      if (t1 < 0 || t1 >= 1.3) return;   // 未发射或已落地
-      if (t1 >= 0.3 && t1 < 1.0) return; // 高点至重现之间：炮弹不可见（不再悬停）
-      let mx, my, ang;
-      if (t1 < 0.3) {
-        const k = t1 / 0.3;
-        mx = f.sx; my = f.sy - 300 * k; ang = -Math.PI / 2;
-      } else {
-        // t1 ≥ 1.0：从目标头顶高 300px 处垂直出现并落下
-        const k = (t1 - 1.0) / 0.3;
-        mx = f.tx; my = (f.ty - 300) + 300 * k; ang = Math.PI / 2;
-      }
-      // 升空段出膛口焰
-      if (t1 < 0.3) {
-        ctx.globalAlpha = 0.9 * (1 - t1 / 0.3 * 1.25);
-        ctx.fillStyle = '#ffd24a';
-        ctx.beginPath(); ctx.arc(f.sx, f.sy, 6 + 10 * (t1 / 0.3), 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-      // 炮弹弹体（沿飞行方向胶囊炮弹 + 尾部曳光焰，与 mortar 同款）
-      ctx.save();
-      ctx.translate(mx, my);
-      ctx.rotate(ang);
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = '#ff7043';
-      ctx.beginPath(); ctx.ellipse(-13, 0, 13, 4.2, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ffd24a';
-      ctx.beginPath(); ctx.ellipse(-17, 0, 7, 2.4, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#3a2f22';
-      ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.6, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#ff8c42'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.6, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#ffd24a';
-      ctx.beginPath(); ctx.arc(7, 0, 1.8, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+  _getCannonFx() {
+    if (!this._cannonFx) this._cannonFx = createCannonFx({ drawImg });
+    return this._cannonFx;
   }
 
-  fxStrike(ctx, f) {
-      // v1.16.31 炮火支援：地面炮击圈——offset 偏移后于落地前 0.5s 出现，棕色描边标识 130px 受击范围，持续至落地爆炸
-      const t1 = f.t - (f.offset || 0);
-      if (t1 < 0.5 || t1 >= 1.3) return;   // 未到预警时刻或已爆炸
-      const p = (t1 - 0.5) / 0.8;
-      const a = 0.25 + 0.55 * p;   // 淡入
-      ctx.globalAlpha = a * 0.30;
-      ctx.fillStyle = '#8d5a2b';
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = a;
-      // 棕色描边主圈（受击范围标识）
-      ctx.strokeStyle = '#b0602a'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.stroke();
-      // 内白圈 + 中心瞄准点
-      ctx.globalAlpha = a * 0.8;
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.34, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2;
-      const c = 7;
-      ctx.beginPath();
-      ctx.moveTo(f.x - c, f.y); ctx.lineTo(f.x + c, f.y);
-      ctx.moveTo(f.x, f.y - c); ctx.lineTo(f.x, f.y + c);
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2); ctx.fill();
-      // 旋转刻度（8 根短线绕外圈，棕色）
-      ctx.strokeStyle = '#c07a35'; ctx.lineWidth = 2;
-      for (let k = 0; k < 8; k++) {
-        const ang = k * 0.785 + (f.seed || 0) + f.t * 3;
-        const r1 = f.r * 0.66, r2 = f.r * 0.72;
-        ctx.beginPath();
-        ctx.moveTo(f.x + Math.cos(ang) * r1, f.y + Math.sin(ang) * r1);
-        ctx.lineTo(f.x + Math.cos(ang) * r2, f.y + Math.sin(ang) * r2);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-  }
+  fxStrikeShell(ctx, f) { return this._getCannonFx().fxStrikeShell(ctx, f); }
+
+  fxStrike(ctx, f) { return this._getCannonFx().fxStrike(ctx, f); }
 
   fxBoom(ctx, f) { return this._getCommonFx().fxBoom(ctx, f); }
 
   fxFlashFx(ctx, f) { return this._getCommonFx().fxFlashFx(ctx, f); }
 
-  fxVine(ctx, f) {
-      // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（dur 0.55s）——主藤弯曲生长 + 叶片 + 末端毒花苞绽放
-      const p = Math.min(1, f.t / f.dur);
-      const seed = f.seed || 0;
-      const wobDir = (seed % 2 ? 1 : -1);
-      const dist = Math.hypot(f.tx - f.x, f.ty - f.y) || 1;
-      const grow = Math.min(1, p * 1.35); // 生长进度（略快于总时长，先到位后绽放）
-      // 主藤（贝塞尔弯曲，只画到生长进度）
-      ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.9;
-      ctx.beginPath();
-      ctx.moveTo(f.x, f.y);
-      const mx = (f.x + f.tx) / 2 + wobDir * 22 * Math.sin(p * 2 + seed);
-      const my = (f.y + f.ty) / 2 - 8;
-      ctx.quadraticCurveTo(mx, my, f.x + (f.tx - f.x) * grow, f.y + (f.ty - f.y) * grow);
-      ctx.stroke();
-      // 内亮线（藤蔓质感）
-      ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(f.x, f.y);
-      ctx.quadraticCurveTo(mx, my, f.x + (f.tx - f.x) * grow, f.y + (f.ty - f.y) * grow);
-      ctx.stroke();
-      // 叶片（沿藤分布，随生长出现）
-      ctx.fillStyle = '#2ecc71'; ctx.globalAlpha = 0.75;
-      for (let k = 0; k < 4; k++) {
-        const tp = k / 4;
-        if (tp > grow) break;
-        const lx = f.x + (f.tx - f.x) * tp;
-        const ly = f.y + (f.ty - f.y) * tp;
-        const lwob = wobDir * (1 + tp);
-        ctx.beginPath();
-        ctx.ellipse(lx + lwob * 3, ly + Math.sin(tp * 5 + seed) * 4, 3.2, 1.8, tp * 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // 末端毒花苞（到达后绽放 + 毒液溅点）
-      if (p > 0.75) {
-        const bloom = (p - 0.75) / 0.25;
-        const bx = f.tx, by = f.ty;
-        ctx.fillStyle = '#28b463'; ctx.globalAlpha = 0.9;
-        ctx.beginPath(); ctx.arc(bx, by, 3 + bloom * 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#58d68d'; ctx.globalAlpha = (1 - bloom) * 0.8;
-        for (let k = 0; k < 6; k++) {
-          const a = k * 1.047 + seed;
-          ctx.beginPath(); ctx.arc(bx + Math.cos(a) * (7 + bloom * 8), by + Math.sin(a) * 4, 1.6, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
-  }
+  fxVine(ctx, f) { return PoisonSkillFx.fxVine(ctx, f); }
 
-  fxThorn(ctx, f) {
-      // 毒棒攻击弹道（v1.16.1）：绿色毒刺飞射目标 + 尾随毒粒 + 命中溅射
-      const p = Math.min(1, f.t / f.dur);
-      const x = f.x + (f.tx - f.x) * p;
-      const y = f.y + (f.ty - f.y) * p;
-      const ang = Math.atan2(f.ty - f.y, f.tx - f.x);
-      // 尾随毒粒
-      for (let k = 0; k < 3; k++) {
-        const tp = Math.max(0, p - 0.06 * (k + 1));
-        const px = f.x + (f.tx - f.x) * tp;
-        const py = f.y + (f.ty - f.y) * tp;
-        ctx.fillStyle = '#58d68d'; ctx.globalAlpha = 0.5 * (1 - k / 3) * (1 - p * 0.4);
-        ctx.beginPath(); ctx.arc(px + (Math.random() - 0.5) * 3, py + (Math.random() - 0.5) * 3, 2.2 - k * 0.5, 0, Math.PI * 2); ctx.fill();
-      }
-      // 毒针体（细长三角朝向目标）
-      ctx.save();
-      ctx.translate(x, y); ctx.rotate(ang);
-      ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = 0.95;
-      ctx.beginPath();
-      ctx.moveTo(8, 0); ctx.lineTo(-4, -2.4); ctx.lineTo(-4, 2.4);
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#6fcf97'; ctx.globalAlpha = 0.8;
-      ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      // 命中溅射（末尾帧毒液四溅）
-      if (p > 0.85) {
-        const sp = (p - 0.85) / 0.15;
-        ctx.fillStyle = '#2e7d32'; ctx.globalAlpha = (1 - sp) * 0.7;
-        for (let k = 0; k < 5; k++) {
-          const a = k * 1.257 + f.t;
-          ctx.beginPath(); ctx.arc(f.tx + Math.cos(a) * sp * 9, f.ty + Math.sin(a) * sp * 7, 1.6, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
-  }
+  fxThorn(ctx, f) { return PoisonSkillFx.fxThorn(ctx, f); }
 
-  fxMine(ctx, f) {
-      // 炮·地雷（v1.16.22）：雷从塔口抛投（200px/s，飞行段为移动弹体+尾焰），落地后驻留闪烁（警示脉冲环+引信）
-      const flyDur = f.fly ? f.fly.dur : 0;
-      const flying = f.fly && f.t < flyDur;
-      const mx = flying ? f.fly.sx + (f.fly.tx - f.fly.sx) * (f.t / flyDur) : f.x;
-      const my = flying ? f.fly.sy + (f.fly.ty - f.fly.sy) * (f.t / flyDur) : f.y;
-      if (flying) {
-        // 飞行弹体：暗色雷弹 + 尾焰拖尾
-        ctx.fillStyle = '#5d4a2f';
-        ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#f39c12';
-        ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI * 2); ctx.fill();
-        const dir = Math.atan2(my - f.fly.sy, mx - f.fly.sx);
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#f39c12';
-        ctx.beginPath(); ctx.arc(mx - Math.cos(dir) * 10, my - Math.sin(dir) * 10, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.45;
-        ctx.beginPath(); ctx.arc(mx - Math.cos(dir) * 17, my - Math.sin(dir) * 17, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      } else {
-        // 驻留：警示脉冲环（外扩淡出，提示爆炸半径 100）+ 闪烁弹体 + 引信
-        const p = Math.min(1, (f.t - flyDur) / 20);
-        const blink = 0.6 + 0.4 * Math.sin(p * 22 + (f.seed || 0));
-        const pulse = (p * 2.1 + (f.seed || 0) / 10) % 1;
-        ctx.globalAlpha = (1 - pulse) * 0.35;
-        ctx.strokeStyle = '#f39c12'; ctx.lineWidth = 1.6;
-        ctx.beginPath(); ctx.arc(mx, my, 10 + pulse * 42, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = blink;
-        ctx.fillStyle = '#5d4a2f';
-        ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#b5651d'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(mx, my, 9, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#f39c12';
-        ctx.beginPath(); ctx.arc(mx, my, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#b5651d';
-        ctx.fillRect(mx - 1, my - 14, 2, 6);
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(p * 30 + (f.seed || 0));
-        ctx.fillStyle = '#ffd24a';
-        ctx.beginPath(); ctx.arc(mx, my - 13, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-  }
+  fxMine(ctx, f) { return this._getCannonFx().fxMine(ctx, f); }
 
-  fxTurret(ctx, f) {
-      // 炮·炮台（v1.16.10）：帧动画贴图——1 落地 / 2 成型 / 3 瞄准 / 4 开火
-      // 常态循环 1→2→3（1.2s 周期）；combat 开火时在 fx 上打 attackT（f.t 时刻），0.3s 内显示第 4 帧
-      const p = Math.min(1, f.t / f.dur);
-      const seed = f.seed || 0;
-      // 底座光环（部署确认圈，保留淡显）
-      ctx.globalAlpha = (0.22 + 0.14 * Math.sin(p * 6 + seed)) * Math.min(1, f.t / 0.4);
-      ctx.strokeStyle = '#d89e63'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(f.x, f.y - 2, 16, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 1;
-      const atk = f.attackT !== undefined && f.t - f.attackT < 0.3;
-      let frameIdx;
-      if (atk) {
-        frameIdx = 3;
-      } else {
-        const ph = (f.t / 1.2 + seed * 0.031) % 1;
-        frameIdx = Math.floor(ph * 3);
-      }
-      const fw = 34, fh = 36;
-      if (!drawImg(ctx, `assets/images/towers/fx/turret/turret${frameIdx + 1}.png`, f.x - fw / 2, f.y - 20, fw, fh)) {
-        // 贴图未加载回退：简化几何炮台（底座 + 摆动炮管）
-        const sway = Math.sin(p * 8 + seed) * 0.12;
-        ctx.fillStyle = '#7a5a30';
-        ctx.fillRect(f.x - 10, f.y - 8, 20, 16);
-        ctx.fillStyle = '#a06020';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.save();
-        ctx.translate(f.x, f.y - 8); ctx.rotate(sway);
-        ctx.fillStyle = '#c0392b';
-        ctx.fillRect(-2, -14, 5, 16);
-        ctx.restore();
-      }
-      // 开火瞬间炮口高亮（贴图第 4 帧叠加）
-      if (atk) {
-        ctx.globalAlpha = (0.8 - (f.t - f.attackT) * 2.6);
-        ctx.fillStyle = '#ffd24a';
-        ctx.beginPath(); ctx.arc(f.x, f.y - 8, 5 + (f.t - f.attackT) * 30, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-  }
+  fxTurret(ctx, f) { return this._getCannonFx().fxTurret(ctx, f); }
 
-  fxCyclone(ctx, f) {
-      // v1.16.21 风暴镖重做：三同心圈（不可见）沿圈旋转的十字飞镖，引用 combat 实时 darts（命中消失同步）
-      // v1.16.42 小镖改为十字飞镖：两片菱形刀刃交叉成十字，绕中心旋转
-      const darts = f.darts || [];
-      for (const d of darts) {
-        const px = f.x + Math.cos(d.a) * d.r;
-        const py = f.y + Math.sin(d.a) * d.r;
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(d.a);
-        ctx.globalAlpha = 0.28;
-        ctx.fillStyle = '#8e44ad';
-        ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        // 十字镖：两片菱形刀刃交叉（横/竖），紫底 + 白刃高光
-        const blade = (ang) => {
-          ctx.save(); ctx.rotate(ang);
-          ctx.fillStyle = '#c39bd3';
-          ctx.beginPath(); ctx.moveTo(0, -8.5); ctx.lineTo(3.2, 0); ctx.lineTo(0, 8.5); ctx.lineTo(-3.2, 0); ctx.closePath(); ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,0.85)';
-          ctx.beginPath(); ctx.moveTo(0, -8.5); ctx.lineTo(1.2, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
-          ctx.restore();
-        };
-        blade(0); blade(Math.PI / 2);
-        ctx.restore();
-      }
-  }
+  fxCyclone(ctx, f) { return BoomerangSkillFx.fxCyclone(ctx, f); }
 
   _getFireFx() {
     if (!this._fireFx) this._fireFx = createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimSheet });

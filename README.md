@@ -8,7 +8,7 @@
 
 ## 当前代码框架（2026-10-31）
 
-本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
+本节按当前代码维护，优先于后文历史批次中的“仍待分离/下一批”描述。核心战斗逻辑已完成R15拆分；R16已完成十一批界面/特效提取，当前重点是剩余表现层与Main职责整理。兼容入口继续保留，不以清空main.js/render.js为目标。
 
 ### 启动与运行关系
 
@@ -138,6 +138,8 @@ js/
       common.js                 飘字、命中、爆炸、粒子、扩散环、连线
       match.js                  星芒飞光、特殊块生成/引爆及五消表现
       fire.js                   火柱/火墙/火雨及程序化回退绘制
+      cannon.js                 炮击预警/炮弹、地雷、炮台绘制
+      poison.js / boomerang.js   毒藤/毒刺 / 风暴镖实体绘制
       firewall.js / firepillar.js 火墙/火柱资源、选帧和布局参数
       damage-numbers.js         伤害数字队列与格式化
       combat-feedback.js        命中反馈和伤害数字接入
@@ -172,12 +174,12 @@ js/
 
 协作按领域分配文件，不按人员复制整套逻辑。main.js/render.js/config.js属于共享集成入口，开工前核对当前改动；成员优先在独立模块交付。提交只包含本任务范围，禁止把他人素材或数值改动一并提交。
 
-### 本轮重构路线：8批目标已完成1批，预计剩余7批
+### 本轮重构路线：8批目标已完成2批，预计剩余6批
 
 | 顺序 | 内容 |
 |---|---|
 | 1（已完成） | 火柱、火墙、火雨特效绘制，已迁入fx/fire.js |
-| 2 | 其他塔专属特效：炮击、地雷、炮台、毒藤、旋风等 |
+| 2（已完成） | 炮击、地雷、炮台、毒藤/毒刺、旋风，已迁入fx/cannon、poison、boomerang |
 | 3 | 六塔普攻与连消弹道绘制 |
 | 4 | 怪物帧动画、Boss外观与异常状态绘制 |
 | 5 | 棋盘、交换/补落/扫描与障碍绘制 |
@@ -185,7 +187,7 @@ js/
 | 7 | Main职责整理：测试操作、圣遗物获取和结算协调 |
 | 8 | 依赖/数据隔离审计、必要回归和文档收口 |
 
-上表是本轮目标范围，第一项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
+上表是本轮目标范围，前两项已完成；其余批次可按复杂度调整；不包含八大功能待办，不继续为减少行数机械拆文件。场景调度、公共工具与兼容入口可以保留在Main/Renderer。
 
 ## 本地测试档
 
@@ -204,6 +206,7 @@ js/
 
 ```powershell
 node F:/workspace/towerdefence_share/tests/audit_runtime_boundaries.cjs
+node F:/workspace/towerdefence_share/tests/test_tower_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_fire_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_common_fx_split.cjs
 node F:/workspace/towerdefence_share/tests/test_match_fx_split.cjs
@@ -463,3 +466,8 @@ D资产路径迁移已落地：269张迁移素材逐文件SHA256与原位置一�
 ## R16第十批：火系技能特效绘制提取（2026-10-31）
 
 `js/game/fx/fire.js`接管火柱、火墙、火雨范围/落点，以及两种程序化回退，共6个绘制入口；Renderer保留同名委托。继续使用firepillar.js/firewall.js的资源、选帧、布局和粒子参数，素材加载及图集工具沿用宿主。固定a803f31基线1316组Canvas/渐变/事件只读对比通过，覆盖火柱TL/0.6秒边界、火墙12fps与错相/淡入淡出、火雨落地、缺图和兼容辅助入口。火塔周期496组、通用4482组、三消4382组、Main绘制及106个JS语法/依赖审计通过；伤害、周期、半径和队列逻辑未改。当前框架已同步，本轮8批目标已完成首批，剩余约7批；下一批为其他塔专属特效绘制。说明/测试保存在towerdefence_share。
+
+
+## R16第十一批：其他塔专属特效绘制提取（2026-10-31）
+
+`fx/cannon.js`接管炮击预警/升空落击、地雷与炮台4个handler，`fx/poison.js`接管毒藤/毒刺，`fx/boomerang.js`接管风暴镖实体绘制；Renderer保持7个同名入口和原事件分发。固定07a9f88基线1682组Canvas/事件只读/随机数调用次数顺序对比通过，覆盖炮弹隐藏窗口与offset、地雷落地、炮台攻击帧/缺图、毒刺随机粒子、旋转小镖。炮塔周期1952组、毒塔880组、风暴镖冷却、火系1316组、Main绘制及109个JS语法/依赖检查通过。技能数值、命中、周期与伤害时机未调整；本轮8批目标完成2批、剩余约6批。下一批为六塔普攻与连消弹道绘制；说明/测试在towerdefence_share。
