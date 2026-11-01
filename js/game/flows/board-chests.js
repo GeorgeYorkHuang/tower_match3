@@ -28,6 +28,8 @@ function schedule(g,steps){
 function reveal(g,entries){for(const p of entries||[]){const c=g.fieldChests.find(c=>c.id===p.id);if(c)c.hidden=false;}}
 function tick(g,dt){
   g.fieldChests=g.fieldChests.filter(c=>{
+    if(!c.stage){c.stage='ground';c.groundT=0;}
+    if(c.stage==='ground'){c.groundT+=dt;if(c.groundT>=UI.ground)c.stage='waiting';}
     c.retryT=Math.max(0,(c.retryT||0)-dt);
     if(c.stage==='toBoard'){
       c.flightT+=dt;
