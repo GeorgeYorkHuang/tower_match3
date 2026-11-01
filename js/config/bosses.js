@@ -15,11 +15,11 @@ altar_galvin: {
 },
 altar_vera: {
   id: 'altar_vera', field: 'ancient', wave: 60, tier: 'final', name: '裂坛圣母·薇拉',
-  hp: 1115500, armor: 0.35, attack: 360, speed: 1.05, genLv: 13,
+  hp: 1000000, armor: 0.35, attack: 360, speed: 1.05, genLv: 13,
   thresholds: [0.70, 0.35], phaseNames: ['播种', '庇护', '裂坛'], phaseStun: 0.5,
   spawnInterval: 0.16, standoffRatio: 0.80, edgeInset: 75,
   summonPeriod: 12, summonCount: 2, summonHp: 7800, summonLv: 14,
-  wardPeriod: 15, wardArmorStep: 0.25, wardArmorCap: 0.60, hasteMultiplier: 1.15,
+  wardPeriod: 15, wardArmorStep: 0.20, wardArmorCap: 0.55, hasteMultiplier: 1.15,
   riftPeriod: 8, riftWallRatio: 0.03, phaseSpeedMultiplier: 1.30,
   adds: [
     [...Array(8).fill(13), ...Array(12).fill(14)],

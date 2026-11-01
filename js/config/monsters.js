@@ -1,5 +1,6 @@
 // 怪物定义与波次规则。实例血量、位置、状态不得写入本表。
 'use strict';
+const BALANCE = require('./enemy-balance.js');
 module.exports = {
   WAVE: {
     seconds: 40,                // 波时长
@@ -23,9 +24,9 @@ module.exports = {
       { type: 'tank', hp: 2380, atk: 28, spd: 1.06, armor: 0.20 }, // Lv9
       { type: 'normal', hp: 1700, atk: 18, spd: 1.80, armor: 0.24 }, // Lv10
       { type: 'runner', hp: 1020, atk: 9, spd: 3.29, armor: 0.28 }, // Lv11
-      { type: 'tank', hp: 3700, atk: 36, spd: 1.12, armor: 0.32 }, // Lv12
-      { type: 'normal', hp: 2650, atk: 24, spd: 1.91, armor: 0.36 }, // Lv13
-      { type: 'runner', hp: 1560, atk: 12, spd: 3.60, armor: 0.40 }, // Lv14
+      { type: 'tank', hp: 3700, atk: 36, spd: 1.12, armor: 0.28 }, // Lv12
+      { type: 'normal', hp: 2650, atk: 24, spd: 1.91, armor: 0.32 }, // Lv13
+      { type: 'runner', hp: 1560, atk: 12, spd: 3.60, armor: 0.34 }, // Lv14
     ],
     /** 超界等级（40 波后 Lv9+）：按 普→快→重 循环，同类型上一代 ×1.7 血量 / ×1.25 攻击 / 减伤 +4% */
     levelOf(n) {
@@ -98,22 +99,26 @@ module.exports = {
       if (hasBoss) hp += this.levelOf(main).hp * this.bossHpMult;
       return hp * (curseMult || 1);
     },
-    countForWave(w) { return 15 + Math.floor((w - 1) / 2) + Math.floor(w / 5) * 5; },
-    countPerWave: '15 + floor((wave-1)/2) + floor(wave/5)*5',          // 每波数量（实现时按表达式解析）
+    countForWave(w) {
+      const p = BALANCE.population;
+      return w <= p.introLast ? p.introBase + Math.floor((w - 1) * p.introStep)
+        : p.afterIntroBase + Math.floor((w - p.introLast) * p.perWave + 1e-9);
+    },
+    countPerWave: 'wave<=4 ? 15+floor((wave-1)*0.5) : 17+floor((wave-4)*1.4)',          // 规则说明；实际以countForWave为准
     bossEvery: 5,                          // 每 5 波 1 只 Boss（5,10,15...），掉宝箱
     bossHpMult: 8,                         // Boss 血量 = 主等级 ×8
     bossAtkMult: 11.25,                    // Boss 攻击 = 主等级 ×11.25
     bossArmor: 0.25,                       // Boss 自带 25% 减伤
-    elitePerWave: 1,                       // 每波固定 1 只精英怪（概率掉落圣物）
-    eliteHpMult: 4,                        // 精英血量 = 主等级 ×4
-    eliteAtkMult: 5,                       // 精英攻击 = 主等级 ×5
-    eliteArmor: 0.10,                      // 精英自带 10% 减伤
+    elitePerWave: 1,                       // 兼容旧字段；实际每20只怪替换1只精英
+    eliteHpMult: BALANCE.elite.hp,                        // 精英血量 = 主等级 ×3
+    eliteAtkMult: BALANCE.elite.attack,                       // 精英攻击 = 主等级 ×3
+    eliteArmor: BALANCE.elite.armor,                      // 精英自带6%减伤
     // 怪物种类（渲染/血条/速度系数基准；v1.17 血量/移速由 levels 直接定值，不再乘 hpMult/spdMult）
     types: {
       normal: { hpMult: 1.0, spdMult: 1.0 },
       runner: { hpMult: 0.6, spdMult: 1.8 },
       tank:   { hpMult: 2.8, spdMult: 0.6 },
-      elite:  { hpMult: 4.0, spdMult: 0.85, armor: 0.10 },  // v1.16.11 精英强化：血量 3→4 倍、自带 10% 减伤
+      elite:  { hpMult: BALANCE.elite.hp, spdMult: 0.85, armor: BALANCE.elite.armor },  // 精英血量/护甲与独立平衡配置同源
     },
     // 攻城攻击兜底（combat.js initEnemyState 使用；v1.17 生成值来自 levels.atk × 精英/Boss 倍率）
     attack: { normal: 8, runner: 4, tank: 18, boss: 90, elite: 40 },
