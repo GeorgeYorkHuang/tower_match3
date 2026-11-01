@@ -1,3 +1,4 @@
+const BoardChests = require('./board-chests.js');
 /**
  * board.js —— 三消棋盘核心逻辑（纯逻辑，无渲染依赖）
  * =====================================================================
@@ -105,7 +106,7 @@ Board.prototype.genBoard = function genBoard() {
     g[r] = [];
     for (let c = 0; c < this.cols; c++) g[r][c] = this._genCell(g, r, c);
   }
-  return g;
+  return BoardChests.preserve(this.grid, g);
 };
 
 /** 单个格子生成：避开左2/上2 造成的三连 */
@@ -442,7 +443,7 @@ Board.prototype.resolve = function resolve() {
     }
     // 播种落位（清空前原地替换，清空过程跳过这些格）
     plants.forEach(({ r, c, v }) => {
-      if (this.obstacles.some(p=>p[0]===r&&p[1]===c)) return;
+      if (this.obstacles.some(p=>p[0]===r&&p[1]===c) || BoardChests.isChest(this.grid[r][c])) return;
       this.grid[r][c] = v;
       stepPlanted.push({ r, c, s: v.s, color: v.c, sub: v.sub === true });
     });
@@ -450,15 +451,18 @@ Board.prototype.resolve = function resolve() {
     const clearedCells = [], clearedDetails = [];
     for (let r = 0; r < this.rows; r++)
       for (let c = 0; c < this.cols; c++)
-        if (toClear[r][c] && specialType(this.grid[r][c]) !== 'obstacle') {
+        if (toClear[r][c] && specialType(this.grid[r][c]) !== 'obstacle' && !BoardChests.isChest(this.grid[r][c])) {
           const piece = this.grid[r][c];
           clearedDetails.push({ r, c, color: cellColor(piece) || rainbowColorOf.get(r + ',' + c),
             rainbow: !!(piece && piece.s === 'rainbow') });
           this.grid[r][c] = null; cleared++; clearedCells.push([r, c]);
         }
+    const chestsCollected = BoardChests.collect(this.grid, clearedCells);
     this._movedCell = null;   // 交互落格仅对第一步四消生效
     this.gravity();
-    stepList.push({ matches, clearedCells, clearedDetails, gridAfter: this.grid.map((row) => row.slice()), gravityOrigins: this.gravityOrigins, planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells });
+    const step = { matches, clearedCells, clearedDetails, gridAfter: this.grid.map((row) => row.slice()), gravityOrigins: this.gravityOrigins, planted: stepPlanted, blasts: blastList, m5: m5Info, recolorCells, seedCells };
+    if (chestsCollected.length) step.chestsCollected = chestsCollected;
+    stepList.push(step);
     all.push(...matches);
   }
   this.stats.cascadeTotal += steps;
@@ -590,7 +594,7 @@ Board.prototype.trySwap = function trySwap(r1, c1, r2, c2) {
   if (!this.inRange(r1, c1) || !this.inRange(r2, c2)) return { ok: false };
   if (!this.adjacent(r1, c1, r2, c2)) return { ok: false };
   const a = this.grid[r1][c1], b = this.grid[r2][c2];
-  if (a === null || b === null || specialType(a) === 'obstacle' || specialType(b) === 'obstacle') return { ok: false };
+  if (a === null || b === null || specialType(a) === 'obstacle' || specialType(b) === 'obstacle' || BoardChests.isChest(a) || BoardChests.isChest(b)) return { ok: false };
   this.grid[r1][c1] = b; this.grid[r2][c2] = a;
   // v5.6.7 彩虹块与任意色块交换 → 该色全盘清除（无需形成普通三消组，resolve 消费 _rainbowSwapColor）
   const sa = this.grid[r1][c1], sb = this.grid[r2][c2];
@@ -634,7 +638,7 @@ Board.prototype.isSolvable = function isSolvable() {
       if (r + 1 < this.rows) pairs.push([r, c, r + 1, c]);       // 下
       for (const [r1, c1, r2, c2] of pairs) {
         const a = this.grid[r1][c1], b = this.grid[r2][c2];
-        if (a === null || b === null || specialType(a)==='obstacle' || specialType(b)==='obstacle') continue;
+        if (a === null || b === null || specialType(a)==='obstacle' || specialType(b)==='obstacle' || BoardChests.isChest(a) || BoardChests.isChest(b)) continue;
         this.grid[r1][c1] = b; this.grid[r2][c2] = a;
         const has = this.findMatches().length > 0;
         this.grid[r1][c1] = a; this.grid[r2][c2] = b; // 回滚

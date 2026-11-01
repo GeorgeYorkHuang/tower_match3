@@ -76,7 +76,7 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
           for (let c = 0; c < boardCols; c++) {
             if (!anim.cleared.has(r + ',' + c)) continue;
             const color = g0[r][c];
-            if (!color) continue;
+            if (!color || color.s === 'chest') continue;
             const cBase = (typeof color === 'object') ? (color.c || null) : color;   // v5.2 特殊块
             const x = boardX + c * cell + 2, y = boardY + r * cell + 2;
             const sz = (cell - 4) * (1 - fade * 0.35);
@@ -150,6 +150,14 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
   }
 
   function drawCell(ctx, x, y, cell, color, r, c, selected) {
+    if (color && color.s === 'chest') {
+      if (color.arriving && color.replaced) return this.drawCell(ctx,x,y,cell,color.replaced,r,c,selected);
+      const size=cell-4;
+      fillRoundRect(ctx,x,y,size,size,9,'#342b18');
+      strokeRoundRect(ctx,x+1,y+1,size-2,size-2,8,'#f5d17a',1.6);
+      if(!drawImg(ctx,IMG_SRC.chestClosed,x+3,y+3,size-6,size-6))text(ctx,'箱',x+size/2,y+size/2,26,'#f8da86','center');
+      return;
+    }
     if (color && color.s === 'obstacle') {
       const ice=color.theme==='frost';
       fillRoundRect(ctx,x,y,cell-4,cell-4,8,ice?'#29475d':'#49312c');

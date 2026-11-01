@@ -119,16 +119,6 @@ function dispatchTouch(game, p, version) {
       game.state = 'relicDetail'; // 详情查看中战斗暂停
       return true;
     }
-    // v1.16.74 战场宝箱：点击 → 开箱→飞向屏幕中心放大→弹圣物三选一；动画期间锁定其他战斗输入
-    for (let i = game.fieldChests.length - 1; i >= 0; i--) {
-      const c = game.fieldChests[i];
-      if (c.animT != null) continue; // 开箱/飞行动画播放中
-      if (Math.abs(p.x - c.x) < 66 && Math.abs(p.y - c.y) < 66) {
-        c.animT = 0; c.stage = 'open'; // 启动动画序列
-        game._chestBusy = true;
-        return true;
-      }
-    }
     // 战斗中点全局技能按钮直接释放，不打开说明弹层。
     const btns = game.renderer.globalBtns || [];
     for (const b of btns) {

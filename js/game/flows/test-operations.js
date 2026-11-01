@@ -9,6 +9,9 @@ module.exports = {
   enterTestField() {
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
+    this.fieldChests = [];
+    this._boardChestId = 0;
+    this._chestBusy = false;
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
     this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
     this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）

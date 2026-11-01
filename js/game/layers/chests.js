@@ -1,11 +1,20 @@
+const UI = require('../../config/board-chests.js');
 'use strict';
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
-// 仅绘制宝箱/金光/开箱飞行；寿命、点击和发奖仍由Main处理。
+// 仅绘制宝箱/金光/入盘与开箱飞行；领取和发奖由board-chests工作流处理。
 function createChestLayer({ drawImg, IMG_SRC }) {
   function fieldChests(ctx, list) {
     if (!list || !list.length) return;
     const now = Date.now();
     list.forEach((c) => {
+      if(c.stage==='board'||c.hidden)return;
+      if(c.stage==='toBoard'){
+        const p=Math.min(1,c.flightT/UI.flight),ease=1-Math.pow(1-p,3),size=UI.startSize+((c.cellSize||56)*UI.cellRatio-UI.startSize)*ease;
+        const x=c.fromX+(c.x-c.fromX)*ease,y=c.fromY+(c.y-c.fromY)*ease-Math.sin(p*Math.PI)*85;
+        ctx.save();ctx.shadowColor='#f8d680';ctx.shadowBlur=12;
+        if(!drawImg(ctx,IMG_SRC.chestClosed,x-size/2,y-size/2,size,size))text(ctx,'箱',x,y,30,'#f8d680','center');
+        ctx.restore();return;
+      }
       const s = 84;
       const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
       // v1.16.74 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
@@ -88,7 +97,7 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         }
       }
       // 点击提示（未开启时显示）
-      if (!opening) text(ctx, '点击开启', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
+      if (!opening && c.stage!=='ready') text(ctx, '飞入棋盘', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
     });
   }
   return { fieldChests };

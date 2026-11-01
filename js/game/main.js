@@ -1,3 +1,4 @@
+const BoardChests = require('./flows/board-chests.js');
 const EliteFx = require('./fx/elite.js');
 const BattleShop = require('../economy/battle-shop.js');
 const PickReroll = require('../economy/pick-reroll.js');
@@ -145,7 +146,8 @@ class GameMain {
     this.combat.reset();
     this._postPick = null;
     this.battleRelics = []; // v1.16.73：本局获得的圣物（状态栏圣遗物行展示前10个 + 点击查看详情）
-    this.fieldChests = [];  // v1.16.59：战场宝箱实体（怪物掉落，点击后开启圣物三选一）{x,y,t,kind}
+    this._boardChestId = 0;
+    this.fieldChests = [];  // v1.16.59：战场宝箱实体（飞入棋盘，相邻消除后沿用开箱三选一）{x,y,t,kind}
     this._chestBusy = false; // v1.16.74 宝箱开箱→飞行动画期间锁定战斗输入
     this.relicDetail = null;      // v1.16.73：本局圣遗物详情弹层 {page}（点击顶部状态栏圣遗物行打开，战斗暂停）
     this.relicDetailHits = {};    // 详情弹层命中区（close/prev/next）
@@ -293,21 +295,7 @@ class GameMain {
       const bdt = dt * this.runSpeed;
       this.dmgNumbers.step(bdt);
       if(!this.run.bossLock)this.waveTime += bdt;
-      // v1.16.74 战场宝箱生命周期：20s 未点击自动消失；点击后开箱(0.4s 四帧)→飞向屏幕中心放大(0.6s)→弹圣物三选一（全程 1s）
-      this.fieldChests = this.fieldChests.filter((c) => {
-        c.t += bdt;
-        if (c.animT != null) {
-          if (c.stage === 'fly') {
-            c.flyT += bdt;
-            if (c.flyT >= 0.6) { this.spawnRelicPick(); return false; } // 飞行到位 → 弹三选一
-          } else {
-            c.animT += bdt;
-            if (c.animT >= 0.4) { c.stage = 'fly'; c.flyT = 0; } // 开箱完成 → 飞向屏幕中心
-          }
-          return true; // 动画播放中不受 20s 消失计时影响
-        }
-        return c.t < 20;
-      });
+      BoardChests.tick(this, bdt);
       // 陆续投放本波敌人（非一次性同屏）
       this.wave.tick(bdt);
       this.stepEnemies(bdt);

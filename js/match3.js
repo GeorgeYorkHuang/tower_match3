@@ -1,3 +1,4 @@
+const BoardChests = require('./game/flows/board-chests.js');
 const MATCH_GLOW = require('./config/match-glow.js');
 const ComboFeedback = require('./game/combo-feedback.js');
 /**
@@ -15,9 +16,11 @@ class Match3Controller {
   /** 滑动到相邻格触发交换：有效则装配连锁动画并返回 true，无效返回 false */
   trySwap(r1, c1, r2, c2) {
     const g = this.game;
+    if (g._chestBusy) return false;
     const oldGrid = g.run.board.grid.map((row) => row.slice()); // 动画用：交换前的棋盘
     const ret = g.run.trySwap(r1, c1, r2, c2);
     if (!ret.ok) return false;
+    BoardChests.schedule(g, ret.stepList);
     g.swapped = true;
     g.selected = null;
     this._assemble(ret, oldGrid, r1, c1, r2, c2);
@@ -102,6 +105,7 @@ class Match3Controller {
     if (!cs.fired) cs.fired = new Set();
     if (cs.fired.has(cs.index)) return;
     cs.fired.add(cs.index);
+    BoardChests.reveal(g, cs.steps[cs.index].chestsCollected);
     ComboFeedback.show(g, cs.steps[cs.index], cs.index + 1);
     for (const shot of (cs.chainShotsByStep || [])[cs.index] || []) {
       if (shot.kind === 'charge') {
@@ -238,6 +242,7 @@ class Match3Controller {
       m.cells.forEach(([r, c]) => { if (colorOf[r + ',' + c] === undefined) colorOf[r + ',' + c] = m.color; });
     });
     cells.forEach(([r, c]) => {
+      if (src && src[r] && src[r][c] && src[r][c].s === 'chest') return;
       const color = colorOf[r + ',' + c] || (src && src[r] ? src[r][c] : null);
       g.fx.push({
         type: 'match',
