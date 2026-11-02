@@ -73,7 +73,7 @@ module.exports = {
       lose: { accent: '#ff6b6b', soft: 'rgba(231,76,60,0.20)', dim: 'rgba(231,76,60,0.16)', btn: '#3a6ea5' },
     },
     RARITY: { r: '#4aa3ff', sr: '#a86bff', ssr: '#f7c948' },   // v1.17.22 大卡边框/胶囊用，先登记
-    TRAIL: { x0: 70, x1: 680, lineY: 404, waveMax: 50, nodeR: 10, endR: 14, flagH: 34, labelGap: 34 },
+    TRAIL: { x0: 70, x1: 680, lineY: 404, waveMax: 60, nodeR: 10, endR: 14, flagH: 34, labelGap: 34 },
     // 时间轴关键帧（ms），与计划文档「六、动画时间轴」一致
     // v1.17.48 旗帜/轨迹段放慢近一倍：已走段生长 380→720，里程碑旗逐个亮起 60→120ms 间隔，
     //   末端与后续账单按新节奏顺延（末节点完成 ≈1.36s，整场演出 2.16→2.72s，仍有「点击跳过」）
@@ -88,10 +88,16 @@ module.exports = {
   MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
 
   KILL_DROP: {
-    eliteShardChance: 0.25,           // 精英掉碎片概率
-    eliteShardMax: 2,                 // 精英掉落数量 1~2
-    bossShardBase: 4,                 // Boss 基础碎片
-    bossShardBonusChance: 0.5,        // Boss 50% 概率额外 +2
+    miniBossChestChance: 0.5,         // 每5波小Boss战斗宝箱掉率50%
+    majorBossChestChance: 1,          // 每20波大Boss战斗宝箱掉率100%
+    eliteShardChance: 0.05,           // 精英5%概率掉1片
+    miniBossShardChance: 0.20,        // 每5波小Boss20%概率掉碎片
+    miniBossShardMin: 2,
+    miniBossShardMax: 4,
+    majorBossShardBase: 2,            // 每20波大Boss保底2片
+    majorBossShardBonusChance: 0.5,   // 50%概率额外掉3~6片
+    majorBossShardBonusMin: 3,
+    majorBossShardBonusMax: 6,
     rarityWeight: { r: 0.60, sr: 0.32, ssr: 0.08 },  // 碎片稀有度权重
     // v1.17 击杀银币（随代际等级成长）：单怪 = (5~10 浮动) × 等级系数 × 类型倍率 × 战场银币倍率
     // 等级系数 goldLevelMult(lv) = 1 + 0.125×(lv-1)：Lv1=1.0（5~10）→ Lv9=2.0（10~20）→ Lv10=2.125
@@ -212,3 +218,4 @@ for (const domain of [
     module.exports[key] = domain[key];
   }
 }
+

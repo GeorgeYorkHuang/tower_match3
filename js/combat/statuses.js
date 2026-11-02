@@ -96,26 +96,43 @@ function applyBleed(combat, e, dmg) {
   combat.fxParticle(e.x, e.y - 8, '#c0392b', 3, 18, 0.4, 70, 4);
 }
 
-function applySlow(combat, e, mult, ttl) {
+function applySlow(combat, e, mult, ttl, source) {
   // v1.16.114 冰川1★/2★：所有减速效果的幅度提升 15%/20%
   mult *= (1 + combat.relicVal('ice_glacier') / 100);
   // v1.16.114 凝霜1★/2★：减速持续时间延长 1/1.5 秒（与凝霜3★ 同口径）
   ttl += combat.relicVal('ice_condense');
+  // v1.17.43 UR 霜风之眼1★/2★：所有控制类效果时长 +20%/+30%
+  ttl *= (1 + combat.relicVal('ur_frost_eye') / 100);
   // v1.16.98 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
   if (combat.game.run.relic3('ice_glacier')) {
     const n = ((e.slow && e.slow.ttl > 0) ? 1 : 0) + (e.frozen > 0 ? 1 : 0) + ((e._vineT || 0) > 0 ? 1 : 0);
     if (n > 0) mult = Math.min(COMBAT_BALANCE.glacierSlowCap, mult * (1 + 0.08 * n));
   }
-  if (!e.slow || e.slow.ttl <= 0) e.slow = { mult: 1, ttl };
-  else e.slow.ttl = Math.max(e.slow.ttl, ttl);
-  e.slow.mult = 1 - mult;
+  const key = source === 'ice' ? '_iceSlow' : '_genericSlow';
+  const visualKey = source === 'ice' ? '_iceSlowT' : '_genericSlowT';
+  let appliedTtl = ttl;
   // v1.16.98 凝霜3★：冰缓持续时间延长 1 秒
-  if (combat.game.run.relic3('ice_condense')) e.slow.ttl += 1;
+  if (combat.game.run.relic3('ice_condense')) appliedTtl += 1;
+  const state = e[key];
+  if (!state || state.ttl <= 0) e[key] = { mult: 1 - mult, ttl: appliedTtl };
+  else { state.mult = 1 - mult; state.ttl = Math.max(state.ttl, appliedTtl); }
+  e[visualKey] = e[key].ttl;
+  refreshSlow(e);
+}
+
+// Ice slow and other slows are separate statuses; their speed ratios multiply.
+function refreshSlow(e) {
+  const parts = [e._genericSlow, e._iceSlow].filter((s) => s && s.ttl > 0);
+  if (!parts.length) { e.slow = null; return; }
+  e.slow = {
+    mult: parts.reduce((value, s) => value * s.mult, 1),
+    ttl: Math.max(...parts.map((s) => s.ttl)),
+  };
 }
 
 function freezeE(combat, e, dur) {
   if (e.immuneFreeze) return;
-  const d = (e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever');   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s
+  const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever')) * (1 + combat.relicVal('ur_frost_eye') / 100);   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s；v1.17.43 UR 霜风之眼：控制时长 +20%/+30%
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
   // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
@@ -230,14 +247,18 @@ function tickBaseStatus(combat, e, dt) {
       }
     }
   }
-  // 回旋镖·猎手标记（v1.16.42）：标记持续 5 秒，到期清零
+  // （回旋镖·猎手标记已于 2026-11-01 删除；_mark 状态字段保留，供可能复用的标记类机制使用）
   if (e._markT > 0) { e._markT -= dt; if (e._markT <= 0) { e._mark = 0; e._markT = 0; } }
   // 控制
   if (e.frozen > 0) e.frozen -= dt / (e.controlResist || 1);
   if (e.paralyzed > 0) e.paralyzed -= dt;
-  if (e.slow) { e.slow.ttl -= dt / (e.controlResist || 1); if (e.slow.ttl <= 0) e.slow = null; }
+  const slowDt = dt / (e.controlResist || 1);
+  if (e._iceSlow) { e._iceSlow.ttl -= slowDt; if (e._iceSlow.ttl <= 0) e._iceSlow = null; }
+  if (e._genericSlow) { e._genericSlow.ttl -= slowDt; if (e._genericSlow.ttl <= 0) e._genericSlow = null; }
+  e._iceSlowT = e._iceSlow ? e._iceSlow.ttl : 0;
+  e._genericSlowT = e._genericSlow ? e._genericSlow.ttl : 0;
+  refreshSlow(e);
   if (e.corrode) { e.corrode.ttl -= dt; if (e.corrode.ttl <= 0) e.corrode = null; }
-  if (e.overload) { e.overload.ttl -= dt; if (e.overload.ttl <= 0) e.overload = null; }
   // 流血（v1.16.12，回旋镖普攻）：随移动距离结算——每累计移动 100px 跳一次伤害
   if (e.bleedT > 0) {
     e.bleedT -= dt;
@@ -252,4 +273,4 @@ function tickBaseStatus(combat, e, dt) {
   }
 }
 
-module.exports = { dotBoost, applyBurn, applyPoison, poisonStack, applyBleed, applySlow, freezeE, hasDot, tickBaseStatus };
+module.exports = { dotBoost, applyBurn, applyPoison, poisonStack, applyBleed, applySlow, refreshSlow, freezeE, hasDot, tickBaseStatus };

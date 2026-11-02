@@ -1,5 +1,14 @@
 'use strict';
 const CHAIN_STYLE = require('../../config/chain-flight.js');
+const BoomerangTrajectory = require('../../combat/boomerang-trajectory.js');
+const BOOMERANG_PROJECTILE = 'assets/images/towers/fx/boomerang/boomerang_purple.png';
+const CANNONBALL_PROJECTILE = 'assets/images/towers/fx/projectiles/cannonball_round.png';
+const SMALL_BOOMERANG_PROJECTILE = 'assets/images/towers/fx/boomerang/boomerang_storm_bounce_purple.png';
+const LINE_PROJECTILES = {
+  fire: 'assets/images/towers/fx/projectiles/fire_projectile.png',
+  ice: 'assets/images/towers/fx/projectiles/ice_projectile.png',
+  poison: 'assets/images/towers/fx/projectiles/poison_projectile.png',
+};
 // 只读弹道事件与实时projectile/ref；移动、碰撞、追踪和命中结算仍归Combat。
 // ly由每次调用传入，避免缓存过期布局或游戏实例。
 function createProjectileFx({ drawImg }) {
@@ -16,7 +25,7 @@ function createProjectileFx({ drawImg }) {
     }
 
       // 塔攻击弹道：line=直线弹（火球/冰锥/毒液，按塔 key 区分形状）、bolt=闪电折线（电）、
-      // arc=往返弧线回旋镖（回旋镖）、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
+      // arc=二次 Bézier 抛物线回旋镖、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
       // v1.5：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
       let endX = f.tx, endY = f.ty;
       if ((f.kind === 'line' || f.kind === 'bolt') && !f.aim && f.target && f.target.hp > 0) {
@@ -27,7 +36,58 @@ function createProjectileFx({ drawImg }) {
       const p = Math.min(1, f.t / f.dur);
       const x = f._flightPos ? f._flightPos.x : f.x + (endX - f.x) * p;
       const y = f._flightPos ? f._flightPos.y : f.y + (endY - f.y) * p;
-      if (f.kind === 'bolt') {
+      if (f.kind === 'shatterShell' || f.kind === 'fragmentBomb') {
+        // 碎裂弹专属弹体：金色分裂核心与分段尾焰，和普攻抛物线炮弹区分。
+        const mini = f.kind === 'fragmentBomb';
+        const size = mini ? 0.62 : 1;
+        const ang = Math.atan2(endY - f.y, endX - f.x);
+        const spin = f.t * (mini ? 10 : 6);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(ang + spin * 0.12);
+        ctx.scale(size, size);
+        // 尾焰由三段金橙色光痕组成，强化“蓄势后碎裂”的弹体识别。
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = '#ff8c32'; ctx.lineWidth = mini ? 12 : 19;
+        ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-34 - 10 * (1 - p), 0); ctx.stroke();
+        ctx.globalAlpha = 0.72;
+        ctx.strokeStyle = '#ffb64d'; ctx.lineWidth = mini ? 5 : 8;
+        ctx.beginPath(); ctx.moveTo(-12, -1); ctx.lineTo(-28 - 8 * (1 - p), -1); ctx.stroke();
+        ctx.globalAlpha = 0.82;
+        ctx.strokeStyle = '#fff0b0'; ctx.lineWidth = mini ? 2 : 3;
+        ctx.beginPath(); ctx.moveTo(-12, 1); ctx.lineTo(-22 - 6 * (1 - p), 1); ctx.stroke();
+        // 六角装甲弹体与亮色裂纹核心。
+        ctx.globalAlpha = 0.38;
+        ctx.fillStyle = '#ffb43f';
+        ctx.beginPath(); ctx.arc(0, 0, mini ? 17 : 25, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+        const rx = mini ? 12 : 18, ry = mini ? 9 : 13;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = i * Math.PI / 3;
+          const px = Math.cos(a) * rx, py = Math.sin(a) * ry;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = '#3e3429'; ctx.fill();
+        ctx.lineWidth = mini ? 2 : 2.8; ctx.strokeStyle = '#d89136'; ctx.stroke();
+        // 中心的高热裂纹，随飞行进度脉冲变亮。
+        const pulse = 0.72 + 0.28 * Math.sin(f.t * 24);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = mini ? '#ffd36a' : '#fff0a0';
+        ctx.beginPath(); ctx.arc(2, 0, mini ? 4.2 : 6.2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = '#fff1b0'; ctx.lineWidth = mini ? 1.5 : 2;
+        ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(1, -1); ctx.lineTo(-2, 3); ctx.lineTo(5, 5); ctx.stroke();
+        // 引信火点位于弹头，保持飞行方向清晰。
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.arc(rx - 1, 0, mini ? 2 : 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff4c2'; ctx.beginPath(); ctx.arc(rx, 0, mini ? 1 : 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.lineCap = 'butt';
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      } else if (f.kind === 'bolt') {
         // v1.16.49 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
         // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
         // v1.16.52 末端吸附：p ≥ 0.9 时弹头/闪电条终点直接贴合目标中心——fx 在 t ≥ dur 时即被移除、
@@ -65,18 +125,9 @@ function createProjectileFx({ drawImg }) {
         ctx.globalAlpha = 1;
         ctx.lineCap = 'butt';
       } else if (f.kind === 'arc') {
-        // 回旋镖 v1.9：椭圆大弧（塔出发 → 越过怪物最远点 → 继续绕回塔，非折返）
+        // 回旋镖：二次 Bézier 出程经过锁定目标，回程沿弧顶另一侧继续绕回。
         //         镖体重绘为双翼回旋镖造型 + 高速自旋
-        const arcPos = (ff, pp) => {
-          const dx = ff.tx - ff.x, dy = ff.ty - ff.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          const cxn = dx / dist, cyn = dy / dist;
-          const arcH = 160, a = dist / 2 + 20;
-          const cx = ff.x + cxn * (dist / 2), cy = ff.y + cyn * (dist / 2);
-          const ang = Math.PI + Math.PI * 1.9 * pp;
-          const cs = Math.cos(ang), sn = Math.sin(ang);
-          return { x: cx + a * cs * cxn - arcH * sn * cyn, y: cy + a * cs * cyn + arcH * sn * cxn };
-        };
+        const arcPos = (ff, pp) => BoomerangTrajectory.position({ sx: ff.x, sy: ff.y, tx: ff.tx, ty: ff.ty, cx: ff.cx, cy: ff.cy, rcx: ff.rcx, rcy: ff.rcy }, pp);
         const pos = f._flightPos || arcPos(f, p);
         const bx = pos.x, by = pos.y;
         // v1.12.4 完全去掉弧线轨迹（不画任何路线/拖尾，只保留镖头旋转飞行）
@@ -92,29 +143,13 @@ function createProjectileFx({ drawImg }) {
         // 巨镖（v1.10）：体积放大 1 + 0.30/级
         const lg = f.large || 0;
         const sc = 1 + 0.30 * lg;
-        // 镖体圆盘（半透明底）
+        // 使用从四款方案图中提取的右下紫色风刃原图；旋转、大小与轨迹仍由弹道控制。
         ctx.save();
         ctx.translate(bx, by);
         ctx.rotate(ang + spin);
         ctx.scale(sc, sc);
-        ctx.globalAlpha = 0.28;
-        ctx.fillStyle = f.color;
-        ctx.beginPath(); ctx.arc(0, 0, 27, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        // L 形回旋镖（v1.10 重绘：两臂夹角 120°）
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = f.color; ctx.lineWidth = 20;
-        ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(0, 0); ctx.lineTo(-20, 34.6); ctx.stroke();
-        // 高光线（内芯）
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.moveTo(32, 0); ctx.lineTo(0, 0); ctx.lineTo(-15, 26); ctx.stroke();
-        ctx.lineCap = 'butt';
+        drawImg(ctx, BOOMERANG_PROJECTILE, -20, -20, 40, 40);
         ctx.restore();
-        // 中心旋转闪光
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
         // v1.16.35 折返段强化外辉：飞回阶段（p>=0.5）镖身金白外辉，仅学「折返增伤」技能时显示（不再无条件亮）；镖阵（ring）紫金光晕
         if ((f.fold && p >= 0.5) || f.ring) {
           const glowCol = f.ring ? '#c39bd3' : '#ffe08a';
@@ -331,6 +366,46 @@ function createProjectileFx({ drawImg }) {
       } else if (f.kind === 'orb') {
         // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
         const o = f.ref || f;
+        if (o.ballLightning) {
+          // 球形闪电：逐渐淡出的电离路径 + 带旋转电弧的高亮雷球，移动和攻击时都保持清晰可见。
+          if (o.trail && o.trail.length > 1) {
+            for (let i = 1; i < o.trail.length; i++) {
+              const a = o.trail[i - 1], b = o.trail[i];
+              ctx.globalAlpha = 0.52 * Math.max(0, 1 - Math.max(a.age, b.age) / (o.trailDuration || 1));
+              ctx.strokeStyle = '#8feaff'; ctx.lineWidth = 5;
+              ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+              ctx.globalAlpha *= 0.75; ctx.strokeStyle = '#fff5b5'; ctx.lineWidth = 1.8;
+              ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+          }
+          const phase = Date.now() / 75 + o.x * 0.035;
+          const pulse = 1 + 0.16 * Math.sin(phase * 0.75);
+          ctx.save();
+          ctx.translate(o.x, o.y);
+          ctx.globalAlpha = 0.32; ctx.fillStyle = '#54dcff';
+          ctx.beginPath(); ctx.arc(0, 0, 24 * pulse, 0, Math.PI * 2); ctx.fill();
+          // 不规则电弧环
+          ctx.rotate(phase * 0.22);
+          ctx.strokeStyle = '#a8f5ff'; ctx.lineWidth = 2.2; ctx.globalAlpha = 0.95;
+          for (let k = 0; k < 5; k++) {
+            const a = phase + k * Math.PI * 2 / 5;
+            const r0 = 9 * pulse, r1 = 16 * pulse, r2 = 23 * pulse;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+            ctx.lineTo(Math.cos(a + 0.16) * r1, Math.sin(a + 0.16) * r1);
+            ctx.lineTo(Math.cos(a - 0.08) * r2, Math.sin(a - 0.08) * r2);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1; ctx.fillStyle = '#e8fbff';
+          ctx.beginPath(); ctx.arc(0, 0, 10.5 * pulse, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#ffe978'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(0, 0, 15 * pulse, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.arc(-3, -4, 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          return;
+        }
         ctx.fillStyle = '#f4d03f'; ctx.globalAlpha = 0.3;
         ctx.beginPath(); ctx.arc(o.x, o.y, 13, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
@@ -343,30 +418,25 @@ function createProjectileFx({ drawImg }) {
         ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x - dirX * 12, o.y - dirY * 12); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === 'bounce') {
-        // v1.16.21 弹力镖（原镖阵重做）：十字飞镖自旋紫光，引用 combat.shots 实时位置与朝向
+        // 弹力镖小飞镖：使用三刃绿色回旋镖图标，引用 combat.shots 实时位置并自旋。
         const o = f.ref || f;
-        const spin = f.t * 8;
+        const spin = f.t * 16;
         ctx.save();
         ctx.translate(o.x, o.y);
         ctx.rotate(spin);
-        ctx.globalAlpha = 0.25;
-        ctx.fillStyle = f.color || '#c39bd3';
-        ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = f.color || '#c39bd3'; ctx.lineWidth = 7;
-        ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(13, 0); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(0, 13); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(9, 0); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, 9); ctx.stroke();
-        ctx.lineCap = 'butt';
+        const drawn = drawImg(ctx, SMALL_BOOMERANG_PROJECTILE, -15, -13, 30, 26);
+        if (!drawn) {
+          ctx.globalAlpha = 0.25;
+          ctx.fillStyle = f.color || '#c39bd3';
+          ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.lineCap = 'round'; ctx.strokeStyle = f.color || '#c39bd3'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(12, 0); ctx.moveTo(0, -12); ctx.lineTo(0, 12); ctx.stroke();
+          ctx.lineCap = 'butt';
+        }
         ctx.restore();
-        ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.8;
-        ctx.beginPath(); ctx.arc(o.x, o.y, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
       } else if (f.kind === 'mortar') {
-        // 抛物线炮弹（炮塔）：高弧下坠 + 黑壳弹体 + 出膛口焰 + 火焰尾迹 + 落地爆炸冲击波
+        // 抛物线炮弹（炮塔）：高弧下坠 + 圆形铁球 + 出膛口焰 + 火焰尾迹 + 落地爆炸冲击波
         const arcH = 46;
         const mx = f._flightPos ? f._flightPos.x : f.x + (f.tx - f.x) * p;
         const my = f._flightPos ? f._flightPos.y : f.y + (f.ty - f.y) * p - arcH * Math.sin(Math.PI * p);
@@ -381,7 +451,7 @@ function createProjectileFx({ drawImg }) {
           ctx.globalAlpha = 1;
         }
         // 炮弹弹体（v1.16.21 美化：沿飞行方向的长胶囊炮弹 + 膛线自旋纹 + 弹头引信亮点 + 尾部曳光）
-        const rot = Math.atan2(my - f.y, mx - f.x);
+        const rot = Math.atan2(my - f.y, mx - f.x) + f.t * 4.5;
         ctx.save();
         ctx.translate(mx, my);
         ctx.rotate(rot);
@@ -399,26 +469,15 @@ function createProjectileFx({ drawImg }) {
         ctx.fillStyle = f.color; ctx.globalAlpha = 0.35;
         ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
-        // 炮弹本体（长胶囊：头部圆 + 柱身）
-        ctx.fillStyle = '#4a3b2e';
-        ctx.beginPath(); ctx.ellipse(0, 0, 16.5, 7.5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#2b2118';
-        ctx.beginPath(); ctx.ellipse(0, 0, 13, 5.8, 0, 0, Math.PI * 2); ctx.fill();
-        // 弹头（前方亮部，拉长 + 引信橙光）
-        ctx.fillStyle = '#5c4a38';
-        ctx.beginPath(); ctx.ellipse(8, 0, 8.5, 5.2, 0, -Math.PI / 2, Math.PI / 2); ctx.fill();
-        ctx.fillStyle = '#ff8c42';
-        ctx.beginPath(); ctx.arc(13.5, 0, 2.6, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffe08a'; ctx.globalAlpha = 0.85;
-        ctx.beginPath(); ctx.arc(13.5, 0, 1.2, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        // 高光弧（左上）
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.beginPath(); ctx.ellipse(4, -3, 7, 2, 0, 0, Math.PI * 2); ctx.fill();
-        // 膛线自旋纹（两条斜纹）
-        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.3;
-        ctx.beginPath(); ctx.moveTo(-7, -4); ctx.lineTo(-2, 4); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(3, -4); ctx.lineTo(8, 4); ctx.stroke();
+        // 圆形实心铁球，保留自旋；贴图尚未载入时以圆球绘制回退。
+        if (!drawImg(ctx, CANNONBALL_PROJECTILE, -17, -17, 34, 34)) {
+          const ball = ctx.createRadialGradient(-6, -7, 2, 0, 0, 18);
+          ball.addColorStop(0, '#8f8170'); ball.addColorStop(0.55, '#4a3b2e'); ball.addColorStop(1, '#17130f');
+          ctx.fillStyle = ball; ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#b77b37'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.ellipse(0, 0, 15, 5, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = 'rgba(255,230,180,0.75)'; ctx.beginPath(); ctx.arc(-6, -7, 2.4, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.restore();
         // 尾迹火星（下降段更多）
         for (let i = 0; i < 3; i++) {
@@ -457,7 +516,19 @@ function createProjectileFx({ drawImg }) {
           ctx.globalAlpha = 1;
         }
       } else {
-        // 直线弹（火球/冰锥/毒液）：弹体形状按塔 key 区分（放大 1.5）+ 辉光 + 渐变拖尾 + 命中火花
+        // 火、冰、毒普攻使用各自的透明弹体图；贴图加载前沿用原程序绘制作为即时回退。
+        const spriteSrc = LINE_PROJECTILES[f.key];
+        let spriteDrawn = false;
+        if (spriteSrc) {
+          const dims = { fire: [56, 34], ice: [56, 34], poison: [56, 32] }[f.key];
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(Math.atan2(endY - f.y, endX - f.x) + 0.60);
+          spriteDrawn = drawImg(ctx, spriteSrc, -dims[0] * sc / 2, -dims[1] * sc / 2, dims[0] * sc, dims[1] * sc);
+          ctx.restore();
+        }
+        if (!spriteDrawn) {
+        // 回退：直线弹（火球/冰锥/毒液）程序绘制。
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(Math.atan2(endY - f.y, endX - f.x));
@@ -531,12 +602,15 @@ function createProjectileFx({ drawImg }) {
           ctx.beginPath(); ctx.arc(-3.4 * sc, -3.4 * sc, 4.05 * sc, 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
+        }
         // 拖尾（外辉 + 亮线）
+        if (!spriteDrawn) {
         ctx.strokeStyle = f.color; ctx.lineWidth = 9; ctx.globalAlpha = (1 - p) * 0.22;
         ctx.beginPath(); ctx.moveTo(x - 45, y); ctx.lineTo(x - 9, y); ctx.stroke();
         ctx.strokeStyle = f.color; ctx.lineWidth = 4.5; ctx.globalAlpha = (1 - p) * 0.6;
         ctx.beginPath(); ctx.moveTo(x - 36, y); ctx.lineTo(x - 9, y); ctx.stroke();
         ctx.globalAlpha = 1;
+        }
         // 命中火花（末端随目标实时位置）
         if (p >= 0.92) {
           ctx.globalAlpha = Math.max(0, (1 - p) * 10);

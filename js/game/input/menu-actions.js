@@ -4,6 +4,8 @@ const CONFIG = require('../../config.js');
 const GlobalSkills = require('../../global-skills.js');
 const AccountMenu = require('../account.js');
 
+const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
+
 // Menu hit priority, purchase/equip actions and modal routing. No renderer dependency.
 function onMenuTap(game, p) {
     if (game.menuPanel) {
@@ -94,6 +96,11 @@ function onMenuTap(game, p) {
           game.toast(`${purchased ? '已解锁并配置' : '已配置'} · ${nm}`, '#a86bff');
           return;
         }
+        // 局外商店商品详情弹窗：确认购买
+        if (ptype === 'shopDetail' && it.key === 'shopBuy' && it.hit(p.x, p.y)) {
+          confirmShopBuy(game);
+          return;
+        }
       }
       // v1.17.45：globalPage 翻页键已下架（全局面板改为视口内惯性滚动，触摸由 panel-scroll.js 处理）
       return; // 面板打开时忽略底层按钮
@@ -181,41 +188,52 @@ function onMenuTap(game, p) {
           game.menuPanel = { type: 'starUp' };
           return;
         case 'shopShard': {
-          // 每日碎片精选：金币购买碎片（0 点刷新）
+          // 每日碎片精选：点击图标 → 详情弹窗 + 确认购买（0 点刷新）
           const d = it.data;
-          const res = game.meta.buyShardOffer(d);
-          if (!res.ok) { game.toast('金币不足', '#ff6b6b'); return; }
-          game.save.save();
-          game.toast(`获得 ${d.icon}${d.name} 碎片 ×${d.shards}`, '#7ef0a3');
+          const def = CONFIG.relicRunDef(d.relic) || { name: d.relic, icon: '📿' };
+          const rar = CONFIG.relicRarity(d.relic) || 'r';
+          game.menuPanel = {
+            type: 'shopDetail', kind: 'shard',
+            item: {
+              name: def.name || d.name, icon: def.icon || d.icon, rar,
+              color: CONFIG.GO.RARITY[rar] || '#4aa3ff',
+              desc: def.desc || '',
+              price: d.price, shards: d.shards, relic: d.relic,
+            },
+          };
           return;
         }
         case 'shopChest': {
-          // 圣遗物宝箱：金币购买随机碎片（每日限购）
-          const res = game.meta.buyShopChest(it.data.key);
-          if (!res.ok) {
-            if (res.reason === 'limit') game.toast('今日次数已用完，明天再来', '#ff6b6b');
-            else if (res.reason === 'gold') game.toast('金币不足', '#ff6b6b');
-            return;
-          }
-          game.save.save();
-          game.menuPanel = { type: 'chestOpen', mode: 'shop',
-            tier: ({ blue: 'bronze', purple: 'silver', gold: 'gold' })[it.data.key],
-            gain: { shardDetail: Object.fromEntries(res.gains.map(g => [g.id, g.n])) }, openedAt: Date.now() };
-          game.menuHits = []; // 防止旧商店命中区被连续点击重复购买。
-
+          // 圣遗物宝箱：点击图标 → 详情弹窗 + 确认购买（每日限购）
+          const cd = CONFIG.SHOP_CHEST[it.data.key];
+          if (!cd) return;
+          const rar = cd.rarities[0];
+          game.menuPanel = {
+            type: 'shopDetail', kind: 'chest',
+            item: {
+              name: cd.name, icon: cd.icon, color: cd.color, key: cd.key,
+              price: cd.price, left: game.meta.shopChestLeft(cd.key),
+              rarName: RAR_NAME[rar] || rar.toUpperCase(),
+              desc: `随机开启 ${cd.shards.join('~')} 个${RAR_NAME[rar] || rar.toUpperCase()}色稀有度圣遗物碎片`,
+            },
+          };
           return;
         }
         case 'shopSkill': {
-          // 技能解锁：金币购买技能（解锁后可在主页配置面板选用）
+          // 技能解锁：点击图标 → 详情弹窗 + 确认购买（解锁后可在主页配置面板选用）
           const d = it.data;
-          if (game.meta.skillUnlocked(d.slot, d.id)) { game.toast('该技能已解锁', '#9fb2c3'); return; }
-          const res = game.meta.unlockSkill(d.slot, d.id);
-          if (!res.ok) { if (res.reason === 'gold') game.toast('金币不足', '#ff6b6b'); return; }
-          game.save.save();
           const def = (d.slot === 'global')
             ? (d.id === 'shuffle' ? CONFIG.GLOBAL_SKILL.shuffleSkill : CONFIG.GLOBAL_SKILL.refillSkill)
             : (CONFIG.MATCH_SKILL[d.slot].find((x) => x.id === d.id) || {});
-          game.toast(`解锁技能 · ${def.name || d.id}`, '#7ef0a3');
+          game.menuPanel = {
+            type: 'shopDetail', kind: 'skill',
+            item: {
+              name: def.name || d.id, icon: def.mark || def.icon || '✦',
+              color: def.color || '#ffb84d', desc: def.desc || '',
+              price: CONFIG.SKILL_UNLOCK.price[d.slot], slot: d.slot, id: d.id,
+              owned: game.meta.skillUnlocked(d.slot, d.id),
+            },
+          };
           return;
         }
         case 'relicUp': {
@@ -274,4 +292,43 @@ function onMenuTap(game, p) {
       }
     }
 }
+
+// 局外商店详情弹窗的确认购买：按 kind 分发到对应业务，成功后关窗 / 进入开箱演出
+function confirmShopBuy(game) {
+  const pnl = game.menuPanel;
+  const item = pnl && pnl.item;
+  if (!item) return;
+  if (pnl.kind === 'shard') {
+    const res = game.meta.buyShardOffer({ relic: item.relic, shards: item.shards, price: item.price });
+    if (!res.ok) { game.toast('金币不足', '#ff6b6b'); return; }
+    game.save.save();
+    game.toast(`获得 ${item.icon} ${item.name} 碎片 ×${item.shards}`, '#7ef0a3');
+    game.menuPanel = null;
+    return;
+  }
+  if (pnl.kind === 'chest') {
+    const res = game.meta.buyShopChest(item.key);
+    if (!res.ok) {
+      if (res.reason === 'limit') game.toast('今日次数已用完，明天再来', '#ff6b6b');
+      else if (res.reason === 'gold') game.toast('金币不足', '#ff6b6b');
+      return;
+    }
+    game.save.save();
+    game.menuPanel = { type: 'chestOpen', mode: 'shop',
+      tier: ({ blue: 'bronze', purple: 'silver', gold: 'gold' })[item.key],
+      gain: { shardDetail: Object.fromEntries(res.gains.map(g => [g.id, g.n])) }, openedAt: Date.now() };
+    game.menuHits = [];
+    return;
+  }
+  if (pnl.kind === 'skill') {
+    if (game.meta.skillUnlocked(item.slot, item.id)) { game.toast('该技能已解锁', '#9fb2c3'); return; }
+    const res = game.meta.unlockSkill(item.slot, item.id);
+    if (!res.ok) { if (res.reason === 'gold') game.toast('金币不足', '#ff6b6b'); return; }
+    game.save.save();
+    game.toast(`解锁技能 · ${item.name}`, '#7ef0a3');
+    game.menuPanel = null;
+    return;
+  }
+}
+
 module.exports = { onMenuTap };

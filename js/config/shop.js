@@ -3,6 +3,7 @@
 module.exports = {
   reroll: { first: 500, step: 500 },
   store: {
+    repeatPurchaseCooldown: 5,
     items: [
       { id: 'atk', name: '战意药剂', desc: '伤害+30%20秒', cost: [180], max: 0, duration: 20, damage: 0.3, color: '#ffb76e' },
       { id: 'spd', name: '疾风药剂', desc: '攻速+30%20秒', cost: [160], max: 0, duration: 20, speed: 0.3, color: '#a4e9c5' },

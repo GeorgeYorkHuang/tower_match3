@@ -59,9 +59,9 @@ function createCodexScreen(deps) {
     fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
     fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
     text(ctx, colorName(k), dx + 30, dy + 44, 38, '#ffffff', 'left');
-    // 3 行属性：伤害/攻速/射程 —— 每行 = 属性名 + 胶囊进度条（固定满值）+ 数值（v1.16.110 耗能移出改胶囊）
+    // 3 行属性：单发攻击力/攻速/射程 —— 每行 = 属性名 + 胶囊进度条 + 数值
     const statCols = [
-      { name: '伤害', val: T.baseDps, cap: 100, txt: `${T.baseDps}/s` },
+      { name: '攻击力', val: T.baseDps * T.atkInterval, cap: 100, txt: `${Math.round(T.baseDps * T.atkInterval)}/发` },
       { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${(1 / T.atkInterval).toFixed(1)}发/s` },
       { name: '射程', val: T.range, cap: 1000, txt: `${T.range}` },
     ];
@@ -81,7 +81,7 @@ function createCodexScreen(deps) {
     const ecW = 190, ecH = 40, ecX = dx + dw - 30 - ecW, ecY = dy + 20;
     fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
     strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);
-    text(ctx, `⚡ 耗能 ${enV}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 19, '#f4d03f', 'center');
+    text(ctx, `⚡ 耗能 ${Number(enV).toFixed(2)}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 19, '#f4d03f', 'center');
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
     // v1.16.128 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）

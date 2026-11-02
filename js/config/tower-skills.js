@@ -13,7 +13,7 @@ module.exports = {
                 dmg: [0, 0.3, 0.6, 0.9] },         // A 爆裂：爆炸伤害
     '多重火球': { count:5, damage:0.44, hitRadius:45, fanStep:0.08, splitDamage:0.25, splitDurationRatio:0.8, splitHitRadius:30, condense: [0, 0.15, 0.30, 0.50], // B 凝火：火球增伤
                 scatterSplit: [0, 3, 4, 5] },      // C 散射：分裂小火球数
-    '烈焰墙': { period:15, width:180, height:45, impactDamage:0.50, duration:6, tickInterval:0.5, slowDuration:0.6, range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
+    '烈焰墙': { period:15, width:220, height:45, impactDamage:0.50, duration:6, tickInterval:0.5, slowDuration:0.6, range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
                 dmg: [0, 0.2, 0.4, 0.6],           // A 神火：墙伤害
                 slow: [0, 0.1, 0.2, 0.3] },        // C 迟滞：墙内减速
     '火雨':   { period:12, baseRadius:140, waveDamage:0.24, baseWaves:3, waveGap:0.5, fallDuration:0.5, spawnWindow:0.1, radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
@@ -41,12 +41,12 @@ module.exports = {
                 heal: [0, 50, 100, 150] },         // C 融暖：结束回血
   },
   poison: {
-    '毒池': { period:5, radius:130, radiusPerBranch:0.2, damage:0.20, damagePerBranch:0.4, duration:4, durationPerBranch:2, stacksPerSecond:1 },
-    '毒棒': { period:4, minPeriod:1.5, periodReduction:0.5, count:1, duration:10, durationPerBranch:2, attackInterval:1, radius:200, damage:0.24, targets:1 },
+    '毒池': { period:5, radius:130, radiusPerBranch:0.2, damage:0.20, damagePerBranch:0.4, damageInterval:0.25, duration:4, durationPerBranch:2, stacksPerSecond:1 },
+    '毒棒': { period:4, minPeriod:1.5, periodReduction:0.5, count:2, duration:10, durationPerBranch:2, attackInterval:1, radius:200, damage:0.24, poisonChance:0.50, targets:1 },
     '毒藤': { period:6, targets:1, duration:3 },
     '剧毒':   { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, baseDuration:5, durationPerBranch:2, baseDamage:0.10, freq: [0, 0.1, 0.2, 0.3] },        // C 频发：每跳间隔缩减
     '毒性强化': { stackCap:5, stacksPerBranch:2, damage:[0.15,0.18,0.21,0.24], ttlAdd: [0, 2, 4, 6] },          // B 延毒：中毒时长
-    '瘟疫':   { speedMultiplier:0.8, slowDuration:1, defaultInterval:2, baseProbability:0.30, probabilityPerBranch:0.10, radius:50, radiusPerBranch:25, iv: [0, 2, 1.7, 1.5, 1.3] },   // A 快疫：传染判定间隔；C 强疫 = 0.30+0.10×C（30/40/50/60%）
+    '瘟疫':   { speedMultiplier:0.8, slowDuration:1, defaultInterval:2, baseProbability:0.50, probabilityPerBranch:0.10, radius:50, radiusPerBranch:25, iv: [0, 2, 1.7, 1.5, 1.3] },   // A 快疫：传染判定间隔；C 强疫 = 0.50+0.10×C（50/60/70/80%）
     '瘴气':   { wallOffset:50, halfHeight:20, heightPerBranch:0.2, tickInterval:2, stacksPerTick:1, dotMult: [0, 1.2, 1.3, 1.4],       // B 浓瘴：中毒 DoT 伤害倍率
                 atkCut: [0, 0.2, 0.35, 0.5] },     // C 弱化：瘴内中毒敌攻击削减
     '毒爆':   { targets:3, radius:200, inherit: [0, 0.30, 0.40, 0.50],    // B 继承：附带死亡层数概率
@@ -57,11 +57,17 @@ module.exports = {
   electric: {
     '活电': { count:5, countPerBranch:2, damage:0.5, damagePerBranch:0.2, duration:1.4, durationPerBranch:0.4, minSpeed:150, randomSpeed:80, speedMultiplier:1.3, angleJitter:0.9, turnJitter:3.2, hitRadius:34 },
     '连锁': { extraTargets:2, targetsPerBranch:1, decay:0.30, decayReductionPerBranch:0.2, cooldownRefundPerBranch:0.03 },
-    '电磁场': { probability:0.10, probabilityPerLevel:0.10, probabilityPerBranch:0.10, radius:110, damage:0.4, damagePerLevel:0.3, damagePerBranch:0.3, targets:1 },
-    '雷暴': { period:10, periodReductionPerBranch:1, targetCount:3, targetsPerBranch:2, damage:0.64, damagePerLevel:0.25, chainProbability:[0,0.30,0.45,0.60], chainRadius:90, chainDamage:0.5 },
-    '极光电击': { period:8, damage:0.80, damagePerBranch:0.20, branchRadius:100, radiusPerBranch:20, branchCount:3, branchDamage:0.4 },                     // 周期固定 8s（v1.16.51 分叉范围/数量由 A/C 分支内联）
-    '过载':   { stackCap:3, duration:2, triggerStacks:3, burstDamage:0.8, burstRadius:150, paralysisDuration:1.5, burstSlow:0.5, deton: [0, 0.20, 0.30, 0.40] },    // A 弹载：消耗层数伤害
-    '麻痹':   { spreadRadius:100, spreadDuration:1, spreadSlow:0.5, spreadDecay:0.05, baseProbability:0.20, learnedProbability:0.20, probabilityPerBranch:0.15, duration:2, durationPerBranch:0.5, slow:0.5, cond: [0, 0.20, 0.30, 0.40] },     // C 导电：邻近传导概率
+    '电磁过载': { skillDamageBase:0.15, skillDamagePerBranch:[0,0.15,0.25,0.35], energyPenaltyByBranch:[20,15,10,5],
+                  resonanceThreshold:0.60, resonanceDamage:[0,0.10,0.20,0.30] },
+    '导电': { baseChance:0.20, branchAChance:[0,0.30,0.40,0.50], chainDamage:0.30,
+              branchCChance:[0,0.20,0.40,0.60], branchCSlow:0.80, branchCSlowDuration:2 },
+    '雷暴': { period:10, periodReductionPerBranch:1, targetCount:3, targetsPerBranch:2, damage:0.64, damagePerLevel:0.25, paralysisChance:[0,0.30,0.50,0.70], chainRadius:90 },
+    '极光电击': { period:8, damage:0.80, damagePerBranch:0.20, branchRadius:100, radiusPerBranch:20, branchDamage:0.4, paralysisDuration:[0,1,2,3], paralysisSlow:0.5 }, // C 极电：麻痹并减速 1/2/3 秒
+    '球形闪电': { period:12, count:3, countPerBranch:[0,1,2,3], duration:6, damage:0.40, damagePerBranch:[0,0.10,0.20,0.30],
+                  damageRadius:60, damageInterval:1, paralysisDuration:2, paralysisSlow:0.5,
+                  moveSpeed:40, speedPerBranch:[0,50,60,70],
+                  trailStep:26, trailRadius:20, trailDuration:1.2, trailDamage:0.15, trailHitInterval:1 },
+    '麻痹':   { spreadRadius:100, spreadDuration:1, spreadSlow:0.5, spreadDecay:0.05, baseProbability:0.20, learnedProbability:0.20, probabilityPerBranch:0.15, duration:2, durationPerBranch:0.5, slow:0.5, cond: [0, 0.20, 0.30, 0.40] },     // C 传导：邻近传导概率
   },
   boomerang: {
     '折返增伤': { damage:0.65, damagePerBranch:0.25, slow:0.20, slowDuration:1 },
@@ -70,17 +76,21 @@ module.exports = {
     '风暴镖': { hitCooldown:0.3, hitRadius:14, period:12, damage:0.30, damagePerBranch:0.2, speedPerBranch:0.25, duration:3, rings:[{r:40,base:2.6},{r:80,base:-2.0},{r:120,base:2.4}], ringCounts:[4,6,8] },
     '弹力镖': { period:8, count:2, damage:0.60, damagePerBranch:0.25, bounces:10, bouncesPerBranch:5, duration:8, speed:400, hitRadius:30, spreadStep:0.5 },
     '接镖':   { speedPerBranch:0.20, catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（v1.16.42）
-    '猎手标记': { spreadRadius:100, stackCap:3, stacksPerBranch:2, markDur: 5,                      // 基础：标记持续秒
-                deep: [0, 0.08, 0.16, 0.24] },     // A 深镖：受标记敌人受伤加成
     '风痕':   { sampleDistance:32, maxTrails:240, duration:1.5, durationPerBranch:0.5, damage:0.30, damagePerBranch:0.3, radius:34, slow: [0, 0.10, 0.20, 0.30] },     // C 卷痕：风痕内减速
+    '风眼涡旋': { period:10, radius:120, radiusPerBranch:0.20, duration:2.5, pull:60, pullPerBranch:0.50, slow:0.20, slowDuration:0.4, endDamage:0.80, endDamagePerBranch:0.40 },   // 2026-11-01 新增：A 扩涡半径 / B 强涡牵引 / C 爆涡收尾伤害（减速固定 20%）
   },
   cannon: {
-    '重炮': { radius:100, radiusPerLevel:0.25, radiusPerBranch:0.15, splashDamage:0.40, damagePerBranch:0.15 },
+    '重炮': { radius:75, radiusPerLevel:25, radiusPerBranch:0.15, splashDamage:0.20, damagePerLevel:0.20, damagePerBranch:0.15 },
     '震击': { probability:0.40, probabilityPerBranch:0.20, knockback:60, knockbackPerBranch:0.4, slowDuration:0.5, slowDurationPerBranch:0.5 },
+    '双管齐射': { thirdShotChance:[0, 0.40, 0.60, 0.80], thirdShotDamage:0.60, energyReturnChance:[0, 0.30, 0.45, 0.60], energyReturn:1 },
     '炮火支援': { period:12, count:3, damage:0.60, damagePerBranch:0.4, radius:130 },
-    '炮台': { count:1, duration:8, durationPerBranch:2, attackInterval:0.9, damage:0.68, radius:100, radiusPerBranch:0.3, period:10, minPeriod:4, periodReductionPerBranch:1 },
-    '贯穿弹': { targets:2, damage:0.7, damagePerBranch:0.20, targetHalfHeight:60, targetHalfWidth:85, slowDuration:1, slow: [0, 0.15, 0.30, 0.45] },     // C 贯透：被贯穿减速
+    '炮台': { count:2, duration:8, durationPerBranch:2, attackInterval:1, attackIntervalPerBranch:-0.1, minAttackInterval:0.7, damage:0.40, splashDamage:0.30, radius:100, period:12, minPeriod:9, periodReductionPerBranch:1 },
+    '碎裂弹': { period:8, damage:0.70, radius:80, fragmentCount:3, fragmentAngles:[0, 45, 90], fragmentDistance:120, fragmentSpeed:400,
+                bounceDistance:50, bounceRadius:40, bounceDamage:[0, 0.40, 0.60, 0.80],
+                dotDuration:2, dotHits:[0, 4, 5, 6], dotDamage:0.17, dotSlow:0.20,
+                burnDuration:[0, 1, 2, 3], burnDps:0.34 },
     '地雷阵': { radius:100, damage:1.2, damagePerBranch:0.5, duration:20, period:6, count:3, countPerBranch:2, shards: [0, 5, 6, 7],              // C 碎雷：弹片数
                 shardR: 130, shardDmg: 0.30, shardSpeed: 500 }, // C 碎雷：范围/每片伤害/飞行速度
+    '军火库': { energyMax:30, fillPerBranch:0.25, startPerBranch:6, overThreshold:0.8, overPerBranch:0.10 },   // A 填充/ B 战备（每波开局能量）/ C 过剩（≥80%上限 普攻加伤）
   },
 };

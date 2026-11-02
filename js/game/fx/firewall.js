@@ -11,12 +11,16 @@ const ASSETS = {
   2: 'assets/images/towers/fx/firewall/anim_firewall_02.png',
   3: 'assets/images/towers/fx/firewall/anim_firewall_03.png',
   4: 'assets/images/towers/fx/firewall/anim_firewall_04.png',
+  5: 'assets/images/towers/fx/firewall/anim_firewall_05.png',
+  6: 'assets/images/towers/fx/firewall/anim_firewall_06.png',
+  7: 'assets/images/towers/fx/firewall/anim_firewall_07.png',
 };
 
-/** v1.17.17/18 帧动画参数：4 帧 512×160 透明底贴图，12fps 循环 */
-const N = 4;
+/** v1.17.30 帧动画参数：7 帧 512×160 透明底贴图，12fps 循环（v1.17.17/18 为 4 帧） */
+const N = 7;
 const FPS = 12;
-const AR = 160 / 512;
+/** v1.17.30 墙宽改 220px：AR 由 160/512 放大到 200/512，使火带高度贴合 45px 命中深 */
+const AR = 200 / 512;
 
 /** 错相循环选帧（同屏多面火墙不同步）：返回 1..N */
 function frameIndex(t, seed) {

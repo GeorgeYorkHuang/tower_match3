@@ -4,6 +4,7 @@ const GlobalSkills = require('../../global-skills.js');
 const GS_BALANCE = require('../../config/global-balance.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text, progressBar } = require('../ui.js');
 const L = CONFIG.LAYOUT;
+const EnergyCapsule = require('../energy-capsule.js');
 const CONFIG_BOSS = require('../../config/bosses.js').altar_galvin;
 // 场景组件只绘制与登记命中；Main仍决定层级，点击和技能释放仍归原路由。
 function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y, TOWER_ROW_Y, BOARD_Y }) {
@@ -53,7 +54,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
     this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
     // 棋盘（v1.17.29 传入 _shake 支持消除抖动）
-    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage);
+    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage, s.boardHint);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
     // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
@@ -114,6 +115,10 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
     this._speedBadge(ctx,spX,spY,spW,spH,s.runSpeed||1);
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
+    // v1.17.50 伤害统计按钮：怪物行动区左下角（与加速按钮对称）
+    const dsX = AREA_X + 16, dsY = WALL_Y - 8 - 66, dsW = 124, dsH = 66;
+    this._dmgStatBadge(ctx, dsX, dsY, dsW, dsH);
+    this.dmgStatHit = { hit: (px, py) => px >= dsX && px <= dsX + dsW && py >= dsY && py <= dsY + dsH };
   }
 
   function towerRow(ctx, s, count, showGlobal) {
@@ -146,13 +151,10 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
         // v1.17.45：去掉槽底 Lv 文字；等级由弹药柱条 + 塔本体表现
         // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
         const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
-        const bx = x + slotSize - 9;              // 槽内右侧竖条
+        const bx = x + slotSize - 17;
         const by0 = slotY + 8;
         const bh = slotSize - 16;
-        ctx.fillStyle = 'rgba(0,0,0,0.45)';
-        ctx.fillRect(bx, by0, 7, bh);
-        ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
-        ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
+        EnergyCapsule.draw(ctx, bx, by0, 13, bh, aRatio);
         // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
       }
       x += slotSize + slotGap;
@@ -215,6 +217,14 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     for(let i=0;i<2;i++){const cx=x+w/2-24+i*10,cy=y+h/2;ctx.beginPath();ctx.moveTo(cx-4,cy-7);ctx.lineTo(cx+3,cy);ctx.lineTo(cx-4,cy+7);ctx.stroke();}
     ctx.restore();text(ctx,'×'+speed,x+w/2+18,y+h/2,22,accent,'center');
   }
-  return { actionArea, wall, funcBar, towerRow, _globalBtn, _speedBadge };
+
+  /** v1.17.50 伤害统计按钮（行动区左下角） */
+  function _dmgStatBadge(ctx,x,y,w,h) {
+    fillRoundRect(ctx,x,y,w,h,12,'rgba(38,46,58,0.55)');
+    strokeRoundRect(ctx,x,y,w,h,12,'rgba(255,255,255,0.14)',1.5);
+    text(ctx,'📊',x+30,y+h/2,30,'#99c8d5','center');
+    text(ctx,'统计',x+68,y+h/2+1,24,'#d7dee6','center');
+  }
+  return { actionArea, wall, funcBar, towerRow, _globalBtn, _speedBadge, _dmgStatBadge };
 }
 module.exports = { createBattleScene };

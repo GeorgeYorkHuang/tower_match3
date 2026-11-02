@@ -2,6 +2,7 @@
 const Rosea = require('./rosea.js');
 const Galvin = require('./galvin.js');
 const Vera = require('./vera.js');
+const MiniBell = require('./minibell.js');
 // Runtime state belongs to Run and Enemy; this registry keeps no active game reference.
 function setup(director) {
   const run = director.game.run;
@@ -16,6 +17,7 @@ function spawn(g, e, id) { Rosea.spawn(g, e, id); Galvin.spawn(g, e, id); Vera.s
 function tick(g, dt) {
   if (g.run.bossEnemy && g.run.bossEnemy.bossId === 'altar_rosea') Rosea.tick(g, dt);
   Galvin.tick(g, dt); Vera.tick(g, dt);
+  MiniBell.tick(g, dt);   // v1.17.52 每 5 波小 Boss 圣坛蔓钟：敲钟召唤
 }
 function defeated(g) {
   if (g.run.bossEncounter) return g.run.bossEncounter.finished === true;

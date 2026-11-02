@@ -35,9 +35,48 @@ function createGroundLayer({ drawImg }) {
         ctx.globalAlpha = 1;
       });
     }
+    // v1.17.43 燃烧地面：6 帧贴图循环（150ms/帧 ≈ 0.9s 一轮）
+    // 炮台燃烧地面（cannonBurn）与火系余烬/焦土（key:'fire'）共用；焦土地面本体约占贴图宽 0.85、中心在 (0.495, 0.451)
+    const drawBurnPatch = (x, y, R, fade, seed) => {
+      const S = R * 2.35;
+      const fi = Math.floor(((tNow / 150 + seed * 0.037) % 1) * 6) % 6;
+      ctx.globalAlpha = fade;
+      const ok = drawImg(ctx, `assets/images/towers/fx/burnground/burnground${fi + 1}.png`, x - 0.495 * S, y - 0.451 * S, S, S);
+      ctx.globalAlpha = 1;
+      return ok;
+    };
     // 毒池（v1.16.1 深绿毒液池）/ 毒沼（v1.16.42 60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
     if (combat.groundDots && combat.groundDots.length) {
       combat.groundDots.forEach((gd) => {
+        if (gd.kind === 'cannonBurn' && gd.ttl > 0) {
+          const seed = gd.seed || 0;
+          const fade = Math.min(1, gd.ttl / 0.45);
+          if (drawBurnPatch(gd.x, gd.y, gd.r || 80, fade, seed)) return;
+          // 贴图未加载回退：原程序化橙黄火圈
+          const R = gd.r || 80;
+          const pulse = 1 + 0.035 * Math.sin(tNow / 120 + seed);
+          ctx.globalAlpha = 0.18 * fade;
+          const glow = ctx.createRadialGradient(gd.x, gd.y, R * 0.18, gd.x, gd.y, R * pulse);
+          glow.addColorStop(0, '#ffd36a'); glow.addColorStop(0.58, '#f28c28'); glow.addColorStop(1, 'rgba(210,70,25,0)');
+          ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(gd.x, gd.y, R * pulse, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.6 * fade; ctx.strokeStyle = '#ffad42'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(gd.x, gd.y, R * (0.84 + 0.025 * Math.sin(tNow / 170 + seed)), 0, Math.PI * 2); ctx.stroke();
+          for (let k = 0; k < 8; k++) {
+            const a = tNow / 420 + seed + k * Math.PI / 4;
+            const rr = R * (0.56 + 0.08 * Math.sin(tNow / 190 + k));
+            const fx = gd.x + Math.cos(a) * rr, fy = gd.y + Math.sin(a) * rr;
+            ctx.globalAlpha = (0.3 + 0.25 * Math.sin(tNow / 160 + k * 1.9)) * fade;
+            ctx.fillStyle = k % 2 ? '#ffd36a' : '#ff6d2d';
+            ctx.beginPath(); ctx.arc(fx, fy, 3 + 1.5 * Math.sin(tNow / 130 + k), 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+          return;
+        }
+        // v1.17.43 火系地面余烬/焦土（炮火支援C焦土、火柱余烬、火系击杀爆炸）：此前无视觉，补上共用帧动画
+        if (gd.key === 'fire' && gd.ttl > 0) {
+          drawBurnPatch(gd.x, gd.y, gd.r || 60, Math.min(1, gd.ttl / 0.5), gd.seed || 0);
+          return;
+        }
         if (gd.key !== 'poison' || gd.ttl <= 0) return;
         const seed = gd.seed || 0;
         const fade = Math.min(1, gd.ttl / 1.2); // 接近结束淡出
@@ -63,6 +102,16 @@ function createGroundLayer({ drawImg }) {
           ctx.globalAlpha = 1;
           return;
         }
+        // v1.17.42 毒池：6 帧毒液池贴图循环（240ms/帧 ≈ 1.44s 一轮），带呼吸缩放与结束淡出
+        const fi = Math.floor(((tNow / 240 + seed * 0.037) % 1) * 6) % 6;
+        const S = R * 2.1 * breathe; // 贴图主体约占框宽 95%，映射后可见直径 ≈ 2R
+        ctx.globalAlpha = fade;
+        if (drawImg(ctx, `assets/images/towers/fx/poisonpool/poisonpool${fi + 1}.png`, gd.x - S / 2, gd.y - S / 2, S, S)) {
+          ctx.globalAlpha = 1;
+          return;
+        }
+        ctx.globalAlpha = 1;
+        // 贴图未加载回退：程序化深绿液池（原 v1.16.1 绘制）
         // 外圈深绿液池
         ctx.fillStyle = '#145a32'; ctx.globalAlpha = 0.45 * fade;
         ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.62 * breathe, 0, 0, Math.PI * 2); ctx.fill();

@@ -28,15 +28,16 @@ const COMBAT_BALANCE = require('./config/combat-common.js');
  *       火：点燃 DoT（炽焰/炽热/余烬）/ 灼烧 / 火柱 / 大火球 / 爆燃（几率引爆+灼烧爆裂）/ 多重火球 / 烈焰墙 / 火雨（区域多段）
  *       冰：寒霜 / 冰冻 / 冰穿刺 / 多重冰锥 / 冰花 / 冬珠 / 碎冰 / 冰墙
  *       毒：剧毒 DoT / 扩散 / 毒爆 / 腐蚀 / 毒雾 / 瘟疫 / 致死 / 毒性强化
- *       电：连锁弹跳 / 麻痹 / 过载 / 极光电击 / 雷暴 / 活电 / 充能 / 电磁场
+ *       电：连锁弹跳 / 麻痹 / 球形闪电 / 极光电击 / 雷暴 / 活电 / 导电 / 电磁过载
  *       回旋镖：穿透 / 折返增伤 / 飞距 / 攻速 / 回收 / 双镖 / 暴击 / 范围回旋
  *       炮：溅射 / 重击 / 穿透弹 / 炮台座 / 震击 / 引信 / 弹幕 / 阵地加固
- *   - 敌人状态：灼烧/中毒 DoT、冰冻、麻痹、减速、腐蚀、连击/过载层数
+ *   - 敌人状态：灼烧/中毒 DoT、冰冻、麻痹、减速、腐蚀、连击
  *   - 协同：爆燃×毒爆、冰冻×连锁、炮溅射×火溅射（爆炸/连锁增伤）
  *
  * 运行环境：微信小游戏（CommonJS），纯逻辑无渲染；视觉仍由 game.fx 表现。
  */
 const CONFIG = require('./config.js');
+const EnergyState = require('./config/energy-state.js');
 
 /* =====================================================================
  * SKILL_NUM —— 技能行为数值表（重构 v1.16.43）
@@ -53,8 +54,11 @@ function initEnemyState(e) {
   e.frozen = 0;           // 冻结剩余秒（不能移动/攻击）
   e.paralyzed = 0;        // 麻痹剩余秒（不能攻击）
   e.slow = null;          // {mult, ttl} 减速
+  e._iceSlow = null;      // 冰塔冰缓独立状态（与其他减速乘区叠加）
+  e._genericSlow = null;  // 其他来源减速状态
+  e._iceSlowT = 0;
+  e._genericSlowT = 0;
   e.corrode = null;       // {mult, ttl} 受伤加深
-  e.overload = null;      // {n, ttl} 电过载层数
   e.hitCount = 0;         // 累计命中次数（电充能）
   e.lastDmgKey = null;    // 最近一次伤害来源塔
   // 攻城参数默认值兜底（手造敌人/旧数据）
@@ -115,16 +119,6 @@ class CombatSystem {
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
     // 回旋镖·接镖 A 已改为飞行速度提升（v1.16.5，见发射段 bDur），不再提供攻速加成
-    // 炮·双管齐射 C 速射：+12%/级（v1.16.14 军火库重做后不再提供攻速）
-    if (key === 'cannon') iv /= (1 + 0.12 * this.branchLv('cannon', '双管齐射', 'C'));
-    // 电·充能：命中累计攻速 +5%/层（上限 5×lv 层；A 扩容上限+5/级、B 快充每层+10%、C 共享全塔）
-    const charge = this.lv('electric', '充能');
-    if (charge > 0 && (key === 'electric' || this.branchLv('electric', '充能', 'C') > 0)) {
-      const e = this.tower('electric');
-      const cap = 5 * charge + 5 * this.branchLv('electric', '充能', 'A');
-      const layers = Math.min(cap, e ? e._chargeLayers || 0 : 0);
-      if (layers > 0) iv /= (1 + (0.05 + 0.05 * this.branchLv('electric', '充能', 'B')) * layers);
-    }
     // 圣物·疾风戒：全塔攻速 +8%/级
     const m = this.game.meta;
     const spdLv = (m && m.relicBonus && m.relicBonus().speed) || 0;
@@ -136,14 +130,19 @@ class CombatSystem {
     const TOWER_ASPD = { fire: 'fire_forge', ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
     const aspR = this.relicVal(TOWER_ASPD[key]);
     if (aspR > 0) iv /= (1 + aspR / 100);
+    // v1.17.43 疾电1★/2★：电塔攻击间隔缩短 8%/12%；3★：麻痹叠层每层 +10% 攻速（3 秒窗口，最多 2 层）
+    if (key === 'electric') {
+      const fR = this.relicVal('elec_fast');
+      if (fR > 0) iv /= (1 + fR / 100);
+      const hs = this.game.run._elecHaste;
+      if (hs && hs.ttl > 0 && hs.n > 0) iv /= (1 + 0.10 * hs.n);
+    }
     // 局内商店限时攻速乘区；购买次数不影响强度。
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
     if (store.speedMultiplier != null) iv /= store.speedMultiplier;
     else if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
-    // v1.16.101 快充3★：充能满层释放过载脉冲，全塔攻速 +20%（持续 3 秒，触发后清层重计）
-    if (this.game.run._elecPulseTtl > 0) iv /= 1.2;
     // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
     if (this.game.run._burnallTtl > 0) iv /= 1.25;
     return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1)) / Bosses.attackScale(this.game, key);
@@ -178,7 +177,7 @@ class CombatSystem {
   }
 
   /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径）；isSkill=true 表示技能/DoT 上下文（v1.16.96 全局充能3★ 技能伤加成只吃技能） */
-  shotDmg(key, isSkill) { return Damage.shotDmg(this, key, isSkill); }
+  shotDmg(key, isSkill, isTowerSkill) { return Damage.shotDmg(this, key, isSkill, isTowerSkill); }
 
   /** v1.16.77 周期技弱化倍率：塔能量耗尽 → 周期 ×1.5（伤害弱化已由 shotDmg 统一 ×0.5） */
   _weakPeriod(key) { return Linkage._weakPeriod(this, key); }
@@ -213,23 +212,46 @@ class CombatSystem {
 
   stepShot(s, dt) {
     const g = this.game;
+    const finishShot = () => {
+      if (s.visual) s.visual.t = s.visual.dur;
+      return false;
+    };
     s.t += dt;
     if (s.t < 0) return true;
+    // 碎裂弹锁定目标至其死亡；目标死亡后保留最后位置，继续飞行并在到点时分裂。
+    if (s.trackTarget && s.target && s.target.hp > 0 && g.enemies.includes(s.target)) {
+      s.tx = s.target.x; s.ty = s.target.y;
+      if (s.visual) { s.visual.tx = s.tx; s.visual.ty = s.ty; }
+    }
     if (s.chainFlight) return ChainFlight.advance(this, s, dt);
-    if (s.orb) return ElectricTower.stepOrb(this, s, dt);
+    if (s.orb || s.ballLightning) return ElectricTower.stepOrb(this, s, dt);
     if (s.bounce) return BoomerangTower.stepBounce(this, s, dt);
     if (s.scatter) {
-      // v1.13.13：无目标散射弹道——沿途真实碰撞，命中即结算并消失；射界尽头（dur 耗尽）未命中也消失
+      // 散射弹沿途碰撞；普通弹命中即消失，带穿透次数的弹命中后继续飞行。
       const hitE = this.scatterCheck(s);
       if (hitE) {
-        if (s.onHit) s.onHit(hitE, s.dmg);
-        return false;
+        if (s.pierceMaxHits) {
+          s._pierceHitSet = s._pierceHitSet || new Set();
+          s._pierceHitSet.add(hitE);
+          s.pierceHitCount = (s.pierceHitCount || 0) + 1;
+          const isLastPierceHit = s.pierceHitCount >= s.pierceMaxHits || !this.hasRemainingScatterTarget(s);
+          if (s.onHit) s.onHit(hitE, s.dmg, s, isLastPierceHit);
+          if (isLastPierceHit) return finishShot();
+          return true;
+        }
+        if (s.onHit) s.onHit(hitE, s.dmg, s, true);
+        return finishShot();
       }
       return s.t < s.dur;
     }
     if (s.t >= s.dur) {
       if (s.sweep) this.sweepDamage(s, dt);
+      else if (s.onReach) s.onReach(s);
       else this.resolveShot(s);
+      // v1.17.43 磁场3★：球形闪电的雷球游走结束时原地爆炸（60% 伤害，半径 80）
+      if (s.ballLightning && this.game.run.relic3('elec_magnet')) {
+        this.explode(s.x, s.y, 80, this.shotDmg('electric', false, true) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');   // v1.17.50 标注
+      }
       return false;
     }
     if (s.sweep) this.sweepDamage(s, dt);
@@ -257,6 +279,9 @@ class CombatSystem {
   /** 回旋镖·风痕推进：路径伤害区，C 卷痕减速 */
   updateWindTrails(dt) { return BoomerangTower.updateWindTrails(this, dt); }
 
+  /** 回旋镖·风眼涡旋推进（2026-11-01）：牵引聚敌 + 减速，结束收尾爆炸 */
+  updateVortexes(dt) { return BoomerangTower.updateVortexes(this, dt); }
+
   /* ---------- 敌人状态推进 ---------- */
   tickStatus(e, dt) {
     Statuses.tickBaseStatus(this, e, dt);
@@ -264,7 +289,7 @@ class CombatSystem {
   }
 
   /* ---------- 伤害结算 ---------- */
-  damage(e, dmg, srcKey, kind) { return Damage.damage(this, e, dmg, srcKey, kind); }
+  damage(e, dmg, srcKey, kind, skill) { return Damage.damage(this, e, dmg, srcKey, kind, skill); }   // v1.17.50 透传 skill（伤害统计）
 
   /* ---------- 死亡触发：各塔死亡技能（爆燃/毒爆/霜星/扩散/回收/致死） ---------- */
   onKill(e) { return Death.onKill(this, e); }
@@ -289,22 +314,23 @@ class CombatSystem {
 
   /** 散射弹道（无目标）沿途碰撞检测（v1.13.13）：按 t/dur 线性插值当前位置，命中半径内敌人返回该敌，未命中返回 null */
   scatterCheck(s) { return Projectiles.scatterCheck(this, s); }
+  hasRemainingScatterTarget(s) { return Projectiles.hasRemainingScatterTarget(this, s); }
 
-  /** 回旋镖轨迹点（v1.9）：椭圆大弧——镖从塔出发，划弧越过投掷方向最远点后继续绕回塔（非原路径折返） */
+  /** 回旋镖轨迹点：二次 Bézier 出程越过目标 200 码，之后沿另一侧抛物线绕回 */
   sweepPos(s, p) { return Projectiles.sweepPos(s, p); }
 
   /** 回旋镖沿途伤害（v1.16）：椭圆大弧扫过路径上的所有敌人，每敌单镖最多命中一次；折返 C 宽返吸附 +20%/级；风痕留痕 */
   sweepDamage(s) { return BoomerangTower.sweepDamage(this, s); }
 
   /**
-   * 普攻 debuff 统一判定（v1.16.53）：普攻与**普攻强化攻击**（电·连锁/活电/电磁场、火·多重火球、
+   * 普攻 debuff 统一判定（v1.16.53）：普攻与**普攻强化攻击**（电·连锁/活电、火·多重火球、
    *   冰·多重冰锥/碎冰、镖·多镖等）命中均走此判定——各塔基础 20% 概率，学对应 dot 强化技能后
    *   概率提升（公式与普攻一致：基础 20% + 技能 +25%[电·麻痹为 +20%] + A 分支每级 +15%）
    */
   tryAttackDebuff(key, o, dmg) { return Impacts.tryAttackDebuff(this, key, o, dmg); }
 
   /* ---------- 六塔命中行为 ---------- */
-  hit(key, e, dmg) { return Impacts.hit(this, key, e, dmg); }
+  hit(key, e, dmg, projectile) { return Impacts.hit(this, key, e, dmg, projectile); }
 
   /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
   /** v1.16.112 火塔普攻命中统一挂点（3★ 圣遗物）：hitFire 与多重火球 strike 共用，保证所有普攻路径生效
@@ -353,7 +379,7 @@ class CombatSystem {
    *   C 增殖分支保留：10/14/18 枚超小型冰锥各自索敌独立飞行 */
   _iceMultiShot(e, dmg) { return IceTower._iceMultiShot(this, e, dmg); }
 
-  hitIce(e, dmg) { return IceTower.hitIce(this, e, dmg); }
+  hitIce(e, dmg, projectile, options) { return IceTower.hitIce(this, e, dmg, projectile, options); }
 
   tickIce(dt) { return IceTower.tickIce(this, dt); }
 
@@ -361,7 +387,7 @@ class CombatSystem {
 
 
   /* ============ 电塔 ============ */
-  hitElectric(e, dmg) { return ElectricTower.hitElectric(this, e, dmg); }
+  hitElectric(e, dmg, projectile) { return ElectricTower.hitElectric(this, e, dmg, projectile); }
 
   tickElectric(dt) { return ElectricTower.tickElectric(this, dt); }
 
@@ -386,7 +412,7 @@ class CombatSystem {
   // ===== tickCannon =====
 
 
-  /* ============ 炮塔（v1.16 重做：重炮/震击/贯穿弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
+  /* ============ 炮塔（重炮/震击/碎裂弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg) { return CannonTower.hitCannon(this, e, dmg); }
 
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
@@ -396,7 +422,7 @@ class CombatSystem {
 
 
   /* ============ 回旋镖塔 ============ */
-  /* ============ 回旋镖塔（v1.16 重做：折返增伤/穿透/多镖/接镖/猎手标记/风暴镖/镖阵/风痕） ============ */
+  /* ============ 回旋镖塔（v1.16 重做：折返增伤/多镖/接镖/风暴镖/弹力镖/风痕/风眼涡旋；猎手标记 2026-11-01 删除） ============ */
   hitBoomerang(e, dmg) { return BoomerangTower.hitBoomerang(this, e, dmg); }
 
   /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
@@ -408,7 +434,8 @@ class CombatSystem {
 
 
   /* ============ 公共：状态 / 几何 / 通用 ============ */
-  applySlow(e, mult, ttl) { return Statuses.applySlow(this, e, mult, ttl); }
+  applySlow(e, mult, ttl, source) { return Statuses.applySlow(this, e, mult, ttl, source); }
+  refreshSlow(e) { return Statuses.refreshSlow(e); }
 
   /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
   freezeE(e, dur) { return Statuses.freezeE(this, e, dur); }
@@ -423,7 +450,7 @@ class CombatSystem {
 
   hasDot(e, type) { return Statuses.hasDot(e, type); }
 
-  explode(x, y, r, dmg, key, knock, slowAfter, exclude) { return Damage.explode(this, x, y, r, dmg, key, knock, slowAfter, exclude); }
+  explode(x, y, r, dmg, key, knock, slowAfter, exclude, skill) { return Damage.explode(this, x, y, r, dmg, key, knock, slowAfter, exclude, skill); }   // v1.17.50 透传 skill（伤害统计）
 
   /* ---------- 周期技（按塔分节：火/冰/电/毒/炮/回旋镖） ---------- */
   /** 周期技总入口（兼容旧调用/测试；update 已按塔直接调度） */

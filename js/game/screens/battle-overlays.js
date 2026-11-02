@@ -6,7 +6,7 @@ const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleOverlays({ fmtNum }) {
   function funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
-    const heights = { setting: 500, help: 900 };   // v1.16.89 帮助面板加高容纳大字号换行；v1.16.107 设置面板加声音开关行
+    const heights = { setting: 500, help: 1080 };   // 能量规则与宝箱交互说明扩充
     const hgt = heights[layer.type] || 560;
     const y = (LOGIC_H - hgt) / 2;
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
@@ -29,15 +29,16 @@ function createBattleOverlays({ fmtNum }) {
     } else if (layer.type === 'help') {
       // v1.16.89 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
       const lines = [
-        '1. 滑动相邻方块消除 3 连，获得对应颜色的塔并补充能量',
-        '2. 塔每次普攻消耗 0.5 能量；能量耗尽时伤害降为 50%，技能周期延长',
-        '3. 消除方块为塔升级，三选一强化技能（周期技能施放需消耗能量）',
-        '4. 怪物到达城墙后开始攻城，城墙持续掉血',
-        '5. 消灭一波全部怪物自动进入下一波；每 5 波有 Boss 镇守',
-        '6. Boss 与精英怪掉落宝箱，点击开启获得圣遗物三选一',
-        '7. 战斗中点底部功能条「商店」用局内银币购买本局临时强化',
-        '8. 局内银币在战斗结束统一结算为金币（招财符可加成）',
-        '9. 城墙血量归零即失败，注意防守',
+        '1. 滑动相邻方块消除 3 连，获得对应颜色的塔并为塔充能',
+        '2. 塔每次普攻消耗 0.5 能量；能量越高，攻击与攻速越强',
+        '3. 能量为 0：攻击力 30%，普攻间隔和周期技能冷却变为 2 倍',
+        '4. 能量低于 20 点：攻击力 60%，间隔和周期技能冷却变为 1.5 倍',
+        '5. 能量 20–40 点：攻击力逐步恢复至 100%，间隔与技能冷却恢复正常',
+        '6. 能量 40–90 点：攻击保持正常；90–100 点：攻击最高提升至 130%，间隔缩短至 70%',
+        '7. 塔槽右侧的纵向胶囊显示能量：低于 20 点红色，20–40 点红转绿，40–90 点绿色，90 点以上绿转蓝',
+        '8. 消灭精英或 Boss 掉落的宝箱会落地后飞入棋盘；消除宝箱上下左右相邻方块即可领取',
+        '9. 消除方块为塔升级，三选一强化技能；怪物抵达城墙后会持续攻城',
+        '10. 点底部「商店」购买本局临时强化；银币在战斗结束统一结算，城墙归零则失败',
       ];
       let hy = y + 90;
       lines.forEach((ln) => {
@@ -77,6 +78,69 @@ function createBattleOverlays({ fmtNum }) {
     hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续前进 · 正常进入下一波', { bg: '#3a6ea5', fontSize: 25 });
   }
 
-  return { funcLayer, evacuationLayer };
+  /** v1.17.50 伤害统计弹层：每塔总伤害 + 普攻/DOT + 各技能等级与伤害（数据 g.run.dmgStat） */
+  function dmgStatLayer(ctx, g, hits) {
+    const w = 640, x = (750 - w) / 2;
+    const stat = (g.run && g.run.dmgStat) || {};
+    const towers = (g.sceneState ? g.sceneState().towers : []) || [];
+    const skillLvOf = (key, name) => {
+      // 技能等级优先取槽内实装 level（v1.11 三选一状态）；无则回退分支最高+1 / combat.lv
+      const slot = towers.find((t) => t.key === key);
+      const sk = slot && slot.skills && slot.skills.find((q) => q && q.name === name);
+      if (sk) return sk.level != null ? sk.level : 1 + Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
+      if (g.combat && typeof g.combat.lv === 'function') return g.combat.lv(key, name);
+      return 0;
+    };
+    // 行模型：{ txt, val?, col, big? }——逐塔：头行 / 普攻·DOT / 技能行
+    const rows = [];
+    towers.forEach((slot) => {
+      if (!slot || !slot.key) return;
+      const s = stat[slot.key];
+      const name = slot.name || slot.key;
+      if (!s) { rows.push({ head: name, val: '0' }); return; }
+      rows.push({ head: name, lv: slot.level, val: fmtNum(Math.round(s.total)) });
+      rows.push({ sub: `普攻 ${fmtNum(Math.round(s.normal))} · DOT ${fmtNum(Math.round(s.dot))}` });
+      const skills = [];
+      Object.keys(s.skill).forEach((nm) => { if ((s.skill[nm] || 0) > 0) skills.push(nm); });
+      // 已激活但伤害为 0 的技能也展示（等级可见）；用槽内技能表补齐
+      if (slot.skills) slot.skills.forEach((sk) => { if (sk && sk.name && sk.level > 0 && !skills.includes(sk.name)) skills.push(sk.name); });
+      skills.sort();
+      skills.forEach((nm) => rows.push({ skill: nm, lv: skillLvOf(slot.key, nm), val: fmtNum(Math.round(s.skill[nm] || 0)) }));
+    });
+    // 面板高度预算：标题 74 + 关闭 64 + 行数 × 行高（头 34 / 子 20 / 技能 20），上限 780
+    const headH = 74, footH = 64;
+    const calc = (row) => (row.head ? 34 : row.sub ? 20 : 20);
+    const total = rows.reduce((a, r) => a + calc(r), 0);
+    const hgt = Math.min(headH + footH + total, 780);
+    const y = (LOGIC_H - hgt) / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.66)';
+    ctx.fillRect(0, 0, 750, LOGIC_H);
+    hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
+    fillRoundRect(ctx, x, y, w, hgt, 18, '#232a34');
+    strokeRoundRect(ctx, x, y, w, hgt, 18, '#3a6ea5', 3);
+    text(ctx, '本局伤害统计', 375, y + 52, 36, '#ffffff', 'center');
+    let yy = y + 92;
+    const bottom = y + hgt - footH - 12;
+    for (const r of rows) {
+      if (r.head) {
+        text(ctx, `${r.head}${r.lv != null ? ` Lv${r.lv}` : ''}`, x + 36, yy + 20, 24, '#ffd34d', 'left');
+        text(ctx, `总伤害 ${r.val}`, x + w - 36, yy + 20, 22, '#7ef0a3', 'right');
+        yy += 34;
+      } else if (r.sub) {
+        if (yy > bottom) break;
+        text(ctx, r.sub, x + 52, yy + 12, 17, '#8ea3b8', 'left');
+        yy += 20;
+      } else {
+        if (yy > bottom) break;
+        text(ctx, `⚡${r.skill} Lv${r.lv}`, x + 52, yy + 12, 17, '#d7dee6', 'left');
+        text(ctx, r.val, x + w - 36, yy + 12, 17, '#ffffff', 'right');
+        yy += 20;
+      }
+    }
+    hits.close = button(ctx, x + 150, y + hgt - 60, w - 300, 48, '关闭', { bg: '#3a6ea5', fontSize: 26 });
+  }
+
+  return { funcLayer, evacuationLayer, dmgStatLayer };
 }
 module.exports = { createBattleOverlays };
+

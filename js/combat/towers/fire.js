@@ -2,6 +2,11 @@
 // Fire attacks and impact callbacks. Mutable state stays on the supplied Combat/Run/Enemy.
 const CONFIG = require('../../config.js');
 const SKILL_NUM = require('../../config/tower-skills.js');
+const enemySize = require('../../enemy-size.js');
+
+function pillarFloorY(enemy) {
+  return enemy.y + enemySize(enemy, CONFIG.LAYOUT.enemy) * 0.34;
+}
 
 function _attackFireOnHit(combat, e, dmg) {
   const g = combat.game, run = g.run;
@@ -43,6 +48,8 @@ function _fireAttackOnAttack(combat) {
       const ftgt = alive[Math.floor(Math.random() * alive.length)];
       combat.pillarWaves = combat.pillarWaves || [];
       combat.pillarWaves.push({ t: 0.6, x: ftgt.x, y: ftgt.y, r: 120, dmg: combat.shotDmg('fire', true) * 1.2, ember: 0 });
+      // v1.17.36 分两层：地面火环画在怪物下层，柱体本体画在怪物上层
+      g.fx.push({ type: 'pillarBase', x: ftgt.x, y: pillarFloorY(ftgt), r: 120, t: 0, dur: 2.4, seed: Math.random() * 100 });
       g.fx.push({ type: 'pillar', x: ftgt.x, y: ftgt.y, r: 120, t: 0, dur: 2.4, seed: Math.random() * 100 });
       combat.fxParticle(ftgt.x, ftgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
     }
@@ -141,21 +148,20 @@ function _fireMultiShot(combat, e, dmg) {
       combat.fxFlash(o.x, o.y, '#ff9f43');
     }
   };
-  // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
-  const aim0 = aimOf(e, 0);
-  const baseAng = Math.atan2(aim0.ty - fsy, aim0.tx - fsx);
-  const strikeCenter = (o) => strike(o, perDmg, baseAng);
-  combat.addProjectile({ key: 'fire', target: e, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', target: e, scale: 1.35, tx: e.x, ty: e.y });
-  // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
+  // 主目标只负责给整轮齐射提供方向。中心弹和侧弹统一由同一循环创建、同帧发射、同速沿线碰撞，
+  // 因此每一枚火球命中时都会执行完全相同的基础命中、C 分裂和大火球联动。
   const maxOff = (n - 2) * balance.fanStep;   // 扇形半角（弧度）：5 枚 ±0.24 / 6 枚 ±0.32 / 7 枚 ±0.40
-  for (let i = 0; i < n - 1; i++) {
-    const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
+  const offsets = [];
+  for (let i = 0; i < n - 1; i++) offsets.push(n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0);
+  offsets.push(0); // 中心弹与侧弹走同一发射/命中路径；主目标仅决定此方向基准
+  offsets.sort((a, b) => a - b);
+  for (const off of offsets) {
     const ap = aimOf(e, off);
     const rayLen=Math.hypot(ap.tx-fsx,ap.ty-fsy)||1;
-    const reach=combat.range('fire');
-    ap.tx=fsx+(ap.tx-fsx)*reach/rayLen; ap.ty=fsy+(ap.ty-fsy)*reach/rayLen;
-    const strikeSide = (o) => strike(o, perDmg, Math.atan2(ap.ty - fsy, ap.tx - fsx));
-    combat.addProjectile({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
+    ap.tx=fsx+(ap.tx-fsx)*R/rayLen; ap.ty=fsy+(ap.ty-fsy)*R/rayLen;
+    const angle = Math.atan2(ap.ty - fsy, ap.tx - fsx);
+    const onHit = (o) => strike(o, perDmg, angle);
+    combat.addProjectile({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
   }
 }
 
@@ -265,7 +271,9 @@ function tickFire(combat, dt) {
         combat.pillarWaves = combat.pillarWaves || [];
         // v1.16.96 熔心3★：火柱结算时给中心目标上「火伤+15% 标记」（5s，叠2层）
         combat.pillarWaves.push({ t: pillarBalance.delay, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt });
-        // 火柱视觉：地上火圈标记 → 冲天圆柱火柱（帧动画，dur 2.4s 放慢一倍）
+        // 火柱视觉：地面火环（下层）→ 冲天火柱（上层，新 6 帧火龙卷）
+        // 地面环锚在目标脚下而非身体中心，避免被怪物主体完全盖住。
+        g.fx.push({ type: 'pillarBase', x: tgt.x, y: pillarFloorY(tgt), r: pR, t: 0, dur: pillarBalance.effectDuration, seed: Math.random() * 100 });
         g.fx.push({ type: 'pillar', x: tgt.x, y: tgt.y, r: pR, t: 0, dur: pillarBalance.effectDuration, seed: Math.random() * 100 });
         combat.fxParticle(tgt.x, tgt.y - 10, '#ffd24a', 4, 60, 0.5, 150, 5);
       }
@@ -276,7 +284,7 @@ function tickFire(combat, dt) {
       for (const wv of combat.pillarWaves) {
         wv.t -= dt;
         if (wv.t <= 0) {
-          combat.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire');
+          combat.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire', undefined, undefined, undefined, '火柱');   // v1.17.50 伤害统计标注
           // v1.16.96 熔心3★：命中目标受火伤 +15%（5s，可叠 2 层）
           if (g.run.relic3('fire_core') && wv.e && wv.e.hp > 0) {
             const coreN = Math.min(2, ((wv.e._core && wv.e._core.n) || 0) + 1);
@@ -284,7 +292,7 @@ function tickFire(combat, dt) {
           }
           if (wv.ember > 0) {
             combat.groundDots = combat.groundDots || [];
-            combat.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: combat.shotDmg('fire', true) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire' });   // 余烬 15%/级（C1 15%→C3 45%）
+            combat.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: combat.shotDmg('fire', true) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire', skill: '火柱' });   // 余烬 15%/级（C1 15%→C3 45%）；v1.17.50 标注
           }
         } else {
           remaining.push(wv);
@@ -293,7 +301,7 @@ function tickFire(combat, dt) {
       combat.pillarWaves = remaining;
     }
   }
-  // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长180px·宽45px·持续6s）
+  // 火·烈焰墙（v1.16.21 重做，替换原「火焰鹰眼」）：每 15 秒在最近怪物处释放可穿越火墙（长220px·宽45px·持续6s）
   //   释放瞬间对墙区域敌人造成 50% 攻击伤害（A 神火 +20/40/60%）；墙持续期间每 0.5s 灼烧 + C 迟滞减速 10/20/30%
   const wallBalance = SKILL_NUM.fire['烈焰墙'];
   const wall = combat.lv('fire', '烈焰墙');
@@ -318,7 +326,7 @@ function tickFire(combat, dt) {
         combat.enemies().forEach((o) => {
           if (o.hp > 0 && Math.abs(o.x - tgt.x) <= w / 2 && o.y >= tgt.y - h / 2 && o.y <= tgt.y + h / 2) {
             const out = !combat.inTowerRange('fire', o.x, o.y);
-            combat.damage(o, wDmg * (out ? tongue : 1), 'fire');
+            combat.damage(o, wDmg * (out ? tongue : 1), 'fire', undefined, '烈焰墙');   // v1.17.50 标注（墙持续灼烧走 applyBurn→DOT 桶）
           }
         });
         combat.fireWalls = combat.fireWalls || [];
@@ -344,7 +352,7 @@ function tickFire(combat, dt) {
                 combat.applyBurn(o, combat.shotDmg('fire', true) * (out && g.run.relic3('fire_tongue') ? 1.5 : 1), 'fire');
                 if (wl.cLv > 0) {
                   const sm = 1 - SKILL_NUM.fire['烈焰墙'].slow[wl.cLv];
-                  if (!o.slow || o.slow.mult > sm) o.slow = { mult: sm, ttl: wallBalance.slowDuration };
+                  if (!o._genericSlow || o._genericSlow.mult > sm) combat.applySlow(o, 1 - sm, wallBalance.slowDuration);
                 }
               }
             });
@@ -415,7 +423,7 @@ function tickFire(combat, dt) {
             const top = combat.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r)
               .sort((a, b) => b.y - a.y)[0];
             if (top) {
-              combat.damage(top, combat.shotDmg('fire', true) * 1.2, 'fire');
+              combat.damage(top, combat.shotDmg('fire', true) * 1.2, 'fire', undefined, '火雨');   // v1.17.50 天火3★归火雨
               combat.fxFlash(top.x, top.y, '#ffffff', 0.4);
               combat.fxRing(top.x, top.y, '#ff7043', 90, 0.5, 6);
               combat.fxParticle(top.x, top.y, '#ffd24a', 10, 80, 0.5, 180, 6);
@@ -423,11 +431,11 @@ function tickFire(combat, dt) {
           } else {
             combat.enemies().forEach((o) => {
               if (o.hp > 0 && Math.hypot(o.x - wv.px, o.y - wv.py) <= wv.r) {
-                combat.damage(o, wv.dmg, 'fire');
+                combat.damage(o, wv.dmg, 'fire', undefined, '火雨');   // v1.17.50 标注
                 combat.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
                 // v1.16.96 燃尽加速3★：火雨每波落地时，灼烧状态敌人额外小爆炸（50% 伤害，半径 80 码）
                 if (g.run.relic3('fire_hasten') && combat.hasDot(o, 'burn')) {
-                  combat.explode(o.x, o.y, 80, combat.shotDmg('fire', true) * 0.5, 'fire');
+                  combat.explode(o.x, o.y, 80, combat.shotDmg('fire', true) * 0.5, 'fire', undefined, undefined, undefined, '火雨');   // v1.17.50 标注
                 }
               }
             });

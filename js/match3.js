@@ -17,6 +17,7 @@ class Match3Controller {
   trySwap(r1, c1, r2, c2) {
     const g = this.game;
     if (g._chestBusy) return false;
+    g._boardIdleTime = 0; g.boardHint = null;
     const oldGrid = g.run.board.grid.map((row) => row.slice()); // 动画用：交换前的棋盘
     const ret = g.run.trySwap(r1, c1, r2, c2);
     if (!ret.ok) return false;
@@ -59,6 +60,10 @@ class Match3Controller {
    *  v5.6.5 时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
   update(dt) {
     const g = this.game;
+    if (g.state === 'fighting' && !g.anim && !g._chestBusy && !g.funcLayer && !g.relicPick && !g.pendingRelicPicks.length) {
+      g._boardIdleTime = (g._boardIdleTime || 0) + dt;
+      if (g._boardIdleTime >= 15 && !g.boardHint) { g.boardHint = g.run.board.findHintMove(); g._boardIdleTime = 0; }
+    } else if (g.anim || g.state !== 'fighting') { g._boardIdleTime = 0; if (g.state !== 'fighting') g.boardHint = null; }
     if (!g.anim || (g.state && g.state !== 'fighting' && g.state !== 'testfield')) return;
     const a = g.anim;
     a.progress += dt / (a.phase === 'swap' ? a.durSwap

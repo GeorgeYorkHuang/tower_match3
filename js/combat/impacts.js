@@ -26,7 +26,7 @@ function tryAttackDebuff(combat, key, o, dmg) {
     if (slowOK) {
       const mult = SKILL_NUM.ice['寒霜'].baseSlow + SKILL_NUM.ice['寒霜'].slowMult[combat.branchLv('ice', '寒霜', 'C')] + combat.relicVal('ice_spike') / 100;   // v1.16.114 霜刺1★/2★
       const ttl = SKILL_NUM.ice['寒霜'].duration + SKILL_NUM.ice['寒霜'].ttl[combat.branchLv('ice', '寒霜', 'B')];
-      combat.applySlow(o, mult, ttl);
+      combat.applySlow(o, mult, ttl, 'ice');
       combat.fxParticle(o.x, o.y, '#a9d6f5', 6, 50, 0.5, 80, 5);
     } else if (ext) {
       combat.freezeE(o, 0.3);
@@ -52,18 +52,17 @@ function tryAttackDebuff(combat, key, o, dmg) {
   }
 }
 
-function hit(combat, key, e, dmg) {
+function hit(combat, key, e, dmg, projectile = null) {
   const g = combat.game;
-  ElectricTower.onAnyTowerHit(combat, e);
 
   if (key === 'fire') combat.hitFire(e, dmg);
-  else if (key === 'ice') combat.hitIce(e, dmg);
+  else if (key === 'ice') combat.hitIce(e, dmg, projectile);
   else if (key === 'poison') combat.hitPoison(e, dmg);
-  else if (key === 'electric') combat.hitElectric(e, dmg);
+  else if (key === 'electric') combat.hitElectric(e, dmg, projectile);
   else if (key === 'boomerang') combat.hitBoomerang(e, dmg);
   else if (key === 'cannon') combat.hitCannon(e, dmg);
 
-  // 命中计数（电·充能）
+  // 累计命中次数（击杀/圣遗物等效果使用）
   e.hitCount++;
   // 命中特效：按塔类型爆发专属粒子（v1.13.2 增强：数量更多 + 命中冲击环 + 双色火花）
   const HIT_FX = { fire: '#ff7043', ice: '#7fd4ff', poison: '#7ee2a8', electric: '#f4d03f', boomerang: '#c39bd3', cannon: '#d89e63' };

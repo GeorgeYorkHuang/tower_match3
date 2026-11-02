@@ -11,7 +11,7 @@ function hitPoison(combat, e, dmg) {
 function tickPoison(combat, dt) {
   const g = combat.game;
   const poolBalance=SKILL_NUM.poison['毒池'], stickBalance=SKILL_NUM.poison['毒棒'], vineBalance=SKILL_NUM.poison['毒藤'];
-  // 毒·毒池（v1.15；v1.16.21 数值调整）：周期 5s 释放毒池（半径 130；A 伤 +40%/级；B 持续 +2s/级；C 范围 +20%/级），池内每秒毒伤并叠毒
+  // 毒池每 5 秒释放：池内每 0.25 秒结算一次直伤（基础每跳 5% 攻击），每秒叠 1 层毒。
   const pool = combat.lv('poison', '毒池');
   if (pool > 0) {
     combat.timers.pool = (combat.timers.pool || 0) + dt;
@@ -22,15 +22,15 @@ function tickPoison(combat, dt) {
       if (!alive.length) return;
       const tgt = alive[Math.floor(Math.random() * alive.length)];
       const pr = poolBalance.radius * (1 + poolBalance.radiusPerBranch * combat.branchLv('poison', '毒池', 'C'));
-      const dps = combat.shotDmg('poison') * poolBalance.damage * (1 + poolBalance.damagePerBranch * combat.branchLv('poison', '毒池', 'A'));
+      const dps = combat.shotDmg('poison', false, true) * poolBalance.damage * (1 + poolBalance.damagePerBranch * combat.branchLv('poison', '毒池', 'A'));
       const ttl = poolBalance.duration + poolBalance.durationPerBranch * combat.branchLv('poison', '毒池', 'B');
       combat.groundDots = combat.groundDots || [];
-      combat.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, stackPerSec: poolBalance.stacksPerSecond, seed: Math.random() * 100, color: '#1e8449', ring: combat.game.run.relic3('poison_fen') });
+      combat.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, damageInterval: poolBalance.damageInterval, stackPerSec: poolBalance.stacksPerSecond, seed: Math.random() * 100, color: '#1e8449', ring: combat.game.run.relic3('poison_fen'), skill: '毒池' });   // v1.17.50 标注
       combat.fxRing(tgt.x, tgt.y, '#1e8449', pr, 0.8, 5);
       combat.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
     }
   }
-  // 毒·毒棒（v1.15）：周期 4s 召唤毒棒（A 数量 +1/级；B 持续 +2s 且 CD -0.5s/级），毒棒继承 30% 攻击独立攻击 200px 内敌人（C 目标 +1/级）
+  // 毒·毒棒：周期召唤 2 根毒棒（A 数量 +1/级；B 持续 +2s 且 CD -0.5s/级），每根每秒攻击，50% 概率附毒。
   const stick = combat.lv('poison', '毒棒');
   if (stick > 0) {
     combat.timers.stick = (combat.timers.stick || 0) + dt;
@@ -47,7 +47,7 @@ function tickPoison(combat, dt) {
         const py = near.y + (Math.random() - 0.5) * 60;
         const ttl = stickBalance.duration + stickBalance.durationPerBranch * combat.branchLv('poison', '毒棒', 'B');
         combat.poisonSticks = combat.poisonSticks || [];
-        combat.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: combat.shotDmg('poison') * stickBalance.damage, targets: stickBalance.targets + combat.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+        combat.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: combat.shotDmg('poison', false, true) * stickBalance.damage, targets: stickBalance.targets + combat.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
         combat.fxRing(px, py, '#1e8449', 40, 0.5, 4);
         combat.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
       }
@@ -66,8 +66,9 @@ function tickPoison(combat, dt) {
       const picks = alive.slice(0, n);
       const mus = combat.towerMuzzle('poison');
       picks.forEach((e) => {
-        if (!e.immuneFreeze) e.frozen = Math.max(e.frozen || 0, dur);
-        e._vineT = Math.max(e._vineT || 0, dur);
+        const vr = 1 - (e.vineResist || 0);    // 藤蔓亲和（Lv7 垂藤浮卫）：缠绕/定身时长减免
+        if (!e.immuneFreeze) e.frozen = Math.max(e.frozen || 0, dur * vr);
+        e._vineT = Math.max(e._vineT || 0, dur * vr);
         // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
         g.fx.push({ type: 'vine', x: mus.x, y: mus.y, tx: e.x, ty: e.y, t: 0, dur: 0.55, seed: Math.random() * 100 });
         combat.fxRing(e.x, e.y, '#1e8449', 26, dur, 3);
@@ -86,7 +87,7 @@ function updatePoisonSticks(combat, dt) {
       // v1.16.100 毒巢3★：毒棒消失时留下 2 秒小毒池（10%/秒）
       if (combat.game.run.relic3('poison_nest')) {
         combat.groundDots = combat.groundDots || [];
-        combat.groundDots.push({ x: st.x, y: st.y, r: 70, ttl: 2, dps: combat.shotDmg('poison', true) * 0.1, key: 'poison' });
+        combat.groundDots.push({ x: st.x, y: st.y, r: 70, ttl: 2, dps: combat.shotDmg('poison', true) * 0.1, key: 'poison', skill: '毒棒' });   // v1.17.50 毒巢3★归毒棒
         combat.fxRing(st.x, st.y, '#1e8449', 70, 0.5, 3);
       }
       combat.poisonSticks.splice(i, 1); continue;
@@ -98,8 +99,10 @@ function updatePoisonSticks(combat, dt) {
         .sort((a, b) => b.y - a.y);   // 最靠城墙优先
       const picks = cands.slice(0, st.targets);
       picks.forEach((o) => {
-        combat.damage(o, st.dmg, 'poison');
-        combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', 1);
+        combat.damage(o, st.dmg, 'poison', undefined, '毒棒');   // v1.17.50 标注
+        if (Math.random() < SKILL_NUM.poison['毒棒'].poisonChance) {
+          combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', 1);
+        }
         // v1.16.100 毒枝3★：毒棒攻击附带 0.5 秒减速
         if (combat.game.run.relic3('poison_branch')) combat.applySlow(o, 0.3, 0.5);
         // 毒棒攻击弹道（v1.16.1）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
@@ -133,13 +136,15 @@ function tryAttackDebuff(combat, o, dmg) {
 }
 
 function tickEnemyStatus(combat, e, dt) {
-  // 瘟疫传染（毒·瘟疫 v1.15；v1.16.21 C 概率调整）：中毒敌人减速 20% + 周期判定传染（A 判定 1.7/1.5/1.3s；B 范围 +25px/级；C 概率 +10pp/级 30→40/50/60%）
+  // 瘟疫传染：基础概率 50%；A 缩短判定间隔，B 扩大范围，C 每级增加 10 个百分点（50%→60%/70%/80%）。
   const plague = combat.lv('poison', '瘟疫');
   if (plague > 0 && combat.hasDot(e, 'poison')) {
     // 减速：中毒敌人移速 ×0.8（与冰减速并存取更慢）
-    const s = e.slow;
-    const mult = s && s.ttl > 0 ? Math.min(s.mult, SKILL_NUM.poison['瘟疫'].speedMultiplier) : SKILL_NUM.poison['瘟疫'].speedMultiplier;
-    e.slow = { mult, ttl: SKILL_NUM.poison['瘟疫'].slowDuration };
+    const existing = e._genericSlow;
+    const ratio = existing && existing.ttl > 0 ? Math.min(existing.mult, SKILL_NUM.poison['瘟疫'].speedMultiplier) : SKILL_NUM.poison['瘟疫'].speedMultiplier;
+    e._genericSlow = { mult: ratio, ttl: SKILL_NUM.poison['瘟疫'].slowDuration };
+    e._genericSlowT = e._genericSlow.ttl;
+    combat.refreshSlow(e);
     e._plagueT = (e._plagueT || 0) + dt;
     const ivP = SKILL_NUM.poison['瘟疫'].iv[combat.branchLv('poison', '瘟疫', 'A')] || SKILL_NUM.poison['瘟疫'].defaultInterval;
     if (e._plagueT >= ivP) {
@@ -194,7 +199,7 @@ function tickEnemyStatus(combat, e, dt) {
           e._miaLayers = (e._miaLayers || 0) + 1;
           if (e._miaLayers >= 4) {
             e._miaLayers = 0;
-            combat.explode(e.x, e.y, 60, combat.shotDmg('poison', true) * 0.3, 'poison');
+            combat.explode(e.x, e.y, 60, combat.shotDmg('poison', true) * 0.3, 'poison', undefined, undefined, undefined, '瘴气');   // v1.17.50 瘴毒3★归瘴气
           }
         }
       }

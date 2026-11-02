@@ -1,22 +1,23 @@
 const ChainFlight = require('../chain-flight.js');
 'use strict';
 const CONFIG = require('../config.js');
+const EnergyState = require('../config/energy-state.js');
 // Queues, energy and timing remain on the caller-owned combat/run.
 
 function periodicTimers() {
   return {
     fire: { '火柱': 'firePillar', '烈焰墙': 'fireWall', '火雨': 'fireRain' },
     ice: { '冰花': 'iceFlower', '冬珠': 'frostOrb', '冰墙': 'iceWall' },
-    electric: { '极光电击': 'arc', '雷暴': 'storm' },                 // 活电=命中触发，非周期施放
+    electric: { '极光电击': 'arc', '雷暴': 'storm', '球形闪电': 'ballLightning' }, // 活电=命中触发，非周期施放
     poison: { '毒池': 'pool', '毒棒': 'stick', '毒藤': 'vine' },      // 瘴气=驻场被动
-    cannon: { '炮火支援': 'support', '地雷阵': 'mine', '炮台': 'turret' },
+    cannon: { '炮火支援': 'support', '地雷阵': 'mine', '碎裂弹': 'shatter', '炮台': 'turret' },
     boomerang: { '风暴镖': 'storm', '弹力镖': 'ringN' },               // 风痕=命中触发
   };
 }
 
 function _weakPeriod(combat, key) {
   const t = combat.tower(key);
-  return t && t.energy <= 0 ? CONFIG.GLOBAL_SKILL.weakPeriod : 1;
+  return t ? EnergyState.evaluate(t.energy, combat.game.run.armoryEnergyMax()).cooldown : 1;
 }
 
 function castPeriodicNow(combat, key) {

@@ -19,7 +19,7 @@ module.exports = {
       { type: 'normal', hp: 500,  atk: 10, spd: 1.6, armor: 0.08 }, // Lv4 普通 波9-19
       { type: 'runner', hp: 300,  atk: 5,  spd: 2.9, armor: 0.12 }, // Lv5 快速 波14-24
       { type: 'tank',   hp: 1400, atk: 22, spd: 1.0, armor: 0.16 }, // Lv6 重坦 波19-29
-      { type: 'normal', hp: 1000, atk: 14, spd: 1.7, armor: 0.20 }, // Lv7 普通 波24-34
+      { type: 'normal', hp: 1000, atk: 14, spd: 1.7, armor: 0.20, vineResist: 0.5 }, // Lv7 垂藤浮卫（无腿悬浮·藤蔓亲和：毒藤缠绕/定身时长 -50%）波24-34
       { type: 'runner', hp: 600,  atk: 7,  spd: 3.1, armor: 0.24 }, // Lv8 快速 波29-39
       { type: 'tank', hp: 2380, atk: 28, spd: 1.06, armor: 0.20 }, // Lv9
       { type: 'normal', hp: 1700, atk: 18, spd: 1.80, armor: 0.24 }, // Lv10

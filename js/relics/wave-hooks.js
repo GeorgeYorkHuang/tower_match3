@@ -11,6 +11,8 @@ function startWave(run) {
   }
   // v1.16.96 金库3★：记录波初城墙血（波末无伤判定）；赏金猎人3★：连续无宝箱波计数
   run._waveStartHp = run.lineHp;
+  // v1.17.43 UR 未凋之种：本波召唤物击杀加成本波清零（按波结算）
+  run._seedBonus = 0;
   if (run.relic3('cm_bounty')) {
     if (run._waveChestDropped) run._bountyStreak = 0;
     else run._bountyStreak += 1;

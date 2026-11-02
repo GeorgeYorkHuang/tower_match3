@@ -3,6 +3,7 @@ const SKILL_NUM = require('../config/tower-skills.js');
 const CONFIG = require('../config.js');
 const GS_BALANCE = require('../config/global-balance.js');
 const BoomerangTower = require('./towers/boomerang.js');
+const IceTower = require('./towers/ice.js');
 
 function tickTower(combat, key, dt) {    const g = combat.game;
   const t = combat.tower(key);
@@ -13,7 +14,7 @@ function tickTower(combat, key, dt) {    const g = combat.game;
   //   未学「接镖」：接镖后 0.5 秒才投出下一镖；学「接镖」：接镖后立即投掷（C 续投加成）
   if (key === 'boomerang') return BoomerangTower.tickAttack(combat, dt);
   combat.atkTimers[key] = (combat.atkTimers[key] || 0) + dt;
-  // 电·充能：命中层数也提供攻速（interval 已算）
+  // 普通攻击按各塔实际攻击间隔推进。
   while (combat.atkTimers[key] >= iv) {
     combat.atkTimers[key] -= iv;
     combat.attackOnce(key);
@@ -67,22 +68,11 @@ function attackOnce(combat, key) {
       }
     }
   }
-  // 炮·双管齐射（v1.16）：基础 25% 概率双发，A 齐射 +15pp/级；副炮第二发伤害 +20%/级（B）
+  // 炮·双管齐射：基础25%概率双发，A提高双发率；B追发第三炮，C第二炮命中返能。
   const duelProb = key === 'cannon' ? (0.25 + 0.15 * combat.branchLv('cannon', '双管齐射', 'A') + combat.relicVal('can_double') / 100) : 0;   // v1.16.114 双发1★/2★
   const duel = key === 'cannon' && combat.lv('cannon', '双管齐射') > 0 && Math.random() < duelProb;
-  // 电·充能：攻击次数累计
-  const chargeLv = combat.lv('electric', '充能');
-  if (key === 'electric' && chargeLv > 0) {
-    const t = combat.tower('electric');
-    t._chargeLayers = Math.min(5 * chargeLv, (t._chargeLayers || 0) + 1);
-    // v1.16.101 快充3★：充能满层时释放过载脉冲（全塔攻速+20%×3s，触发后清空层数重新累计）
-    if (combat.game.run.relic3('elec_fast') && t._chargeLayers >= 5 * chargeLv) {
-      t._chargeLayers = 0;
-      combat.game.run._elecPulseTtl = 3;
-      combat.fxFlash(combat.towerMuzzle('electric').x, combat.towerMuzzle('electric').y, '#f4d03f', 0.4);
-      combat.fxRing(combat.towerMuzzle('electric').x, combat.towerMuzzle('electric').y, '#f4d03f', 60, 0.5, 4);
-    }
-  }
+  const duelB = key === 'cannon' ? combat.branchLv('cannon', '双管齐射', 'B') : 0;
+  const triple = duel && duelB > 0 && Math.random() < SKILL_NUM.cannon['双管齐射'].thirdShotChance[duelB];
   // v1.16.112 火塔攻击级挂点（熔炉之息免费火柱 / 火焰弹射：每攻击一次判定一次，与弹道数量无关）
   if (key === 'fire') combat._fireAttackOnAttack();
   // 弹道（视觉）+ 命中（逻辑）
@@ -90,7 +80,11 @@ function attackOnce(combat, key) {
   const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target, fold: key === 'boomerang' && combat.lv('boomerang', '折返增伤') > 0 };
   const fireMulti = key === 'fire' && combat.lv('fire', '多重火球') > 0;
   const iceMulti = key === 'ice' && combat.lv('ice', '多重冰锥') > 0;
-  if (fireMulti) {
+  const icePierce = key === 'ice' && !iceMulti && combat.lv('ice', '冰穿刺') > 0;
+  if (icePierce) {
+    IceTower.launchIcePiercingShot(combat, target, dmg, 1.15);
+    g.playSfx('shot', 0.25);
+  } else if (fireMulti) {
     // v1.16.130 多重火球重做：一次普攻从塔口扇形飞出 n 枚火球——中心一枚锁定主目标，其余以目标方向为基准两侧扇形，
     //   全部为真实可见弹道、命中才结算（不再"普攻先命中再从目标处散射"）
     combat._fireMultiShot(target, dmg);
@@ -120,19 +114,38 @@ function attackOnce(combat, key) {
   }
   if (key === 'boomerang') {
     BoomerangTower.launchAttack(combat, { key, target, dmg, dur, sx, sy, tint, baseShot });
-  } else if (!fireMulti && !iceMulti) {
+  } else if (!fireMulti && !iceMulti && !icePierce) {
     combat.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
   }
   if (duel) {
-    // 双管齐射第二发（更短弹道；B 副炮第二发伤害 +25%/级）
+    // 双管齐射第二发（更短弹道）；C 回膛仅在这发实际命中后判定返能。
     // v1.16.103 双发3★：双发的第二发必定命中血量最低的敌人
-    const duelDmg = dmg * (1 + 0.25 * combat.branchLv('cannon', '双管齐射', 'B'));
     let duelTarget = target;
     if (g.run.relic3('can_double')) {
       duelTarget = combat.enemies().filter((o) => o.hp > 0).sort((a, b) => a.hp - b.hp)[0] || target;
     }
-    g.fx.push({ ...baseShot, t: 0, dur: dur * 0.75 });
-    combat.shots.push({ key, target: duelTarget, dmg: duelDmg, t: 0, dur: dur * 0.75, sx, sy });
+    g.fx.push({ ...baseShot, target: duelTarget, tx: duelTarget.x, ty: duelTarget.y, t: 0, dur: dur * 0.75 });
+    const duelC = combat.branchLv('cannon', '双管齐射', 'C');
+    const onSecondHit = duelC > 0 ? (hitTarget) => {
+      const tower = combat.tower('cannon');
+      const maxEnergy = g.run.armoryEnergyMax();
+      if (!tower || tower.energy >= maxEnergy) return;
+      if (Math.random() < SKILL_NUM.cannon['双管齐射'].energyReturnChance[duelC]) {
+        tower.energy = Math.min(maxEnergy, tower.energy + SKILL_NUM.cannon['双管齐射'].energyReturn);
+        combat.fxParticle(hitTarget.x, hitTarget.y - 8, '#6fffd0', 5, 28, 0.35, 110, 4);
+        g.fx.push({ type: 'floatText', text: '+1 能量', x: hitTarget.x, y: hitTarget.y - 30, t: 0, dur: 0.8, size: 17, color: '#6fffd0' });
+      }
+    } : null;
+    combat.shots.push({ key, target: duelTarget, dmg, t: 0, dur: dur * 0.75, sx, sy, onAfterHit: onSecondHit });
+
+    if (triple) {
+      const muzzle = combat.towerMuzzle('cannon');
+      const tripleDur = dur * 0.9; // 第三炮稍慢抵达，形成追发节奏
+      combat.fxFlash(sx, sy, '#ffd24a', 0.32);
+      combat.fxRing(sx, sy, '#ffad33', 28, 0.36, 3.5);
+      g.fx.push({ ...baseShot, target: duelTarget, tx: duelTarget.x, ty: duelTarget.y, color: '#ffd24a', t: 0, dur: tripleDur, scale: 1.18, triple: true });
+      combat.shots.push({ key, target: duelTarget, dmg: dmg * SKILL_NUM.cannon['双管齐射'].thirdShotDamage, t: 0, dur: tripleDur, sx: muzzle.x, sy: muzzle.y });
+    }
   }
 }
 

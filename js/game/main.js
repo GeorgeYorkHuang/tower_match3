@@ -25,6 +25,7 @@ const GS_BALANCE = require('../config/global-balance.js');
  * 状态机：fighting（波内消除+战斗）→ 波末结算 → picking（三选一）→ 下一波 / gameover
  */
 const CONFIG = require('../config.js');
+const EnergyState = require('../config/energy-state.js');
 const GlobalSkills = require('../global-skills.js');
 const { Run } = require('../run.js');
 const { Renderer, layout } = require('./render.js');
@@ -65,7 +66,7 @@ class GameMain {
     this.restartBtn = {};
     this.pickHits = {};
     this.funcHits = [];
-    this.towerInfo = null;       // 塔详情弹层：{slotIdx, key, name, level, exp, expNeed, expRatio, dps, skills}
+    this.towerInfo = null;       // 塔详情弹层：{slotIdx, key, name, level, exp, expNeed, expRatio, range, ammo, skills}
     this.towerInfoHits = {};     // 详情弹层命中：{bg, close, skill[]}
     this.towerSkill = null;      // v1.16.11 技能二级详情弹层：{key, skillName, icon, desc, color, lv, lvMax, branches, bA, bB, bC, branchDesc}
     this.towerSkillHits = {};    // 二级弹层命中：{bg, back}
@@ -77,6 +78,8 @@ class GameMain {
     this.menuStage = 'ancient';  // v1.16.30 主界面所选战场：ancient 远古 | test 测试（◀ ▶ 切换）
     this.funcLayer = null;       // 底部功能弹层：{type:'shop'|'setting'|'tome'|'help', confirming?, version?}
     this.funcLayerHits = {};     // 功能弹层命中：{bg, close, confirm?}
+    this.dmgStat = null;         // v1.17.50 伤害统计弹层开关
+    this.dmgStatHits = {};       // 伤害统计弹层命中：{bg, close}
     this.toasts = [];
     this.selected = null;
     this.swapped = false;
@@ -428,10 +431,13 @@ class GameMain {
   /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
    *  v1.16.43 修复：无塔（槽位未解锁）时怪物到城墙也应攻城掉血——此前被「无塔不战斗」提前 return 跳过，城墙完全不扣血 */
   siegeEnemies(dt) {
-    const wallLine = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10; // 攻城线（v1.17.11 正式=塔位区顶 967-10；测试战场保持 1042-10）
-    let wallHits = 0;
+    const wallEdge = this.state === 'testfield' ? 1042 : this.ly.wallY;
+    let wallHits = 0, wallHitY = wallEdge - 10;
     for (const e of this.enemies) {
+      // 以怪物脚底/精灵下沿到达行走区边界作为攻城线，避免大体型怪进入塔位区。
+      const wallLine = wallEdge - Math.max(10, (e.size || 40) * 0.5);
       if (e.y < wallLine) continue;
+      wallHitY = wallLine;
       if (e.frozen > 0 || e.paralyzed > 0 || e._bossStun > 0) continue;
       // 毒·瘴气：环内敌人命中率下降（20% 概率攻击落空，v1.16.21）
       if (e._miasma && Math.random() < 0.20) continue;
@@ -473,14 +479,15 @@ class GameMain {
         }
       }
     }
-    if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallLine, t: 0, dur: 0.3 });
+    if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallHitY, t: 0, dur: 0.3 });
   }
 
   /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
    *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
   moveEnemy(e, dt) {
     if (e.frozen > 0 || e._bossStun > 0) return;
-    const lineY = (this.state === 'testfield' ? 1042 : this.ly.wallY) - 10;   // v1.17.11 攻城线（塔位区即城墙）
+    const wallEdge = this.state === 'testfield' ? 1042 : this.ly.wallY;
+    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5); // 精灵下沿到达行走区边界时开始攻城
     if (e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY)) return;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
     if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
@@ -566,6 +573,8 @@ class GameMain {
         // 否则波中途打开的设置弹层（含「重新开始」按钮）会盖在决策层上造成歧义
         this.funcLayer = null;
         this.funcLayerHits = {};
+        this.dmgStat = null;
+        this.dmgStatHits = {};
         this.shopOpen = false;
         this.relicDetail = null;
         this.towerInfo = null;
@@ -679,7 +688,7 @@ class GameMain {
     if (!item) return false;
     const res = BattleShop.buy(this.run, item.id);
     if (!res.ok) {
-      this.toast(({ limit: '本局已售罄', gold: '银币不足', full: '城墙生命已满', energy: '塔能量已满' })[res.reason] || '暂不可购买', '#ffb480');
+      this.toast(({ limit: '本局已售罄', cooldown: '购买冷却中', gold: '银币不足', full: '城墙生命已满', energy: '塔能量已满' })[res.reason] || '暂不可购买', '#ffb480');
       return false;
     }
     this.toast(item.name + ' · ' + item.desc, item.color);
@@ -709,6 +718,7 @@ class GameMain {
     this.enemies = [];
     this.towerInfo = null;
     this.funcLayer = null;
+    this.dmgStat = null;
     this.pickQueue = [];
     this.pickIndex = 0;
     this._postPick = null;
@@ -852,6 +862,8 @@ class GameMain {
     this.funcHits = this.renderer.funcHits || [];
     // v1.16.1 地面持续效果（毒池毒液池/毒棒召唤物）画在敌人下层
     this.renderer.groundFx(ctx, this.combat);
+    // v1.17.36 火柱地面火环（pillarBase）：与地面持续效果同级，压在怪物脚下
+    this.renderer.fxGround(ctx, this.fx);
     const veraView = { encounter: this.run.bossEncounter, boss: this.run.bossEnemy,
       enemies: this.enemies, layout: this.ly, lock: this.run.bossLock };
     VeraFx.drawGround(ctx, veraView);
@@ -886,7 +898,7 @@ class GameMain {
     if (this.relicDetail) {
       this.renderer.relicDetailLayer(ctx, this.battleRelics, this.relicDetail.page || 0, this.relicDetailHits);
     }
-    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary, goT: this.gameoverSkip ? 99999 : (this.gameoverAt ? Date.now() - this.gameoverAt : 0) }, st), this.restartBtn);
+    if (this.state === 'gameover') this.renderer.gameOver(ctx, Object.assign({ summary: this.runSummary, lootScroll: this._lootScroll || 0, goT: this.gameoverSkip ? 99999 : (this.gameoverAt ? Date.now() - this.gameoverAt : 0) }, st), this.restartBtn);
     // v1.16.76 撤离决策层（战斗暂停）
     if (this.state === 'evacuation') {
       this.evacHits = {};
@@ -899,6 +911,8 @@ class GameMain {
     else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
     // 底部功能弹层（商店/设置/图鉴/帮助）
     if (this.funcLayer) this.renderer.funcLayer(ctx, this.funcLayer, st, this.funcLayerHits);
+    // v1.17.50 伤害统计弹层
+    if (this.dmgStat) this.renderer.dmgStatLayer(ctx, this, this.dmgStatHits);
   }
 
   /** v1.16.11 组装技能二级详情：技能效果 + 三分支完整文案 + 当前等级 */
@@ -945,7 +959,11 @@ class GameMain {
         exp: run.exp,
         expNeed: run.expNeed(),
         expRatio: Math.min(1, run.exp / run.expNeed()),   // v1.17 修复：0 级也显示进度（原 expLevel>0 条件导致首波三消经验条恒 0）
-        dps: t.level > 0 ? eff.towerDps(key) : 0,
+        range: this.combat.range(key),
+        baseRange: Math.max(60, CONFIG.TOWERS[key].range - 50),
+        energyAttack: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).attack,
+        energyInterval: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).interval,
+        energyColor: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).color,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
         ammo: t.energy, ammoMax: this.run.armoryEnergyMax(),            // v1.16.77 能量（塔位条显示；军火库 +50）
@@ -967,6 +985,7 @@ class GameMain {
       lineHp: run.lineHp, lineMaxHp: run.lineMaxHp || CONFIG.LINE.hp,
       grid: run.board.grid,
       selected: this.selected || this.pickCell, // 滑动高亮 / 点击选中高亮
+      boardHint: this.boardHint || null,
       towers: slots,
       synergies: eff.synergyStatus(),
       synDoneCount: eff.synergyDone.filter(Boolean).length,
@@ -982,6 +1001,7 @@ class GameMain {
       runSpeed: this.runSpeed,   // v1.16.13 主战斗倍速（底部功能栏右下角按钮显示）
       shopOpen: this.shopOpen,   // v1.16.90 局内商店开关（此前缺失导致商店面板永不渲染 → 点击无效果）
       storeTimers: run.storeTimers,
+      storeCooldowns: run.storeCooldowns,
       store: run.store,          // v1.16.90 局内商店已购层数
     };
   }

@@ -93,18 +93,6 @@ function electricDeath(combat, e, key) {
   }
 }
 
-function hunterTransfer(combat, e, cands, markCap) {
-  // v1.16.102 猎心3★：标记满层的敌人死亡时，标记转移至最近的敌人并保留全部层数
-  if (combat.game.run.relic3('boo_hunt') && (e._mark || 0) >= markCap) {
-    const rec = cands.slice().sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
-    if (rec) {
-      rec._mark = Math.min(markCap, (rec._mark || 0) + e._mark);
-      rec._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
-      combat.fxBeam(e.x, e.y, rec.x, rec.y, '#d2b4de', 0.4, 3);
-    }
-  }
-}
-
 function boomerangDeath(combat, e, key) {
   // v1.16.102 血刃3★：流血的敌人死亡时喷溅血液：80 码内敌人附加 1 层流血
   if (key === 'boomerang' && combat.game.run.relic3('boo_blood') && combat.hasDot(e, 'bleed')) {
@@ -145,4 +133,4 @@ function eliteChestChance(run, bonus) {
   return CONFIG.RELIC.dropChance * (1 + 0.10 * bonus.chest) * (1 + run.relicNum('cm_bounty') / 100);
 }
 
-module.exports = { fireDeath, fireExplosionSpread, poisonEssence, poisonTrail, iceDeath, electricDeath, hunterTransfer, boomerangDeath, cannonDeath, poisonInheritanceBase, experience, eliteChestChance };
+module.exports = { fireDeath, fireExplosionSpread, poisonEssence, poisonTrail, iceDeath, electricDeath, boomerangDeath, cannonDeath, poisonInheritanceBase, experience, eliteChestChance };

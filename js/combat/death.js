@@ -8,6 +8,34 @@ const RelicKill = require('../relics/kill-hooks.js');
 function onKill(combat, e) {
   const g = combat.game;
   const rewardAllowed = Bosses.onDeath(g, e);
+  /* ===== v1.17.43 红色（ur）战场专属圣遗物：击杀挂点 ===== */
+  const ur = g.run;
+  // 未凋之种1★/2★：每击杀 1 只召唤物，本波全塔伤害 +2%/+3%（上限 +20%/+30%，上限取文案末位数值）
+  if (e.isSummon && ur.relicRun('ur_altar_seed') > 0) {
+    const seedCap = ur.relicNum('ur_altar_seed');
+    const seedStep = seedCap >= 30 ? 3 : 2;
+    ur._seedBonus = Math.min(seedCap, (ur._seedBonus || 0) + seedStep);
+    ur.relicFx('ur_altar_seed', `本波全塔伤害 +${ur._seedBonus}%`);
+  }
+  // 未凋之种3★：召唤物死亡处留下种子，3 秒后绽放为友方藤蔓（90 码内每秒 40% 攻击伤害，持续 4 秒）
+  if (e.isSummon && ur.relic3('ur_altar_seed')) {
+    const srcKey = e.lastDmgKey || 'poison';
+    const sx = e.x, sy = e.y;
+    combat.delayed.push({
+      t: 0, delay: 3,
+      fn: (ctx) => {
+        ctx.groundDots = ctx.groundDots || [];
+        ctx.groundDots.push({ x: sx, y: sy, r: 90, ttl: 4, dps: ctx.shotDmg(srcKey, true) * 0.4, key: 'poison' });
+        ctx.fxRing(sx, sy, '#7dcea0', 90, 0.5, 4);
+      },
+    });
+    combat.fxRing(e.x, e.y, '#a3e4d7', 30, 0.4, 3);
+  }
+  // 风灯3★：移速高于基准 50% 的敌人死亡时爆炸（60% 伤害，半径 90 码）
+  if (ur.relic3('ur_wind_lantern') && e.speedBase && e.speed / e.speedBase >= 1.5) {
+    const srcKey2 = e.lastDmgKey || 'fire';
+    combat.explode(e.x, e.y, 90, combat.shotDmg(srcKey2, true) * 0.6, srcKey2);
+  }
   // 毒·致死：低血死亡（此处仅为触发记录，实际致死在命中时判断）
   // 按所有激活塔触发死亡技能
   g.run.slotOrder.slice().forEach((key) => {
@@ -33,12 +61,16 @@ function onKill(combat, e) {
       const picks = cands.slice(0, n);
       // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤，链数随传染传递）
       const chainN = (e._poisonChain || 0) + 1;
+      // v1.17.43 疫潮1★/2★：中毒目标死亡时传染概率 +20%/+30%（原「毒爆连锁」重做，此前未接入）
+      const spreadChance = Math.min(1, SKILL_NUM.poison['毒爆'].spreadP + combat.relicVal('poison_burst') / 100);
       picks.forEach((o) => {
-        if (Math.random() < SKILL_NUM.poison['毒爆'].spreadP) {
+        if (Math.random() < spreadChance) {
           // v1.16.100 瘟疫之源3★：传染时保留目标 50% 现有层数（无论是否触发 B 继承）
           const base = RelicKill.poisonInheritanceBase(combat, e);
           const layers = (bLv > 0 && Math.random() < SKILL_NUM.poison['毒爆'].inherit[bLv]) ? combat.poisonStack(e) : base;
-          combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', layers);
+          // v1.17.43 疫潮3★：传染成功时，被传染的敌人额外获得 1 层中毒
+          const finalLayers = layers + (combat.game.run.relic3('poison_burst') ? 1 : 0);
+          combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', finalLayers);
           o._poisonChain = chainN;
           combat.fxBeam(e.x, e.y, o.x, o.y, '#7ee2a8', 0.3, 3);
         }
@@ -61,8 +93,9 @@ function onKill(combat, e) {
         const next = combat.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= vr)
           .sort((a, b) => b.y - a.y)[0];
         if (next) {
-          if (!next.immuneFreeze) next.frozen = Math.max(next.frozen || 0, 2);
-          next._vineT = Math.max(next._vineT || 0, 2);
+          const nvr = 1 - (next.vineResist || 0);   // 藤蔓亲和（Lv7 垂藤浮卫）：延伸缠绕时长减免
+          if (!next.immuneFreeze) next.frozen = Math.max(next.frozen || 0, 2 * nvr);
+          next._vineT = Math.max(next._vineT || 0, 2 * nvr);
           RelicKill.poisonTrail(combat, next);
           combat.fxBeam(e.x, e.y, next.x, next.y, '#2ecc71', 1, 4);
           combat.fxRing(next.x, next.y, '#7dcea0', 26, 1, 3);
@@ -77,19 +110,7 @@ function onKill(combat, e) {
     RelicKill.iceDeath(combat, e, key);
     RelicKill.electricDeath(combat, e, key);
     // （冰·霜星 已改为周期技「冰花」，死亡溅射移除 v1.13.23）
-    // 回旋镖·猎手标记 C 猎杀（v1.16.42）：标记目标死亡时，向 100px 范围内 1/2/3 个敌人扩散标记（各 5s 持续）
-    if (key === 'boomerang' && combat.branchLv('boomerang', '猎手标记', 'C') > 0 && (e._mark || 0) > 0) {
-      const cLv = combat.branchLv('boomerang', '猎手标记', 'C');
-      const markCap = SKILL_NUM.boomerang['猎手标记'].stackCap + SKILL_NUM.boomerang['猎手标记'].stacksPerBranch * combat.branchLv('boomerang', '猎手标记', 'B');
-      const cands = combat.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= SKILL_NUM.boomerang['猎手标记'].spreadRadius);
-      for (let i = 0; i < Math.min(cLv, cands.length); i++) {
-        const pick = cands[i];
-        pick._mark = Math.min(markCap, (pick._mark || 0) + 1);
-        pick._markT = SKILL_NUM.boomerang['猎手标记'].markDur;
-        combat.fxBeam(e.x, e.y, pick.x, pick.y, '#d2b4de', 0.4, 2.5);
-      }
-      RelicKill.hunterTransfer(combat, e, cands, markCap);
-    }
+    // （回旋镖·猎手标记 C 猎杀：已于 2026-11-01 随技能删除，死亡扩散标记分支下线）
     RelicKill.boomerangDeath(combat, e, key);
     RelicKill.cannonDeath(combat, e, key);
   });

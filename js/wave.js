@@ -101,6 +101,8 @@ class WaveDirector {
     this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
     const born=this.game.enemies[this.game.enemies.length-1];
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
+    // v1.17.52 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
+    if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born._ringClock=0;born._ringCount=0;}
     if(it.isSummon)born.isSummon=true;
     if(Number.isFinite(it.spawnX)) born.x=it.spawnX;
     if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // v1.17.5 投放完成时间戳
@@ -135,9 +137,11 @@ class WaveDirector {
       tier: (lv || 1) + (type === 'elite' ? 2 : type === 'tank' ? 1 : isBoss ? 4 : 0), // 展示等级 = 代际等级 + 类型档
       armor,
       speed: speed * (lcfg.spd / 1.5) * (isBoss ? 0.8 : 1), // 移速按等级表设计值归一化（Lv1 普通 = 基准 1.0）
+      speedBase: speed,                                     // v1.17.43 基准移速（UR 风灯：判定「移速高于基准」的比值基准）
       attack: lcfg.atk * (isBoss ? CONFIG.ENEMY.bossAtkMult : (type === 'elite' ? (CONFIG.ENEMY.eliteAtkMult || 1) : 1)), // 攻城每次伤害
       attackInterval: CONFIG.ENEMY.attackInterval[atkKey] || CONFIG.ENEMY.attackInterval.normal, // 攻城攻击间隔
       attackT: 0,
+      vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
     };
     const en = initEnemyState(e);
     en.waveNo = this.game.run.wave;   // v1.17.22 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零

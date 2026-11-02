@@ -80,7 +80,7 @@ const TOME_ROWS = [
   { tint: '#e74c3c', name: '火塔',     desc: '直线火球 · 灼烧爆破',         skills: '点燃 · 火柱 · 大火球' },
   { tint: '#5dade2', name: '冰塔',     desc: '冰锥减速 · 冻结控场',       skills: '寒霜 · 冰冻 · 冰穿刺' },
   { tint: '#52be80', name: '毒塔',     desc: '毒液持续伤害 · 扩散传染',   skills: '剧毒 · 扩散 · 毒爆' },
-  { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 活电群伤',       skills: '连锁 · 麻痹 · 过载' },
+  { tint: '#f4d03f', name: '电塔',     desc: '闪电折线 · 活电群伤',       skills: '连锁 · 麻痹 · 球形闪电' },
   { tint: '#a569bd', name: '回旋镖塔', desc: '弧线飞行 · 穿透折返',       skills: '穿透 · 折返增伤 · 飞距' },
   { tint: '#b5651d', name: '炮塔',     desc: '抛物线炮弹 · 范围爆炸',     skills: '溅射 · 重击 · 穿透弹' },
 ];
@@ -131,6 +131,9 @@ const IMG_SRC = {
   firewall2: FirewallFx.ASSETS[2],
   firewall3: FirewallFx.ASSETS[3],
   firewall4: FirewallFx.ASSETS[4],
+  firewall5: FirewallFx.ASSETS[5],
+  firewall6: FirewallFx.ASSETS[6],
+  firewall7: FirewallFx.ASSETS[7],
   // v1.17.25 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
   firepillar1: FirepillarFx.ASSETS[1],
   firepillar2: FirepillarFx.ASSETS[2],
@@ -138,8 +141,13 @@ const IMG_SRC = {
   firepillar4: FirepillarFx.ASSETS[4],
   firepillar5: FirepillarFx.ASSETS[5],
   firepillar6: FirepillarFx.ASSETS[6],
-  firepillar7: FirepillarFx.ASSETS[7],
-  firepillar8: FirepillarFx.ASSETS[8],
+  // v1.17.36 地面火环（下层通道，画在怪物之下）
+  firepillarBase1: FirepillarFx.ASSETS_BASE[1],
+  firepillarBase2: FirepillarFx.ASSETS_BASE[2],
+  firepillarBase3: FirepillarFx.ASSETS_BASE[3],
+  firepillarBase4: FirepillarFx.ASSETS_BASE[4],
+  firepillarBase5: FirepillarFx.ASSETS_BASE[5],
+  firepillarBase6: FirepillarFx.ASSETS_BASE[6],
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -204,12 +212,12 @@ ChipSkin.configure({ loadImage: loadImg });   // v1.17.44 两层方块皮肤
 
 /* v1.16.27 技能图标（美术资源 assets/images/towers/skills/<塔>/<文件名>.png，缺失时回退 emoji） */
 const SKILL_ICON = {
-  fire:      { 点燃: 'ignite', 灼烧: 'burnstack', 火柱: 'pillar', 大火球: 'bigfireball', 爆燃: 'detonate', 多重火球: 'multifireball', 火雨: 'firerain' },
+  fire:      { 点燃: 'ignite', 灼烧: 'burnstack', 火柱: 'pillar', 大火球: 'bigfireball', 爆燃: 'detonate', 多重火球: 'multifireball', 火雨: 'firerain', 烈焰墙: 'eagleeye' },
   ice:       { 寒霜: 'frost', 冰冻: 'freeze', 冰穿刺: 'pierce', 多重冰锥: 'multiicicle', 冰花: 'frostflower', 冬珠: 'winterorb', 碎冰: 'shatter', 冰墙: 'icewall' },
   poison:    { 剧毒: 'toxic', 毒爆: 'burst', 毒池: 'pool', 毒棒: 'totem', 毒性强化: 'enhance', 瘟疫: 'plague', 毒藤: 'vine', 瘴气: 'miasma' },
-  electric:  { 连锁: 'chain', 麻痹: 'paralysis', 过载: 'overload', 极光电击: 'arc', 雷暴: 'thunderstorm', 活电: 'liveorbs', 充能: 'charge', 电磁场: 'magnetic' },
-  boomerang: { 折返增伤: 'returnboost', 放血: 'pierce', 多镖: 'multiboom', 接镖: 'catch', 猎手标记: 'mark', 风暴镖: 'storm', 弹力镖: 'ring', 风痕: 'windtrail' },
-  cannon:    { 重炮: 'heavy', 震击: 'shock', 贯穿弹: 'pierce', 双管齐射: 'double', 炮火支援: 'support', 地雷阵: 'minefield', 炮台: 'turret', 军火库: 'arsenal' },
+  electric:  { 连锁: 'chain', 麻痹: 'paralysis', 球形闪电: 'lightningball', 极光电击: 'arc', 雷暴: 'thunderstorm', 活电: 'liveorbs', 导电: 'charge', 电磁过载: 'magnetic' },
+  boomerang: { 折返增伤: 'returnboost', 放血: 'pierce', 多镖: 'multiboom', 接镖: 'catch', 风暴镖: 'storm', 弹力镖: 'ring', 风痕: 'windtrail', 风眼涡旋: 'vortex' },
+  cannon:    { 重炮: 'heavy', 震击: 'shock', 碎裂弹: 'heavy', 双管齐射: 'double', 炮火支援: 'support', 地雷阵: 'minefield', 炮台: 'turret', 军火库: 'arsenal' },
 };
 function skillIconSrc(towerKey, skillName) {
   const f = (SKILL_ICON[towerKey] || {})[skillName];
@@ -300,6 +308,11 @@ function txtW(str, size) {
   return w;
 }
 
+// v1.17.36 地面层特效：这些 f.type 走 fxGround，绘制在敌人之下
+const GROUND_FX = {
+  pillarBase: true,
+};
+
 // 区C · 技能特效 handler 分发表：f.type → Renderer 方法（v1.16.43 重构，拆自原 fx()）
 const FX_HANDLERS = {
   shot: 'fxShot',
@@ -314,7 +327,9 @@ const FX_HANDLERS = {
   mine: 'fxMine',
   turret: 'fxTurret',
   cyclone: 'fxCyclone',
+  vortex: 'fxVortex',
   pillar: 'fxPillar',
+  pillarBase: 'fxPillarBase',
   fireWall: 'fxFireWall',
   rain: 'fxRain',
   raindrop: 'fxRaindrop',
@@ -436,7 +451,7 @@ class Renderer {
     return this._boardLayer;
   }
 
-  board(ctx, grid, selected, anim, shake, theme) { return this._getBoardLayer().board.call(this, ctx, grid, selected, anim, shake, theme); }
+  board(ctx, grid, selected, anim, shake, theme, hint) { return this._getBoardLayer().board.call(this, ctx, grid, selected, anim, shake, theme, hint); }
 
   /** 单格绘制（v1.17.44 两层：无符号玻璃底板 → 图案；
    *  普通块用原色图案、特殊块用随来源色染好的图案；底板未就绪回退旧整图，再回退色块+矢量徽记） */
@@ -515,10 +530,22 @@ class Renderer {
    *  分节目录：shot（塔攻击弹道，kind=line/bolt/arc/zigzag/storm/frostorb/icewall/icebloom/orb/bounce/mortar…）
    *  / hitwall / bullet / strikeShell / strike / boom / flash / vine / thorn / mine / turret / cyclone /
    *  pillar / fireWall / rain / raindrop / particle / ring / beam / beamp / match（三消飞光） */
-  /** 打击特效（区C）：统一 dispatch——22 种 f.type 各由独立 handler 渲染（v1.16.43 重构） */
+  /** 打击特效（区C）：统一 dispatch——22 种 f.type 各由独立 handler 渲染（v1.16.43 重构）
+   *  v1.17.36：GROUND_FX 内的类型（地面层）不在此处绘制，改由 fxGround 在怪物之前绘制 */
   fx(ctx, fxList) {
     fxList.forEach((f) => {
       if (f.t < 0) return; // v1.13.8：延迟帧动画（火雨连续波次 stagger）未到时跳过渲染
+      if (GROUND_FX[f.type]) return;
+      const h = FX_HANDLERS[f.type];
+      if (h) this[h](ctx, f);
+    });
+  }
+
+  /** v1.17.36 地面层特效通道：在敌人绘制之前调用，保证地面效果压在怪物脚下 */
+  fxGround(ctx, fxList) {
+    fxList.forEach((f) => {
+      if (f.t < 0) return;
+      if (!GROUND_FX[f.type]) return;
       const h = FX_HANDLERS[f.type];
       if (h) this[h](ctx, f);
     });
@@ -564,7 +591,8 @@ class Renderer {
 
   fxTurret(ctx, f) { return this._getCannonFx().fxTurret(ctx, f); }
 
-  fxCyclone(ctx, f) { return BoomerangSkillFx.fxCyclone(ctx, f); }
+  fxCyclone(ctx, f) { return BoomerangSkillFx.fxCyclone(ctx, f, drawImg); }
+  fxVortex(ctx, f) { return BoomerangSkillFx.fxVortex(ctx, f, drawImg); }
 
   _getFireFx() {
     if (!this._fireFx) this._fireFx = createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimSheet });
@@ -572,6 +600,8 @@ class Renderer {
   }
 
   fxPillar(ctx, f) { return this._getFireFx().fxPillar(ctx, f); }
+  /** v1.17.36 火柱地面火环（下层）：由 fxGround 在敌人之前调用 */
+  fxPillarBase(ctx, f) { return this._getFireFx().fxPillarBase(ctx, f); }
 
   _fxPillarProc(ctx, cx, cy, R, seed, p) { return this._getFireFx()._fxPillarProc(ctx, cx, cy, R, seed, p); }
 
@@ -690,6 +720,9 @@ class Renderer {
 
   funcLayer(ctx, layer, s, hits) { return this._getBattleOverlays().funcLayer.call(this, ctx, layer, s, hits); }
 
+  /** v1.17.50 伤害统计弹层转发 */
+  dmgStatLayer(ctx, g, hits) { return this._getBattleOverlays().dmgStatLayer.call(this, ctx, g, hits); }
+
   /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（v1.4：无配置页） ================= */
   /** v1.14 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
   _getTestFieldScreen() {
@@ -776,6 +809,7 @@ class Renderer {
       else if (s.panel.type === 'matchCfg') this.menuMatchCfg(ctx, s, push);     // v5.3 三消技能配置面板
       else if (s.panel.type === 'globalCfg') this.menuGlobalCfg(ctx, s, push);   // v5.3 全局技能配置面板
       else if (s.panel.type === 'stageDrops') this.menuStageDrops(ctx, s, push);  // v1.17.48 战场说明 + 专属掉落
+      else if (s.panel.type === 'shopDetail') this.menuShopDetail(ctx, s, push); // 局外商店商品详情 + 确认购买
     }
     // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
     if (s.debug) {
@@ -800,11 +834,13 @@ class Renderer {
   /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
   /** 商店页 v5.3c：自上而下 每日碎片精选 → 圣遗物宝箱（限购）→ 技能解锁 */
   _getMenuShopScreen() {
-    if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned: this._skillOwned.bind(this) });
+    if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned: this._skillOwned.bind(this), panelShell: this._menuPanelShell.bind(this), wrapText: this.wrapText.bind(this) });
     return this._menuShopScreen;
   }
 
   menuShop(ctx, s, push) { return this._getMenuShopScreen().menuShop(ctx, s, push); }
+
+  menuShopDetail(ctx, s, push) { return this._getMenuShopScreen().shopDetail(ctx, s, push); }
 
   /**
    * v1.17.9d 开箱弹窗：宝箱开启后收益一次性弹出（参考结算页圣遗物碎片动画——图标逐个弹跳出场）。
@@ -1221,3 +1257,4 @@ function drawTowerGlyph(ctx, key, x, y, size) {
 }
 
 module.exports = { COLOR_FILL, TOWER_TINT, IMG_SRC, BOARD_IMG, Renderer, layout, fmtNum };
+

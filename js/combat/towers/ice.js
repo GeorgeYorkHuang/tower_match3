@@ -3,8 +3,36 @@
 const CONFIG = require('../../config.js');
 const SKILL_NUM = require('../../config/tower-skills.js');
 
+function launchIcePiercingShot(combat, target, dmg, scale = 1.15, hitR = 45, angleOffset = 0) {
+  if (!target || combat.lv('ice', '冰穿刺') <= 0) return false;
+  const bal = SKILL_NUM.ice['冰穿刺'];
+  const mz = combat.towerMuzzle('ice');
+  const sx = mz.x, sy = mz.y;
+  const dx = target.x - sx, dy = target.y - sy;
+  const baseAngle = Math.atan2(dy, dx) + angleOffset;
+  const ux = Math.cos(baseAngle), uy = Math.sin(baseAngle);
+  const range = combat.range('ice');
+  const dur = CONFIG.TOWERS.ice.shot.dur;
+  const speed = range / dur;
+  const branchA = combat.branchLv('ice', '冰穿刺', 'A');
+  const branchB = combat.branchLv('ice', '冰穿刺', 'B');
+  // 每枚扇形冰锥各自穿透；基础穿透数指命中首个敌人后还可再穿透的数量。
+  const maxHits = 1 + bal.baseTargets + branchA + combat.relicVal('ice_pierce');
+  const tx = sx + ux * range, ty = sy + uy * range;
+  const onHit = (enemy, baseDamage, shot, isLast) => {
+    const hitIndex = shot.pierceHitCount || 1;
+    const hitDamage = hitIndex === 1 ? baseDamage : baseDamage * (1 + bal.pierceDmg[branchB]);
+    combat.hitIce(enemy, hitDamage, shot, { deferShatter: !isLast });
+    if (isLast && hitIndex >= 3 && combat.game.run.relic3('ice_pierce')) combat.freezeE(enemy, 1);
+  };
+  combat.addProjectile(
+    { key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, speed, pierceMaxHits: maxHits, onHit },
+    { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale, tx, ty }
+  );
+  return true;
+}
+
 function _iceMultiShot(combat, e, dmg) {
-  const g = combat.game;
   const balance = SKILL_NUM.ice['多重冰锥'];
   const mz = combat.towerMuzzle('ice');
   const msx = mz.x, msy = mz.y;
@@ -18,17 +46,13 @@ function _iceMultiShot(combat, e, dmg) {
     const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + combat.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
     const perDmg = dmg * balance.swarmDamage * (1 + balance.damagePerBranch * bLv);
     const hitR = balance.swarmHitRadius;                             // 超小冰锥碰撞半径更小
-    const strike = (o, d) => {
-      combat.damage(o, d, 'ice');
-      combat.tryAttackDebuff('ice', o, d);   // v1.16.53 增殖超小冰锥属普攻强化：统一冰缓/冰冻判定（吃寒霜/冰冻技能加成）
-      combat.iceHitFx(o, d);                 // v1.16.98 暴雪3★
-      combat.fxParticle(o.x, o.y, '#b8e6ff', 4, 34, 0.3, 110, 4);
-      combat.fxRing(o.x, o.y, '#7fd4ff', 16, 0.2, 2);
-    };
+    const strike = (o, d, shot) => combat.hitIce(o, d, shot);
     const targets = combat.enemies().filter((o) => o.hp > 0 && combat.inTowerRange('ice', o.x, o.y));
     for (let i = 0; i < n; i++) {
       const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
-      combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+      if (!launchIcePiercingShot(combat, tgt, perDmg, 0.38, hitR)) {
+        combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+      }
     }
     // 增殖仅由每枚真实冰锥碰撞结算，不额外对主目标即时扣血。
     return;
@@ -36,80 +60,39 @@ function _iceMultiShot(combat, e, dmg) {
   const n = balance.count + aLv + combat.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
   const perDmg = dmg * balance.damage * (1 + balance.damagePerBranch * bLv);
   const hitR = balance.hitRadius;                                     // 散射冰锥碰撞半径
-  const strike = (o, d) => {                           // 命中结算（中心直瞄与散射弹道共用）
-    combat.damage(o, d, 'ice');
-    combat.tryAttackDebuff('ice', o, d);   // v1.16.53 多重冰锥散射属普攻强化：统一冰缓/冰冻判定
-    combat.iceHitFx(o, d);                 // v1.16.98 暴雪3★
-    combat.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
-    combat.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
-    combat.fxFlash(o.x, o.y, '#7fd4ff', 0.2);
-  };
+  const strike = (o, d, shot) => combat.hitIce(o, d, shot); // 多重冰锥与普通冰锥共用命中/碎冰逻辑
   // 以主目标方向为基准旋转 off 角度 → 扇形轨迹终点（中心弹 off=0 即锁定主目标）
   const aimOf = (tgt, off) => {
     const dx = tgt.x - msx, dy = tgt.y - msy;
     const cos = Math.cos(off), sin = Math.sin(off);
     return { tx: msx + dx * cos - dy * sin, ty: msy + dx * sin + dy * cos };
   };
-  // 中心弹：锁定主目标（onHit 命中才结算；render 末端跟随目标，目标死亡时落回创建点，弹体始终可见）
-  const aim0 = aimOf(e, 0);
-  // v1.17.47 冰穿刺：多重冰锥下由中心锁定弹结算一次穿透（散射侧锥不叠加，保持与单发路径同频）
-  const strikeCenter = (o) => { strike(o, perDmg); applyIcePierce(combat, o, perDmg); };
-  combat.addProjectile({ key: 'ice', target: e, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', target: e, scale: 1.15, tx: e.x, ty: e.y });
-  // 两侧：以主目标方向为基准等角扇形（中心弹两侧均匀分布），沿途碰撞命中即止
+  // 主目标只决定扇形朝向；中心弹与侧锥同帧发射、同速飞行、沿线碰撞。
   const maxOff = (n - 2) * balance.fanStep;
+  const aim0 = aimOf(e, 0);
+  const centerLen = Math.hypot(aim0.tx - msx, aim0.ty - msy) || 1;
+  const centerTX = msx + (aim0.tx - msx) * R / centerLen;
+  const centerTY = msy + (aim0.ty - msy) * R / centerLen;
+  if (!launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, 0)) {
+    const strikeCenter = (o, d, shot) => strike(o, perDmg, shot);
+    combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: centerTX, ty: centerTY, hitR, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: centerTX, ty: centerTY });
+  }
+  // 两侧锥与中心锥使用同一碰撞、穿透和碎冰处理逻辑。
   for (let i = 0; i < n - 1; i++) {
     const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
     const ap = aimOf(e, off);
     const rayLen=Math.hypot(ap.tx-msx,ap.ty-msy)||1;
-    const reach=combat.range('ice');
-    ap.tx=msx+(ap.tx-msx)*reach/rayLen; ap.ty=msy+(ap.ty-msy)*reach/rayLen;
-    const strikeSide = (o) => strike(o, perDmg);
-    combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
+    ap.tx=msx+(ap.tx-msx)*R/rayLen; ap.ty=msy+(ap.ty-msy)*R/rayLen;
+    if (combat.lv('ice', '冰穿刺') > 0) {
+      launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, off);
+    } else {
+      const strikeSide = (o, d, shot) => strike(o, perDmg, shot);
+      combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
+    }
   }
 }
 
-/**
- * 冰穿刺 · 穿透结算统一入口（v1.17.47）
- * 背景：原实现把穿透写死在 hitIce 尾部，而「多重冰锥」激活后普攻走 _iceMultiShot，
- *   hitIce 整条链（冰穿刺 / 碎冰 / 暴雪 3★）都不会执行 → 真机上「学了多重冰锥再点冰穿刺，穿透完全没反应」。
- * 口径：每次「攻击」结算一次穿透（多重冰锥只由中心锁定那枚结算，散射侧锥不重复叠加），与单发同频。
- * 判定：沿弹道方向（塔口 → 命中点）在命中点之后、且与命中点横向偏移 ≤ laneHalf 的敌人；
- *   原实现只判投影不限横向，会隔半屏命中侧路敌人，视觉上完全不像"穿过去"。
- * 表现：命中点 → 每个穿透目标连一条冰痕（fxBeam），配合各自的冰晶迸发，看得出冰锥穿过一列。
- */
-function applyIcePierce(combat, e, dmg) {
-  if (!e || combat.lv('ice', '冰穿刺') <= 0) return 0;
-  const bal = SKILL_NUM.ice['冰穿刺'];
-  const mz = combat.towerMuzzle('ice');
-  const psx = mz.x, psy = mz.y;
-  const dirLen = Math.hypot(e.x - psx, e.y - psy) || 1;
-  const ddx = (e.x - psx) / dirLen, ddy = (e.y - psy) / dirLen;   // 弹道方向（塔→目标）
-  const aLv = combat.branchLv('ice', '冰穿刺', 'A');
-  const bLv = combat.branchLv('ice', '冰穿刺', 'B');
-  const pierceN = bal.baseTargets + aLv + combat.relicVal('ice_pierce');   // v1.16.114 穿透凝冰1★/2★：+1/+2
-  const laneHalf = bal.laneHalf || 60;
-  // 穿透目标：沿弹道方向位于目标身后（远离塔侧），且与目标横向偏移不超过 laneHalf，按投影距离由近到远
-  const cands = combat.enemies().filter((o) => o.hp > 0 && o !== e
-      && Math.abs(o.x - e.x) <= laneHalf
-      && ((o.x - e.x) * ddx + (o.y - e.y) * ddy) > bal.minProjection)
-    .sort((a, b) => ((a.x - e.x) * ddx + (a.y - e.y) * ddy) - ((b.x - e.x) * ddx + (b.y - e.y) * ddy));
-  const hitCnt = Math.min(pierceN, cands.length);
-  for (let i = 0; i < hitCnt; i++) {
-    const pT = cands[i];
-    const pDmg = dmg * (1 + bal.pierceDmg[bLv]);   // B 透射 +30/60/90%
-    combat.damage(pT, pDmg, 'ice');
-    combat.iceHitFx(pT, pDmg);                     // v1.16.98 暴雪3★
-    // v1.16.98 穿透凝冰3★：冰锥贯穿 2 名以上敌人时，对最后一名敌人造成冰冻 1 秒
-    if (combat.game.run.relic3('ice_pierce') && hitCnt >= 2 && i === hitCnt - 1) combat.freezeE(pT, 1);
-    // v1.17.47 穿透轨迹：冰痕从命中点连到每个被穿透的敌人
-    combat.fxBeam(e.x, e.y, pT.x, pT.y, '#a9d6f5', 0.26, 3);
-    combat.fxParticle(pT.x, pT.y, '#b8e6ff', 5, 40, 0.3, 110, 4);
-    combat.fxRing(pT.x, pT.y, '#a9d6f5', 20, 0.2, 2);
-  }
-  return hitCnt;
-}
-
-function hitIce(combat, e, dmg) {
+function hitIce(combat, e, dmg, projectile = null, options = {}) {
   combat.damage(e, dmg, 'ice');
   // v1.16.114 暴雪1★/2★（未学多重冰锥时）：单发追加 N 枚散射冰锥（命中结算：冰缓/冰冻/暴雪3★ 冰爆）
   const blzN = combat.relicVal('ice_blizzard');
@@ -145,7 +128,7 @@ function hitIce(combat, e, dmg) {
   if (fogN > 0 && Math.random() < fogN / 100) {
     combat.enemies().forEach((o) => {
       if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100) {
-        combat.applySlow(o, 0.3, 1);
+        combat.applySlow(o, 0.3, 1, 'ice');
         combat.fxParticle(o.x, o.y, '#d6f0ff', 4, 34, 0.35, 100, 4);
       }
     });
@@ -160,7 +143,7 @@ function hitIce(combat, e, dmg) {
   //   沿弹道方向呈 60° 角散射（±30°），碎冰命中敌人即止（不穿透）
   //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害档位 +15%/30%/45%、C 冻结 命中 5%/10%/15% 几率冻结 2s
   const shard = combat.lv('ice', '碎冰');
-  if (shard > 0) {
+  if (shard > 0 && !options.deferShatter) {
     const g = combat.game;
     // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
     const mz = combat.towerMuzzle('ice');
@@ -168,11 +151,20 @@ function hitIce(combat, e, dmg) {
     const len = Math.hypot(e.x - msx, e.y - msy) || 1;
     const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
     const n = SKILL_NUM.ice['碎冰'].count + combat.branchLv('ice', '碎冰', 'A');
-    const dmg = combat.shotDmg('ice') * SKILL_NUM.ice['碎冰'].baseDamage * (1 + SKILL_NUM.ice['碎冰'].dmg[combat.branchLv('ice', '碎冰', 'B')]);
+    const dmg = combat.shotDmg('ice', false, true) * SKILL_NUM.ice['碎冰'].baseDamage * (1 + SKILL_NUM.ice['碎冰'].dmg[combat.branchLv('ice', '碎冰', 'B')]);
     const frzP = SKILL_NUM.ice['碎冰'].frz[combat.branchLv('ice', '碎冰', 'C')];
     const sx = e.x + dx * SKILL_NUM.ice['碎冰'].spawnOffset, sy = e.y + dy * SKILL_NUM.ice['碎冰'].spawnOffset;   // 越过主目标，避免立即重复命中
     const R = combat.range('ice');
-    const dur = CONFIG.TOWERS.ice.shot.dur;
+    const fallbackSpeed = R / CONFIG.TOWERS.ice.shot.dur;
+    const shotX = projectile && projectile.sx != null ? projectile.sx : 0;
+    const shotY = projectile && projectile.sy != null ? projectile.sy : 0;
+    const shotTX = projectile && projectile.tx != null ? projectile.tx : e.x;
+    const shotTY = projectile && projectile.ty != null ? projectile.ty : e.y;
+    const speed = projectile && projectile.speed > 0
+      ? projectile.speed
+      : projectile && projectile.dur > 0
+        ? Math.hypot(shotTX - shotX, shotTY - shotY) / projectile.dur
+        : fallbackSpeed;
     const hitR = SKILL_NUM.ice['碎冰'].hitRadius;
     const strike = (o, d) => {
       // v1.16.98 碎冰强化3★：碎冰命中已有冰缓的敌人时伤害 ×1.5
@@ -198,22 +190,22 @@ function hitIce(combat, e, dmg) {
       const a = baseA + off;
       const tx = sx + Math.cos(a) * R;
       const ty = sy + Math.sin(a) * R;
-      combat.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale: 0.85, tx, ty });
+      const shardDur = Math.hypot(tx - sx, ty - sy) / speed;
+      combat.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur: shardDur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur: shardDur, key: 'ice', aim: true, scale: 0.85, tx, ty });
     }
   }
   // 冰穿刺（v1.16.21 重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）
   //   A 冰穿 穿透目标 +1/+2/+3（1→2/3/4 名）；B 透射 穿透后伤害 +30%/60%/90%；C 冰霜透射 命中后对敌人身后 60px·90° 扇形造成 30%/40%/50% 伤害
-  // v1.17.47 穿透主体抽到 applyIcePierce（多重冰锥路径共用），此处只保留 C 的扇形追加
+  // 穿透目标由实体弹道逐个碰撞结算；C 分支在每次命中后追加身后扇形伤害。
   const pierce = combat.lv('ice', '冰穿刺');
   if (pierce > 0) {
-    applyIcePierce(combat, e, dmg);
     const mzP = combat.towerMuzzle('ice');
     const dirLen = Math.hypot(e.x - mzP.x, e.y - mzP.y) || 1;
     const ddx = (e.x - mzP.x) / dirLen, ddy = (e.y - mzP.y) / dirLen;   // 弹道方向（塔→目标）
     const cLv = combat.branchLv('ice', '冰穿刺', 'C');
     // C 冰霜透射：对敌人身后 60px·90° 扇形区域（以弹道方向为中轴 ±45°）造成伤害
     if (cLv > 0) {
-      const fDmg = combat.shotDmg('ice') * SKILL_NUM.ice['冰穿刺'].cone[cLv];
+      const fDmg = combat.shotDmg('ice', false, true) * SKILL_NUM.ice['冰穿刺'].cone[cLv];
       combat.enemies().forEach((o) => {
         if (o.hp <= 0 || o === e) return;
         const proj = (o.x - e.x) * ddx + (o.y - e.y) * ddy;          // 沿弹道方向投影（正=身后）
@@ -247,7 +239,7 @@ function tickIce(combat, dt) {
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y));
       if (alive.length) {
         const n = flowerBalance.baseCount + SKILL_NUM.ice['冰花'].n[combat.branchLv('ice', '冰花', 'C')];
-        const dmg = combat.shotDmg('ice') * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')]);
+        const dmg = combat.shotDmg('ice', false, true) * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')]);
         const r = flowerBalance.baseRadius * (1 + SKILL_NUM.ice['冰花'].radius[combat.branchLv('ice', '冰花', 'A')]);
         const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
         targets.forEach((tgt) => {
@@ -259,7 +251,7 @@ function tickIce(combat, dt) {
             x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg, delay: 0.8, t: 0, key: 'ice',
             fn: (cb) => {
               const hitOnes = cb.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
-              hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice'));
+              hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice', undefined, '冰花'));   // v1.17.50 标注
               // 爆炸演出：扩散冰环 + 冰晶碎瓣 + 闪光（与伤害同时）
               cb.fxRing(tgt.x, tgt.y, '#7fd4ff', fxR, 0.5, 5);
               cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
@@ -274,7 +266,7 @@ function tickIce(combat, dt) {
                   x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg * mult, delay, t: 0, key: 'ice',
                   fn: (cb2) => {
                     const h2 = cb2.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
-                    h2.forEach((o) => cb2.damage(o, fxDmg * mult, 'ice'));
+                    h2.forEach((o) => cb2.damage(o, fxDmg * mult, 'ice', undefined, '冰花'));   // v1.17.50 雪崩3★归冰花
                     cb2.fxRing(tgt.x, tgt.y, '#a9d6f5', fxR, 0.45, 4);
                     cb2.fxParticle(tgt.x, tgt.y, '#b8e6ff', 12, 80, 0.5, 140, 5);
                     cb2.fxFlash(tgt.x, tgt.y, '#a9d6f5', 0.25);
@@ -306,7 +298,7 @@ function tickIce(combat, dt) {
         const cLv = combat.branchLv('ice', '冬珠', 'C');
         const tickI = cLv > 0 ? SKILL_NUM.ice['冬珠'].tickI[cLv] : orbBalance.defaultTickInterval;
         const slowMult = SKILL_NUM.ice['冬珠'].slowMult[combat.branchLv('ice', '冬珠', 'A')];
-        const dmg = combat.shotDmg('ice') * orbBalance.damage;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
+        const dmg = combat.shotDmg('ice', false, true) * orbBalance.damage;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
         const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbBalance.targetCount);   // 最近 1 个敌人位置落球（C 不再增加数量）
         combat.frostOrbs = combat.frostOrbs || [];
         spots.forEach((sp) => {
@@ -329,8 +321,8 @@ function tickIce(combat, dt) {
           ob.tickT += ob.tickI;
           combat.enemies().forEach((o) => {
             if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
-            combat.damage(o, ob.dmg, 'ice');
-            if (ob.slowMult > 0) combat.applySlow(o, ob.slowMult, orbBalance.slowDuration);
+            combat.damage(o, ob.dmg, 'ice', undefined, '冬珠');   // v1.17.50 标注
+            if (ob.slowMult > 0) combat.applySlow(o, ob.slowMult, orbBalance.slowDuration, 'ice');
             // v1.16.98 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
             if (combat.game.run.relic3('ice_domain') && o.slow && o.slow.ttl > 0 && !(o._domainCd > 0)) {
               o._domainCd = 3;
@@ -399,7 +391,7 @@ function tickIce(combat, dt) {
       if (ig.ttl <= 0) continue;
       combat.enemies().forEach((o) => {
         if (o.hp <= 0 || Math.hypot(o.x - ig.x, o.y - ig.y) > ig.r) return;
-        if (ig.slow) combat.applySlow(o, ig.slow, 0.3);
+        if (ig.slow) combat.applySlow(o, ig.slow, 0.3, 'ice');
         if (ig.fog) o._fogTtl = 0.3;
       });
       rem.push(ig);
@@ -418,4 +410,4 @@ function tickIce(combat, dt) {
   }
 }
 
-module.exports = { tickIce, _iceMultiShot, hitIce, iceHitFx };
+module.exports = { tickIce, _iceMultiShot, launchIcePiercingShot, hitIce, iceHitFx };

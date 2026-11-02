@@ -4,7 +4,7 @@ const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
 // 仅根据棋盘/动画快照绘制，不执行匹配、补落、扫描交换或奖励结算。
 function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, subBlockGlyph, easeOutCubic }) {
-  function board(ctx, grid, selected, anim, shake, theme) {
+  function board(ctx, grid, selected, anim, shake, theme, hint) {
     ChipSkin.preload();   // 底板与共用图案预载；数量由ChipSkin资源清单维护。
     const { boardX, boardY, cell, boardRows, boardCols } = this.ly;
     // v1.17.29 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
@@ -62,7 +62,17 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
           this.drawCell(ctx, x, y, cell, color, r, c, selected);
         }
       }
-      if (shP >= 0 && shP < 1) ctx.restore();
+      if (hint && hint.length === 2 && !anim) {
+      const pulse = 0.62 + 0.3 * Math.sin(Date.now() / 220);
+      ctx.save(); ctx.globalAlpha = pulse; ctx.lineWidth = 4; ctx.strokeStyle = '#fff2a1';
+      hint.forEach(([hr,hc]) => strokeRoundRect(ctx, boardX + hc * cell + 3, boardY + hr * cell + 3, cell - 6, cell - 6, 11, '#fff2a1', 4));
+      ctx.globalAlpha = pulse * 0.75; ctx.strokeStyle = '#ffd34d';
+      const ax = boardX + (hint[0][1] + hint[1][1] + 1) * cell / 2;
+      const ay = boardY + (hint[0][0] + hint[1][0] + 1) * cell / 2;
+      ctx.beginPath(); ctx.arc(ax, ay, cell * 0.13, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if (shP >= 0 && shP < 1) ctx.restore();
       return;
     }
 
@@ -145,6 +155,16 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
         }
         this.drawCell(ctx, x, y, cell, color, r, c, selected);
       }
+    }
+    if (hint && hint.length === 2 && !anim) {
+      const pulse = 0.62 + 0.3 * Math.sin(Date.now() / 220);
+      ctx.save(); ctx.globalAlpha = pulse; ctx.lineWidth = 4; ctx.strokeStyle = '#fff2a1';
+      hint.forEach(([hr,hc]) => strokeRoundRect(ctx, boardX + hc * cell + 3, boardY + hr * cell + 3, cell - 6, cell - 6, 11, '#fff2a1', 4));
+      ctx.globalAlpha = pulse * 0.75; ctx.strokeStyle = '#ffd34d';
+      const ax = boardX + (hint[0][1] + hint[1][1] + 1) * cell / 2;
+      const ay = boardY + (hint[0][0] + hint[1][0] + 1) * cell / 2;
+      ctx.beginPath(); ctx.arc(ax, ay, cell * 0.13, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
     if (shP >= 0 && shP < 1) ctx.restore();
   }

@@ -5,8 +5,33 @@ const { recordDamage } = require('../game/fx/combat-feedback.js');
 const CONFIG = require('../config.js');
 const SKILL_NUM = require('../config/tower-skills.js');
 const GS_BALANCE = require('../config/global-balance.js');
+const EnergyState = require('../config/energy-state.js');
 
-function shotDmg(combat, key, isSkill) {
+// v1.17.50 伤害统计：技能名 → 归属塔（炮火支援焦土等跨塔产物按技能名归源塔）
+const SKILL_TOWER = {};
+for (const tkey of Object.keys(CONFIG.EFFECT_POOLS || {})) {
+  const pool = CONFIG.EFFECT_POOLS[tkey] || [];
+  for (const p of pool) if (p && p.name) SKILL_TOWER[p.name] = tkey;
+}
+
+/** v1.17.50 伤害统计归集：按实际扣血（healthLoss+shieldLoss，与飘字同口径）计入本局桶 */
+function recordDmgStat(combat, e, hpBefore, shieldBefore, srcKey, kind, skill) {
+  const run = combat.game && combat.game.run;
+  if (!run || typeof run.dmgStatOf !== 'function') return;
+  const healthLoss = Math.min(Math.max(0, hpBefore), Math.max(0, hpBefore - e.hp));
+  const shieldLoss = Math.max(0, shieldBefore - Math.max(0, Number(e.shield) || 0));
+  const amount = healthLoss + shieldLoss;
+  if (!(amount > 0) || !Number.isFinite(amount)) return;
+  const towerKey = skill ? (SKILL_TOWER[skill] || srcKey) : srcKey;
+  if (!towerKey) return;
+  const st = run.dmgStatOf(towerKey);
+  st.total += amount;
+  if (kind === 'dot') st.dot += amount;
+  else if (skill) st.skill[skill] = (st.skill[skill] || 0) + amount;
+  else st.normal += amount;
+}
+
+function shotDmg(combat, key, isSkill, isTowerSkill) {
   const dps = combat.game.run.effects.towerDps(key);
   const iv = CONFIG.TOWERS[key].atkInterval;
   let dmg = dps * iv * (combat.game.run.gsState && combat.game.run.gsState.forge > 0 ? GS_BALANCE.forge.damageMultiplier : 1);
@@ -18,22 +43,73 @@ function shotDmg(combat, key, isSkill) {
   // v1.16.96 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
   const run = combat.game.run;
   const rl = combat.relicVal('cm_power') + combat.relicTowerDmg(key)
-    + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0);
+    + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0)
+    + (run._seedBonus || 0)                       // v1.17.43 UR 未凋之种1★/2★：本波击杀召唤物累计全塔伤害
+    + 2 * (run._meltCore || 0);                   // v1.17.43 UR 熔心炉3★：每层熔芯 +2% 全塔伤害（上限 20 层）
   if (rl > 0) dmg *= (1 + rl / 100);
   if (isSkill && run.chargeSkillBoost > 0) dmg *= (1 + run.chargeSkillBoost / 100);
+  const overload = run.electricOverload ? run.electricOverload() : { level: 0, A: 0, C: 0 };
+  const overloadBalance = SKILL_NUM.electric['电磁过载'];
+  if (overload.level > 0 && (isTowerSkill === undefined ? isSkill : isTowerSkill)) {
+    // 基础技能增伤15%；A分支额外增加15/25/35个百分点。
+    dmg *= 1 + overloadBalance.skillDamageBase + overloadBalance.skillDamagePerBranch[overload.A];
+  }
+  // v1.17.43 超压1★/2★（原「过载」重做）：全塔技能伤害 +10%/+18%（与电磁过载同口径，仅技能吃）
+  const supV = combat.relicVal('elec_overload');
+  if (supV > 0 && (isTowerSkill === undefined ? isSkill : isTowerSkill)) dmg *= (1 + supV / 100);
   // v1.16.96 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3
   if (run._shuffleBuffTtl > 0) dmg *= 1.3;
-  // v1.16.77 能量耗尽弱化态：普攻与技能伤害 ×0.5（能量 <= 0 时）
+  // 能量状态同时影响普攻与周期技能伤害。
   const t = combat.tower(key);
-  if (t && t.energy <= 0) dmg *= CONFIG.GLOBAL_SKILL.weakDmg;
+  if (t) dmg *= EnergyState.evaluate(t.energy, run.armoryEnergyMax()).attack;
+  if (overload.level > 0 && !isSkill && t && t.energy >= run.armoryEnergyMax() * overloadBalance.resonanceThreshold) {
+    dmg *= 1 + overloadBalance.resonanceDamage[overload.C];
+  }
+  // 炮·军火库 C 过剩：能量 ≥ 上限 80% 时普攻伤害 +10%/+20%/+30%（仅普攻，与能量状态乘区叠加）
+  if (!isSkill && key === 'cannon') {
+    const armC = combat.branchLv('cannon', '军火库', 'C');
+    if (armC > 0 && t && t.energy >= run.armoryEnergyMax() * (SKILL_NUM.cannon['军火库'].overThreshold || 0.8)) {
+      dmg *= (1 + SKILL_NUM.cannon['军火库'].overPerBranch * armC);
+    }
+  }
   return dmg;
 }
 
-function damage(combat, e, dmg, srcKey, kind = 'hit') {
+function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
   if (e.hp <= 0) return;
   let v = dmg;
+  // v1.17.50 kind 归一化：statuses 传 {kind:'dot',sourceKey} 或字符串 'dot'，此处统一为字符串
+  if (kind && typeof kind === 'object') {
+    srcKey = kind.sourceKey || srcKey;
+    kind = kind.kind || 'hit';
+  }
   // v1.16.11 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
-  if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor));
+  // v1.17.43 UR 穿透合成：碎渣重锤（无视 15%/20%，3★ 35%）/ 裂坛玫瑰3★（目标带护盾或减伤时无视全部护甲）
+  let armorIgnore = 0;
+  const hammerN = combat.relicVal('ur_slag_hammer');
+  if (combat.game.run.relic3('ur_slag_hammer')) armorIgnore = 0.35;
+  else if (hammerN > 0) armorIgnore = hammerN / 100;
+  const guarded = Math.max(0, Number(e.shield) || 0) > 0 || e.armor > 0;
+  if (combat.game.run.relic3('ur_altar_rose') && guarded) armorIgnore = 1;
+  if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor * (1 - Math.min(1, armorIgnore))));
+  // v1.17.43 碎渣重锤3★：对护甲 ≥40% 的目标额外 +15% 伤害
+  if (combat.game.run.relic3('ur_slag_hammer') && e.armor >= 0.4) v *= 1.15;
+  // v1.17.43 裂坛玫瑰1★/2★：对处于护盾/减伤状态的目标，伤害 +25%/+40%
+  const roseN = combat.relicVal('ur_altar_rose');
+  if (roseN > 0 && guarded) v *= (1 + roseN / 100);
+  // v1.17.43 霜风之眼3★：被减速/冰冻/麻痹的敌人受到伤害 +12%（Boss 额外 +6%）
+  if (combat.game.run.relic3('ur_frost_eye') && ((e.slow && e.slow.ttl > 0) || e.frozen > 0 || e.paralyzed > 0)) {
+    v *= 1.12 * (e.isBoss ? 1.06 : 1);
+  }
+  // v1.17.43 风灯1★/2★：敌人移速每高于基准 10%，受到伤害 +3%/+4%（上限 +15%/+20%，上限数值取文案末位）
+  const lanternCap = combat.relicVal('ur_wind_lantern');
+  if (lanternCap > 0 && e.speedBase) {
+    const overRatio = e.speed / e.speedBase - 1;
+    if (overRatio > 0) {
+      const rate = lanternCap >= 20 ? 4 : 3;
+      v *= (1 + Math.min(lanternCap, rate * Math.floor(overRatio / 0.1)) / 100);
+    }
+  }
   // 腐蚀增伤
   if (e.corrode) v *= e.corrode.mult;
   // （寒霜 C 原「易伤」已改「深寒：减速幅度」，v1.16.21 移除易伤乘区）
@@ -43,14 +119,9 @@ function damage(combat, e, dmg, srcKey, kind = 'hit') {
     const bd = e.dots.find((d) => d.type === 'burn');
     if (bd) v *= (1 + SKILL_NUM.fire['灼烧'].trueFire[trueLv] * bd.stack);
   }
-  // 回旋镖·猎手标记 A 深镖（v1.16.42）：受标记的敌人受到伤害提升 8%/16%/24%（全来源）
-  const mkA = combat.branchLv('boomerang', '猎手标记', 'A');
-  if (mkA > 0 && (e._mark || 0) > 0) v *= (1 + SKILL_NUM.boomerang['猎手标记'].deep[mkA]);
-  // v1.16.114 猎心1★/2★：被标记敌人受到的伤害提升 12%/15%（全来源，含普攻）
-  if (combat.relicVal('boo_hunt') > 0 && (e._mark || 0) > 0) v *= (1 + combat.relicVal('boo_hunt') / 100);
-  // 电·过载 B 强载：每层增伤 +15%/级（未点 B 分支不增伤；v1.16.20 接入分支）
-  const ovB = combat.branchLv('electric', '过载', 'B');
-  if (srcKey === 'electric' && e.overload && ovB > 0) v *= (1 + 0.15 * ovB * e.overload.n);
+  // （回旋镖·猎手标记 A 深镖：技能已于 2026-11-01 删除；原猎心1★/2★ 判定随之下线，v1.17.43 改名涡心改挂风眼涡旋）
+  // v1.17.43 裂空3★：流血的敌人受到飞镖伤害 +12%
+  if (srcKey === 'boomerang' && combat.game.run.relic3('boo_mark') && combat.hasDot(e, 'bleed')) v *= 1.12;
   // v1.16.96 火塔 3★ 火伤乘区（srcKey==='fire'）：
   //   熔心3★：火柱命中标记目标，目标受到火伤 +15%/层（5s，叠2层）
   //   炼狱3★：场上每存在 1 个灼烧敌人，全塔火伤 +3%（上限 +45%）
@@ -86,20 +157,21 @@ function damage(combat, e, dmg, srcKey, kind = 'hit') {
   if (dmgLv > 0) v *= (1 + 0.08 * dmgLv);
   const shieldBefore = Math.max(0, Number(e.shield) || 0);
   v = Bosses.absorb(e,v);
-  applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore);
+  applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore, skill);
 }
 
 // Carry already-mitigated threshold overflow into the new bodies without applying multipliers twice.
-function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0) {
+function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0, skill) {
   if (e.hp <= 0) return;
   const phase = Bosses.transition(combat.game, e, v);
   const hpBefore = e.hp;
   e.hp -= phase ? phase.damage : v;
   recordDamage(combat, e, hpBefore, srcKey, kind, shieldBefore);
+  recordDmgStat(combat, e, hpBefore, shieldBefore, srcKey, kind, skill);
   e.lastDmgKey = srcKey || e.lastDmgKey;
   if (phase) {
     const members = Bosses.split(combat.game, e);
-    if (phase.overflow > 0) for (const child of members) applyResolvedDamage(combat, child, phase.overflow / members.length, srcKey, kind);
+    if (phase.overflow > 0) for (const child of members) applyResolvedDamage(combat, child, phase.overflow / members.length, srcKey, kind, 0, skill);
     return;
   }
   Bosses.afterDamage(combat.game, e);
@@ -111,7 +183,7 @@ function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0) {
   }
 }
 
-function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude) {
+function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude, skill) {
   const g = combat.game;
   // 协同（v1.16.20 修正）：重炮×大火球（SYNERGIES[1]）达成 → 爆炸类伤害 +50%（原引用 [0]/[2] 错位已修正）
   let mult = 1;
@@ -122,15 +194,15 @@ function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude) {
     if (exclude && o === exclude) return;   // 溅射不重复结算施爆点主目标（v1.16.12）
     const d = Math.hypot(o.x - x, o.y - y);
     if (d > r) return;
-    combat.damage(o, dmg * mult, key);
+    combat.damage(o, dmg * mult, key, undefined, skill);
     if (knock > 0 && !o.immuneKnockback) {
       o.y = Math.max(entryY + 10, o.y - knock * (1 - d / r));
       // v1.16.103 震地3★：击退的敌人撞墙时受到 20% 伤害（击退落点结算）
       if (g.run.relic3('can_quake')) combat.damage(o, dmg * 0.2, key);
       // v1.16.103 震烈3★：击退打断敌人攻击动作（对远程怪质变——击退瞬间强减速 0.3 秒）
       if (g.run.relic3('can_knock')) combat.applySlow(o, 1, 0.3);
+      if (slowAfter > 0) combat.applySlow(o, 0.3, slowAfter);   // 震击 C：仅减速实际被击退的敌人
     }
-    if (slowAfter > 0) combat.applySlow(o, 0.3, slowAfter);   // slowAfter = 减速秒数（震击 C：1/1.5/2）
     // v1.16.114 燃烧弹1★/2★：炮弹爆炸 N% 概率点燃敌人；3★ 100% 引燃
     if (key === 'cannon') {
       const incN = combat.relicVal('can_incend');

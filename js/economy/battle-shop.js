@@ -3,19 +3,25 @@
 const CONFIG = require('../config.js');
 function offer(run, item) {
   const bought = run.store && run.store[item.id] || 0;
-  return { bought, sold: item.max > 0 && bought >= item.max, cost: item.cost[Math.min(bought, item.cost.length - 1)] };
+  const cooldown = item.max === 0 ? (run.storeCooldowns && run.storeCooldowns[item.id] || 0) : 0;
+  return { bought, sold: item.max > 0 && bought >= item.max, cooldown, cost: item.cost[Math.min(bought, item.cost.length - 1)] };
 }
 function buy(run, id) {
   const item = CONFIG.STORE.items.find(it => it.id === id);
   if (!item) return { ok: false, reason: 'item' };
   const state = offer(run, item);
   if (state.sold) return { ok: false, reason: 'limit' };
+  if (state.cooldown > 0) return { ok: false, reason: 'cooldown', remaining: state.cooldown };
   const maxHp = run.lineMaxHp || CONFIG.LINE.hp;
   const towers = [...new Set(run.slotOrder)].map(k => run.effects.tower(k)).filter(t => t && t.level > 0);
   if (item.heal && run.lineHp >= maxHp) return { ok: false, reason: 'full' };
   if (item.energy && !towers.some(t => t.energy < run.armoryEnergyMax())) return { ok: false, reason: 'energy' };
   if (run.gold < state.cost) return { ok: false, reason: 'gold' };
   run.gold -= state.cost;
+  if (item.max === 0) {
+    if (!run.storeCooldowns) run.storeCooldowns = {};
+    run.storeCooldowns[id] = CONFIG.STORE.repeatPurchaseCooldown || 5;
+  }
   if (!run.store) run.store = {};
   run.store[id] = state.bought + 1;
   if (item.duration) {
@@ -27,10 +33,14 @@ function buy(run, id) {
   return { ok: true, item, cost: state.cost };
 }
 function tick(run, dt) {
-  if (!(dt > 0) || !run.storeTimers) return;
-  for (const id of Object.keys(run.storeTimers)) {
+  if (!(dt > 0)) return;
+  if (run.storeTimers) for (const id of Object.keys(run.storeTimers)) {
     run.storeTimers[id] = Math.max(0, run.storeTimers[id] - dt);
     if (!run.storeTimers[id]) delete run.storeTimers[id];
+  }
+  if (run.storeCooldowns) for (const id of Object.keys(run.storeCooldowns)) {
+    run.storeCooldowns[id] = Math.max(0, run.storeCooldowns[id] - dt);
+    if (!run.storeCooldowns[id]) delete run.storeCooldowns[id];
   }
 }
 function buffs(run) {

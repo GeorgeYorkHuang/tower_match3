@@ -18,6 +18,11 @@ function bindTouch(game, c) {
     const onStart = (e) => {
       const p = touchPoint(e);
       if (!p) return;
+      if (game.state === 'gameover' && game.gameoverSkip && p.y >= 552 && p.y <= 926) {
+        game._lootDrag = { y: p.y, start: p.y, scroll: game._lootScroll || 0, moved: false };
+        game._touchStart = { x: p.x, y: p.y }; return;
+      }
+      if (game.state === 'fighting') { game._boardIdleTime = 0; game.boardHint = null; }
       RelicScroll.stop(game);
       PanelScroll.stop(game);
       // Menu input must never be gated by the board gesture lock.
@@ -46,6 +51,12 @@ function bindTouch(game, c) {
     };
     const onMove = (e) => {
       const p = touchPoint(e);
+      if (game._lootDrag && p) {
+        const d = game._lootDrag, count = Object.keys((game.runSummary && game.runSummary.shardDetail) || {}).filter(id => game.runSummary.shardDetail[id] > 0).length;
+        const max = Math.max(0, Math.ceil(count / 5) * 185 - 374);
+        if (Math.abs(p.y - d.start) > 6) d.moved = true;
+        game._lootScroll = Math.max(0, Math.min(max, d.scroll + d.start - p.y)); d.y = p.y; return;
+      }
       // v1.16.82 圣遗物页拖动滚动
       if (game._relicDrag && p) {
         RelicScroll.move(game, p);
@@ -80,6 +91,7 @@ function bindTouch(game, c) {
       lastCell = cell;
     };
     const onEnd = (e) => {
+      if (game._lootDrag) { const d = game._lootDrag; game._lootDrag = null; game._touchStart = null; if (d.moved) return; game.dispatchTouch(touchPoint(e) || { x: 0, y: 0 }); return; }
       // Always release on end: adapters may include the ending touch in touches.
       gestureUsed = false;
       // v1.16.82 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
@@ -120,6 +132,7 @@ function bindTouch(game, c) {
       game._touchStart = null;
     };
     const onCancel = () => {
+      game._lootDrag = null;
       gestureUsed = false;
       startCell = null; lastCell = null;
       moved = false;

@@ -24,19 +24,33 @@ module.exports = {
     }
     // Boss：掉落战场宝箱（棋盘相邻消除领取）+ 主界面宝箱计数（每 5 波）
     if (e.isBoss) {
-      if (!e.isFinalBoss) this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'boss' });
-      this.run._waveChestDropped = true;
-      this.meta.chests += 1;
-      this.toast(e.isFinalBoss ? '终极Boss宝箱已存入主界面' : 'Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+      const waveNo = e.waveNo || this.run.wave || 0;
+      const majorBoss = waveNo > 0 && waveNo % 20 === 0;
+      const chestChance = majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance;
+      const fieldChestDropped = !e.isFinalBoss && Math.random() < chestChance;
+      if (fieldChestDropped) {
+        this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: majorBoss ? 'majorBoss' : 'miniBoss' });
+        this.run._waveChestDropped = true;
+        this.toast(majorBoss ? '大Boss宝箱 · 消除棋盘相邻方块领取' : '小Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+      }
+      this.meta.chests += 1; // Boss 进度奖励计入主界面宝箱，与战斗宝箱概率独立
+      if (e.isFinalBoss) this.toast('终极Boss宝箱已存入主界面', '#f7c948');
       this.save.save();
     }
-    /* v1.16.76 击杀掉落线：碎片（即时入账，不受宝箱槽位限制）+ 小额击杀银币 */
+    /* 碎片独立掉落表：精英5%×1；小Boss20%×2~4；大Boss保底2，另50%×3~6。 */
     const field = this.field || CONFIG.FIELDS.ancient;
     if (field.dropAttr && field.dropAttr !== 'none') {
       const KD = CONFIG.KILL_DROP;
       let n = 0;
-      if (e.type === 'elite' && Math.random() < KD.eliteShardChance) n = Math.random() < 1 / 3 ? 2 : 1;
-      if (e.isBoss) n = KD.bossShardBase + (Math.random() < KD.bossShardBonusChance ? 2 : 0);
+      const waveNo = e.waveNo || this.run.wave || 0;
+      const majorBoss = !!e.isBoss && waveNo > 0 && waveNo % 20 === 0;
+      if (e.type === 'elite' && Math.random() < KD.eliteShardChance) n = 1;
+      if (e.isBoss && majorBoss) {
+        n = KD.majorBossShardBase;
+        if (Math.random() < KD.majorBossShardBonusChance) n += KD.majorBossShardBonusMin + Math.floor(Math.random() * (KD.majorBossShardBonusMax - KD.majorBossShardBonusMin + 1));
+      } else if (e.isBoss && Math.random() < KD.miniBossShardChance) {
+        n = KD.miniBossShardMin + Math.floor(Math.random() * (KD.miniBossShardMax - KD.miniBossShardMin + 1));
+      }
       if (n > 0) {
         const id = CONFIG.randomShardId(field.dropAttr);
         if (id) {
@@ -72,15 +86,7 @@ module.exports = {
       this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return;
     }
     if (!star3Mode && (!cands || !cands.length)) {
-      this.toast('圣遗物已全部解锁，宝箱折算为碎片', '#a86bff');
-      // v1.16.78 全解锁兜底：宝箱仍折算少量碎片，避免点击无反馈
-      const shardId = CONFIG.randomShardCardId(Math.random() < 0.5 ? 'sr' : 'r');
-      // v1.17.20 同样只记账，局末随其他碎片一起按比例入账
-      if (shardId) {
-        this.runShardGained += 1;
-        this.runShardDetail[shardId] = (this.runShardDetail[shardId] || 0) + 1;   // v1.17 碎片明细（全解锁折算）
-      }
-      this.save.save();
+      this.toast('当前没有可用圣遗物候选', '#9fb2c3');
       this._chestBusy = false;
       return;
     }
@@ -94,7 +100,7 @@ module.exports = {
     // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
     const ownedKeys = this.run.slotOrder || [];
     const meta = this.meta;
-    const isUnlocked = (id) => meta.starOf(id) >= 1;   // v1.16.78 已解锁（图鉴/碎片达阈值）不再出现在三选一
+    // 宝箱负责本局圣遗物构筑；已解锁与未解锁圣遗物均可进入候选池。碎片只由Boss击杀线发放。
     let pool = [];
     if (star3) {
       ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (meta.starOf(d.id) >= 1) pool.push({ def: d, tint: k }); }); });
@@ -112,8 +118,8 @@ module.exports = {
       }
       return cands3;
     }
-    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: k }); }); });
-    RR.common.forEach((d) => { if (!isUnlocked(d.id)) pool.push({ def: d, tint: 'common' }); });
+    ownedKeys.forEach((k) => { if (RR.tower[k]) RR.tower[k].forEach((d) => { pool.push({ def: d, tint: k }); }); });
+    RR.common.forEach((d) => { pool.push({ def: d, tint: 'common' }); });
     if (!pool.length) return null;
     // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
     const W = CONFIG.RELIC_PICK_WEIGHT;
@@ -148,17 +154,6 @@ module.exports = {
     const c = this.relicPick && this.relicPick.candidates[i];
     if (!c) return;
     if (c.run) {
-      // v1.16.78 防御兜底：已解锁重复（三选一已过滤，正常不触发）→ 折算碎片不叠层
-      // v1.16.108 测试战场豁免：3★ 模式候选均为已拥有圣遗物，若走折算分支会 return 卡死弹层 → 测试战场直接注入本局生效
-      if (this.meta.starOf(c.id) >= 1 && this._relicReturnState !== 'testfield') {
-        const n = CONFIG.DUPLICATE_SHARDS[CONFIG.relicRarity(c.id)] || 2;
-        // v1.17.20 重复折算同样走「局末入账」，失守时一起按比例折算
-        this.runShardGained += n;
-        this.runShardDetail[c.id] = (this.runShardDetail[c.id] || 0) + n;   // v1.17 碎片明细（重复圣遗物折算）
-        this.toast(`重复圣遗物 → ${c.icon}${c.name} 碎片 +${n}（局末结算）`, '#a86bff');
-        this.save.save();
-        return;
-      }
       // 局内圣遗物（rougelike）：本局生效 + 图鉴解锁（跨局记录）
       this.runRelics.push(c.id);
       this.run.runRelic[c.id] = (this.run.runRelic[c.id] || 0) + 1;

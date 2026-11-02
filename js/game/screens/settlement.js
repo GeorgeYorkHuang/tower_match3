@@ -89,7 +89,8 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const base = this._goPh(T, TL.trail, 200);
     if (base <= 0) return;
     const wave = (su.cleared != null) ? su.cleared : su.wave;   // v1.17.22 轨迹/终点按全歼波数（通关数口径）
-    const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / TR.waveMax));
+    const waveMax = su.stage === 'abyss' ? 90 : 60;
+    const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / waveMax));
     ctx.globalAlpha = base;
     // 底线（未走段灰）
     ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
@@ -162,76 +163,57 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       text(ctx, '本局未获得圣遗物碎片', 375, 730, 22, '#6b7a8c', 'center');
       return;
     }
-    const rows = Math.ceil(cards.length / 5), CW = 124, GAP = 12;
-    const stride = Math.min(185, 370 / rows), CH = stride - 30, CY = 560;
+    const rows = Math.ceil(cards.length / 5), CW = 124, GAP = 12, CH = 155, STRIDE = 185, CY = 560;
+    const viewport = { x: 40, y: 552, w: 670, h: 374 };
+    const maxScroll = Math.max(0, rows * STRIDE - viewport.h);
+    const scroll = Math.max(0, Math.min(maxScroll, s.lootScroll || 0));
+    this.lootViewport = viewport; this.lootMaxScroll = maxScroll;
+    ctx.save(); ctx.beginPath(); ctx.rect(viewport.x, viewport.y, viewport.w, viewport.h); ctx.clip();
     cards.forEach((c, i) => {
       const row = Math.floor(i / 5), col = i % 5;
       const count = Math.min(5, cards.length - row * 5);
       const X = (750 - count * CW - (count - 1) * GAP) / 2 + col * (CW + GAP);
-      const Y = CY + row * stride;
+      const Y = CY + row * STRIDE - scroll;
       const rc = CONFIG.GO.RARITY[c.rarity] || '#e8402f';
       fillRoundRect(ctx, X, Y, CW, CH, 10, '#20262f');
       strokeRoundRect(ctx, X, Y, CW, CH, 10, rc, 2);
-      const icon = Math.min(92, CH * 0.77);   // v1.17.48 图标放大 40%（66 → 92），卡宽 124 仍留 16px 边距
+      const icon = 92;
       this._goIcon(ctx, c.id, X + (CW - icon) / 2, Y + 8, icon);
       const def = CONFIG.relicRunDef(c.id);
       const name = def ? def.name : '?';
-      const font = Math.min(19, 110 / Math.max(1, name.length), CH * 0.24);
-      text(ctx, name, X + CW / 2, Y + CH - 16, font, '#eef3f8', 'center');
-      text(ctx, '×' + c.shards, X + CW / 2, Y + CH + 14, 22, '#c9a6ff', 'center');
+      const font = Math.min(19, 110 / Math.max(1, name.length));
+      text(ctx, name, X + CW / 2, Y + 119, font, '#eef3f8', 'center');
+      text(ctx, '×' + c.shards, X + CW / 2, Y + 143, 22, '#c9a6ff', 'center');
     });
+    ctx.restore();
+    if (maxScroll > 0) {
+      const trackX = 704, trackY = viewport.y + 8, trackH = viewport.h - 16;
+      fillRoundRect(ctx, trackX, trackY, 5, trackH, 3, 'rgba(255,255,255,0.16)');
+      const thumbH = Math.max(38, trackH * viewport.h / (rows * STRIDE));
+      fillRoundRect(ctx, trackX, trackY + (trackH - thumbH) * scroll / maxScroll, 5, thumbH, 3, '#c9a6ff');
+      text(ctx, '滑动查看', 664, viewport.y + viewport.h - 5, 14, '#8898aa', 'right');
+    }
   }
 
-  /** 账单区（960–1070）：左卡金币 / 右卡宝箱四态（340×110 gap30） */
+  /** 底部收益：只显示金币与实际入库宝箱数量。 */
   _goBills(ctx, su, T) {
-    const TL = CONFIG.GO.TL;
-    const card = (x, p, draw) => {
-      if (p <= 0) return;
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, p * 1.5);
-      const dx = x + (p < 1 ? -30 * (1 - p) : 0);   // 自左滑入
-      fillRoundRect(ctx, dx, 960, 340, 110, 16, '#20262f');
-      strokeRoundRect(ctx, dx, 960, 340, 110, 16, 'rgba(255,255,255,0.12)', 1.5);
-      draw(dx);
-      ctx.restore();
-    };
-    // 左卡：金币（深度结算 + 银币折算合并）
+    const p = this._goPh(T, CONFIG.GO.TL.billL, 240);
+    if (p <= 0) return;
+    ctx.save(); ctx.globalAlpha = Math.min(1, p * 1.5);
+    const y = 968, coinX = 160, chestX = 450;
     const totalSilver = (su.payout || 0) + (su.silver || 0);
-    card(40, this._goPh(T, TL.billL, 240), (dx) => {
-      const COIN = 56;
-      if (!drawImg(ctx, IMG_SRC.coin, dx + 36, 960 + 27, COIN, COIN)) {
-        text(ctx, '✦', dx + 36 + COIN / 2, 960 + 27 + COIN / 2, 42, '#f7c948', 'center');
-      }
-      text(ctx, '×' + fmtNum(totalSilver), dx + 116, 960 + 46, 34, '#f7c948', 'left');
-      text(ctx, '本局金币', dx + 116, 960 + 84, 20, '#8ea3b8', 'left');
-    });
-    // 右卡：宝箱四态（v1.17.20 起 grantDeepChest 满槽返 false，「已存入」不能假话）
-    card(390, this._goPh(T, TL.billR, 240), (dx) => {
-      const CH2 = 56, iy = 960 + 27;
-      if (su.chestSkipped) {
-        text(ctx, '本局无宝箱', dx + 170, 960 + 48, 26, '#6b7a8c', 'center');
-        text(ctx, '前三波阵亡 · 无深度宝箱', dx + 170, 960 + 84, 18, '#4a5a6e', 'center');
-        return;
-      }
-      if (su.chestGranted) {
-        const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar }[su.chestKey] || IMG_SRC.chestClosed;
-        if (!drawImg(ctx, tierImg, dx + 36, iy, CH2, CH2)) {
-          text(ctx, '✦', dx + 36 + CH2 / 2, iy + CH2 / 2, 42, '#d89e63', 'center');
-        }
-        if (su.chestExtra) {
-          text(ctx, '已入库 · 加发' + su.chestExtra, dx + 116, 960 + 48, 24, '#ffd34d', 'left');
-        } else {
-          text(ctx, '已存入仓库', dx + 116, 960 + 48, 26, '#dfe6ee', 'left');
-        }
-        text(ctx, su.chestName || '', dx + 116, 960 + 84, 18, '#8ea3b8', 'left');
-      } else if (su.chestName) {
-        // 有档位但未入库 → 仓库 4 槽已满
-        text(ctx, '仓库已满 · 未领取', dx + 170, 960 + 48, 24, '#ff8a8a', 'center');
-        text(ctx, '开启仓库宝箱后再战', dx + 170, 960 + 84, 18, '#8a6a6a', 'center');
-      } else {
-        text(ctx, '—', dx + 170, 960 + 60, 26, '#4a5a6e', 'center');
-      }
-    });
+    if (!drawImg(ctx, IMG_SRC.coin, coinX, y, 48, 48)) text(ctx, '✦', coinX + 24, y + 24, 38, '#f7c948', 'center');
+    text(ctx, '×' + fmtNum(totalSilver), coinX + 58, y + 24, 30, '#f7c948', 'left');
+    let chestCount = (su.chestGranted ? 1 : 0) + (su.chestExtra ? 1 : 0);
+    const chestImg = su.chestKey ? ({wood:IMG_SRC.chestWood,bronze:IMG_SRC.chestBronze,silver:IMG_SRC.chestSilver,gold:IMG_SRC.chestGold,star:IMG_SRC.chestStar}[su.chestKey] || IMG_SRC.chestClosed) : IMG_SRC.chestClosed;
+    if (chestCount > 0) {
+      if (!drawImg(ctx, chestImg, chestX, y, 48, 48)) text(ctx, '箱', chestX + 24, y + 24, 28, '#ffd34d', 'center');
+      text(ctx, '×' + chestCount, chestX + 58, y + 24, 30, '#ffd34d', 'left');
+    } else if ((su.chestName && !su.chestGranted) || su.chestExtraFull) {
+      if (!drawImg(ctx, chestImg, chestX, y, 48, 48)) text(ctx, '箱', chestX + 24, y + 24, 28, '#ff8a8a', 'center');
+      text(ctx, '栏位已满，无法获得', chestX + 58, y + 24, 18, '#ff8a8a', 'left');
+    }
+    ctx.restore();
   }
 
   /** 里程碑条（1094–1146，h52 虚线胶囊）：首达列表 / 空态 */

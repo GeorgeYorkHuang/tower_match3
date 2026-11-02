@@ -22,13 +22,14 @@ module.exports = {
     // v1.16.92 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
     const noChest = !evacuated && this.run.wave <= 3;
     const tier = noChest ? null : this.meta.tierByWave(this.run.wave);
-    let chestExtra = null;
+    let chestExtra = null, chestExtraFull = false;
     const ok1 = tier ? this.meta.grantDeepChest(tier) : false;
     if (evacuated && this.run.wave >= CONFIG.EVAC.lateWave) {
       // 撤离成功顶配加发：星辉→黄金 / 黄金→白银（低一档宝箱）
       const idx = CONFIG.DEPTH_CHEST.tiers.indexOf(tier);
       const lower = CONFIG.DEPTH_CHEST.tiers[Math.max(0, idx - 1)];
       if (this.meta.grantDeepChest(lower)) chestExtra = lower.name;
+      else chestExtraFull = true;
     }
     this.save.save();
     // v1.16.106 结算数据补全：总击杀 + 本局圣遗物快照 + 招财符加成系数（结算界面展示）
@@ -36,9 +37,9 @@ module.exports = {
     // v1.17.20 碎片统一入账：撤离全额，失守按 SHARD_SETTLE.deadRatio 折算（floor 张数 + 随机保留）
     const ss = this.settleRunShards(evacuated ? 1 : CONFIG.SHARD_SETTLE.deadRatio);
     this.runSummary = {
-      evacuated, wave: this.run.wave, payout, miles,
+      evacuated, wave: this.run.wave, stage: this.menuStage, payout, miles,
       cleared: this.run.clearedWaves || 0,   // v1.17.22 全歼波数（通关数口径：一波怪全部死亡才算，非「到达第几波」）
-      chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra,   // v1.17 chestKey：结算页宝箱档位图标
+      chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra, chestExtraFull,   // v1.17 chestKey：结算页宝箱档位图标
       chestSkipped: noChest,   // v1.16.92 前三波阵亡无宝箱（结算页区分提示）
       // v1.17.20 碎片三件套：raw=掉落总张数 / kept=折算后保留 / lost=损失（失败态展示"损失 N"）
       shards: ss.kept, depthMult: this.depthMult,

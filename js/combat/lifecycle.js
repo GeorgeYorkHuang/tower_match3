@@ -19,6 +19,7 @@ function reset(combat) {
   combat.turrets = [];         // 炮·炮台（v1.16）
   combat.storms = [];          // 回旋镖·风暴镖（v1.16）
   combat.windTrails = [];      // 回旋镖·风痕（v1.16）
+  combat.vortexes = [];        // 回旋镖·风眼涡旋（2026-11-01）
   // v1.16.38 同步清理战斗实体 fx（弹道/风暴镖/炮台/地雷/地面持续区），避免切塔/清场/重开后幽灵残留
   const g = combat.game;
   if (g && g.fx) {
@@ -37,6 +38,11 @@ function update(combat, dt, initEnemyState) {
   if (g.run._wallInvT > 0) g.run._wallInvT = Math.max(0, g.run._wallInvT - dt);
   if (g.run._shuffleBuffTtl > 0) g.run._shuffleBuffTtl = Math.max(0, g.run._shuffleBuffTtl - dt);
   if (g.run._burnallTtl > 0) g.run._burnallTtl = Math.max(0, g.run._burnallTtl - dt);
+  // v1.17.43 疾电3★：电塔麻痹叠层攻速窗口递减（归零则清空层数）
+  if (g.run._elecHaste && g.run._elecHaste.ttl > 0) {
+    g.run._elecHaste.ttl = Math.max(0, g.run._elecHaste.ttl - dt);
+    if (g.run._elecHaste.ttl <= 0) g.run._elecHaste.n = 0;
+  }
   // v1.16.96 余烬风暴3★：余烬弹倒计时，1 秒后射向最近敌人
   if (g.run._emberShots && g.run._emberShots.length) {
     const rem = [];
@@ -80,6 +86,8 @@ function update(combat, dt, initEnemyState) {
   combat.updateStorms(dt);
   // 3.10 回旋镖·风痕
   combat.updateWindTrails(dt);
+  // 3.11 回旋镖·风眼涡旋
+  combat.updateVortexes(dt);
   // 4. 塔攻击调度（每塔独立节奏）
   g.run.slotOrder.slice().forEach((key) => combat.tickTower(key, dt));
   // 5. 周期技

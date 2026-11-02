@@ -3,7 +3,10 @@ const CONFIG = require('../../config.js');
 const { roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 
 // Presentation only: dependencies are shared helpers, never a player save.
-function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned }) {
+const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
+const SLOT_NAME = { match4: '四连技', match5: '高连技', chain: '连消技', global: '全局技能' };
+
+function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned, panelShell, wrapText }) {
   function menuShop(ctx, s, push) {
     // —— 1. 每日圣遗物碎片精选（0 点刷新，金币购买碎片）——
     text(ctx, '每日碎片精选 · 0 点刷新', 55, 226, 26, '#ffffff', 'left');
@@ -81,6 +84,69 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned }) {
       });
     });
   }
-  return { menuShop };
+
+  // 商品详情弹窗：展示图标 / 品类标签 / 效果描述 / 价格，确认购买按钮（限购 / 已解锁则置灰说明）
+  function shopDetail(ctx, s, push) {
+    const p = s.panel;
+    const item = p && p.item;
+    if (!item) return;
+    const oy = panelShell(ctx, s, push, item.name || '商品详情', 780, true);
+
+    // —— 图标 ——
+    const icx = 375, icy = oy + 150, dia = 120;
+    let drew = false;
+    if (p.kind === 'shard') {
+      const src = relicIconSrc(item.relic);
+      if (src) drew = drawImg(ctx, src, icx - dia / 2, icy - dia / 2, dia, dia);
+    } else if (p.kind === 'chest') {
+      const cImg = item.key === 'blue' ? IMG_SRC.chestBronze : item.key === 'purple' ? IMG_SRC.chestSilver : IMG_SRC.chestGold;
+      drew = drawImg(ctx, cImg, icx - dia / 2, icy - dia / 2, dia, dia);
+    }
+    if (!drew) {
+      ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2);
+      ctx.fillStyle = item.color || '#3a4553'; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+      text(ctx, item.icon || '❔', icx, icy + 2, 56, '#ffffff', 'center');
+    }
+
+    // —— 品类标签 ——
+    const tagColor = item.color || '#f7c948';
+    let tagText;
+    if (p.kind === 'shard') tagText = `◆ ${(item.rar || 'r').toUpperCase()} 圣遗物碎片`;
+    else if (p.kind === 'chest') tagText = `随机 ${item.rarName || ''} 碎片宝箱 · 每日限购`;
+    else tagText = `${SLOT_NAME[item.slot] || '技能'} · 永久解锁`;
+    text(ctx, tagText, 375, oy + 250, 18, tagColor, 'center');
+
+    // —— 效果描述（换行，最多 3 行）——
+    const lines = (wrapText ? wrapText(ctx, item.desc || '', 520, 21) : [item.desc || '']).slice(0, 3);
+    const descY = oy + 300;
+    lines.forEach((ln, i) => text(ctx, ln, 375, descY + i * 28, 21, '#b9c4cf', 'center'));
+
+    // —— 价格行 ——
+    const priceY = oy + 470;
+    text(ctx, '价格', 375 - 190, priceY, 20, '#8ea3b8', 'left');
+    if (!drawImg(ctx, IMG_SRC.coin, 375 - 150, priceY - 12, 24, 24)) text(ctx, '🪙', 375 - 138, priceY, 20, '#f7c948', 'center');
+    text(ctx, `${item.price}`, 375 - 118, priceY, 22, '#f7c948', 'left');
+    let extra = '';
+    if (p.kind === 'shard') extra = `获得碎片 ×${item.shards}`;
+    else if (p.kind === 'chest') extra = `今日剩余 ${item.left} 次`;
+    text(ctx, extra, 375 + 190, priceY, 20, '#9fb2c3', 'right');
+
+    // —— 确认购买 / 状态 ——
+    const bw = 480, bh = 76, bx = 375 - bw / 2, by = oy + 560;
+    const disabled = (p.kind === 'chest' && item.left <= 0) || (p.kind === 'skill' && item.owned);
+    if (disabled) {
+      text(ctx, p.kind === 'chest' ? '今日已售罄，明日再来' : '已解锁', 375, by + bh / 2, 24, '#5a6c80', 'center');
+    } else {
+      push('shopBuy', null, bx, by, bw, bh);
+      const bg = ctx.createLinearGradient(0, by, 0, by + bh);
+      bg.addColorStop(0, '#f7c948'); bg.addColorStop(1, '#d99e16');
+      fillRoundRect(ctx, bx, by, bw, bh, 20, bg);
+      strokeRoundRect(ctx, bx, by, bw, bh, 20, 'rgba(255,255,255,0.4)', 2);
+      text(ctx, '确认购买', 375, by + bh / 2, 28, '#3a2600', 'center');
+    }
+    if (p.kind === 'shard') text(ctx, '碎片用于解锁或提升圣遗物星级', 375, by + bh + 34, 17, '#5a6c80', 'center');
+  }
+
+  return { menuShop, shopDetail };
 }
 module.exports = { createMenuShopScreen };

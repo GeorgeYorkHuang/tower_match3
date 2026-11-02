@@ -2,6 +2,7 @@
 const CONFIG = require('../../config.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H, L = CONFIG.LAYOUT;
+const EnergyCapsule = require('../energy-capsule.js');
 // 只绘制测试战场/技能面板；权限、单塔切换、状态注入、刷怪和返回仍由原逻辑处理。
 function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph, STATUS_H, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y }) {
   function testFieldLayer(ctx, s, hits, enemies, fx, combat, damageNumbers) {
@@ -88,12 +89,9 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
       text(ctx, `Lv${cur.level}`, 15 + 50, 1053 + 100 - 10, 13, 'rgba(255,255,255,0.75)', 'center');
       // 能量竖条（槽内右侧；v1.16.77 弹药→能量）
       const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
-      const bx = 15 + 100 - 9, by0 = 1053 + 8, bh = 100 - 16;
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(bx, by0, 7, bh);
-      ctx.fillStyle = aRatio <= 0 ? '#ff6b6b' : (aRatio < 0.34 ? '#ffb347' : '#7ef0a3');
-      ctx.fillRect(bx, by0 + bh - Math.max(1, bh * aRatio), 7, Math.max(1, bh * aRatio));
-      text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 3, 1053 + 5, 10, aRatio <= 0 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
+      const bx = 15 + 100 - 17, by0 = 1053 + 8, bh = 100 - 16;
+      EnergyCapsule.draw(ctx, bx, by0, 13, bh, aRatio);
+      text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 6.5, 1053 + 5, 10, aRatio < 0.2 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
     }
     // 6 塔切换钮
     text(ctx, '更换', 158, 1042 + 16, 14, 'rgba(255,255,255,0.4)', 'left');

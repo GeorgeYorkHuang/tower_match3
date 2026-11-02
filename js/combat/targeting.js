@@ -2,10 +2,20 @@
 // Shared targeting only; retain enemy references and caller-owned ordering.
 const CONFIG = require('../config.js');
 const COMBAT_BALANCE = require('../config/combat-common.js');
+const EnergyState = require('../config/energy-state.js');
 
 function range(combat, key) {
   const cfg = CONFIG.TOWERS[key];
-  return Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
+  const base = Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
+  const tower = combat.tower ? combat.tower(key) : null;
+  const run = combat.game && combat.game.run;
+  const maxEnergy = run && run.armoryEnergyMax ? run.armoryEnergyMax() : CONFIG.GLOBAL_SKILL.energyMax;
+  const state = EnergyState.evaluate(tower ? tower.energy : 0, maxEnergy);
+  if (state.energy <= 0) return 400;
+  // 射程跟随攻击力的能量档位衰减；90 点及以上不再获得额外射程。
+  const attack = Math.min(1, state.attack);
+  const t = Math.max(0, Math.min(1, (attack - 0.3) / 0.7));
+  return Math.max(300, Math.min(1000, 400 + (base - 400) * t));
 }
 
 function pickTarget(combat, key) {

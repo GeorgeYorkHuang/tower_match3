@@ -6,7 +6,7 @@ const LOGIC_H = CONFIG.DESIGN.H;
 // 图标/配色/文字工具沿用宿主；命中区写入调用方传入的hits。
 function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }) {
   function towerInfoLayer(ctx, info, hits) {
-    // v1.16.62 三技能卡横向一排（面板回到适中高度）：卡片 205×320 ×3，元素整体小于竖排版
+    // v1.16.62 技能卡，三技能卡横向一排（面板回到适中高度）：卡片 205×320 ×3，元素整体小于竖排版
     const w = 688, hgt = 880, x = (750 - w) / 2, y = (LOGIC_H - hgt) / 2;
     // 遮罩（点遮罩关闭）
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
@@ -14,9 +14,11 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
     // 面板：深蓝紫渐变底 + 塔色描边 + 顶部塔色光带（v1.16.11 美化）
     const bgGrad = ctx.createLinearGradient(0, y, 0, y + hgt);
-    bgGrad.addColorStop(0, '#2b3340'); bgGrad.addColorStop(1, '#171d26');
+    bgGrad.addColorStop(0, TOWER_TINT[info.key]); 
+    bgGrad.addColorStop(96/880, '#2b3340'); 
+    bgGrad.addColorStop(1, '#171d26');
     fillRoundRect(ctx, x, y, w, hgt, 18, bgGrad);
-    strokeRoundRect(ctx, x, y, w, hgt, 18, TOWER_TINT[info.key] || '#3d4553', 3);
+    // strokeRoundRect(ctx, x, y, w, hgt, 18, TOWER_TINT[info.key] || '#3d4553', 3);
     const band = ctx.createLinearGradient(0, y, w, y);
     band.addColorStop(0, 'rgba(255,255,255,0)');
     band.addColorStop(0.15, TOWER_TINT[info.key] || '#3a6ea5');
@@ -27,8 +29,8 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     ctx.fillRect(x + 20, y + 8, w - 40, 3);
     ctx.globalAlpha = 1;
     // 标题：塔名 + 塔自身等级（v1.16.70 下移至 y+64，上方留白更多）
-    text(ctx, `${String(info.name || '').replace(/（[^）]*）|\([^)]*\)/g, '').replace(/塔+$/, '塔')} · 等级 Lv.${info.level}`, x + w / 2, y + 64, 34, '#ffffff', 'center');
-    // 攻击 / 攻击间隔 / DPS / 弹药（v1.16.70：外框 648×200 边框 5px；标题标签 17 号下沿贴胶囊上沿；数值 29 号；图标 29 号同强调色）
+    text(ctx, `${String(info.name || '').replace(/（[^）]*）|\([^)]*\)/g, '').replace(/塔+$/, '塔')} · 等级 Lv.${info.level}`, x + w / 2, y + 48, 34, '#ffffff', 'center');
+    // 攻击 / 间隔 / 射程进度 / 能量进度
     const statW = 300, statH = 56, colGap = 20, rowGap = 26;
     const sx0 = x + (w - (statW * 2 + colGap)) / 2;
     // 整体外框：包裹 4 胶囊 + 外部标签（框中心对齐标题下沿与分隔线区间中心）
@@ -43,8 +45,8 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     const stats = [
       { label: '攻击', icon: '⚔', val: `${info.atk || 0}`, color: '#f7c948' },
       { label: '间隔', icon: '⏱', val: `${(info.interval || 0).toFixed(1)}s`, color: '#9fb2c3' },
-      { label: 'DPS', icon: '🏹', val: `${Math.round(info.dps)}`, color: '#7ea8d8' },
-      { label: '能量', icon: '⚡', val: `${Math.floor(info.ammo || 0)}`, color: '#7ef0a3' },
+      { label: '射程', icon: '◎', val: `${Math.round(info.range || 0)}码`, color: TOWER_TINT[info.key] || '#7ea8d8', progress: Math.max(0, Math.min(1, ((info.range || 300) - 300) / 700)), down: (info.range || 0) < (info.baseRange || 0) - 0.5 },
+      { label: '能量', icon: '⚡', val: `${Math.floor(info.ammo || 0)}/${Math.floor(info.ammoMax || 100)}`, color: info.energyColor || '#42d66b', progress: Math.max(0, Math.min(1, (info.ammo || 0) / (info.ammoMax || 100))) },
     ];
     stats.forEach((s, si) => {
       const row = Math.floor(si / 2);
@@ -52,19 +54,38 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
       const sy = row === 0 ? y + 130 : y + 212;       // 胶囊顶（行距 26：行 1 底 186 与行 2 标签 204 不重叠）
       // 标签：胶囊外部左上方，纯文字无底色（18 号，文字下沿贴齐胶囊上沿：中心 = capTop - 9）
       text(ctx, s.label, sx, row === 0 ? y + 121 : y + 203, 18, s.color, 'left');
-      // 胶囊底：浅色玻璃渐变（v1.16.71 内部提亮）+ 塔色描边
+      // 四项共用同款玻璃胶囊；射程、能量仅在胶囊内部追加进度轨道。
       const sg = ctx.createLinearGradient(0, sy, 0, sy + statH);
       sg.addColorStop(0, 'rgba(255,255,255,0.22)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.12)'); sg.addColorStop(1, 'rgba(255,255,255,0.06)');
       fillRoundRect(ctx, sx, sy, statW, statH, statH / 2, sg);
       strokeRoundRect(ctx, sx, sy, statW, statH, statH / 2, `${TOWER_TINT[info.key] || '#3d4553'}99`, 2);
-      // 顶部内高光（加亮）
       ctx.globalAlpha = 0.7;
       fillRoundRect(ctx, sx + 8, sy + 4, statW - 16, statH / 2 - 4, (statH / 2 - 4) / 2, 'rgba(255,255,255,0.14)');
       ctx.globalAlpha = 1;
-      // 底部暗影（立体感）
       ctx.globalAlpha = 0.25;
       fillRoundRect(ctx, sx + 10, sy + statH - 10, statW - 20, 6, 3, 'rgba(0,0,0,0.25)');
       ctx.globalAlpha = 1;
+      if (s.progress != null) {
+        // 射程（300–1000）与能量直接填充整颗胶囊，不额外嵌套小进度槽。
+        ctx.save();
+        ctx.beginPath(); roundRect(ctx, sx, sy, statW, statH, statH / 2); ctx.clip();
+        if (s.progress > 0) {
+          const pg = ctx.createLinearGradient(0, sy, 0, sy + statH);
+          pg.addColorStop(0, s.color); pg.addColorStop(1, 'rgba(0,0,0,0.25)');
+          ctx.globalAlpha = 0.58;
+          ctx.fillStyle = pg;
+          ctx.fillRect(sx, sy, statW * s.progress, statH);
+        }
+        ctx.globalAlpha = 0.42;
+        fillRoundRect(ctx, sx + 8, sy + 4, statW - 16, statH / 2 - 4, (statH / 2 - 4) / 2, 'rgba(255,255,255,0.14)');
+        ctx.restore();
+        strokeRoundRect(ctx, sx, sy, statW, statH, statH / 2, `${TOWER_TINT[info.key] || '#3d4553'}99`, 2);
+        const ix = sx + 26, iy = sy + statH / 2;
+        text(ctx, s.icon, ix, iy, 25, s.color, 'center');
+        text(ctx, s.val, sx + statW / 2 + 10, sy + statH / 2 - 1, 22, '#ffffff', 'center');
+        if (s.down) text(ctx, '↓', sx + statW - 14, sy + statH / 2 - 1, 22, '#ff6262', 'center');
+        return;
+      }
       // 小图标：胶囊左内侧（垂直居中，与数值同字号、同标签色；弹药为自定义子弹图形）
       if (s.icon === 'bullet') {
         const ix = sx + 26, iy = sy + statH / 2;
@@ -82,6 +103,8 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
       // 数值：居中大号 + 同色光晕
       ctx.shadowColor = s.color; ctx.shadowBlur = 10;
       text(ctx, s.val, sx + statW / 2 + 10, sy + statH / 2 - 1, 29, s.color, 'center');
+      const trend = si === 0 ? Math.sign((info.energyAttack || 1) - 1) : si === 1 ? Math.sign(1 - (info.energyInterval || 1)) : 0;
+      if (trend) text(ctx, trend > 0 ? '↑' : '↓', sx + statW - 25, sy + statH / 2 - 1, 24, trend > 0 ? '#53e278' : '#ff6262', 'center');
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
     });
     // 分隔线
@@ -89,10 +112,10 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     ctx.fillRect(x + 40, y + 310, w - 80, 2);
     // 技能标题 + 提示
     text(ctx, '技能', x + 40, y + 340, 22, '#b8c2cc', 'left');
-    text(ctx, '点击技能卡查看详情与升级分支', x + w - 40, y + 340, 14, 'rgba(255,255,255,0.4)', 'right');
+    // text(ctx, '点击技能卡查看详情与升级分支', x + w - 40, y + 340, 14, 'rgba(255,255,255,0.4)', 'right');
     const skills = info.skills || [];
     if (!skills.length) {
-      text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 290, 20, 'rgba(255,255,255,0.45)', 'center');
+      // text(ctx, '暂无技能，通过升级三选一获取', x + w / 2, y + 290, 20, 'rgba(255,255,255,0.45)', 'center');
     } else {
       // v1.16.62：3 张技能卡横向一排（宽 205 × 高 320，间隔 16），卡内元素对应缩小：
       //   图标圆 ir 40→30 / 素材 70→52px，技能名 32→26 号，Lv 徽章 38→30 高 22→18 号，
@@ -129,7 +152,7 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
         strokeRoundRect(ctx, cx, cy, cardW, cardH, 14, TOWER_TINT[info.key] || '#3a6ea5', brAlpha * 4);
         // 图标（v1.16.63 美化：外圈光晕 + 径向渐变圆底 + 白描边 + 顶部高光；美术素材优先，缺失回退 emoji）
         const skDef = pool.find((q) => q.name === sk.name) || {};
-        const icx = cx + cardW / 2, icy = cy + 64, ir = 32;
+        const icx = cx + cardW / 2, icy = cy + 80, ir = 60;
         const tint = TOWER_TINT[info.key] || '#3a6ea5';
         const halo = ctx.createRadialGradient(icx, icy, 2, icx, icy, ir * 1.9);
         halo.addColorStop(0, lighten(tint, 1.5)); halo.addColorStop(1, 'rgba(0,0,0,0)');
@@ -150,25 +173,25 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
         ctx.closePath();
         ctx.fillStyle = 'rgba(255,255,255,0.30)'; ctx.fill();
         ctx.restore();
-        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 28, icy - 28, 56, 56);
+        const skIconOk = drawImg(ctx, skillIconSrc(info.key, sk.name), icx - 70, icy - 70, 140, 140);
         if (!skIconOk) {
           ctx.globalAlpha = 0.35; text(ctx, skDef.icon || (sk.name[0] || '?'), icx + 1, icy + 4, 27, '#000', 'center');
           ctx.globalAlpha = 1;
           text(ctx, skDef.icon || (sk.name[0] || '?'), icx, icy + 3, 27, '#ffffff', 'center');
         }
         // 技能名 + 总等级标（v1.16.64：角标移到图标右上方）
-        text(ctx, sk.name, cx + cardW / 2, cy + 126, 26, '#ffffff', 'center');
+        text(ctx, sk.name, cx + cardW / 2, cy + 160 + 18, 36, '#ffffff', 'center');
         const maxBr = Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);
         const lvTxt = (1 + maxBr) >= maxLv ? 'LvMAX' : `Lv${1 + maxBr}`;
-        const lvS = lvTxt === 'LvMAX' ? 11 : 12;
-        const lvW3 = txtW(lvTxt, lvS) + 14, lvX3 = icx + ir - 14, lvY3 = icy - ir - 10;
+        const lvS = lvTxt === 'LvMAX' ? 14 : 15;
+        const lvW3 = txtW(lvTxt, lvS) + 14, lvX3 = icx + ir - 20, lvY3 = icy - ir - 5;
         const lvG3 = ctx.createLinearGradient(lvX3, lvY3, lvX3, lvY3 + 22);
         lvG3.addColorStop(0, '#ffe08a'); lvG3.addColorStop(1, '#e6b93f');
-        fillRoundRect(ctx, lvX3, lvY3, lvW3, 22, 11, lvG3);
-        strokeRoundRect(ctx, lvX3, lvY3, lvW3, 22, 11, 'rgba(255,255,255,0.7)', 1);
+        fillRoundRect(ctx, lvX3, lvY3, lvW3, 32, 24, lvG3);
+        strokeRoundRect(ctx, lvX3, lvY3, lvW3, 32, 24, 'rgba(255,255,255,0.7)', 1);
         text(ctx, lvTxt, lvX3 + lvW3 / 2, lvY3 + 11, lvS, '#5c4a00', 'center');
         // 技能分支 + 等级（v1.16.64：单分支——只显示等级最高的当前分支；金色渐变行 + 左侧色条 + 进度点 + Lv 胶囊）
-        const bW = 176, bX = cx + (cardW - bW) / 2, bY = cy + 160, bH = 76;
+        const bW = 176, bX = cx + (cardW - bW) / 2, bY = cy + 160 + 48, bH = 76;
         const activeBrs = ['A', 'B', 'C'].filter((br) => (sk.branches[br] || 0) > 0);
         if (activeBrs.length) {
           const br = activeBrs.reduce((p, c) => ((sk.branches[c] || 0) > (sk.branches[p] || 0) ? c : p));
@@ -188,14 +211,14 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
           fillRoundRect(ctx, lvX, bY + 14, lvW2, 30, 15, '#f7c948');
           text(ctx, `Lv${l}`, lvX + lvW2 / 2, bY + 29, 13, '#5c4a00', 'center');
         } else {
-          text(ctx, '未选分支', cx + cardW / 2, bY + bH / 2 + 2, 14, 'rgba(255,255,255,0.35)', 'center');
+          // text(ctx, '未选分支', cx + cardW / 2, bY + bH / 2 + 2, 14, 'rgba(255,255,255,0.35)', 'center');
         }
         // 右下角"详情 ›"提示（可点击）
-        text(ctx, '详情 ›', cx + cardW - 14, cy + cardH - 16, 15, 'rgba(255,255,255,0.45)', 'right');
+        // text(ctx, '详情 ›', cx + cardW - 14, cy + cardH - 16, 15, 'rgba(255,255,255,0.45)', 'right');
       });
     }
     // 关闭按钮
-    hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, '关闭', { bg: '#3a6ea5', fontSize: 26 });
+    // hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, '关闭', { bg: '#3a6ea5', fontSize: 26 });
   }
 
   /** v1.16.11 技能二级详情面板：点击技能卡打开——技能效果 + 三个分支的详细效果与当前等级（v1.16.30 美化+描述放大两号） */
@@ -279,7 +302,7 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
       });
     });
     // 返回按钮（回到塔详情）
-    hits.back = button(ctx, x + 150, y + hgt - 74, w - 300, 54, '返回', { bg: info.color || '#a55eea', fontSize: 24 });
+    // hits.back = button(ctx, x + 150, y + hgt - 74, w - 300, 54, '返回', { bg: info.color || '#a55eea', fontSize: 24 });
   }
 
   return { towerInfoLayer, towerSkillLayer };

@@ -74,6 +74,13 @@ function dispatchTouch(game, p, version) {
     if (h.bg && h.bg.hit(p.x, p.y)) { game.funcLayer = null; return true; }
     return true; // 面板内点击不处理其它
   }
+  // v1.17.50 伤害统计弹层（优先级高于商店/加速/战场）
+  if (game.dmgStat) {
+    const dh = game.dmgStatHits || {};
+    if (dh.close && dh.close.hit(p.x, p.y)) { game.dmgStat = null; return true; }
+    if (dh.bg && dh.bg.hit(p.x, p.y)) { game.dmgStat = null; return true; }
+    return true; // 面板内点击不处理其它
+  }
   if (game.shopOpen) {
     const panel = game.renderer.shopPanelRect;
     if (panel && (p.x < panel.x || p.x > panel.x + panel.w || p.y < panel.y || p.y > panel.y + panel.h)) {
@@ -95,6 +102,11 @@ function dispatchTouch(game, p, version) {
   // 加速按钮（v1.16.30 移到城墙上方 · 移动区右下角，独立命中区）
   if (game.renderer.speedHit && game.renderer.speedHit.hit(p.x, p.y)) {
     game.cycleRunSpeed();
+    return true;
+  }
+  // v1.17.50 伤害统计按钮（行动区左下角）
+  if (game.renderer.dmgStatHit && game.renderer.dmgStatHit.hit(p.x, p.y)) {
+    game.dmgStat = true;
     return true;
   }
   // 底部功能键区：打开对应弹层（v1.16.89 商店并入功能条：点击弹出商店面板）

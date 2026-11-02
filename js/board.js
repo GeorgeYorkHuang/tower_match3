@@ -649,6 +649,24 @@ Board.prototype.isSolvable = function isSolvable() {
   return false;
 };
 
+/** 返回第一组可产生消除的相邻交换坐标，用于闲置提示。 */
+Board.prototype.findHintMove = function findHintMove() {
+  for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) {
+    const pairs = [];
+    if (c + 1 < this.cols) pairs.push([r, c, r, c + 1]);
+    if (r + 1 < this.rows) pairs.push([r, c, r + 1, c]);
+    for (const [r1, c1, r2, c2] of pairs) {
+      const a = this.grid[r1][c1], b = this.grid[r2][c2];
+      if (a == null || b == null || specialType(a) === 'obstacle' || specialType(b) === 'obstacle' || BoardChests.isChest(a) || BoardChests.isChest(b)) continue;
+      this.grid[r1][c1] = b; this.grid[r2][c2] = a;
+      const valid = this.findMatches().length > 0;
+      this.grid[r1][c1] = a; this.grid[r2][c2] = b;
+      if (valid) return [[r1, c1], [r2, c2]];
+    }
+  }
+  return null;
+};
+
 /** 无解时重排（重新生成无初始三消棋盘） */
 Board.prototype.regen = function regen() {
   this.grid = this.genBoard();
