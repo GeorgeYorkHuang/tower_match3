@@ -166,7 +166,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const rows = Math.ceil(cards.length / 5), CW = 124, GAP = 12, CH = 155, STRIDE = 185, CY = 560;
     const viewport = { x: 40, y: 552, w: 670, h: 374 };
     const maxScroll = Math.max(0, rows * STRIDE - viewport.h);
-    const scroll = Math.max(0, Math.min(maxScroll, s.lootScroll || 0));
+    const scroll = Math.max(0, Math.min(maxScroll, su.lootScroll || 0));
     this.lootViewport = viewport; this.lootMaxScroll = maxScroll;
     ctx.save(); ctx.beginPath(); ctx.rect(viewport.x, viewport.y, viewport.w, viewport.h); ctx.clip();
     cards.forEach((c, i) => {
