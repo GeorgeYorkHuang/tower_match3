@@ -445,6 +445,7 @@ class Renderer {
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) { return this._getBattleScene()._globalBtn.call(this, ctx, key, icon, name, bx, by, bw, bh, filled, tint); }
 
   _speedBadge(ctx,x,y,w,h,speed) { return this._getBattleScene()._speedBadge.call(this, ctx,x,y,w,h,speed); }
+  _dmgStatBadge(ctx,x,y,w,h) { return this._getBattleScene()._dmgStatBadge.call(this, ctx,x,y,w,h); }
 
   _getBoardLayer() {
     if (!this._boardLayer) this._boardLayer = createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, subBlockGlyph, easeOutCubic });
