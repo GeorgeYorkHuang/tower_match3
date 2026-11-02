@@ -222,11 +222,21 @@ function tickElectric(combat, dt) {
       const x0 = g.ly ? g.ly.areaX + 28 : 28;
       const x1 = g.ly ? g.ly.areaX + g.ly.areaW - 28 : 722;
       const dmg = combat.shotDmg('electric', false, true) * (bal.damage + bal.damagePerBranch[bLv]);
+      const foes = combat.enemies().filter((e) => e.hp > 0);
       for (let i = 0; i < count; i++) {
+        // v1.17.52 生成在随机存活怪旁边（雷球锁定该怪附近开场，便于立即脉冲命中）；场上无怪时退回行动区随机
+        let bx, by;
+        if (foes.length) {
+          const t = foes[Math.floor(Math.random() * foes.length)];
+          bx = t.x + (Math.random() - 0.5) * 120;
+          by = t.y + (Math.random() - 0.5) * 120;
+        } else {
+          bx = x0 + Math.random() * Math.max(1, x1 - x0);
+          by = y0 + Math.random() * Math.max(1, y1 - y0);
+        }
         const orb = {
           key: 'electric', orb: true, ballLightning: true, dmg, trailDmg: bal.trailDamage,
-          t: 0, dur: bal.duration, x: x0 + Math.random() * Math.max(1, x1 - x0),
-          y: y0 + Math.random() * Math.max(1, y1 - y0),
+          t: 0, dur: bal.duration, x: bx, y: by,
           ang: Math.random() * Math.PI * 2, speed: cLv > 0 ? bal.speedPerBranch[cLv] : bal.moveSpeed,
           damageTimer: 0, trailCooldowns: new Map(), trail: [], trailDistance: 0,
           damageRadius: bal.damageRadius, damageInterval: bal.damageInterval, trailRadius: bal.trailRadius,
