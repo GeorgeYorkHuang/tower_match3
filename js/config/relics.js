@@ -20,8 +20,9 @@ module.exports = {
   },
 
   RELIC_RARITY: {
-    fire_seed: 'ssr', fire_inferno: 'ssr', fire_burnall: 'ssr',
-    fire_core: 'sr', fire_chain: 'sr', fire_rain: 'sr', fire_skyfire: 'sr', fire_ember: 'sr', fire_wall: 'sr',
+    fire_seed: 'ssr', fire_tongue: 'ssr',
+    fire_core: 'sr', fire_rain: 'sr', fire_skyfire: 'sr', fire_forge: 'sr', fire_burnall: 'sr',
+    fire_seal: 'r', fire_nuke: 'r', fire_chain: 'r', fire_wall: 'r', fire_fuel: 'r', fire_ember: 'r', fire_bounce: 'r', fire_inferno: 'r', fire_hasten: 'r',
     ice_glacier: 'ssr', ice_avalanche: 'ssr', ice_frostburst: 'ssr',
     ice_forever: 'sr', ice_blizzard: 'sr', ice_domain: 'sr', ice_armor: 'sr', ice_wallshift: 'sr', ice_fog: 'sr',
     poison_all: 'ssr', poison_corrode: 'ssr', poison_source: 'ssr',
@@ -38,6 +39,26 @@ module.exports = {
     ur_altar_rose: 'ur', ur_altar_seed: 'ur',
     ur_forge_heart: 'ur', ur_slag_hammer: 'ur',
     ur_frost_eye: 'ur', ur_wind_lantern: 'ur',
+  },
+
+  // 火塔圣遗物数值表（每个数组按 0★/1★/2★/3★；技能代码按 effect key 读取，避免从卡面文案解析数值）。
+  RELIC_VALUES: {
+    fire_seed: { primary: [0, 40, 70, 70], burnDuration: [0, 0, 1, 1], groundDps: [0, 0, 50, 50], groundBurn: [0, 0, 0, 15], groundRadius: [0, 0, 0, 60], groundDuration: [0, 0, 0, 3] },
+    fire_seal: { primary: [0, 1, 2, 2], burstPerStack: [0, 0, 0, 50], burstRadius: [0, 0, 0, 60] },
+    fire_core: { primary: [0, 50, 80, 80], pillarRange: [0, 0, 10, 50], emberCount: [0, 0, 0, 10], emberRadius: [0, 0, 0, 60], emberDuration: [0, 0, 0, 3] },
+    fire_nuke: { primary: [0, 30, 45, 45], deathChance: [0, 0, 0, 15] },
+    fire_chain: { primary: [0, 70, 100, 100], igniteChance: [0, 0, 0, 30], radiusPerBurning: [0, 0, 0, 10], radiusCap: [0, 0, 0, 50] },
+    fire_rain: { primary: [0, 1, 2, 2], hitsToTriple: [0, 0, 0, 3], tripleShots: [0, 0, 0, 3], tripleInterval: [0, 0, 0, 0.1] },
+    fire_wall: { primary: [0, 3, 4.5, 4.5], damage: [0, 0, 15, 15], fullWidth: [0, 0, 0, 750], burnDamage: [0, 0, 0, 25] },
+    fire_skyfire: { primary: [0, 40, 60, 60], radius: [0, 0, 15, 15], meteorDamage: [0, 0, 120, 120], explosionRadius: [0, 0, 0, 90], explosionDamage: [0, 0, 0, 80], stackDamage: [0, 0, 0, 10], stackCap: [0, 0, 0, 30] },
+    fire_forge: { primary: [0, 15, 24, 24], attacksToFreePillar: [0, 0, 0, 5], freePillarDamage: [0, 0, 0, 100], freePillarRadius: [0, 0, 0, 120], refundEnergy: [0, 0, 0, 1], refundCooldown: [0, 0, 0, 6] },
+    fire_fuel: { primary: [0, 20, 30, 30], overflowThreshold: 80, overflowStep: [0, 0, 0, 10], overflowCap: [0, 0, 0, 20] },
+    fire_ember: { primary: [0, 20, 30, 30], damage: [0, 0, 0, 30] },
+    fire_bounce: { primary: [0, 10, 20, 20], refundChance: [0, 0, 0, 20], refundEnergy: [0, 0, 0, 0.5] },
+    fire_inferno: { primary: [0, 10, 20, 20], attackPerBurning: [0, 0, 0, 3], attackCap: [0, 0, 0, 30], fullStackBurn: [0, 0, 0, 20] },
+    fire_tongue: { sparkCount: [0, 2, 3, 3], sparkDamage: [0, 25, 25, 25], groundRadius: [0, 60, 60, 60], groundDuration: [0, 2, 2, 2], volcanoChance: [0, 0, 0, 30], volcanoDuration: [0, 0, 0, 4], volcanoSparks: [0, 0, 0, 20], volcanoInterval: [0, 0, 0, 0.2] },
+    fire_hasten: { primary: [0, 0.2, 0.4, 0.4], extraWaves: [0, 0, 1, 2], explosionDamage: [0, 0, 50, 50], explosionRadius: [0, 0, 80, 80], igniteBonus: [0, 0, 0, 10] },
+    fire_burnall: { primary: [0, 12, 18, 18], chainWindow: [0, 0, 0, 3], chainCooldown: [0, 0, 0, 8], chainDamage: [0, 0, 0, 25], extraCooldown: [0, 0, 0, 20] },
   },
 
   RELIC: {
@@ -58,25 +79,28 @@ module.exports = {
     // 宝箱开启奖励：随机 1 张圣物卡（按掉率权重，优先低拥有数）
   },
 
+  // 新版 71 卡定案表：迁移期数据源，不覆盖当前抽取池。
+  RELIC_REWORK: require('./relic-catalog.js'),
+
   RELIC_RUN: {
     tower: {
       fire: [
-        { id: 'fire_seed',   name: '火种',       icon: '🌱', desc: '灼烧每秒造成的伤害提升50%', star2: '灼烧每秒造成的伤害提升80%', star3: '灼烧目标死亡时留下火焰地面 3 秒，每秒 50% 攻击伤害' },
-        { id: 'fire_seal',   name: '赤印',       icon: '🔴', desc: '灼烧叠加上限提升1层', star2: '灼烧叠加上限提升2层', star3: '灼烧叠满层时触发爆发：80% 攻击伤害，半径 60码' },
-        { id: 'fire_core',   name: '熔心',       icon: '🫀', desc: '火柱造成的伤害提升50%', star2: '火柱造成的伤害提升80%', star3: '火柱命中后使目标受到的火伤 +15%，持续 5 秒（可叠 2 层）' },
+        { id: 'fire_seed',   name: '火种',       icon: '🌱', desc: '灼烧每秒伤害 +40%', star2: '灼烧每秒伤害 +70%，持续时间 +1 秒', star3: '灼烧目标死亡后留下火地 3 秒，每秒造成 50% 攻击伤害；地面内灼烧伤害 +15%' },
+        { id: 'fire_seal',   name: '赤印',       icon: '🔴', desc: '灼烧叠加上限 +1 层', star2: '灼烧叠加上限 +2 层', star3: '灼烧叠满时爆发，每层造成 50% 攻击伤害，半径 60px' },
+        { id: 'fire_core',   name: '熔心',       icon: '🫀', desc: '火柱伤害 +50%', star2: '火柱伤害 +80%，范围 +10%', star3: '火柱范围 +50%；中心落下 10 颗火苗，留下半径 60px 燃烧地面' },
         { id: 'fire_nuke',   name: '爆核',       icon: '🎆', desc: '大火球爆炸半径扩大30%', star2: '大火球爆炸半径扩大45%', star3: '大火球爆炸边缘敌人被击退 40码 并点燃' },
-        { id: 'fire_chain',  name: '连锁爆破',   icon: '💢', desc: '点燃目标死亡时的爆炸概率提升至70%', star2: '点燃目标死亡时的爆炸概率提升至100%', star3: '连锁爆破的爆炸可传染：命中敌人 30% 概率带 1 层灼烧' },
-        { id: 'fire_rain',   name: '焰雨',       icon: '🌧️', desc: '每次攻击射出的火球数量提升2枚', star2: '每次攻击射出的火球数量提升3枚', star3: '火球命中同一目标 3 次后，下次攻击必为三连火球' },
-        { id: 'fire_wall',   name: '火墙增烈',   icon: '🧱', desc: '火焰墙持续时间延长3秒', star2: '火焰墙持续时间延长4.5秒', star3: '火墙内敌人每停留 1 秒，受到的伤害递增 10%（上限 +50%）' },
-        { id: 'fire_skyfire', name: '天火',      icon: '☄️', desc: '每波火雨造成的伤害提升40%', star2: '每波火雨造成的伤害提升60%', star3: '火雨最后一波升级为天火一击：单点 120% 伤害' },
-        { id: 'fire_forge',  name: '熔炉之息',   icon: '⚒️', desc: '火塔攻击间隔缩短15%', star2: '火塔攻击间隔缩短24%', star3: '攻速加成期间，每 5 次普攻附带一次免费火柱' },
+        { id: 'fire_chain',  name: '连锁爆破',   icon: '💢', desc: '点燃目标死亡爆炸率提升至 70%', star2: '点燃目标死亡爆炸率提升至 100%', star3: '爆炸有 30% 概率施加 1 层灼烧；每命中 1 个灼烧敌人，爆炸范围 +10%，最多 +50%' },
+        { id: 'fire_rain',   name: '火弹',       icon: '🌧️', desc: '每次攻击额外发射 1 枚火球', star2: '每次攻击累计额外发射 2 枚火球', star3: '同一目标被火球命中 3 次后，下次攻击三连发，间隔 0.1 秒' },
+        { id: 'fire_wall',   name: '火墙增烈',   icon: '🧱', desc: '火焰墙持续时间 +3 秒', star2: '火焰墙持续 +4.5 秒，伤害 +15%', star3: '火墙覆盖全战斗区域；墙内点燃伤害 ×1.25' },
+        { id: 'fire_skyfire', name: '天火',      icon: '☄️', desc: '每波火雨伤害 +40%', star2: '每波火雨伤害 +60%，范围 +15%', star3: '末波造成 120% 单体伤害；命中灼烧目标时造成 90px 爆炸，基础 80% 并按灼烧层数增伤' },
+        { id: 'fire_forge',  name: '熔炉之息',   icon: '⚒️', desc: '火柱伤害 +15%', star2: '火柱伤害 +24%', star3: '每 5 次普攻免费施放火柱；命中灼烧敌人返 1 能量（每 6 秒一次）' },
         { id: 'fire_fuel',   name: '薪柴',       icon: '🪵', desc: '普攻附加灼烧的概率提升20%', star2: '普攻附加灼烧的概率提升30%', star3: '灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害' },
-        { id: 'fire_ember',  name: '余烬风暴',   icon: '💨', desc: '灼烧目标死亡时有25%概率再次爆炸', star2: '灼烧目标死亡时有40%概率再次爆炸', star3: '余烬爆炸留下 1 枚余烬弹，1 秒后自动射向最近敌人' },
-        { id: 'fire_bounce', name: '火焰弹射',   icon: '🏓', desc: '普攻有25%概率额外发射一枚火球', star2: '普攻有40%概率额外发射一枚火球', star3: '弹射火球命中时 50% 概率返还 1 点能量' },
-        { id: 'fire_inferno', name: '炼狱',      icon: '⚱️', desc: '所有灼烧类伤害提升25%', star2: '所有灼烧类伤害提升40%', star3: '场上每存在 1 个灼烧敌人，全塔火伤 +3%（上限 +45%）' },
-        { id: 'fire_tongue', name: '火舌',       icon: '🔥', desc: '火焰墙长度延长50%', star2: '火焰墙长度延长80%', star3: '火墙命中塔攻击范围外的敌人时，伤害 ×1.5' },
-        { id: 'fire_hasten', name: '燃尽加速',   icon: '⏩', desc: '火雨每波间隔缩短0.2秒', star2: '火雨每波间隔缩短0.4秒', star3: '火雨每波落地时，对处于灼烧状态的敌人额外引发一次小爆炸（50% 伤害，半径 80 码）' },
-        { id: 'fire_burnall', name: '焚天',      icon: '🌇', desc: '火柱、火焰墙、火雨的冷却时间缩短20%', star2: '火柱、火焰墙、火雨的冷却时间缩短30%', star3: '火柱/火墙/火雨施放后 3 秒内，全塔攻速 +25%' },
+        { id: 'fire_ember',  name: '余烬风暴',   icon: '💨', desc: '灼烧目标死亡时有 20% 概率爆炸', star2: '灼烧目标死亡时有 30% 概率爆炸', star3: '余烬爆炸生成余烬弹，1 秒后射向最近敌人并施加 1 层灼烧' },
+        { id: 'fire_bounce', name: '回能',       icon: '🏓', desc: '火塔普攻有 10% 概率不耗能', star2: '火塔普攻有 20% 概率不耗能', star3: '火球命中时有 20% 概率返还 0.5 能量' },
+        { id: 'fire_inferno', name: '炼狱',      icon: '⚱️', desc: '灼烧类伤害 +10%', star2: '灼烧类伤害 +20%', star3: '每个灼烧敌人使火塔攻击 +3%，最多 +30%；满层灼烧目标受到灼烧伤害 +20%' },
+        { id: 'fire_tongue', name: '火山',       icon: '🔥', desc: '大火球命中喷出 2 枚火花，各造成 25% 伤害并留下 2 秒燃烧地面', star2: '大火球命中喷出 3 枚火花，各造成 25% 伤害并留下 2 秒燃烧地面', star3: '大火球命中有 30% 概率召唤火山 4 秒，喷射 20 枚火花' },
+        { id: 'fire_hasten', name: '燃尽加速',   icon: '⏩', desc: '火雨间隔 -0.2 秒', star2: '火雨增加 1 波，每波间隔 -0.4 秒', star3: '火雨再增加 1 波；灼烧敌人受击时额外爆炸 50%，半径 80px，点燃率 +10%' },
+        { id: 'fire_burnall', name: '焚天',      icon: '🌇', desc: '火柱、火墙、火雨冷却 -12%', star2: '火柱、火墙、火雨冷却 -18%', star3: '3 秒内施放另一周期技能：该次伤害 +25%、冷却额外 -20%，每 8 秒一次' },
       ],
       ice: [
         { id: 'ice_spike',    name: '霜刺',     icon: '🪡', desc: '冰缓的减速幅度提升10%', star2: '冰缓的减速幅度提升15%', star3: '冰缓的敌人被击杀时，减速光环扩散至周围 80码' },
@@ -206,3 +230,36 @@ module.exports = {
   },
 
 };
+
+// 火、冰、毒、雷、炮五塔切换到新版卡表，其他塔继续使用旧表，待后续分批迁移。
+// 新 ID 由 RELIC_REWORK 提供，旧卡定义保留供存档映射与历史对照。
+const RELIC_CATALOG = module.exports.RELIC_REWORK;
+module.exports.RELIC_RUN.tower.fire = RELIC_CATALOG.RELIC_RUN.tower.fire.slice();
+module.exports.RELIC_RUN.tower.ice = RELIC_CATALOG.RELIC_RUN.tower.ice.slice();
+module.exports.RELIC_RUN.tower.poison = RELIC_CATALOG.RELIC_RUN.tower.poison.slice();
+module.exports.RELIC_RUN.tower.electric = RELIC_CATALOG.RELIC_RUN.tower.electric.slice();
+module.exports.RELIC_RUN.tower.cannon = RELIC_CATALOG.RELIC_RUN.tower.cannon.slice();
+module.exports.RELIC_RUN.tower.boomerang = RELIC_CATALOG.RELIC_RUN.tower.boomerang.slice();
+module.exports.RELIC_RUN.common = RELIC_CATALOG.RELIC_RUN.common.slice();
+for (const id of Object.keys(module.exports.RELIC_RARITY)) {
+  if (id.startsWith('r_fire_') || id.startsWith('s_sr_fire_') || id === 's_fire_burn' || id === 's_fire_rain'
+    || id.startsWith('r_ice_') || id.startsWith('s_sr_ice_') || id === 's_ice_chill' || id === 's_ice_bloom'
+    || id.startsWith('r_poison_') || id.startsWith('s_sr_poison_') || id === 's_poison_nest' || id === 's_poison_curse'
+    || id.startsWith('r_electric_') || id.startsWith('s_sr_elec_') || id === 's_elec_field' || id === 's_elec_shock'
+    || id.startsWith('r_cannon_') || id.startsWith('s_sr_can_') || id === 's_can_splash' || id === 'can_war' || id.startsWith('can_')
+    || id.startsWith('r_boomerang_') || id.startsWith('s_sr_boo_') || id === 'boo_cyclone' || id === 'boo_tip' || id.startsWith('boo_')
+    || id.startsWith('s_sr_cm_') || ['cm_wall', 'cm_exp', 'cm_triple', 'cm_bounty', 'cm_regen'].includes(id)) {
+    delete module.exports.RELIC_RARITY[id];
+  }
+}
+Object.keys(RELIC_CATALOG.RELIC_RARITY).forEach((id) => {
+  if (id.startsWith('r_fire_') || id.startsWith('s_sr_fire_') || id === 's_fire_burn' || id === 's_fire_rain'
+    || id.startsWith('r_ice_') || id.startsWith('s_sr_ice_') || id === 's_ice_chill' || id === 's_ice_bloom'
+    || id.startsWith('r_poison_') || id.startsWith('s_sr_poison_') || id === 's_poison_nest' || id === 's_poison_curse'
+    || id.startsWith('r_electric_') || id.startsWith('s_sr_elec_') || id === 's_elec_field' || id === 's_elec_shock'
+    || id.startsWith('r_cannon_') || id.startsWith('s_sr_can_') || id === 's_can_splash' || id === 'can_war' || id.startsWith('can_')
+    || id.startsWith('r_boomerang_') || id.startsWith('s_sr_boo_') || id === 'boo_cyclone' || id === 'boo_tip' || id.startsWith('boo_')
+    || id.startsWith('s_sr_cm_') || ['cm_wall', 'cm_exp', 'cm_triple', 'cm_bounty', 'cm_regen'].includes(id)) {
+    module.exports.RELIC_RARITY[id] = RELIC_CATALOG.RELIC_RARITY[id];
+  }
+});

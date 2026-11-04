@@ -68,7 +68,15 @@ function fallbackWrapText(ctx, str, maxW, size) {
  * @returns {{skillCards:Function, skillRow:Function, skillOwned:Function, skillChoiceCards:Function, menuMatchCfg:Function, menuGlobalCfg:Function}}
  */
 function createSkillLoadout(deps = {}) {
-  const panelShell = deps.panelShell;
+  const drawImg = deps.drawImg || (() => false);
+  const panelShell = (...args) => {
+    const oy = deps.panelShell(...args), [ctx, state, push, title, height, centered, width] = args;
+    const w = width || 700, x = (750 - w) / 2;
+    drawImg(ctx, 'assets/images/interface/cards/skill-select-panel-v1.png', x, oy, w, height);
+    text(ctx, title, 375, oy + 54, 34, '#ffffff', 'center');
+    text(ctx, '×', x + w - 50, oy + 46, 28, '#ffffff', 'center');
+    return oy;
+  };
   const skillIcon = deps.skillIcon || fallbackSkillIcon;
   const wrapText = deps.wrapText || fallbackWrapText;
 
@@ -76,12 +84,24 @@ function createSkillLoadout(deps = {}) {
   function skillCard(ctx, push, bx, y, cw, ch, id, def, tint, hitKey, hitData) {
     const color = def.color || tint;
     const grad = ctx.createLinearGradient(bx, y, bx + cw, y + ch);
-    grad.addColorStop(0, '#27374e');
-    grad.addColorStop(1, '#101b2c');
-    fillRoundRect(ctx, bx, y, cw, ch, 20, grad);
-    strokeRoundRect(ctx, bx, y, cw, ch, 20, color, 1.8);
-    skillIcon(ctx, id, bx + cw / 2, y + ch * 0.36, 78, color);
-    text(ctx, def.name, bx + cw / 2, y + ch * 0.76, 21, '#f0f5ff', 'center');
+    grad.addColorStop(0, '#334864');
+    grad.addColorStop(0.48, '#1d2d43');
+    grad.addColorStop(1, '#101827');
+    ctx.save();
+    ctx.shadowColor = color; ctx.shadowBlur = 10;
+    fillRoundRect(ctx, bx, y + 2, cw, ch - 2, 20, grad);
+    ctx.shadowBlur = 0;
+    const sheen = ctx.createLinearGradient(0, y, 0, y + ch * 0.42);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.16)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    fillRoundRect(ctx, bx + 5, y + 5, cw - 10, ch * 0.42, 15, sheen);
+    strokeRoundRect(ctx, bx, y + 2, cw, ch - 2, 20, color, 2.2);
+    strokeRoundRect(ctx, bx + 5, y + 7, cw - 10, ch - 14, 15, 'rgba(255,255,255,0.12)', 1);
+    ctx.restore();
+    skillIcon(ctx, id, bx + cw / 2, y + ch * 0.36, Math.min(86, cw * 0.67), color);
+    fillRoundRect(ctx, bx + 7, y + ch - 48, cw - 14, 39, 13, 'rgba(5,12,22,0.76)');
+    strokeRoundRect(ctx, bx + 8, y + ch - 47, cw - 16, 37, 12, 'rgba(255,255,255,0.18)', 1);
+    text(ctx, def.name, bx + cw / 2, y + ch - 28, 25, '#f5f8ff', 'center');
     push(hitKey, hitData, bx, y, cw, ch);
   }
 
@@ -127,9 +147,9 @@ function createSkillLoadout(deps = {}) {
       { title: '三消技能', tint: '#b896ff', line: 'rgba(184,150,255,0.30)', rx: x + rw + ROW_GAP, keys: ['match4', 'match5'], isMatch: true },
     ];
     regions.forEach((r) => {
-      fillRoundRect(ctx, r.rx - 8, y - 46, rw + 16, ch + 64, 22, 'rgba(255,255,255,0.03)');
-      strokeRoundRect(ctx, r.rx - 8, y - 46, rw + 16, ch + 64, 22, r.line, 1.2);
-      text(ctx, r.title, r.rx + rw / 2, y - 24, 22, r.tint, 'center');
+      fillRoundRect(ctx, r.rx - 8, y - 76, rw + 16, ch + 94, 22, 'rgba(255,255,255,0.03)');
+      strokeRoundRect(ctx, r.rx - 8, y - 76, rw + 16, ch + 94, 22, r.line, 1.2);
+      text(ctx, r.title, r.rx + rw / 2, y - 39, 25, r.tint, 'center');
       r.keys.forEach((key, i) => {
         const id = r.isMatch ? ((s.matchSkills && s.matchSkills[key]) || CONFIG.MATCH_SKILL.default[key]) : key;
         const def = r.isMatch
@@ -152,7 +172,49 @@ function createSkillLoadout(deps = {}) {
    *  卡片区：oy+120 起，行高 268（252 卡 + 16 缝）；底部留白：带翻页 152（保持原满页几何逐像素不变）/ 不带 48 */
   function panelH(itemCount, withPager) {
     const rows = Math.max(1, Math.ceil(itemCount / 2));
-    return 120 + rows * 268 - 16 + (withPager ? 152 : 48);
+    return 96 + rows * 300 - 16 + (withPager ? 152 : 48);
+  }
+
+  /** 统一的高质感候选卡片：图标优先、可读说明、立体状态按钮。 */
+  function choiceCard(ctx, push, x, y, cw, ch, it, tint, selected, owned, slot, price) {
+    const accent = it.color || tint;
+    const bg = ctx.createLinearGradient(x, y, x + cw, y + ch);
+    bg.addColorStop(0, selected ? '#3a4658' : '#29384c');
+    bg.addColorStop(0.52, selected ? '#202d40' : '#1b293d');
+    bg.addColorStop(1, '#121b2a');
+    ctx.save();
+    ctx.shadowColor = selected ? '#ffdf82' : accent;
+    ctx.shadowBlur = selected ? 12 : 6;
+    fillRoundRect(ctx, x, y + 2, cw, ch - 2, 20, bg);
+    ctx.shadowBlur = 0;
+    fillRoundRect(ctx, x + 5, y + 5, cw - 10, 7, 4, 'rgba(255,255,255,0.15)');
+    strokeRoundRect(ctx, x, y + 2, cw, ch - 2, 20, selected ? '#ffe08a' : (owned ? accent : '#7b6952'), selected ? 3 : 1.8);
+    strokeRoundRect(ctx, x + 5, y + 7, cw - 10, ch - 14, 15, 'rgba(255,255,255,0.10)', 1);
+    ctx.restore();
+
+    // 大图标作为主视觉，技能名与说明分区，卡片底部按钮独立形成明确操作层级。
+    skillIcon(ctx, it.id, x + cw / 2, y + 54, 86, accent);
+    text(ctx, it.name, x + cw / 2, y + 119, 26, '#f5f8ff', 'center');
+    const lines = wrapText(ctx, it.desc || '', cw - 36, 18);
+    const maxLines = 5;
+    lines.slice(0, maxLines).forEach((ln, j) => text(ctx, ln, x + 18, y + 151 + j * 19, 18, '#d2deef', 'left'));
+
+    const by = y + ch - 47, bh = 37;
+    const status = selected
+      ? (owned ? '✓ 已配置' : '当前槽位 · 待解锁')
+      : (owned ? '点击配置' : '解锁 · ' + price + ' 金币');
+    const buttonGrad = ctx.createLinearGradient(x, by, x, by + bh);
+    if (selected) { buttonGrad.addColorStop(0, '#f5d37b'); buttonGrad.addColorStop(1, '#9b6a27'); }
+    else if (owned) { buttonGrad.addColorStop(0, '#4a6687'); buttonGrad.addColorStop(1, '#263b58'); }
+    else { buttonGrad.addColorStop(0, '#8a6237'); buttonGrad.addColorStop(1, '#4a3524'); }
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.48)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
+    fillRoundRect(ctx, x + 13, by, cw - 26, bh, 12, buttonGrad);
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    strokeRoundRect(ctx, x + 13, by, cw - 26, bh, 12, selected ? '#fff0b2' : (owned ? '#9ab9db' : '#d1a566'), 1.5);
+    fillRoundRect(ctx, x + 20, by + 3, cw - 40, 4, 2, 'rgba(255,255,255,0.23)');
+    ctx.restore();
+    text(ctx, status, x + cw / 2, by + bh / 2 + 1, 18, selected ? '#fff9df' : '#ffffff', 'center');
+    push('mSkill', { slot, id: it.id }, x, y, cw, ch);
   }
 
   /** v5.3c 技能配置面板：2 列卡片列表（已解锁点选配置，未解锁点卡购买）
@@ -164,23 +226,13 @@ function createSkillLoadout(deps = {}) {
     }
     const withPager = !!(opts && opts.pager);
     const hgt = panelH(items.length, withPager);
-    const oy = panelShell(ctx, s, push, title, hgt);
-    text(ctx, '仅显示当前槽位可用技能 · 点击卡片配置', 375, oy + 84, 18, '#9cacc2', 'center');
-    const gap = 18, cw = 291, ch = 252;
+    const oy = panelShell(ctx, s, push, title, hgt, false, 560);
+    const gap = 14, cw = 233, ch = 284;
+    const cardLeft = (750 - (cw * 2 + gap)) / 2;
     items.forEach((it, i) => {
-      const x = 75 + (i % 2) * (cw + gap), y = oy + 120 + Math.floor(i / 2) * (ch + 16);
+      const x = cardLeft + (i % 2) * (cw + gap), y = oy + 96 + Math.floor(i / 2) * (ch + 16);
       const owned = skillOwned(s, slot, it.id), selected = it.id === current;
-      fillRoundRect(ctx, x, y, cw, ch, 18, selected ? '#26344a' : '#141f30');
-      strokeRoundRect(ctx, x, y, cw, ch, 18, selected ? '#f4cb79' : (owned ? tint : '#685640'), selected ? 2.5 : 1.2);
-      skillIcon(ctx, it.id, x + cw / 2, y + 46, 60, it.color || tint);
-      text(ctx, it.name, x + cw / 2, y + 94, 23, '#f1f5ff', 'center');
-      wrapText(ctx, it.desc || '', cw - 36, 18).forEach((ln, j) => text(ctx, ln, x + 18, y + 126 + j * 24, 18, '#adbed3', 'left'));
-      fillRoundRect(ctx, x + 14, y + ch - 42, cw - 28, 29, 10, selected ? '#665432' : '#223249');
-      const status = selected
-        ? (owned ? '✓ 已配置' : '当前槽位 · 待解锁')
-        : (owned ? '点击配置' : '解锁 · ' + CONFIG.SKILL_UNLOCK.price[slot] + ' 金币');
-      text(ctx, status, x + cw / 2, y + ch - 27, 16, selected ? '#ffe0a0' : '#b9cee7', 'center');
-      push('mSkill', { slot, id: it.id }, x, y, cw, ch);
+      choiceCard(ctx, push, x, y, cw, ch, it, tint, selected, owned, slot, CONFIG.SKILL_UNLOCK.price[slot]);
     });
     return oy + hgt;   // 面板底边（翻页区定位用）
   }
@@ -192,7 +244,7 @@ function createSkillLoadout(deps = {}) {
     const names = { match4: '四连技', match5: '高连技' };
     if (!CONFIG.MATCH_SKILL[slot] || !names[slot]) return;
     const items = CONFIG.MATCH_SKILL[slot].slice();
-    skillChoiceCards(ctx, s, push, names[slot] + ' · 技能选择', slot, items,
+    skillChoiceCards(ctx, s, push, names[slot], slot, items,
       (s.matchSkills && s.matchSkills[slot]) || CONFIG.MATCH_SKILL.default[slot], '#b896ff');
   }
 
@@ -202,42 +254,30 @@ function createSkillLoadout(deps = {}) {
    *  renderer._globalCfgViewport / _globalCfgMaxScroll，供 input/panel-scroll.js 命中与物理更新使用 */
   function menuGlobalCfg(ctx, s, push) {
     const index = Number(s.panel.index || 0), slots = GlobalSkills.slots(s.globalSkills);
-    const gap = 18, cw = 291, ch = 252, rowH = ch + 16;
+    const panelW = 560, gap = 14, cw = 233, ch = 284, rowH = ch + 16;
+    const cardLeft = (750 - (cw * 2 + gap)) / 2;
     const items = GlobalSkills.POOL;
     const rows = Math.ceil(items.length / 2);
     const contentH = rows * rowH - 16;
     const viewportH = 3 * rowH - 16;                       // 视口可见 3 行
-    const hintH = 48;                                      // 底部固定提示带
-    const hgt = 120 + viewportH + hintH;
-    const oy = panelShell(ctx, s, push, '全局槽位 ' + (index + 1) + ' · 技能选择', hgt);
-    text(ctx, '仅显示当前槽位可用技能 · 上下滑动浏览', 375, oy + 84, 18, '#9cacc2', 'center');
-    const vy0 = oy + 120;
+    const hgt = 96 + viewportH + 24;
+    const oy = panelShell(ctx, s, push, '全局技能槽位 ' + (index + 1), hgt, false, panelW);
+    const vy0 = oy + 96;
     const maxScroll = Math.max(0, contentH - viewportH);
     const scroll = Math.max(0, Math.min(s.panel.scrollY || 0, maxScroll));
     s.panel.scrollY = scroll;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(55, vy0, 640, viewportH);
+    ctx.rect(115, vy0, 520, viewportH);
     ctx.clip();
     items.forEach((it, i) => {
-      const x = 75 + (i % 2) * (cw + gap), y = vy0 + Math.floor(i / 2) * rowH - scroll;
+      const x = cardLeft + (i % 2) * (cw + gap), y = vy0 + Math.floor(i / 2) * rowH - scroll;
       if (y + ch < vy0 - 4 || y > vy0 + viewportH + 4) return;   // 视口外跳过绘制
       const owned = skillOwned(s, 'global', it.id), selected = it.id === slots[index];
-      fillRoundRect(ctx, x, y, cw, ch, 18, selected ? '#26344a' : '#141f30');
-      strokeRoundRect(ctx, x, y, cw, ch, 18, selected ? '#f4cb79' : (owned ? '#f4cb79' : '#685640'), selected ? 2.5 : 1.2);
-      skillIcon(ctx, it.id, x + cw / 2, y + 46, 60, it.color || '#f4cb79');
-      text(ctx, it.name, x + cw / 2, y + 94, 23, '#f1f5ff', 'center');
-      wrapText(ctx, it.desc || '', cw - 36, 18).forEach((ln, j) => text(ctx, ln, x + 18, y + 126 + j * 24, 18, '#adbed3', 'left'));
-      fillRoundRect(ctx, x + 14, y + ch - 42, cw - 28, 29, 10, selected ? '#665432' : '#223249');
-      const status = selected
-        ? (owned ? '✓ 已配置' : '当前槽位 · 待解锁')
-        : (owned ? '点击配置' : '解锁 · ' + CONFIG.SKILL_UNLOCK.price.global + ' 金币');
-      text(ctx, status, x + cw / 2, y + ch - 27, 16, selected ? '#ffe0a0' : '#b9cee7', 'center');
-      push('mSkill', { slot: 'global', id: it.id }, x, y, cw, ch);
+      choiceCard(ctx, push, x, y, cw, ch, it, '#f4cb79', selected, owned, 'global', CONFIG.SKILL_UNLOCK.price.global);
     });
     ctx.restore();
-    text(ctx, '装备与另一槽相同的技能时，自动交换两个槽位', 375, oy + hgt - 24, 16, '#9cacc2', 'center');
-    return { viewport: { x: 55, y: vy0, w: 640, h: viewportH }, maxScroll };
+    return { viewport: { x: 115, y: vy0, w: 520, h: viewportH }, maxScroll };
   }
 
   return { skillCards, skillRow, skillOwned, skillChoiceCards, menuMatchCfg, menuGlobalCfg };

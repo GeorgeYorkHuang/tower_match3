@@ -14,11 +14,11 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
     // 面板：深蓝紫渐变底 + 塔色描边 + 顶部塔色光带（v1.16.11 美化）
     const bgGrad = ctx.createLinearGradient(0, y, 0, y + hgt);
-    bgGrad.addColorStop(0, TOWER_TINT[info.key]); 
-    bgGrad.addColorStop(96/880, '#2b3340'); 
-    bgGrad.addColorStop(1, '#171d26');
+    bgGrad.addColorStop(0, TOWER_TINT[info.key] || '#2b3340');
+    bgGrad.addColorStop(96/880, '#252e3b');
+    bgGrad.addColorStop(1, '#141b24');
     fillRoundRect(ctx, x, y, w, hgt, 18, bgGrad);
-    // strokeRoundRect(ctx, x, y, w, hgt, 18, TOWER_TINT[info.key] || '#3d4553', 3);
+    strokeRoundRect(ctx, x, y, w, hgt, 18, TOWER_TINT[info.key] || '#3d4553', 3);
     const band = ctx.createLinearGradient(0, y, w, y);
     band.addColorStop(0, 'rgba(255,255,255,0)');
     band.addColorStop(0.15, TOWER_TINT[info.key] || '#3a6ea5');
@@ -26,7 +26,7 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     band.addColorStop(0.85, TOWER_TINT[info.key] || '#3a6ea5');
     band.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = band; ctx.globalAlpha = 0.35;
-    ctx.fillRect(x + 20, y + 8, w - 40, 3);
+
     ctx.globalAlpha = 1;
     // 标题：塔名 + 塔自身等级（v1.16.70 下移至 y+64，上方留白更多）
     text(ctx, `${String(info.name || '').replace(/（[^）]*）|\([^)]*\)/g, '').replace(/塔+$/, '塔')} · 等级 Lv.${info.level}`, x + w / 2, y + 48, 34, '#ffffff', 'center');
@@ -229,8 +229,8 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
     const bgGrad = ctx.createLinearGradient(0, y, 0, y + hgt);
     bgGrad.addColorStop(0, '#2e2a3e'); bgGrad.addColorStop(1, '#191722');
-    fillRoundRect(ctx, x, y, w, hgt, 18, bgGrad);
-    strokeRoundRect(ctx, x, y, w, hgt, 18, info.color || '#a55eea', 3);
+    // Transparent panel backing.
+
     const band = ctx.createLinearGradient(0, y, w, y);
     band.addColorStop(0, 'rgba(255,255,255,0)');
     band.addColorStop(0.5, info.color || '#a55eea');

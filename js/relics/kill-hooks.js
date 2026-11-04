@@ -3,37 +3,26 @@
 const CONFIG = require('../config.js');
 const SKILL_NUM = require('../config/tower-skills.js');
 
+function relicStar(run, id) {
+  if (!run || run.relicRun(id) <= 0) return 0;
+  if (run._testStar3 && run._testStar3[id]) return 3;
+  return run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1;
+}
+
 function fireDeath(combat, e) {
   const g = combat.game;
-  /* v1.16.96 火塔 3★ 死亡触发（不依赖爆燃技能） */
-  // 火种3★：灼烧目标死亡时留下火焰地面 3 秒，每秒 50% 攻击伤害
-  if (g.run.relic3('fire_seed')) {
+  // 火塔 SSR「灼烧」3★：灼烧目标死亡后留火地。
+  if (g.run.relic3('s_fire_burn') && combat.hasDot(e, 'burn')) {
     combat.groundDots = combat.groundDots || [];
-    combat.groundDots.push({ x: e.x, y: e.y, r: 60, ttl: 3, dps: combat.shotDmg('fire', true) * 0.5, key: 'fire' });
-    combat.fxRing(e.x, e.y, '#ff7043', 60, 0.5, 4);
-  }
-  // 余烬风暴（1★/2★ 补齐保留项行为）：灼烧目标死亡时 25%/40% 概率再次爆炸（30% 伤害·半径50）
-  //   3★：爆炸后留下 1 枚余烬弹，1 秒后自动射向最近敌人（伤害 30%）
-  const emberN = g.run.relicNum('fire_ember');
-  if (emberN > 0 && Math.random() < emberN / 100) {
-    combat.explode(e.x, e.y, SKILL_NUM.fire['爆燃'].tickBurstRadius, combat.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].tickBurstDamage, 'fire');
-    if (g.run.relic3('fire_ember')) {
-      g.run._emberShots = g.run._emberShots || [];
-      g.run._emberShots.push({ t: 1, x: e.x, y: e.y, dmg: combat.shotDmg('fire', true) * 0.30 });
-    }
+    const r = 60, ttl = g.run.relicValue('s_fire_burn', 'groundDuration');
+    combat.groundDots.push({ x: e.x, y: e.y, r, ttl, dps: combat.shotDmg('fire', true) * g.run.relicValue('s_fire_burn', 'groundDps') / 100, key: 'fire', seedGround: true, skill: '灼烧' });
+    combat.fxRing(e.x, e.y, '#ff7043', r, 0.5, 4);
   }
 }
 
 function fireExplosionSpread(combat, e, boomR) {
   const g = combat.game;
-  // v1.16.96 连锁爆破3★：爆燃爆炸可传染——爆炸范围内敌人 30% 概率带 1 层灼烧
-  if (g.run.relic3('fire_chain')) {
-    combat.enemies().forEach((o) => {
-      if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= boomR && Math.random() < 0.30) {
-        combat.applyBurn(o, combat.shotDmg('fire', true), 'fire');
-      }
-    });
-  }
+  // 新版火塔卡表没有额外爆燃扩散效果；保留委托签名供死亡流程兼容。
 }
 
 function poisonEssence(combat, e, key) {
@@ -107,7 +96,7 @@ function boomerangDeath(combat, e, key) {
   // v1.16.102 追猎3★：标记的敌人被其他塔击杀时，返还 1 点能量
   if (key === 'boomerang' && combat.game.run.relic3('boo_mark') && (e._mark || 0) > 0 && e.lastDmgKey && e.lastDmgKey !== 'boomerang') {
     const bt = combat.tower('boomerang');
-    if (bt) bt.energy = Math.min(bt.energy + 1, combat.game.run.armoryEnergyMax());
+    if (bt) bt.energy = Math.min(bt.energy + 1, combat.game.run.armoryEnergyMax('boomerang'));
     combat.fxParticle(e.x, e.y - 10, '#d2b4de', 3, 20, 0.4, 80, 4);
   }
 }
@@ -125,12 +114,12 @@ function poisonInheritanceBase(combat, e) {
 
 function experience(run, e, bonus) {
   const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
-  const gained = Math.round(base * (1 + 0.20 * bonus.exp) * (1 + run.relicNum('cm_exp') / 100));
+  const gained = Math.round(base * (1 + 0.20 * bonus.exp) * (1 + run.relicNum('s_sr_cm_exp') / 100));
   run.gainExp(gained);
-  if (run.relicNum('cm_exp') > 0) run.relicFx('cm_exp', `击杀经验 +${run.relicNum('cm_exp')}%`, e.x, e.y);
+  if (run.relicNum('s_sr_cm_exp') > 0) run.relicFx('s_sr_cm_exp', `击杀经验 +${run.relicNum('s_sr_cm_exp')}%`, e.x, e.y);
 }
 function eliteChestChance(run, bonus) {
-  return CONFIG.RELIC.dropChance * (1 + 0.10 * bonus.chest) * (1 + run.relicNum('cm_bounty') / 100);
+  return Math.min(1, CONFIG.RELIC.dropChance * (1 + 0.10 * bonus.chest) * (1 + run.relicNum('s_sr_cm_bounty') / 100));
 }
 
 module.exports = { fireDeath, fireExplosionSpread, poisonEssence, poisonTrail, iceDeath, electricDeath, boomerangDeath, cannonDeath, poisonInheritanceBase, experience, eliteChestChance };

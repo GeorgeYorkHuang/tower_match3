@@ -7,6 +7,12 @@ const CONFIG = require('../config.js');
 const SKILL_NUM = require('../config/tower-skills.js');
 const COMBAT_BALANCE = require('../config/combat-common.js');
 
+function relicStar(run, id) {
+  if (!run || run.relicRun(id) <= 0) return 0;
+  if (run._testStar3 && run._testStar3[id]) return 3;
+  return run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1;
+}
+
 function dotBoost(combat) {
   const n = combat.lv('poison', '毒性强化');
   const aLv = combat.branchLv('poison', '毒性强化', 'A');
@@ -21,34 +27,35 @@ function applyBurn(combat, e, dmg, src) {
   const cLv = combat.branchLv('fire', '点燃', 'C');       // 余烬：伤害 +20/40/60%、时长 -0.5/1/1.5s、结束爆炸
   const stackCap = combat.branchLv('fire', '灼烧', 'A');  // 业火：叠层上限 +1/级
   const hasBurn = combat.lv('fire', '灼烧');
-  const maxStack = hasBurn > 0 ? SKILL_NUM.fire['灼烧'].baseStackCap + stackCap : 1;      // 学「灼烧」后基础上限 +2 层
+  const run = combat.game.run;
+  const burnStackAdd = run.relic3('s_sr_fire_burn') ? run.relicValue('s_sr_fire_burn', 'stackAdd') : 0;
+  const maxStack = hasBurn > 0 ? SKILL_NUM.fire['灼烧'].baseStackCap + stackCap + burnStackAdd : 1;
   let dot = e.dots.find((d) => d.type === 'burn');
   const tickI = SKILL_NUM.fire['点燃'].tickInterval;
   const cBoost = cLv > 0 ? SKILL_NUM.fire['点燃'].emberDmg[cLv] : 0;
   // v1.16.96 薪柴3★：灼烧概率溢出（≥80%）转灼烧伤害加成
   const fuelBoost = combat.game.run._fuelBoost || 0;
-  const dps = dmg * SKILL_NUM.fire['点燃'].damagePerSecond * (1 + cBoost) * (1 + fuelBoost / 100);
-  let ttl = SKILL_NUM.fire['点燃'].duration + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0);
+  const burnBonus = run.relicNum('s_sr_fire_burn') + run.relicNum('s_fire_burn');
+  const dps = dmg * SKILL_NUM.fire['点燃'].damagePerSecond * (1 + cBoost) * (1 + (fuelBoost + burnBonus) / 100);
+  const burnDuration = run.relicValue('s_fire_burn', 'burnDuration');
+  let ttl = SKILL_NUM.fire['点燃'].duration + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0) + burnDuration;
   if (cLv > 0) ttl -= SKILL_NUM.fire['点燃'].emberTtlCut[cLv];
   ttl = Math.max(ttl, SKILL_NUM.fire['点燃'].minDuration);
   if (!dot) {
-    e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI });
+    e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI, skill: '灼烧' });
     dot = e.dots[e.dots.length - 1];
   } else {
-    dot.stack = Math.min(dot.maxStack || maxStack, dot.stack + 1);
+    dot.stack = Math.min(maxStack, dot.stack + 1);
+    dot.maxStack = maxStack;
     dot.dps = dps * dot.stack;
     dot.ttl = ttl;
     dot.tickI = tickI;
+    dot.skill = '灼烧';
   }
   // 灼烧 B 燃尽：满层 → 小爆炸（60% 攻击伤害，范围 30/60/90px）
   const burnLv = combat.branchLv('fire', '灼烧', 'B');
   // v1.16.96 赤印3★：灼烧叠满层时触发爆发（80% 攻击伤害，半径 60码）——与 B 燃尽可并存
-  if (combat.game.run.relic3('fire_seal') && dot.stack >= maxStack) {
-    dot.stack = 1;
-    combat.explode(e.x, e.y, 60, dmg * 0.8, 'fire');
-    combat.fxRing(e.x, e.y, '#ffab40', 60, 0.45, 5);
-    combat.fxFlash(e.x, e.y, '#ffd24a');
-  }
+  const atMax = dot.stack >= maxStack;
   if (burnLv > 0 && dot.stack >= maxStack) {
     dot.stack = 1;
     const rB = SKILL_NUM.fire['灼烧'].burnRadius[burnLv];
@@ -60,24 +67,35 @@ function applyBurn(combat, e, dmg, src) {
 
 function applyPoison(combat, e, dmg, src, layers) {
   const boost = combat.dotBoost();
-  const perStackDps = dmg * boost.dmg;
+  const poisonRelicBonus = combat.game.run.relicNum('s_sr_poison_dot');
+  const perStackDps = dmg * boost.dmg * (1 + poisonRelicBonus / 100);
   const ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * combat.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
   const cap = SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * combat.branchLv('poison', '毒性强化', 'C');
   const add = Math.max(1, layers || 1);
   const freq = 1 / (1 - SKILL_NUM.poison['剧毒'].freq[combat.branchLv('poison', '剧毒', 'C')]);
   let dot = e.dots.find((d) => d.type === 'poison');
   if (!dot) {
-    e.dots.push({ type: 'poison', stackDps: perStackDps, stack: Math.min(add, cap), maxStack: cap, ttl, tickT: 0, freq, src });
+    e.dots.push({ type: 'poison', stackDps: perStackDps, stack: Math.min(add, cap), maxStack: cap, ttl, tickT: 0, freq, src, skill: '毒性强化' });
   } else {
     dot.stack = Math.min(cap, dot.stack + add);
     dot.stackDps = Math.max(dot.stackDps, perStackDps);
     dot.maxStack = cap;
     dot.freq = freq;
     dot.ttl = Math.max(dot.ttl, ttl);
+    dot.skill = '毒性强化';
   }
   // v1.16.100 缠毒3★：被缠绕的敌人每被叠 1 层中毒，缠绕时间延长 0.5 秒（上限 +3 秒）
   if (combat.game.run.relic3('poison_vine') && e._vineT > 0) {
     e._vineT = Math.min(e._vineT + 0.5 * add, 6);
+  }
+  // SR「中毒·蚀骨」3★：毒层达到 5 层时按 60% 攻击伤害爆发并清空层数。
+  if (combat.game.run.relic3('s_sr_poison_dot') && dot.stack >= combat.game.run.relicValue('s_sr_poison_dot', 'detonateStacks')) {
+    const radius = 60;
+    const damage = combat.shotDmg('poison', true, true) * combat.game.run.relicValue('s_sr_poison_dot', 'detonateDamage') / 100;
+    dot.stack = 0;
+    dot._curseDealt = 0;
+    combat.explode(e.x, e.y, radius, damage, 'poison', undefined, undefined, undefined, '中毒引爆');
+    combat.fxRing(e.x, e.y, '#52be80', radius, 0.35, 3);
   }
 }
 
@@ -89,7 +107,11 @@ function poisonStack(combat, e) {
 function applyBleed(combat, e, dmg) {
   e.bleedT = SKILL_NUM.boomerang['放血'].duration + SKILL_NUM.boomerang['放血'].durationPerBranch * combat.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
   const cLv = combat.branchLv('boomerang', '放血', 'C');
-  e._bleedDmg = dmg * (SKILL_NUM.boomerang['放血'].damage + SKILL_NUM.boomerang['放血'].damagePerBranch * cLv);                            // 每移动 100px 结算（= 每 10px 4% 攻击；C 溃烂 4%→6/8/10%）
+  const bleedDmg = dmg * (1 + combat.game.run.relicNum('s_sr_boo_bleed') / 100)
+    * (SKILL_NUM.boomerang['放血'].damage + SKILL_NUM.boomerang['放血'].damagePerBranch * cLv);
+  const stackCap = combat.game.run.relic3('s_sr_boo_bleed') ? combat.game.run.relicValue('s_sr_boo_bleed', 'stackCap') : 1;
+  e._bleedStacks = Math.min(stackCap, (e._bleedStacks || 0) + 1);
+  e._bleedDmg = stackCap > 1 ? Math.max(e._bleedDmg || 0, bleedDmg) : bleedDmg; // 每移动 100px 结算；3★最多叠 2 层
   e._bleedDist = 0;
   e._bleedLastY = e.y;
   // 流血视觉：暗红血珠粒子
@@ -97,6 +119,8 @@ function applyBleed(combat, e, dmg) {
 }
 
 function applySlow(combat, e, mult, ttl, source) {
+  const run = combat.game.run;
+  if (source === 'ice') mult = Math.min(0.9, mult + (run.relicNum('s_sr_ice_chill') + run.relicNum('s_ice_chill')) / 100);
   // v1.16.114 冰川1★/2★：所有减速效果的幅度提升 15%/20%
   mult *= (1 + combat.relicVal('ice_glacier') / 100);
   // v1.16.114 凝霜1★/2★：减速持续时间延长 1/1.5 秒（与凝霜3★ 同口径）
@@ -114,8 +138,14 @@ function applySlow(combat, e, mult, ttl, source) {
   // v1.16.98 凝霜3★：冰缓持续时间延长 1 秒
   if (combat.game.run.relic3('ice_condense')) appliedTtl += 1;
   const state = e[key];
-  if (!state || state.ttl <= 0) e[key] = { mult: 1 - mult, ttl: appliedTtl };
-  else { state.mult = 1 - mult; state.ttl = Math.max(state.ttl, appliedTtl); }
+  if (!state || state.ttl <= 0) e[key] = { mult: 1 - mult, ttl: appliedTtl, stacks: 1 };
+  else {
+    const layers = source === 'ice' && run.relic3('s_sr_ice_chill') ? Math.min(2, (state.stacks || 1) + 1) : 1;
+    const totalSlow = Math.min(COMBAT_BALANCE.glacierSlowCap, 1 - Math.pow(1 - mult, layers));
+    state.mult = 1 - totalSlow;
+    state.stacks = layers;
+    state.ttl = Math.max(state.ttl, appliedTtl);
+  }
   e[visualKey] = e[key].ttl;
   refreshSlow(e);
 }
@@ -132,13 +162,13 @@ function refreshSlow(e) {
 
 function freezeE(combat, e, dur) {
   if (e.immuneFreeze) return;
-  const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.relicVal('ice_forever')) * (1 + combat.relicVal('ur_frost_eye') / 100);   // v1.16.114 永冻1★/2★：冰冻时长 +1/1.5s；v1.17.43 UR 霜风之眼：控制时长 +20%/+30%
+  const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.game.run.relicValue('s_sr_ice_freeze', 'primary')) * (1 + combat.relicVal('ur_frost_eye') / 100);
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
   // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
   if (d > prev && combat.game.run.relic3('ice_marrow')) {
     const it = combat.tower('ice');
-    if (it) it.energy = Math.min(it.energy + 2, combat.game.run.armoryEnergyMax());
+    if (it) it.energy = Math.min(it.energy + 2, combat.game.run.armoryEnergyMax('ice'));
   }
   combat.fxFlash(e.x, e.y, '#d6f0ff', 0.3);
   combat.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
@@ -148,9 +178,8 @@ function hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
 
 function tickBaseStatus(combat, e, dt) {
   const boost = combat.dotBoost();
-  // v1.16.96 火塔 3★ 标记衰减：熔心3★ 火伤标记 / 火墙增烈3★ 停留增伤计时
-  if (e._core) { e._core.ttl -= dt; if (e._core.ttl <= 0) e._core = null; }
-  if (e._wallStay > 0) e._wallStay -= dt;
+  if (e._fireWallBurnT > 0) e._fireWallBurnT = Math.max(0, e._fireWallBurnT - dt);
+  if (e._seedGroundT > 0) e._seedGroundT = Math.max(0, e._seedGroundT - dt);
   // v1.16.101 闪电链增强3★：连锁增伤窗口递减
   if (e._elecBoost) {
     e._elecBoost.ttl -= dt;
@@ -163,7 +192,7 @@ function tickBaseStatus(combat, e, dt) {
     if (!e._wasFrozen && combat.game.run.relic3('ice_marrow')) {
       e._wasFrozen = true;
       const it = combat.tower('ice');
-      if (it) it.energy = Math.min(it.energy + 2, combat.game.run.armoryEnergyMax());
+      if (it) it.energy = Math.min(it.energy + 2, combat.game.run.armoryEnergyMax('ice'));
     }
   } else {
     e._wasFrozen = false;
@@ -176,6 +205,13 @@ function tickBaseStatus(combat, e, dt) {
     e._frozenLongT = 0;
     e._fragile = false;
   }
+  if (combat.game.run.relic3('s_ice_chill') && e.frozen <= 0 && e._iceSlow && e._iceSlow.ttl > 0) {
+    e._deepChillT = (e._deepChillT || 0) + dt / (e.controlResist || 1);
+    if (e._deepChillT >= combat.game.run.relicValue('s_ice_chill', 'freezeAfter')) {
+      e._deepChillT = 0;
+      combat.freezeE(e, combat.game.run.relicValue('s_ice_chill', 'freezeDuration'));
+    }
+  } else if (!combat.game.run.relic3('s_ice_chill')) e._deepChillT = 0;
   // v1.16.100 腐化3★：中毒的敌人每移动 60 码，额外受到其最大生命值 2% 的真实伤害（对 Boss 单次上限 1%，无视减伤）
   if (combat.game.run.relic3('poison_corrode') && combat.hasDot(e, 'poison') && e.hp > 0) {
     const spd = (e.speed || 0) * (e.slow && e.slow.ttl > 0 ? e.slow.mult : 1);
@@ -190,6 +226,7 @@ function tickBaseStatus(combat, e, dt) {
         const hpBefore = e.hp;
         e.hp -= v0;
         recordDamage(combat, e, hpBefore, 'poison', 'true');
+        Damage.recordDmgStat(combat, e, hpBefore, 0, 'poison', 'true');
         Bosses.afterDamage(combat.game, e);
         if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }
       }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
@@ -217,11 +254,22 @@ function tickBaseStatus(combat, e, dt) {
         const tickI = d.freq ? 1 / d.freq : 0.5;
         d.tickT += tickI;
         // 毒（层数×每层 dps）走 stackDps；灼烧等旧 DoT 走 dps×全局强化
-        const dealt = d.stackDps ? (d.stack || 1) * d.stackDps * tickI : d.dps * boost.dmg * tickI;
+        const poisonLayers = d.stack == null ? 1 : d.stack;
+        const dealt = d.stackDps ? poisonLayers * d.stackDps * tickI : d.dps * boost.dmg * tickI;
         // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
         let dealtV = dealt;
+        if (d.type === 'poison' && combat.game.run.relicRun('s_poison_curse') > 0) {
+          const pct = combat.game.run.relicNum('s_poison_curse') / 100;
+          const cap = combat.game.run.relicValue('s_poison_curse', 'damageCap') > 0
+            ? combat.shotDmg('poison', true, true) * combat.game.run.relicValue('s_poison_curse', 'damageCap') / 100
+            : Infinity;
+          const left = Math.max(0, cap - (d._curseDealt || 0));
+          const curse = Math.min(left, (e.maxHp || e.hp) * pct * poisonLayers * tickI);
+          dealtV += curse;
+          d._curseDealt = (d._curseDealt || 0) + curse;
+        }
         if (d.type === 'poison' && e._poisonChain > 0) dealtV *= (1 + 0.10 * e._poisonChain);
-        combat.damage(e, dealtV, d.src, { kind: 'dot', sourceKey: d.src || ({ burn: 'fire', poison: 'poison', bleed: 'boomerang' })[d.type] });
+        combat.damage(e, dealtV, d.src, { kind: 'dot', sourceKey: d.src || ({ burn: 'fire', poison: 'poison', bleed: 'boomerang' })[d.type] }, d.skill || ({ burn: '灼烧', poison: '毒性强化' })[d.type]);
         d.totalDealt = (d.totalDealt || 0) + dealt;
         // v1.16.100 毒腺3★：中毒伤害的 20% 转化为城墙修复
         if (d.type === 'poison' && combat.game.run.relic3('poison_gland')) {
@@ -250,7 +298,15 @@ function tickBaseStatus(combat, e, dt) {
   // （回旋镖·猎手标记已于 2026-11-01 删除；_mark 状态字段保留，供可能复用的标记类机制使用）
   if (e._markT > 0) { e._markT -= dt; if (e._markT <= 0) { e._mark = 0; e._markT = 0; } }
   // 控制
-  if (e.frozen > 0) e.frozen -= dt / (e.controlResist || 1);
+  if (e.frozen > 0) {
+    e.frozen = Math.max(0, e.frozen - dt / (e.controlResist || 1));
+    if (e.frozen <= 0 && combat.game.run.relic3('s_sr_ice_freeze')) {
+      const radius = combat.game.run.relicValue('s_sr_ice_freeze', 'shatterRadius');
+      const damage = combat.shotDmg('ice', true, true) * combat.game.run.relicValue('s_sr_ice_freeze', 'shatterDamage') / 100;
+      combat.explode(e.x, e.y, radius, damage, 'ice', undefined, undefined, undefined, '冰冻碎裂');
+      combat.fxRing(e.x, e.y, '#b8e6ff', radius, 0.35, 3);
+    }
+  }
   if (e.paralyzed > 0) e.paralyzed -= dt;
   const slowDt = dt / (e.controlResist || 1);
   if (e._iceSlow) { e._iceSlow.ttl -= slowDt; if (e._iceSlow.ttl <= 0) e._iceSlow = null; }
@@ -266,10 +322,10 @@ function tickBaseStatus(combat, e, dt) {
     e._bleedLastY = e.y;
     if (e._bleedDist >= SKILL_NUM.boomerang['放血'].distancePerTick) {
       e._bleedDist -= SKILL_NUM.boomerang['放血'].distancePerTick;
-      combat.damage(e, e._bleedDmg || 0, 'boomerang', 'dot');
+      combat.damage(e, (e._bleedDmg || 0) * Math.max(1, e._bleedStacks || 1), 'boomerang', { kind: 'dot' }, '放血');
       combat.fxParticle(e.x, e.y - 10, '#c0392b', 4, 20, 0.35, 80, 5);
     }
-    if (e.bleedT <= 0) { e.bleedT = 0; e._bleedDist = 0; }
+    if (e.bleedT <= 0) { e.bleedT = 0; e._bleedDist = 0; e._bleedStacks = 0; e._bleedDmg = 0; }
   }
 }
 

@@ -1,4 +1,5 @@
 const BoardChests = require('./game/flows/board-chests.js');
+const BoardChestPieces = require('./board-chests.js');
 const MATCH_GLOW = require('./config/match-glow.js');
 const ComboFeedback = require('./game/combo-feedback.js');
 /**
@@ -60,6 +61,7 @@ class Match3Controller {
    *  v5.6.5 时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
   update(dt) {
     const g = this.game;
+    this._tickStoreAutoMatch(dt);
     if (g.state === 'fighting' && !g.anim && !g._chestBusy && !g.funcLayer && !g.relicPick && !g.pendingRelicPicks.length) {
       g._boardIdleTime = (g._boardIdleTime || 0) + dt;
       if (g._boardIdleTime >= 15 && !g.boardHint) { g.boardHint = g.run.board.findHintMove(); g._boardIdleTime = 0; }
@@ -105,6 +107,48 @@ class Match3Controller {
     }
   }
 
+  /** 自动药剂：限时内每个战斗秒自动进行一次普通三消，复用真实交换与结算链路。 */
+  _tickStoreAutoMatch(dt) {
+    const g = this.game, run = g.run;
+    const item = CONFIG.STORE.items.find((it) => it.autoMatchInterval > 0);
+    if (!item || g.state !== 'fighting' || !run.storeTimers || !(run.storeTimers[item.id] > 0)) {
+      run._storeAutoMatchElapsed = 0;
+      return;
+    }
+    const interval = item.autoMatchInterval;
+    // 自动药剂按实际战斗时间计时；棋盘动画不随倍速变化，忙碌时最多积攒一次，不会追赶连发。
+    const intervalDt = item.autoMatchClock === 'real' ? dt : dt * (g.runSpeed || 1);
+    run._storeAutoMatchElapsed = Math.min(interval, (run._storeAutoMatchElapsed || 0) + intervalDt);
+    if (run._storeAutoMatchElapsed < interval) return;
+    if (g.anim || g._chestBusy || g.funcLayer || g.relicPick || (g.pendingRelicPicks && g.pendingRelicPicks.length)
+      || (run.effects && run.effects.pendingTotal && run.effects.pendingTotal() > 0)) return;
+
+    const move = this._findAutoTripleMove();
+    run._storeAutoMatchElapsed = 0;
+    if (move) this.trySwap(move[0][0], move[0][1], move[1][0], move[1][1]);
+  }
+
+  /** 优先找只形成一个普通三连的交换；无此类走法时回退棋盘任意有效提示步。 */
+  _findAutoTripleMove() {
+    const board = this.game.run.board, grid = board.grid;
+    for (let r = 0; r < board.rows; r++) for (let c = 0; c < board.cols; c++) {
+      const pairs = [];
+      if (c + 1 < board.cols) pairs.push([r, c, r, c + 1]);
+      if (r + 1 < board.rows) pairs.push([r, c, r + 1, c]);
+      for (const [r1, c1, r2, c2] of pairs) {
+        const a = grid[r1][c1], b = grid[r2][c2];
+        if (typeof a !== 'string' || typeof b !== 'string' || a === b || BoardChestPieces.isChest(a) || BoardChestPieces.isChest(b)) continue;
+        grid[r1][c1] = b; grid[r2][c2] = a;
+        const matches = board.findMatches();
+        grid[r1][c1] = a; grid[r2][c2] = b;
+        if (matches.length === 1 && matches[0].shape === '3' && matches[0].size === 3 && !matches[0].rainbow) {
+          return [[r1, c1], [r2, c2]];
+        }
+      }
+    }
+    return board.findHintMove();
+  }
+
   _fireChainStep(anim) {
     const cs = anim.cascade, g = this.game;
     if (!cs.fired) cs.fired = new Set();
@@ -142,6 +186,17 @@ class Match3Controller {
     const special = step.matches.filter((m) => m.shape !== '3');
     if (special.length) msgs.push(special.map((m) => SHAPE_NAME[m.shape] || m.shape).join('、'));
     const got = ss.filter((s) => s.gotTower);
+    got.forEach((reward) => {
+      const activatedTower = g.run.effects.tower(reward.tower);
+      if (activatedTower) activatedTower._activationDelay = 1;
+      const index = g.run.slotOrder.indexOf(reward.tower);
+      if (index < 0) return;
+      const { slotSize, slotGap, slotY } = g.ly;
+      const count = (g.ly.slotCount || 4) + 2;
+      const left = (750 - (count * slotSize + (count - 1) * slotGap)) / 2;
+      g.fx.push({ type: 'shot', kind: 'spawnportal', towerKey: reward.tower, x: left + (index + 1) * (slotSize + slotGap) + slotSize / 2,
+        y: slotY + slotSize * 0.8, t: 0, dur: 1 });
+    });
     if (got.length) msgs.push(`获得 ${got.map((s) => CONFIG.COLORS[CONFIG.TOWERS[s.tower].color].name).join('、')}`);
     if (msgs.length) g.toast(msgs.join(' '), got.length ? '#7ef0a3' : '#f7c948');
   }

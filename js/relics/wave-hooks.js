@@ -9,14 +9,10 @@ function startWave(run) {
     run.freeShuffle += shN + (run.relic3('cm_shuffle') ? 1 : 0);
     run.relicFx('cm_shuffle', `免费洗牌 +${shN + (run.relic3('cm_shuffle') ? 1 : 0)}`); // v1.17 生效提示
   }
-  // v1.16.96 金库3★：记录波初城墙血（波末无伤判定）；赏金猎人3★：连续无宝箱波计数
+  // 金库3★：记录波初城墙血（波末无伤判定）
   run._waveStartHp = run.lineHp;
   // v1.17.43 UR 未凋之种：本波召唤物击杀加成本波清零（按波结算）
   run._seedBonus = 0;
-  if (run.relic3('cm_bounty')) {
-    if (run._waveChestDropped) run._bountyStreak = 0;
-    else run._bountyStreak += 1;
-  }
   run._waveChestDropped = false;
 }
 
@@ -27,25 +23,20 @@ function endWave(run) {
     run.gold += Math.round(run._waveGold * 0.3);
     run.relicFx('cm_vault', '无伤银币 +30%'); // v1.17 生效提示
   }
-  // v1.16.78 生命回复：每波结束城墙回复 N% 生命；v1.16.96 3★：回复溢出转为护盾（上限10%最大血量）
-  const regen = run.relicNum('cm_regen');
-  if (regen > 0) {
-    const maxHp = run.lineMaxHp || CONFIG.LINE.hp;
-    const healed = maxHp * regen / 100;
-    const before = run.lineHp;
-    run.lineHp = Math.min(maxHp, run.lineHp + healed);
-    const overflow = healed - (run.lineHp - before);
-    if (overflow > 0 && run.relic3('cm_regen')) {
-      run.wallShield = Math.min(maxHp * 0.1, run.wallShield + overflow);
-    }
-    run.relicFx('cm_regen', `城墙回复 ${regen}%`); // v1.17 生效提示
+  // 新通用卡：低血量时的磐石回复与每波自愈分别结算；低血量条件按波末原血量判定。
+  const maxHp = run.lineMaxHp || CONFIG.LINE.hp;
+  const lowHpHeal = run.relic3('s_sr_cm_wall') && run.lineHp < maxHp * 0.3
+    ? run.relicValue('s_sr_cm_wall', 'lowHpRegen') : 0;
+  const regenBase = run.relicNum('s_sr_cm_regen');
+  const regenMult = run.relic3('s_sr_cm_regen')
+    ? run.relicValue('s_sr_cm_regen', 'regenMult') : 1;
+  const regen = regenBase * (regenMult || 1);
+  const totalRegen = lowHpHeal + regen;
+  if (totalRegen > 0) {
+    run.lineHp = Math.min(maxHp, run.lineHp + maxHp * totalRegen / 100);
+    if (lowHpHeal) run.relicFx('s_sr_cm_wall', `低血回复 ${lowHpHeal}%`);
+    if (regen) run.relicFx('s_sr_cm_regen', `城墙回复 ${regen}%`);
   }
 }
 
-function bountyGuarantee(run) {
-  if (!run.relic3('cm_bounty') || run._bountyStreak < 3) return false;
-  run._bountyStreak = 0;
-  return true;
-}
-
-module.exports = { startWave, endWave, bountyGuarantee };
+module.exports = { startWave, endWave };

@@ -42,12 +42,12 @@ function onKill(combat, e) {
     if (key === 'fire' && combat.hasDot(e, 'burn')) {
       RelicKill.fireDeath(combat, e);
       // 爆燃（v1.13：基础 40% 概率引爆；v1.16.21 A 爆裂 +30/60/90%、B 扩张 +20/40/60%）
-      if (combat.has('fire', '爆燃') && Math.random() < SKILL_NUM.fire['爆燃'].deathProbability) {
+      const deathChance = SKILL_NUM.fire['爆燃'].deathProbability;
+      if (combat.has('fire', '爆燃') && Math.random() < deathChance) {
         const aLv = combat.branchLv('fire', '爆燃', 'A');
         const bLv = combat.branchLv('fire', '爆燃', 'B');
         const boomR = SKILL_NUM.fire['爆燃'].baseRadius * (1 + SKILL_NUM.fire['爆燃'].radius[bLv]);
         combat.explode(e.x, e.y, boomR, combat.shotDmg('fire', true) * SKILL_NUM.fire['爆燃'].baseDamage * (1 + SKILL_NUM.fire['爆燃'].dmg[aLv]), 'fire');
-        RelicKill.fireExplosionSpread(combat, e, boomR);
       }
     }
     if (key === 'poison' && combat.has('poison', '毒爆') && combat.hasDot(e, 'poison')) {

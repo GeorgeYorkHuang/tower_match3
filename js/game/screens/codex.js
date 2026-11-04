@@ -58,7 +58,8 @@ function createCodexScreen(deps) {
     const panelCol = hexA(cCol, 0.40);         // 塔色 40% 不透明（60% 透明）
     fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
     fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
-    text(ctx, colorName(k), dx + 30, dy + 44, 38, '#ffffff', 'left');
+    drawImg(ctx, 'assets/images/interface/cards/tower-stats-v1.png', dx, dy, dw, PH);
+    text(ctx, colorName(k), dx + 26, dy + 33, 38, '#ffffff', 'left');
     // 3 行属性：单发攻击力/攻速/射程 —— 每行 = 属性名 + 胶囊进度条 + 数值
     const statCols = [
       { name: '攻击力', val: T.baseDps * T.atkInterval, cap: 100, txt: `${Math.round(T.baseDps * T.atkInterval)}/发` },
@@ -67,8 +68,8 @@ function createCodexScreen(deps) {
     ];
     const barW = 430, barX = dx + 110, valX = barX + barW + 14;
     statCols.forEach((c, ri) => {
-      const rowY = dy + 100 + ri * 40;         // 3 行均布（面板高 222）
-      text(ctx, c.name, dx + 30, rowY, 21, '#ffffff', 'left');
+      const rowY = dy + [86, 136, 190][ri];         // 3 行均布（面板高 222）
+      text(ctx, c.name, dx + 26, rowY, 21, '#ffffff', 'left');
       const by = rowY - 8;
       fillRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.18)');
       const r = Math.max(0, Math.min(1, c.val / c.cap));
@@ -78,10 +79,10 @@ function createCodexScreen(deps) {
     });
     // v1.16.110 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡；v1.17.10 按塔攻速×DPS 定价（attackCost）
     const enV = (CONFIG.TOWERS[k] && CONFIG.TOWERS[k].attackCost) || GS.perAttack || 0.5;
-    const ecW = 190, ecH = 40, ecX = dx + dw - 30 - ecW, ecY = dy + 20;
+    const ecW = 155, ecH = 34, ecX = dx + dw - 20 - ecW, ecY = dy + 15;
     fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
     strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);
-    text(ctx, `⚡ 耗能 ${Number(enV).toFixed(2)}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 19, '#f4d03f', 'center');
+    text(ctx, `⚡ 耗能 ${Number(enV).toFixed(2)}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 16, '#f4d03f', 'center');
     // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
     // v1.16.128 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）
@@ -109,11 +110,7 @@ function createCodexScreen(deps) {
       body.addColorStop(0.45, hexA(cMain, 0.10));
       body.addColorStop(1, 'rgba(13,17,23,0.94)');
       fillRoundRect(ctx, gx, gy, cw3, ch3, 14, body);
-      // 立体边缘：外描边（塔色）+ 顶部内高光 + 底部内阴影
-      strokeRoundRect(ctx, gx, gy, cw3, ch3, 14, cMain, 1.8);
-      strokeRoundRect(ctx, gx + 1.5, gy + 1.5, cw3 - 3, ch3 - 3, 12, 'rgba(255,255,255,0.22)', 1.2);
-      fillRoundRect(ctx, gx + 10, gy + 2.5, cw3 - 20, 2.5, 1.2, hexA(cMain, 0.75));   // 顶棱高光
-      fillRoundRect(ctx, gx + 10, gy + ch3 - 5, cw3 - 20, 2.5, 1.2, 'rgba(0,0,0,0.45)'); // 底棱阴影
+      drawImg(ctx, 'assets/images/interface/cards/codex-skill-card-v1.png', gx, gy, cw3, ch3);
       // ---- 上区：图标 + 技能名左右排布 ----
       if (!drawImg(ctx, skillIconSrc(k, sk.name), gx + 16, gy + 10, 64, 64)) {
         fillRoundRect(ctx, gx + 16, gy + 10, 64, 64, 12, hexA(cMain, 0.25));
@@ -165,14 +162,13 @@ function createCodexScreen(deps) {
       while (valueText && ctx.measureText(valueText + '…').width > width) valueText = valueText.slice(0, -1);
       return valueText + '…';
     };
-    strokeRoundRect(ctx, px - 4, py - 4, W2 + 8, H2 + 8, 28, hexA(cCol, 0.30), 6);   // 外圈柔光
-    fillRoundRect(ctx, px, py, W2, H2, 24, '#151b24');
-    strokeRoundRect(ctx, px, py, W2, H2, 24, cCol, 2);
+    // No opaque backing or outer frame behind the illustrated panel.   // 外圈柔光
+
+    drawImg(ctx, 'assets/images/interface/cards/codex-skill-detail-v1.png', px, py, W2, H2);
     // 顶部塔色丝带（上圆角下直角 + 顶边内高光），标题点明"三选一"语义
-    fillRoundRect(ctx, px, py, W2, 64, 24, cCol);
-    fillRoundRect(ctx, px, py + 42, W2, 22, 0, cCol);
+    fillRoundRect(ctx, px + 12, py + 12, W2 - 24, 36, 12, hexA(cCol, 0.25));
+
     fillRoundRect(ctx, px + 16, py + 3, W2 - 32, 3, 1.5, 'rgba(255,255,255,0.35)');
-    text(ctx, '技 能 分 支 · 升 级 三 选 一', 375, py + 34, 28, '#ffffff', 'center');
     pushScaled('panelClose', null, px + W2 - 76, py + 8, 52, 52);
     ctx.beginPath(); ctx.arc(px + W2 - 50, py + 34, 20, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
@@ -202,13 +198,11 @@ function createCodexScreen(deps) {
       text(ctx, ln, 375, py + 428 + li * 38, 28, '#c9d6e4', 'center');
     });
     fillRoundRect(ctx, px + 30, py + 514, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
-    text(ctx, '升级分支 · 三选一', px + 30, py + 552, 28, '#ffffff', 'left');
-    text(ctx, '对局内技能升级时选其一条强化', px + W2 - 30, py + 552, 18, '#8ea3b8', 'right');
     // 三张分支卡：字母徽章列 + 分支名 + 概述 + 金色 Lv 前缀逐级行
-    const cx0 = px + 40, cw = W2 - 80, chh = 250;
+    const cx0 = px + 22, cw = W2 - 44, chh = 210;
     [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk], bi) => {
       const overview = sk[ak] || '';
-      const cy0 = py + 584 + bi * (chh + 8);
+      const cy0 = py + 582 + bi * 233;
       if (!overview) {
         fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.03)');
         strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.10)', 1);
@@ -219,18 +213,18 @@ function createCodexScreen(deps) {
       const bName = bi2 > 0 ? overview.slice(0, bi2) : overview;
       const bDesc = bi2 > 0 ? overview.slice(bi2 + 1) : '';
       const lvls = sk[pk] || [];
-      fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.05)');
-      strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, cCol, 1.5);
-      fillRoundRect(ctx, cx0 + 22, cy0 + 20, 64, 64, 16, cCol);
-      text(ctx, bk, cx0 + 54, cy0 + 54, 34, '#0d1117', 'center');
-      text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 42, 32, '#ffffff', 'left');
+
+
+      fillRoundRect(ctx, cx0 + 22, cy0 + 18, 60, 60, 16, cCol);
+      text(ctx, bk, cx0 + 54, cy0 + 48, 32, '#0d1117', 'center');
+      text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 36, 30, '#ffffff', 'left');
       // 概述最多 2 行（28px）
-      wrapText(ctx, bDesc || '', cw - 130, 28).slice(0, 2).forEach((ln, li) => {
-        text(ctx, ln, cx0 + 104, cy0 + 84 + li * 34, 28, '#c9d6e4', 'left');
+      wrapText(ctx, bDesc || '', cw - 130, 25).slice(0, 2).forEach((ln, li) => {
+        text(ctx, ln, cx0 + 104, cy0 + 73 + li * 29, 25, '#c9d6e4', 'left');
       });
-      fillRoundRect(ctx, cx0 + 22, cy0 + 148, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
+      fillRoundRect(ctx, cx0 + 22, cy0 + 121, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
       lvls.slice(0, 3).forEach((t, li) => {
-        const ry2 = cy0 + 174 + li * 28;
+        const ry2 = cy0 + 143 + li * 25;
         text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
         const ln = fit(t, cw - 220, 22);
         text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');

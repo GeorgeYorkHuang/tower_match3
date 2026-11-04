@@ -99,7 +99,7 @@ function createBattleOverlays({ fmtNum }) {
       const name = slot.name || slot.key;
       if (!s) { rows.push({ head: name, val: '0' }); return; }
       rows.push({ head: name, lv: slot.level, val: fmtNum(Math.round(s.total)) });
-      rows.push({ sub: `普攻 ${fmtNum(Math.round(s.normal))} · DOT ${fmtNum(Math.round(s.dot))}` });
+      rows.push({ sub: `普攻 ${fmtNum(Math.round(s.normal))} · DOT ${fmtNum(Math.round(s.dot))}（技能明细含DOT）` });
       const skills = [];
       Object.keys(s.skill).forEach((nm) => { if ((s.skill[nm] || 0) > 0) skills.push(nm); });
       // 已激活但伤害为 0 的技能也展示（等级可见）；用槽内技能表补齐

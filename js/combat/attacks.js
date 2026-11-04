@@ -4,6 +4,7 @@ const CONFIG = require('../config.js');
 const GS_BALANCE = require('../config/global-balance.js');
 const BoomerangTower = require('./towers/boomerang.js');
 const IceTower = require('./towers/ice.js');
+const { attackEnergyMultiplier } = require('./attack-energy.js');
 
 function tickTower(combat, key, dt) {    const g = combat.game;
   const t = combat.tower(key);
@@ -26,6 +27,7 @@ function attackOnce(combat, key) {
   // v1.16.77 能量：普攻每次耗 0.5 能量（每 2 发 1 点）；能量耗尽不停火，进入弱化态（shotDmg ×0.5）
   // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
   const ammoT = combat.tower(key);
+  if (!ammoT || ammoT.level === 0) return;
   const target = combat.pickTarget(key);
   if (!target) {
     // 回旋镖：无目标可投时复位等待标记，避免接镖流程空转
@@ -38,13 +40,14 @@ function attackOnce(combat, key) {
     ammoT._rapidN = (ammoT._rapidN || 0) + 1;
     if (ammoT._rapidN >= 10) { ammoT._rapidN = 0; freeShot = true; }
   }
-  if (ammoT && !freeShot) g.run.spendAttackEnergy(ammoT);
+  const energyCost = ammoT ? g.run.attackCost(ammoT) * attackEnergyMultiplier(combat, key) : 0;
+  if (ammoT && !freeShot) g.run.spendAttackEnergy(ammoT, energyCost);
   // v1.16 接镖 B 回能：回旋镖 30% 概率不耗能量（已在上面消耗，回补；v1.17.10 按塔实际能耗回补）
   const regain = key === 'boomerang' && combat.branchLv('boomerang', '接镖', 'B') > 0 && Math.random() < SKILL_NUM.boomerang['接镖'].catchRegain;
-  if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + g.run.attackCost(ammoT), g.run.armoryEnergyMax());
+  if (ammoT && regain) ammoT.energy = Math.min(ammoT.energy + energyCost, g.run.armoryEnergyMax(key));
   // v1.16.102 疾风回旋3★：攻速加成期间接镖 15% 概率不耗能量（攻速加成存在 = 实际攻击间隔 < 基础间隔）
   if (ammoT && key === 'boomerang' && g.run.relic3('boo_speed') && combat.interval(key) < CONFIG.TOWERS[key].atkInterval && Math.random() < 0.15) {
-    ammoT.energy = Math.min(ammoT.energy + g.run.attackCost(ammoT), g.run.armoryEnergyMax());
+    ammoT.energy = Math.min(ammoT.energy + energyCost, g.run.armoryEnergyMax(key));
   }
   const cfg = CONFIG.TOWERS[key];
   const ly = combat.ly();
@@ -69,19 +72,21 @@ function attackOnce(combat, key) {
     }
   }
   // 炮·双管齐射：基础25%概率双发，A提高双发率；B追发第三炮，C第二炮命中返能。
-  const duelProb = key === 'cannon' ? (0.25 + 0.15 * combat.branchLv('cannon', '双管齐射', 'A') + combat.relicVal('can_double') / 100) : 0;   // v1.16.114 双发1★/2★
+  const duelProb = key === 'cannon' ? (0.25 + 0.15 * combat.branchLv('cannon', '双管齐射', 'A') + combat.relicVal('can_double') / 100 + g.run.relicValue('s_can_splash', 'doubleChance') / 100) : 0;
   const duel = key === 'cannon' && combat.lv('cannon', '双管齐射') > 0 && Math.random() < duelProb;
   const duelB = key === 'cannon' ? combat.branchLv('cannon', '双管齐射', 'B') : 0;
   const triple = duel && duelB > 0 && Math.random() < SKILL_NUM.cannon['双管齐射'].thirdShotChance[duelB];
   // v1.16.112 火塔攻击级挂点（熔炉之息免费火柱 / 火焰弹射：每攻击一次判定一次，与弹道数量无关）
-  if (key === 'fire') combat._fireAttackOnAttack();
+  const fireTriple = key === 'fire' && combat._fireAttackOnAttack(target, dmg);
   // 弹道（视觉）+ 命中（逻辑）
   // v1.5：fx 携带 target 引用，直线/闪电弹道末端实时跟随目标移动
   const baseShot = { type: 'shot', kind: cfg.shot.kind, color: tint, x: sx, y: sy, tx: target.x, ty: target.y, t: 0, dur, key, target, fold: key === 'boomerang' && combat.lv('boomerang', '折返增伤') > 0 };
   const fireMulti = key === 'fire' && combat.lv('fire', '多重火球') > 0;
   const iceMulti = key === 'ice' && combat.lv('ice', '多重冰锥') > 0;
   const icePierce = key === 'ice' && !iceMulti && combat.lv('ice', '冰穿刺') > 0;
-  if (icePierce) {
+  if (fireTriple) {
+    g.playSfx('shot', 0.25);
+  } else if (icePierce) {
     IceTower.launchIcePiercingShot(combat, target, dmg, 1.15);
     g.playSfx('shot', 0.25);
   } else if (fireMulti) {
@@ -114,7 +119,7 @@ function attackOnce(combat, key) {
   }
   if (key === 'boomerang') {
     BoomerangTower.launchAttack(combat, { key, target, dmg, dur, sx, sy, tint, baseShot });
-  } else if (!fireMulti && !iceMulti && !icePierce) {
+  } else if (!fireTriple && !fireMulti && !iceMulti && !icePierce) {
     combat.shots.push({ key, target, dmg, t: 0, dur, sx, sy });
   }
   if (duel) {
@@ -128,7 +133,7 @@ function attackOnce(combat, key) {
     const duelC = combat.branchLv('cannon', '双管齐射', 'C');
     const onSecondHit = duelC > 0 ? (hitTarget) => {
       const tower = combat.tower('cannon');
-      const maxEnergy = g.run.armoryEnergyMax();
+      const maxEnergy = g.run.armoryEnergyMax('cannon');
       if (!tower || tower.energy >= maxEnergy) return;
       if (Math.random() < SKILL_NUM.cannon['双管齐射'].energyReturnChance[duelC]) {
         tower.energy = Math.min(maxEnergy, tower.energy + SKILL_NUM.cannon['双管齐射'].energyReturn);

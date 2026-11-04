@@ -4,70 +4,22 @@ const FirepillarFx = require('./firepillar.js');
 const FirewallFx = require('./firewall.js');
 // 火系表现只读事件；资源/选帧仍复用原模块，伤害窗口和队列不归本模块。
 function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimSheet }) {
+  const combined = {"fire-ring":{"src":"assets/images/towers/fx/fire-ring/fire-ring-sheet.png","w":224,"h":128,"ox":112,"oy":92,"duration":3.9,"start":0.2,"cols":6,"n":60},"flame-pillar":{"src":"assets/images/towers/fx/flame-pillar/flame-pillar-sheet.png","w":184,"h":256,"ox":92,"oy":232,"duration":5,"start":0,"cols":11,"n":76}};
+  Object.values(combined).forEach((fx) => loadImg(fx.src));
+  function drawCombinedPillar(ctx, f, id) {
+    const fx = combined[id], local = f.t - fx.start;
+    if (local < 0 || local >= fx.duration) return;
+    const frame = Math.min(fx.n - 1, Math.floor(local * 15));
+    const scale = 2 * (f.r || 120) / 120;
+    ctx.save();
+    drawImg(ctx, fx.src, f.x - fx.ox * scale, f.y - fx.oy * scale, fx.w * scale, fx.h * scale,
+      { x: (frame % fx.cols) * fx.w, y: Math.floor(frame / fx.cols) * fx.h, w: fx.w, h: fx.h });
+    ctx.restore();
+  }
   class FireFx {
   /** v1.17.36 火柱拆层：本函数为【上层】——只有柱体本体与上升火星，地面火环见 fxPillarBase */
-  fxPillar(ctx, f) {
-      // 火柱帧动画：6 帧火龙卷贴图（涌出→拔高→持续→崩解），炸战 AMS 伤害的 0.6s 结算与起喷同帧
-      // 贴图未加载完成时回退 _fxPillarProc 程序化绘制，不出现空技能
-      const t = Math.min(f.t, f.dur), dur = f.dur;
-      const cx = f.x, cy = f.y, R = f.r || 120, seed = f.seed || 0;
-      const shape = FirepillarFx.pillarShape(t, dur);
-      if (!shape) return;                       // 0.55s 之前只有地面层，尚无柱体
-      const fi = FirepillarFx.frameIndex(t, dur);
-      for (let i = 1; i <= FirepillarFx.N; i++) loadImg(IMG_SRC['firepillar' + i]);
-      const { W, H, bx, by } = FirepillarFx.layout(cx, cy, R, shape);
-      ctx.globalAlpha = Math.max(0, Math.min(1, shape.alpha));
-      const drawn = drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
-      if (drawn) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = Math.max(0, Math.min(1, shape.alpha * 0.45));
-        drawImg(ctx, IMG_SRC['firepillar' + fi], bx, by, W, H);
-        ctx.restore();
-        // 上升火星（代码层粒子，0.6s 起与柱体伴生）
-        for (const spark of FirepillarFx.sparkSpec(cx, cy, dur, seed, W, H, t)) {
-          ctx.fillStyle = spark.color; ctx.globalAlpha = spark.alpha * shape.alpha;
-          ctx.beginPath(); ctx.arc(spark.x, spark.y, spark.r, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        return;
-      }
-      ctx.globalAlpha = 1;
-      this._fxPillarProc(ctx, cx, cy, R, seed, t / dur);
-  }
-
-  /** v1.17.36 【下层】地面火环 + 判定提示环：由 renderer.fxGround 在敌人绘制之前调用 */
-  fxPillarBase(ctx, f) {
-      const t = Math.min(f.t, f.dur), dur = f.dur;
-      const cx = f.x, cy = f.y, R = f.r || 120;
-      const shape = FirepillarFx.baseShape(t, dur);
-      if (!shape) return;
-      for (let i = 1; i <= FirepillarFx.N_BASE; i++) loadImg(IMG_SRC['firepillarBase' + i]);
-      const { W, H, bx, by } = FirepillarFx.layoutBase(cx, cy, R);
-      ctx.globalAlpha = shape.alpha;
-      const drawn = drawImg(ctx, IMG_SRC['firepillarBase' + shape.index], bx, by, W, H);
-      if (drawn) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = shape.alpha * 0.30;
-        drawImg(ctx, IMG_SRC['firepillarBase' + shape.index], bx, by, W, H);
-        ctx.restore();
-      } else {
-        // 贴图未就绪时的兜底：淡橙地面晕 + 火苗（保持\"脚下有火\"的读感）
-        const k = Math.min(1, t / 0.6);
-        ctx.globalAlpha = 0.30 * shape.alpha;
-        ctx.fillStyle = '#ff7043';
-        ctx.beginPath(); ctx.arc(cx, cy, R * (0.4 + 0.6 * k), 0, Math.PI * 2); ctx.fill();
-      }
-      // 判定提示细环（画在地面层：与前文一致 0~0.6s 扩到 R，精确标伤害范围）
-      const ring = FirepillarFx.warnRing(t, R);
-      if (ring) {
-        ctx.globalAlpha = 0.35 * ring.fade * shape.alpha;
-        ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(cx, cy, ring.radius, 0, Math.PI * 2); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-  }
+  fxPillar(ctx, f) { drawCombinedPillar(ctx, f, 'flame-pillar'); }
+  fxPillarBase(ctx, f) { drawCombinedPillar(ctx, f, 'fire-ring'); }
 
   /* v1.17.25 程序化火柱回退（原 v1.13.9 四阶段绘制，贴图未就绪时使用） */
   _fxPillarProc(ctx, cx, cy, R, seed, p) {

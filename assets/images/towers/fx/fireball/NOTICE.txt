@@ -1,0 +1,1 @@
+fireball from https://github.com/patch-gg/pixelfx (MIT). Adapted from Sprite Fusion, Copyright (c) 2026 Hugo Duprez, MIT.

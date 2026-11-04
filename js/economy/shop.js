@@ -11,14 +11,15 @@ function createShopService(options = {}) {
     // 旧存档兼容：同日缓存若为旧结构（无 shards/rar 或非新体系 id），视为过期重建
     if (meta.dailyPicks && meta.dailyPicks.date === date) {
       const picks = meta.dailyPicks.picks || [];
-      const fresh = picks.length === CONFIG.DAILY.perDay && picks.every((p) =>
+      const fresh = picks.length === CONFIG.DAILY.perDay && picks.filter(p => p && p.rar === 'ssr').length <= 1 && picks.every((p) =>
         p && p.shards > 0 && p.rar && CONFIG.relicRunDef(p.relic) && CONFIG.GO.RARITY[p.rar]);
       if (fresh) return meta.dailyPicks;
     }
     const picks = [];
-    const rars = ['r', 'sr', 'ssr'];
+
     while (picks.length < CONFIG.DAILY.perDay) {
-      const rar = rars[Math.floor(random() * 3)];
+      const rars = picks.some(p => p.rar === 'ssr') ? ['r', 'sr'] : ['r', 'sr', 'ssr'];
+      const rar = rars[Math.floor(random() * rars.length)];
       const id = pickCard(rar);
       if (!id || picks.some((p) => p.relic === id)) continue;
       picks.push({ relic: id, rar, shards: CONFIG.DAILY.shards[rar], price: CONFIG.DAILY.price[rar] });

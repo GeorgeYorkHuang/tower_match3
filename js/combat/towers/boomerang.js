@@ -16,8 +16,13 @@ function hitBoomerang(combat, e, dmg) {
   // 折返增伤（v1.16）：折返段 = 命中伤害 ×0.65×(1+0.25×A)；B 缓返命中减速 20%；C 宽返吸附已在 sweepDamage
   const fold = combat.lv('boomerang', '折返增伤');
   if (fold > 0) {
-    const foldDmg = v * SKILL_NUM.boomerang['折返增伤'].damage * (1 + SKILL_NUM.boomerang['折返增伤'].damagePerBranch * combat.branchLv('boomerang', '折返增伤', 'A'));
+    const foldDmg = v * SKILL_NUM.boomerang['折返增伤'].damage * (1 + SKILL_NUM.boomerang['折返增伤'].damagePerBranch * combat.branchLv('boomerang', '折返增伤', 'A')) * (1 + combat.game.run.relicNum('s_sr_boo_hunt') / 100);
     combat.damage(e, foldDmg, 'boomerang');
+    if (combat.game.run.relic3('s_sr_boo_hunt')) {
+      const radius = combat.game.run.relicValue('s_sr_boo_hunt', 'vortexRadius');
+      combat.explode(e.x, e.y, radius, combat.shotDmg('boomerang', true, true) * combat.game.run.relicValue('s_sr_boo_hunt', 'vortexDamage') / 100, 'boomerang', undefined, undefined, undefined, '折返风眼');
+      combat.fxRing(e.x, e.y, '#a569bd', radius, 0.35, 3);
+    }
     if (combat.branchLv('boomerang', '折返增伤', 'B') > 0) combat.applySlow(e, SKILL_NUM.boomerang['折返增伤'].slow, SKILL_NUM.boomerang['折返增伤'].slowDuration);
     // 折返视觉：紫色小回环
     combat.fxRing(e.x, e.y, '#c39bd3', 34, 0.3, 2.5);
@@ -57,8 +62,7 @@ function sweepDamage(combat, s) {
       s.hitIds[e.id] = true;
       // v1.16.102 回旋3★：飞镖速度提升使命中率提高，Miss 补偿为 +10% 伤害
       const spinV = g.run.relic3('boo_spin') ? 1.1 : 1;
-      combat.damage(e, s.dmg * spinV, 'boomerang');
-      combat.tryAttackDebuff('boomerang', e, s.dmg * spinV);   // v1.16.53 多镖扫过属普攻强化：统一流血判定（吃放血技能加成）
+      combat.hitBoomerang(e, s.dmg * spinV);
     }
   }
   s._lastSweepPos = { x: bx, y: by };
@@ -72,7 +76,7 @@ function sweepDamage(combat, s) {
     combat.windTrails = combat.windTrails || [];
     const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= SKILL_NUM.boomerang['风痕'].sampleDistance;
     if (spaced && combat.windTrails.length < SKILL_NUM.boomerang['风痕'].maxTrails) {
-      const ttl = SKILL_NUM.boomerang['风痕'].duration + SKILL_NUM.boomerang['风痕'].durationPerBranch * wA + combat.relicVal('boo_trail');   // v1.17.43 长痕1★/2★：风痕时长 +1/+1.5 秒
+      const ttl = SKILL_NUM.boomerang['风痕'].duration + SKILL_NUM.boomerang['风痕'].durationPerBranch * wA;
       const dps = combat.shotDmg('boomerang', true) * SKILL_NUM.boomerang['风痕'].damage * (1 + SKILL_NUM.boomerang['风痕'].damagePerBranch * wB);
       combat.windTrails.push({ x: bx, y: by, r: SKILL_NUM.boomerang['风痕'].radius, ttl, dps, slow: SKILL_NUM.boomerang['风痕'].slow[wC] });   // v1.16.42 C 卷痕档位式 10%/20%/30%
       s._wLast = { x: bx, y: by };
@@ -123,13 +127,14 @@ function launchAttack(combat, { key, target, dmg, dur, sx, sy, tint, baseShot })
   combat._nextDmg[key] = 0;
   // 怪物只沿 +y 走向城墙。出程在曲线进度 0.325 处穿过锁定目标，随后再飞过目标 200 码到弧顶。
   // v1.16.5 接镖 A 疾飞：镖飞行速度 +20%/级 → 飞行时长缩短、命中与接回更快
-  const flyBoost = 1 + SKILL_NUM.boomerang['接镖'].speedPerBranch * combat.branchLv('boomerang', '接镖', 'A') + combat.relicVal('boo_spin') / 100;   // v1.16.114 回旋1★/2★：镖速 +20%/30%
+  const speedPct = combat.game.run.relicNum('r_boomerang_spd');
+  const flyBoost = (1 + SKILL_NUM.boomerang['接镖'].speedPerBranch * combat.branchLv('boomerang', '接镖', 'A')) / Math.max(0.2, 1 - speedPct / 100);
   const bDur = dur / flyBoost;
   const slowMult = (target.slow && target.slow.ttl > 0) ? target.slow.mult : 1;
   const wallY = (g.ly && g.ly.wallY) ? g.ly.wallY - 10 : 957;
-  const n = SKILL_NUM.boomerang['多镖'].baseCount + multi + combat.relicVal('boo_multi');   // v1.16.114 镖群1★/2★：每次投掷镖数 +2/+3
+  const n = SKILL_NUM.boomerang['多镖'].baseCount + multi + (multi > 0 ? combat.game.run.relicValue('s_sr_boo_multi', 'projectileAdd') : 0);
   const decay = multi > 0 ? (SKILL_NUM.boomerang['多镖'].damageDecayPerLevel * multi) * (combat.branchLv('boomerang', '多镖', 'B') > 0 ? SKILL_NUM.boomerang['多镖'].branchDecayMultiplier : 1) : 0;
-  const perDmg = dmg * (1 - decay) * (1 + nextBoost);
+  const perDmg = dmg * (1 - decay) * (1 + nextBoost) * (multi > 0 ? 1 + combat.game.run.relicNum('s_sr_boo_multi') / 100 : 1);
   // v1.16.130 独立索敌：主镖 = 最近敌人，其余 = 主目标上方 40px 截面内随机敌人
   const bladeTargets = [target];
   for (let i = 1; i < n; i++) bladeTargets.push(combat.pickAltTarget('boomerang', target));
@@ -172,12 +177,13 @@ function tryAttackDebuff(combat, o, dmg) {
 
 function tickBoomerang(combat, dt) {
   const g = combat.game;
+  const relicCd = Math.max(0.2, 1 - g.run.relicNum('r_boomerang_cd') / 100);
   const stormBalance=SKILL_NUM.boomerang['风暴镖'], bounceBalance=SKILL_NUM.boomerang['弹力镖'], vortexBalance=SKILL_NUM.boomerang['风眼涡旋'];
   // 回旋镖·风暴镖（v1.16.21 重做）：每 12 秒在敌人密集区选一存活敌人，生成 120px 三同心圈（40/80/120）旋转小飞镖（内4/中6/外8枚，每镖30%伤害，命中不消失，每镖对同敌0.3秒冷却；A 转速 +25%/级；B 伤害 +20%/级；C 镖数每圈 +1/级）
   const cyclone = combat.lv('boomerang', '风暴镖');
   if (cyclone > 0) {
     combat.timers.storm = (combat.timers.storm || 0) + dt;
-    if (combat.timers.storm >= stormBalance.period * combat._weakPeriod('boomerang')) {
+    if (combat.timers.storm >= stormBalance.period * combat._weakPeriod('boomerang') * relicCd) {
       combat.timers.storm = 0;
       combat.castEnergy('boomerang', '风暴镖');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('boomerang', e.x, e.y));
@@ -186,7 +192,7 @@ function tickBoomerang(combat, dt) {
         // 三圈角速度不同：内圈 2.6 顺时针 / 中圈 2.0 逆时针 / 外圈 2.4 顺时针（A 疾旋统一 +25%/级）
         const rings = stormBalance.rings;
         const baseN = stormBalance.ringCounts;
-        const nAdd = combat.branchLv('boomerang', '风暴镖', 'C');
+        const nAdd = combat.branchLv('boomerang', '风暴镖', 'C') + combat.game.run.relicNum('boo_cyclone');
         const perDmg = combat.shotDmg('boomerang', false, true) * stormBalance.damage * (1 + stormBalance.damagePerBranch * combat.branchLv('boomerang', '风暴镖', 'B'));
         const spdMul = 1 + stormBalance.speedPerBranch * combat.branchLv('boomerang', '风暴镖', 'A');
         const darts = [];
@@ -197,7 +203,7 @@ function tickBoomerang(combat, dt) {
         });
         combat.storms = combat.storms || [];
         // v1.16.102 旋风3★：风暴镖持续时间翻倍（3→6 秒）
-        const cyclTtl = combat.game.run.relic3('boo_cyclone') ? stormBalance.duration * 2 : stormBalance.duration;
+        const cyclTtl = stormBalance.duration * (combat.game.run.relic3('boo_cyclone') ? combat.game.run.relicValue('boo_cyclone', 'durationMult') : 1);
         const sto = { x: t.x, y: t.y, r: 120, ttl: cyclTtl, darts, perDmg };
         const fxo = { type: 'cyclone', x: t.x, y: t.y, r: 120, t: 0, dur: cyclTtl, darts };
         sto.fx = fxo;                    // v1.16.38 风暴镖 fx 引用（同步清除）
@@ -210,7 +216,7 @@ function tickBoomerang(combat, dt) {
   const ringN = combat.lv('boomerang', '弹力镖');
   if (ringN > 0) {
     combat.timers.ringN = (combat.timers.ringN || 0) + dt;
-    if (combat.timers.ringN >= bounceBalance.period * combat._weakPeriod('boomerang')) {
+    if (combat.timers.ringN >= bounceBalance.period * combat._weakPeriod('boomerang') * relicCd) {
       combat.timers.ringN = 0;
       combat.castEnergy('boomerang', '弹力镖');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('boomerang', e.x, e.y));
@@ -240,7 +246,7 @@ function tickBoomerang(combat, dt) {
   const vortexLv = combat.lv('boomerang', '风眼涡旋');
   if (vortexLv > 0) {
     combat.timers.vortex = (combat.timers.vortex || 0) + dt;
-    if (combat.timers.vortex >= vortexBalance.period * combat._weakPeriod('boomerang')) {
+    if (combat.timers.vortex >= vortexBalance.period * combat._weakPeriod('boomerang') * relicCd) {
       combat.timers.vortex = 0;
       combat.castEnergy('boomerang', '风眼涡旋');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('boomerang', e.x, e.y));
@@ -321,7 +327,7 @@ function updateStorms(combat, dt) {
       if (st.fx) st.fx.t = st.fx.dur;   // v1.16.38 同步结束风暴镖 fx
       // v1.16.102 旋风3★：风暴镖结束时原地爆炸（150% 伤害，半径 140 码）
       if (combat.game.run.relic3('boo_cyclone')) {
-        combat.explode(st.x, st.y, 140, combat.shotDmg('boomerang', true) * 1.5, 'boomerang', undefined, undefined, undefined, '风暴镖');   // v1.17.50 旋风3★归风暴镖
+        combat.explode(st.x, st.y, combat.game.run.relicValue('boo_cyclone', 'endRadius'), combat.shotDmg('boomerang', true, true) * combat.game.run.relicValue('boo_cyclone', 'endDamage') / 100, 'boomerang', undefined, undefined, undefined, '风暴镖');
       }
       combat.storms.splice(i, 1);
       continue;
@@ -366,7 +372,7 @@ function updateWindTrails(combat, dt) {
     if (w.ttl <= 0) {
       // v1.17.43 长痕3★：风痕消失时对圈内敌人造成一次 60% 伤害（替代原依赖猎手标记的叠标记）
       if (combat.game.run.relic3('boo_trail')) {
-        combat.explode(w.x, w.y, w.r, combat.shotDmg('boomerang', true) * 0.6, 'boomerang');
+        combat.explode(w.x, w.y, w.r, combat.shotDmg('boomerang', true) * 0.6, 'boomerang', undefined, undefined, undefined, '风痕');
       }
       combat.windTrails.splice(i, 1); continue;
     }
@@ -378,7 +384,7 @@ function updateWindTrails(combat, dt) {
         const layers = Math.min(3, combat.windTrails.filter((w2) => w2 !== w && Math.hypot(o.x - w2.x, o.y - w2.y) <= w2.r).length + 1);
         mult = 1 + 0.3 * layers;
       }
-      combat.damage(o, w.dps * dt * mult, 'boomerang');
+      combat.damage(o, w.dps * dt * mult, 'boomerang', { kind: 'dot' }, '风痕');
       // （v1.16.102 长痕3★：依赖猎手标记的叠标记已于 2026-11-01 随技能一并移除）
       if (w.slow) combat.applySlow(o, w.slow, 0.2);
     });

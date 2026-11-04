@@ -103,14 +103,19 @@ class Run {
     this._waveStartHp = 0;         // 金库3★：波初城墙血量（无伤判定基准）
     this._triple3 = false;         // 三消之力3★：本次交换连锁≥2（经验再+50%）
     /* v1.16.96 火塔 3★ 局内状态 */
-    this._fuelBoost = 0;           // 薪柴3★：灼烧概率溢出转灼烧伤害（%，上限50）
+    this._fuelBoost = 0;           // 薪柴3★：灼烧概率溢出转灼烧伤害（%，上限20）
     this._forgeCount = 0;          // 熔炉之息3★：普攻计数（每5次免费火柱）
-    this._burnallTtl = 0;          // 焚天3★：火柱/火墙/火雨施放后全塔攻速+25%窗口（秒）
+    this._forgeEnergyCd = 0;       // 熔炉之息3★：免费火柱返能冷却
+    this._fireClock = 0;           // 火塔周期圣遗物计时基准
+    this._fireCycleLast = null;    // 焚天3★：上一个周期技能施放时间
+    this._fireCycleLastKey = null; // 焚天3★：上一个周期技能类型
+    this._burnallChainCd = 0;      // 焚天3★：技能循环触发冷却
+    this._burnallCooldownBoost = {}; // 焚天3★：对应技能下次冷却缩短
     /* v1.17.43 UR 局内状态 */
     this._seedBonus = 0;           // 未凋之种1★/2★：本波击杀召唤物累计的全塔伤害加成（每波清零）
     this._meltCore = 0;            // 熔心炉3★：能量溢出转化的熔芯层数（每层全塔伤害 +2%，上限 20）
     this._elecHaste = null;        // 疾电3★：电塔麻痹叠层攻速窗口 {n, ttl}
-    this._fireTripleNext = false;  // 焰雨3★：火球命中同一目标3次后，下次攻击必为三连火球
+    this._fireTripleNext = false;  // 火弹3★：同一目标累计命中3次后，下一次攻击三连发
     this._emberShots = null;       // 余烬风暴3★：余烬弹队列（1秒后自动射向最近敌）
     /* v1.16.98 冰塔 3★ 局内状态 */
     this._wallDmgAcc = 0;          // 冰墙裂变3★：冰盾生效期间城墙受击伤害累计（每100点→冰塔1能量）
@@ -132,8 +137,17 @@ class Run {
   /** v1.16.78 圣遗物当前星级数值（1★=desc 最后数字，2★=star2 最后数字）；未获得返回 0；模拟层无 metaRef 按 1★ */
   relicNum(id) {
     if (this.relicRun(id) <= 0) return 0;
-    const star = (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
+    const star = this._testStar3 && this._testStar3[id] ? 3
+      : (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
     return CONFIG.relicNum(id, star);
+  }
+
+  /** 新卡表显式数值字段读取；旧卡继续通过 relicNum 的兼容读取。 */
+  relicValue(id, effect) {
+    if (this.relicRun(id) <= 0 || typeof CONFIG.relicValue !== 'function') return 0;
+    const star = this._testStar3 && this._testStar3[id] ? 3
+      : (this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1;
+    return CONFIG.relicValue(id, effect, star);
   }
 
   /** v1.16.96 3★ 质变行为生效判定：STAR3_ENABLED 开启 + 拥有 + 星级≥3；模拟层无 metaRef 按 false（不生效）
@@ -201,13 +215,12 @@ class Run {
   }
 
   /** v1.16.96 弹药箱3★：普攻能量不足时从备用能量库借用（一次借足 1 发所需能量）。
-   *  v1.17.10 攻击能耗按塔平衡：每发耗能 = 各塔 attackCost（攻速×DPS 定价，效率基准 60 伤/能），缺省回退 0.5 */
-  attackCost(t) {
+   *  v1.17.10 基础耗能按塔 attackCost 定价；普攻强化会按预期伤害倍率增加每发耗能。 */
+  attackCost(t, multiplier = 1) {
     const c = t && t.key && CONFIG.TOWERS[t.key];
-    return (c && c.attackCost) || CONFIG.GLOBAL_SKILL.perAttack;
+    return ((c && c.attackCost) || CONFIG.GLOBAL_SKILL.perAttack) * Math.max(1, Number(multiplier) || 1);
   }
-  spendAttackEnergy(t) {
-    const need = this.attackCost(t);
+  spendAttackEnergy(t, need = this.attackCost(t)) {
     if (t.energy < need && this.energyBank > 0) {
       const take = Math.min(this.energyBank, need - t.energy);
       this.energyBank -= take;
@@ -218,7 +231,6 @@ class Run {
   }
 
   /** v1.16.96 赏金猎人3★：连续3波不掉宝箱时，第4波必掉（调用方在掉落判定处消费） */
-  bountyGuarantee() { return WaveRelics.bountyGuarantee(this); }
 
   _weightsFor() {
     const keys = CONFIG.DIFFICULTY.activeColors[this.difficulty] || this._colors;
@@ -249,8 +261,8 @@ class Run {
   }
 
   /** v1.16.60 三消之力：每次三消获得的经验 +N%（v1.16.78 按星级数值）；v1.16.96 3★：连锁×2 以上时经验再 +50% */
-  _relicExp(v) {
-    return MatchRelics.experience(this, v);
+  _relicExp(v, shape, size) {
+    return MatchRelics.experience(this, v, shape, size);
   }
 
   /**
@@ -273,10 +285,6 @@ class Run {
       this.expLevel += 1;
       ups += 1;
       // v1.16.96 经验之心3★：升级时 20% 概率返还本级经验的 50%（滚雪球加速）
-      if (this.relic3('cm_exp') && this.rng() < 0.2) {
-        this.exp += Math.round(need * 0.5);
-        this.relicFx('cm_exp', '升级返还 50% 经验'); // v1.17 生效提示
-      }
       // v1.16.96 智慧典籍3★：升级时触发全塔 3 秒攻速 +20%（窗口由 combat 递减）
       if (this.relic3('cm_tome')) {
         this._tomeBuffTtl = 3;
@@ -307,16 +315,17 @@ class Run {
     let ammoGain = 0, shuffleGain = 0, refillGain = 0;
     if (!t) {
       // 兜底（6 色均有塔池，理论上不触发）
-      this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
+      this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO), shape, size));
     } else if (t.level === 0) {
       const owned = Object.keys(this.effects.towers).filter((k) => this.effects.tower(k).level > 0).length;
       if (owned < CONFIG.TOWER_SLOTS) {
-        t.unlock(); gotTower = true; target = t;
+        t.unlock(); t._activationDelay = 1; gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
         // 激活塔能量 = 初始 40 + 本次激活消除形状供能（受能量上限约束）
         // v1.16.60 弹药箱：每次三消充能能量 +N（v1.16.78 按 desc 星级数值）
-        const gain = CONFIG.GLOBAL_SKILL.startEnergy + this._energyGain(shape, energyCells) + energyBonus;
-        t.energy = Math.min(gain, this.armoryEnergyMax());
+        const colorEnergy = this.relicNum(`r_${t.key}_energy`);
+        const gain = CONFIG.GLOBAL_SKILL.startEnergy + this._energyGain(shape, energyCells) + energyBonus + colorEnergy;
+        t.energy = Math.min(gain, this.armoryEnergyMax(t.key));
         ammoGain = t.energy;
         if (energyBonus > 0) this.relicFx('cm_ammobox', `能量 +${gain}`); // v1.17 生效提示
       } else {
@@ -328,16 +337,17 @@ class Run {
         if (energyBonus > 0) this.relicFx('cm_ammobox', `充能 +${ammo}`); // v1.17 生效提示
         if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
         else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
-        this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO)));
+        this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO), shape, size));
       }
     } else {
       // 塔色：能量按形状供给 + 整体经验；能量满 → 溢出均分充能两个全局技能（能量口径）
       // v1.16.60 弹药箱：三消充能能量 +N（v1.16.78 按星级数值）
-      const gain = this._energyGain(shape, energyCells) + energyBonus;
+      const colorEnergy = this.relicNum(`r_${t.key}_energy`);
+      const gain = this._energyGain(shape, energyCells) + energyBonus + colorEnergy;
       const before = t.energy;
-      t.energy = Math.min(before + gain, this.armoryEnergyMax());
+      t.energy = Math.min(before + gain, this.armoryEnergyMax(t.key));
       ammoGain = t.energy - before;
-      const over = Math.max(0, before + gain - this.armoryEnergyMax());
+      const over = Math.max(0, before + gain - this.armoryEnergyMax(t.key));
       if (over > 0) {
         // v1.16.96 弹药箱3★：能量溢出 50% 概率存入备用能量库（上限 20 点，普攻能量不足自动借用）
         MatchRelics.onTowerOverflow(this, over);
@@ -350,7 +360,7 @@ class Run {
         shuffleGain = this._chargeAmmo('shuffle', half);
         refillGain = this._chargeAmmo('refill', over - half);
       }
-      this.gainExp(this._relicExp(exp));
+      this.gainExp(this._relicExp(exp, shape, size));
       target = t;
     }
     // 更新待选峰值
@@ -373,9 +383,9 @@ class Run {
       const amount = this._energyGain('3', 1);
       if (t.level > 0) {
         const before = t.energy;
-        t.energy = Math.min(before + amount, this.armoryEnergyMax());
+        t.energy = Math.min(before + amount, this.armoryEnergyMax(t.key));
         gain += t.energy - before;
-        const over = Math.max(0, before + amount - this.armoryEnergyMax());
+        const over = Math.max(0, before + amount - this.armoryEnergyMax(t.key));
         if (over > 0) { this._chargeAmmo('shuffle',over/2); this._chargeAmmo('refill',over/2); }
       } else {
         const which = this._globalSkillOf(cell.color);
@@ -422,16 +432,19 @@ class Run {
   }
 
   /** 基础100；军火库最多+30；弹药库圣遗物按星级+10/+20/+30；电磁过载再扣减全塔能量上限。 */
-  armoryEnergyMax() {
+  armoryEnergyMax(key) {
     const a = this.armory();
-    const relicCap = this.relicRun('can_armory') > 0 && this.metaRef && this.metaRef.starOf ? [0, 10, 20, 30][Math.max(1, Math.min(3, this.metaRef.starOf('can_armory')))] : 0;
+    const armoryStar = this._testStar3 && this._testStar3.can_armory ? 3
+      : (this.metaRef && this.metaRef.starOf ? this.metaRef.starOf('can_armory') : 1);
+    const relicCap = this.relicRun('can_armory') > 0 ? [0, 10, 20, 30][Math.max(1, Math.min(3, armoryStar))] : 0;
     const skillCap = a && a.lv > 0 ? (TOWER_SKILLS.cannon['军火库'].energyMax || 30) : 0;
     const overload = this.electricOverload();
     const penalty = overload.level > 0 ? TOWER_SKILLS.electric['电磁过载'].energyPenaltyByBranch[overload.B] : 0;
     // v1.17.43 UR 熔心炉：能量库上限 +15%/+25%，3★ +35%（文案末位数值）
     const forgeN = this.relicNum('ur_forge_heart');
     const forgeMult = forgeN > 0 ? (1 + (this.relic3('ur_forge_heart') ? 35 : forgeN) / 100) : 1;
-    return Math.max(1, Math.round((CONFIG.GLOBAL_SKILL.energyMax + skillCap + relicCap) * (this.fieldAmmoMult || 1) * forgeMult) - penalty);
+    const colorCap = key ? this.relicNum(`r_${key}_cap`) : 0;
+    return Math.max(1, Math.round((CONFIG.GLOBAL_SKILL.energyMax + skillCap + relicCap + colorCap) * (this.fieldAmmoMult || 1) * forgeMult) - penalty);
   }
 
   /** 塔色消除供能（v1.16.77 能量口径）：3消 +6 / 4消 +12 / 5消（L5/直5）+20 / 5消以上(x块) 20+6(x-5)；军火库 A +25%/级 */
@@ -479,14 +492,14 @@ class Run {
     const ret = this.board.trySwap(r1, c1, r2, c2);
     if (!ret.ok) return { ok: false };
     // v1.16.96 三消之力3★：连锁≥2 步时本次交换所有消除经验再 +50%
-    this._triple3 = this.relic3('cm_triple') && (ret.resolved.steps || 0) >= 2;
+    this._triple3 = false;
     const settled = [], settledByStep = [], chainShotsByStep = [];
     const chainStart = this.gsState.chainstorm ? GS_BALANCE.chainstorm.startGroup : CONFIG.MATCH_SKILL.chainStart;
     this.gsState.chainstorm = false;
     if (this.gsState.charge) {
       const colors = ret.resolved.matches.map(m=>m.color);
       const ordered = [...new Set(colors.map(c=>CONFIG.COLORS[c] && CONFIG.COLORS[c].tower).concat(this.slotOrder))].filter(k=>this.slotOrder.includes(k)).slice(0,GS_BALANCE.charge.towerCount);
-      ordered.forEach(k=>{const t=this.effects.tower(k);t.energy=Math.min(this.armoryEnergyMax(),t.energy+GS_BALANCE.charge.energy);});
+      ordered.forEach(k=>{const t=this.effects.tower(k);t.energy=Math.min(this.armoryEnergyMax(k),t.energy+GS_BALANCE.charge.energy);});
       this.gsState.charge=false;
     }
     ret.resolved.stepList.forEach((st, si) => {
@@ -577,7 +590,7 @@ class Run {
     const armB = this.armory();
     if (armB && armB.lv > 0 && armB.b > 0) {
       const ctB = this.effects.tower('cannon');
-      if (ctB) ctB.energy = Math.min(ctB.energy + TOWER_SKILLS.cannon['军火库'].startPerBranch * armB.b, this.armoryEnergyMax());
+      if (ctB) ctB.energy = Math.min(ctB.energy + TOWER_SKILLS.cannon['军火库'].startPerBranch * armB.b, this.armoryEnergyMax('cannon'));
     }
     // v1.17.48 波末银币拆成「满额基准 × 本波击杀完成度」：基准在开波时算，
     //   完成度由真实战斗在波末回填（一只没打 → 0；全歼 → 满额）。此前纯按波数发放，挂机也有全额收益。
@@ -624,9 +637,9 @@ class Run {
   applyChoice(towerKey, ef) {
     const result = this.effects.applyChoice(towerKey, ef);
     if (result.ok) {
-      const cap = this.armoryEnergyMax();
       Object.keys(this.effects.towers || {}).forEach((key) => {
         const tower = this.effects.tower(key);
+        const cap = this.armoryEnergyMax(key);
         if (tower && tower.level > 0 && tower.energy > cap) tower.energy = cap;
       });
     }

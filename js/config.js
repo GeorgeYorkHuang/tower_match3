@@ -187,16 +187,18 @@ module.exports = {
   },
 
   DAILY: {
-    perDay: 3,                  // v5.3c 每日碎片精选数量（改为碎片奖励，非整件）
+    perDay: 6,                  // v5.3c 每日碎片精选数量（改为碎片奖励，非整件）
     shards: { r: 3, sr: 2, ssr: 1 },      // 各稀有度每日碎片数量
     price: { r: 300, sr: 600, ssr: 1200 }, // 各稀有度精选金币价
     refreshHour: 0,             // 每日 0 点刷新
   },
 
   SHOP_CHEST: {
-    blue:   { key: 'blue',   name: '圣物宝箱·蓝', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 3 },
-    purple: { key: 'purple', name: '圣物宝箱·紫', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 2 },
-    gold:   { key: 'gold',   name: '圣物宝箱·金', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 1 },
+    wood: { key: 'wood', name: '木质宝箱', icon: '📦', color: '#b68a62', price: 100, shards: [1], rarities: ['r'], daily: 5 },
+    star: { key: 'star', name: '星辉宝箱', icon: '✨', color: '#a8d8ff', price: 2600, shards: [3, 4], rarities: ['ssr'], daily: 1 },
+    blue:   { key: 'blue',   name: '青铜宝箱', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 3 },
+    purple: { key: 'purple', name: '白银宝箱', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 2 },
+    gold:   { key: 'gold',   name: '黄金宝箱', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 1 },
   },
 
   SAVE: {

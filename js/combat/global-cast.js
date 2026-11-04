@@ -32,7 +32,7 @@ function castGlobal(combat, which) {
       const tw = g.run.effects.tower(tk);
       if (!tw || tw.level <= 0) return;
       const before = tw.energy;
-      tw.energy = Math.min(before + GS.refillEnergy, g.run.armoryEnergyMax());
+      tw.energy = Math.min(before + GS.refillEnergy, g.run.armoryEnergyMax(tk));
       refilled += tw.energy - before;
     });
     combat.fxFlash(375, 800, '#7ef0a3', 0.5);

@@ -14,9 +14,12 @@ function beforeMatch(run, shape, size) {
     }
     return { shape, size };
 }
-function experience(run, value) {
-  let amount = Math.round(value * (1 + run.relicNum('cm_triple') / 100));
-  if (run._triple3) amount = Math.round(amount * 1.5);
+function experience(run, value, shape, size) {
+  let amount = Math.round(value * (1 + run.relicNum('s_sr_cm_triple') / 100));
+  const isFourOrMore = (size || 0) >= 4 || shape === '4' || shape === 'L5' || shape === '5' || shape === '6+';
+  if (isFourOrMore && run.relic3('s_sr_cm_triple')) {
+    amount = Math.round(amount * (1 + run.relicValue('s_sr_cm_triple', 'fourMatchExp') / 100));
+  }
   return amount;
 }
 function onTowerOverflow(run, over) {

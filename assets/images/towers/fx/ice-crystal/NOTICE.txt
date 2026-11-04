@@ -1,0 +1,3 @@
+Ice crystal from https://github.com/patch-gg/pixelfx (MIT).
+Adapted from Sprite Fusion pickup, Copyright (c) 2026 Hugo Duprez, MIT.
+36 frames at 12 fps, 96x100, 3-second loop.

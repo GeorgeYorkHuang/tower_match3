@@ -2,25 +2,25 @@
 // 炮击/地雷/炮台表现；只读事件，实际爆炸和攻击由Combat处理。
 function createCannonFx({ drawImg }) {
 function fxStrikeShell(ctx, f) {
-      // v1.16.31 炮火支援：逐发弹道——0.3s 从塔口升空至高点 300px 后**消失**；发射 1.0s 后
-      //   在目标头顶高 300px 处**出现**并 0.3s 垂直落下打击（第 1 发落地 1.3s，之后每发 +0.1s）
+      // 升空 0.4s 后消失；经过 1s 瞄准阶段，再从目标上方 300px 处垂直落下 0.5s。
       const t1 = f.t - (f.offset || 0);
-      if (t1 < 0 || t1 >= 1.3) return;   // 未发射或已落地
-      if (t1 >= 0.3 && t1 < 1.0) return; // 高点至重现之间：炮弹不可见（不再悬停）
+      if (t1 < 0 || t1 >= 1.9) return;
+      if (t1 >= 0.4 && t1 < 1.4) return;
       let mx, my, ang;
-      if (t1 < 0.3) {
-        const k = t1 / 0.3;
-        mx = f.sx; my = f.sy - 300 * k; ang = -Math.PI / 2;
+      if (t1 < 0.4) {
+        const k = t1 / 0.4;
+        const eased = k * (2 - k);
+        mx = f.sx; my = f.sy - 300 * eased; ang = -Math.PI / 2;
       } else {
-        // t1 ≥ 1.0：从目标头顶高 300px 处垂直出现并落下
-        const k = (t1 - 1.0) / 0.3;
+        // t1 ≥ 1.4：从目标头顶高 300px 处出现并落下
+        const k = (t1 - 1.4) / 0.5;
         mx = f.tx; my = (f.ty - 300) + 300 * k; ang = Math.PI / 2;
       }
       // 升空段出膛口焰
-      if (t1 < 0.3) {
-        ctx.globalAlpha = 0.9 * (1 - t1 / 0.3 * 1.25);
+      if (t1 < 0.4) {
+        ctx.globalAlpha = 0.9 * (1 - t1 / 0.4 * 1.25);
         ctx.fillStyle = '#ffd24a';
-        ctx.beginPath(); ctx.arc(f.sx, f.sy, 6 + 10 * (t1 / 0.3), 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(f.sx, f.sy, 6 + 10 * (t1 / 0.4), 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
       // 炮弹弹体（沿飞行方向胶囊炮弹 + 尾部曳光焰，与 mortar 同款）
@@ -42,36 +42,69 @@ function fxStrikeShell(ctx, f) {
       ctx.restore();
   }
 
+function fxStrikeAim(ctx, f) {
+      // 升空后闪烁两次：0.1s 淡入、0.2s 保持、0.2s 淡出，重复一次。
+      const t = f.t - (f.offset || 0) - 0.4;
+      if (t < 0 || t >= 1) return;
+      let alpha;
+      if (t < 0.1) alpha = t / 0.1;
+      else if (t < 0.3) alpha = 1;
+      else if (t < 0.5) alpha = 1 - (t - 0.3) / 0.2;
+      else if (t < 0.6) alpha = (t - 0.5) / 0.1;
+      else if (t < 0.8) alpha = 1;
+      else alpha = 1 - (t - 0.8) / 0.2;
+      const pulse = 1 + 0.08 * Math.sin(t * Math.PI * 4);
+      ctx.save();
+      ctx.translate(f.target ? f.target.x : f.x, f.target ? f.target.y : f.y);
+      ctx.scale(pulse, pulse);
+      ctx.globalAlpha = Math.max(0, alpha);
+      const r = f.r || 40;
+      ctx.strokeStyle = '#ffbd4a';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 2;
+      const inner = r - 14, outer = r + 3;
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+        ctx.lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#fff1dc';
+      ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+  }
+
 function fxStrike(ctx, f) {
-      // v1.16.31 炮火支援：地面炮击圈——offset 偏移后于落地前 0.5s 出现，棕色描边标识 130px 受击范围，持续至落地爆炸
+      // 只在炮弹 0.5s 下落阶段显示与伤害半径一致的地面预警圈。
       const t1 = f.t - (f.offset || 0);
-      if (t1 < 0.5 || t1 >= 1.3) return;   // 未到预警时刻或已爆炸
-      const p = (t1 - 0.5) / 0.8;
-      const a = 0.25 + 0.55 * p;   // 淡入
-      ctx.globalAlpha = a * 0.30;
-      ctx.fillStyle = '#8d5a2b';
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.fill();
+      if (t1 < 1.4 || t1 >= 1.9) return;
+      const p = (t1 - 1.4) / 0.5;
+      const a = 0.45 + 0.4 * p;
+      const r = f.r;
+      ctx.globalAlpha = a * 0.18;
+      ctx.fillStyle = '#ff5938';
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = a;
-      // 棕色描边主圈（受击范围标识）
-      ctx.strokeStyle = '#b0602a'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.62, 0, Math.PI * 2); ctx.stroke();
-      // 内白圈 + 中心瞄准点
+      ctx.strokeStyle = '#ff5938'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = a * 0.8;
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.34, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#fff1dc'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r * 0.72, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2;
-      const c = 7;
+      const c = 12;
       ctx.beginPath();
       ctx.moveTo(f.x - c, f.y); ctx.lineTo(f.x + c, f.y);
       ctx.moveTo(f.x, f.y - c); ctx.lineTo(f.x, f.y + c);
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(f.x, f.y, 2.4, 0, Math.PI * 2); ctx.fill();
-      // 旋转刻度（8 根短线绕外圈，棕色）
-      ctx.strokeStyle = '#c07a35'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill();
+      // 旋转刻度（8 根短线绕外圈）
+      ctx.strokeStyle = '#ffb071'; ctx.lineWidth = 2;
       for (let k = 0; k < 8; k++) {
         const ang = k * 0.785 + (f.seed || 0) + f.t * 3;
-        const r1 = f.r * 0.66, r2 = f.r * 0.72;
+        const r1 = r * 0.92, r2 = r;
         ctx.beginPath();
         ctx.moveTo(f.x + Math.cos(ang) * r1, f.y + Math.sin(ang) * r1);
         ctx.lineTo(f.x + Math.cos(ang) * r2, f.y + Math.sin(ang) * r2);
@@ -165,6 +198,6 @@ function fxTurret(ctx, f) {
         ctx.globalAlpha = 1;
       }
   }
-return { fxStrikeShell, fxStrike, fxMine, fxTurret };
+return { fxStrikeShell, fxStrikeAim, fxStrike, fxMine, fxTurret };
 }
 module.exports = { createCannonFx };

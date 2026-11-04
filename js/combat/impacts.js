@@ -1,5 +1,6 @@
 'use strict';
 const SKILL_NUM = require('../config/tower-skills.js');
+const CONFIG = require('../config.js');
 const ElectricTower = require('./towers/electric.js');
 const PoisonTower = require('./towers/poison.js');
 const BoomerangTower = require('./towers/boomerang.js');
@@ -10,12 +11,7 @@ function tryAttackDebuff(combat, key, o, dmg) {
     const ignite = combat.lv('fire', '点燃');
     let burnProb = SKILL_NUM.fire['点燃'].baseProbability;
     if (ignite > 0) burnProb += SKILL_NUM.fire['点燃'].learnedProbability + SKILL_NUM.fire['点燃'].probabilityPerBranch * combat.branchLv('fire', '点燃', 'A');
-    burnProb += combat.relicVal('fire_fuel') / 100;   // v1.16.114 薪柴1★/2★：普攻灼烧概率 +20%/30%
-    // v1.16.96 薪柴3★：灼烧概率触顶（≥80%）时，多余的判定转为 +10% 灼烧伤害（失败部分累积，上限 +50%）
-    if (combat.game.run.relic3('fire_fuel') && burnProb >= 0.8) {
-      if (Math.random() < 0.8) combat.applyBurn(o, dmg, 'fire');
-      else combat.game.run._fuelBoost = Math.min(50, (combat.game.run._fuelBoost || 0) + 10);
-    } else if (Math.random() < burnProb) combat.applyBurn(o, dmg, 'fire');
+    if (Math.random() < burnProb) combat.applyBurn(o, dmg, 'fire');
   } else if (key === 'ice') {
     // 冰缓（v1.16.21）：基础 20%；学寒霜 +25% + A 极寒每级 +15%（45→60→75→90%）；B 凝结 时长 +1/+2/+3s；C 深寒 减速幅度 +10%/20%/30%
     const frost = combat.lv('ice', '寒霜');
@@ -60,16 +56,18 @@ function hit(combat, key, e, dmg, projectile = null) {
   else if (key === 'poison') combat.hitPoison(e, dmg);
   else if (key === 'electric') combat.hitElectric(e, dmg, projectile);
   else if (key === 'boomerang') combat.hitBoomerang(e, dmg);
-  else if (key === 'cannon') combat.hitCannon(e, dmg);
+  else if (key === 'cannon') combat.hitCannon(e, dmg, projectile && projectile.impactPosition);
 
   // 累计命中次数（击杀/圣遗物等效果使用）
   e.hitCount++;
   // 命中特效：按塔类型爆发专属粒子（v1.13.2 增强：数量更多 + 命中冲击环 + 双色火花）
   const HIT_FX = { fire: '#ff7043', ice: '#7fd4ff', poison: '#7ee2a8', electric: '#f4d03f', boomerang: '#c39bd3', cannon: '#d89e63' };
-  combat.fxParticle(e.x, e.y, HIT_FX[key] || '#ffffff', 8, 52, 0.4, 140, 5);
-  combat.fxParticle(e.x, e.y, '#ffffff', 4, 30, 0.25, 110, 3);
-  combat.fxRing(e.x, e.y, HIT_FX[key] || '#ffffff', 30, 0.28, 3);
-  combat.fxFlash(e.x, e.y, '#ffffff', 0.25);
+  const fxX = key === 'cannon' && projectile && projectile.impactPosition ? projectile.impactPosition.x : e.x;
+  const fxY = key === 'cannon' && projectile && projectile.impactPosition ? projectile.impactPosition.y : e.y;
+  combat.fxParticle(fxX, fxY, HIT_FX[key] || '#ffffff', 8, 52, 0.4, 140, 5);
+  combat.fxParticle(fxX, fxY, '#ffffff', 4, 30, 0.25, 110, 3);
+  combat.fxRing(fxX, fxY, HIT_FX[key] || '#ffffff', 30, 0.28, 3);
+  combat.fxFlash(fxX, fxY, '#ffffff', 0.25);
 }
 
 module.exports = { hit, tryAttackDebuff };

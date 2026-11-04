@@ -15,6 +15,25 @@ function applyConductiveSlow(combat, enemy) {
   }
 }
 
+function registerShockStack(combat, enemy) {
+  const run = combat.game.run;
+  if (!run.relic3('s_elec_shock')) return;
+  enemy._shockStacks = (enemy._shockStacks || 0) + 1;
+  if (enemy._shockStacks < run.relicValue('s_elec_shock', 'shockStacks')) return;
+  enemy._shockStacks = 0;
+  const radius = run.relicValue('s_elec_shock', 'shockRadius');
+  const duration = run.relicValue('s_elec_shock', 'shockDuration');
+  const damage = combat.shotDmg('electric', true, true) * run.relicValue('s_elec_shock', 'shockDamage') / 100;
+  combat.enemies().forEach((target) => {
+    if (target.hp <= 0 || Math.hypot(target.x - enemy.x, target.y - enemy.y) > radius) return;
+    combat.damage(target, damage, 'electric', undefined, '触电');
+    target.paralyzed = Math.max(target.paralyzed || 0, duration);
+    combat.applySlow(target, SKILL_NUM.electric['麻痹'].slow, duration);
+    combat.fxBeam(enemy.x, enemy.y, target.x, target.y, '#ffe66d', 0.22, 2.8);
+  });
+  combat.fxRing(enemy.x, enemy.y, '#ffe66d', radius, 0.36, 3);
+}
+
 function hitElectric(combat, e, dmg, projectile = null) {
   combat.damage(e, dmg, 'electric');
   // v1.16.101 电涌1★/2★补齐 + 3★：普攻 20%/30% 概率额外产生一次小电弧（30% 伤害射向最近敌；3★ 小电弧命中 20% 概率填充 1 点能量）
@@ -29,14 +48,14 @@ function hitElectric(combat, e, dmg, projectile = null) {
       combat.fxBeam(e.x, e.y, mini.x, mini.y, '#ffe08a', 0.2, 2.5);
       if (combat.game.run.relic3('elec_surge') && Math.random() < 0.2) {
         const et = combat.tower('electric');
-        if (et) et.energy = Math.min(et.energy + 1, combat.game.run.armoryEnergyMax());
+        if (et) et.energy = Math.min(et.energy + 1, combat.game.run.armoryEnergyMax('electric'));
       }
     }
   }
   // v1.17.43 超压3★：电塔能量 ≥ 上限 80% 时，普攻额外电击另一名敌人（40% 伤害）
   if (combat.game.run.relic3('elec_overload')) {
     const et0 = combat.tower('electric');
-    if (et0 && et0.energy >= combat.game.run.armoryEnergyMax() * 0.8) {
+    if (et0 && et0.energy >= combat.game.run.armoryEnergyMax('electric') * 0.8) {
       const other = combat.enemies().filter((o) => o !== e && o.hp > 0)
         .sort((a, b) => Math.hypot(a.x - e.x, a.y - e.y) - Math.hypot(b.x - e.x, b.y - e.y))[0];
       if (other) {
@@ -59,11 +78,14 @@ function hitElectric(combat, e, dmg, projectile = null) {
     const orbDmg = dmg * live.damage * (1 + live.damagePerBranch * combat.branchLv('electric', '活电', 'B'));
     const oDur = live.duration + live.durationPerBranch * combat.branchLv('electric', '活电', 'C');   // v1.13.21 游走时长 0.8→1.4s
     for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 / n) * i + (Math.random() - 0.5) * live.angleJitter;
+      const edge = Collision.reach(e, live.hitRadius) + 2;
       const orb = {
         key: 'electric', dmg: orbDmg, t: 0, dur: oDur,
-        x: e.x, y: e.y,
-        // v1.16.21 电球均匀向周围扩散：初始角度等分圆周（360°/n）+ 小幅抖动，不再扎堆生成方向
-        ang: (Math.PI * 2 / n) * i + (Math.random() - 0.5) * live.angleJitter,
+        // 从目标碰撞边缘生成，并沿远离目标中心的方向出发，避免电球先穿回生成怪物中心。
+        x: e.x + Math.cos(ang) * edge, y: e.y + Math.sin(ang) * edge,
+        // 电球均匀向周围扩散：初始角度等分圆周（360°/n）+ 小幅抖动。
+        ang,
         // v1.16.21 电球速度 +30%：150-230 → 195-299
         speed: (live.minSpeed + Math.random() * live.randomSpeed) * live.speedMultiplier,   // v1.13.21 速度 95-155→150-230
         orb: true, fx: null,
@@ -82,7 +104,8 @@ function hitElectric(combat, e, dmg, projectile = null) {
   if (chainLv > 0) {
     const super3 = combat.game.run.relic3('elec_super');   // v1.16.101 超导3★：全部连锁类衰减归零 + 目标数 +1
     const extra = SKILL_NUM.electric['连锁'].extraTargets + SKILL_NUM.electric['连锁'].targetsPerBranch * chainA
-      + (super3 ? 1 : 0) + combat.relicVal('elec_arc');   // 电弧1★/2★：攻击连锁 +2/+3
+      + (super3 ? 1 : 0) + combat.relicVal('elec_arc')
+      + combat.game.run.relicValue('s_sr_elec_chain', 'hopAdd');
     let decay = SKILL_NUM.electric['连锁'].decay * (1 - SKILL_NUM.electric['连锁'].decayReductionPerBranch * chainB);   // 基础衰减 30% - B 稳流每级 20%
     decay = super3 ? 0 : Math.max(0.10, decay);
     // v1.16.101 传导3★：连锁衰减降为 0 时，每跳额外 +5% 伤害
@@ -93,9 +116,10 @@ function hitElectric(combat, e, dmg, projectile = null) {
       const next = combat.enemies().filter((o) => o.hp > 0 && !hitSet.includes(o))
         .sort((a, b) => (Math.hypot(a.x - cur.x, a.y - cur.y)) - (Math.hypot(b.x - cur.x, b.y - cur.y)))[0];
       if (!next) break;
-      // 连锁视觉：电弧连线（每次弹跳）
-      combat.fxBeam(cur.x, cur.y, next.x, next.y, '#f4d03f', 0.25, 3.5);
-      let cDmg = dmg * (1 - decay);
+      // 连锁视觉：pixelfx chain-lightning 电弧序列（v1.17.46，与主弧同一套素材，沿弹跳方向旋转；
+      //          图片未加载时 projectiles.js 自动回退原程序化锯齿电弧）。伤害/衰减/麻痹判定不在本行，均已在此行之前/之后原样保留。
+      combat.game.fx.push({ type: 'shot', kind: 'zigzag', path: [{ x: cur.x, y: cur.y }, { x: next.x, y: next.y }], t: 0, dur: 0.42, color: '#f4d03f', w: 3.5, arc: 'chainlight' });
+      let cDmg = dmg * (1 - decay) * (1 + combat.game.run.relicNum('s_sr_elec_chain') / 100);
       // v1.16.101 电弧3★：连锁命中 3 人以上时，最后一跳伤害不衰减
       if (combat.game.run.relic3('elec_arc') && hitSet.length >= 3 && i === extra - 1) cDmg = dmg;
       if (conduit) cDmg *= (1 + 0.05 * (i + 1));
@@ -160,7 +184,8 @@ function tryAttackDebuff(combat, o, dmg) {
   const pA = combat.branchLv('electric', '麻痹', 'A');
   const pB = combat.branchLv('electric', '麻痹', 'B');
   const pC = combat.branchLv('electric', '麻痹', 'C');
-  const pProb = Math.min(1, SKILL_NUM.electric['麻痹'].baseProbability + (paraLv > 0 ? SKILL_NUM.electric['麻痹'].learnedProbability : 0) + SKILL_NUM.electric['麻痹'].probabilityPerBranch * pA + combat.relicVal('elec_strong') / 100);   // v1.16.114 强麻1★/2★
+  const relicPara = combat.game.run.relicNum('s_sr_elec_para') + combat.game.run.relicNum('s_elec_shock');
+  const pProb = Math.min(1, SKILL_NUM.electric['麻痹'].baseProbability + (paraLv > 0 ? SKILL_NUM.electric['麻痹'].learnedProbability : 0) + SKILL_NUM.electric['麻痹'].probabilityPerBranch * pA + combat.relicVal('elec_strong') / 100 + relicPara / 100);
   // v1.16.101 强麻3★：麻痹概率触顶（≥80%）时，多余判定转为麻痹时长 +0.5 秒
   const strong = combat.game.run.relic3('elec_strong') && pProb >= 0.8;
   if (strong ? Math.random() < 0.8 : Math.random() < pProb) {
@@ -174,6 +199,7 @@ function tryAttackDebuff(combat, o, dmg) {
       hs.n = Math.min(2, hs.n + 1);
       hs.ttl = 3;
     }
+    registerShockStack(combat, o);
     if (pC > 0) {
       // v1.16.101 麻痹扩散3★：麻痹传导链最多 3 跳（原 1 跳），每跳概率衰减 5%
       const hopMax = combat.game.run.relic3('elec_spread') ? 3 : 1;
@@ -204,13 +230,15 @@ function tryAttackDebuff(combat, o, dmg) {
 
 function tickElectric(combat, dt) {
   const g = combat.game;
+  const relicCd = Math.max(0.2, 1 - g.run.relicNum('r_electric_cd') / 100);
+  const paralysisBonus = (g.run.relicNum('s_sr_elec_para') + g.run.relicNum('s_elec_shock')) / 100;
   const arcBalance = SKILL_NUM.electric['极光电击'];
   // 球形闪电：每12秒生成3球，漂移6秒；每秒对60px范围内全体敌人造成伤害，C提升移动速度。
   const ballLv = combat.lv('electric', '球形闪电');
   if (ballLv > 0) {
     const bal = SKILL_NUM.electric['球形闪电'];
     combat.timers.ballLightning = (combat.timers.ballLightning || 0) + dt;
-    if (combat.timers.ballLightning >= bal.period * combat._weakPeriod('electric')) {
+    if (combat.timers.ballLightning >= bal.period * combat._weakPeriod('electric') * relicCd) {
       combat.timers.ballLightning = 0;
       combat.castEnergy('electric', '球形闪电');
       const aLv = combat.branchLv('electric', '球形闪电', 'A');
@@ -258,7 +286,7 @@ function tickElectric(combat, dt) {
     const arcB = combat.branchLv('electric', '极光电击', 'B');
     const arcC = combat.branchLv('electric', '极光电击', 'C');
     combat.timers.arc = (combat.timers.arc || 0) + dt;
-    const period = arcBalance.period * combat._weakPeriod('electric');   // v1.16.42 周期固定 8 秒（弱化态 ×1.5）
+    const period = arcBalance.period * combat._weakPeriod('electric') * relicCd;
     if (combat.timers.arc >= period) {
       combat.timers.arc = 0;
       combat.castEnergy('electric', '极光电击');
@@ -279,6 +307,7 @@ function tickElectric(combat, dt) {
           if (cDuration <= 0) return;
           enemy.paralyzed = Math.max(enemy.paralyzed || 0, cDuration);
           combat.applySlow(enemy, arcBalance.paralysisSlow, cDuration);
+          registerShockStack(combat, enemy);
           combat.fxParticle(enemy.x, enemy.y, '#f4d03f', 5, 36, 0.35, 115, 4);
         };
         applyArcStatus(nearest);
@@ -333,15 +362,17 @@ function tickElectric(combat, dt) {
   if (storm > 0) {
     // 雷暴分支：A 增加雷击目标；B 高压按 30%/50%/70% 概率麻痹本次雷击目标；C 缩短施放间隔。
     const cLv = combat.branchLv('electric', '雷暴', 'C');
-    const period = (stormBalance.period - stormBalance.periodReductionPerBranch * cLv) * combat._weakPeriod('electric');   // C0 10 / C1 9 / C2 8 / C3 7s（弱化态 ×1.5）
+    const period = (stormBalance.period - stormBalance.periodReductionPerBranch * cLv) * combat._weakPeriod('electric') * relicCd;
     combat.timers.storm = (combat.timers.storm || 0) + dt;
     if (combat.timers.storm >= period) {
       combat.timers.storm = 0;
       combat.castEnergy('electric', '雷暴');
       const aLv = combat.branchLv('electric', '雷暴', 'A');
       const bLv = combat.branchLv('electric', '雷暴', 'B');
-      const n = stormBalance.targetCount + stormBalance.targetsPerBranch * aLv;   // A0 3 / A1 5 / A2 7 / A3 9（与 A +2/级 口径一致）
-      const dmg = combat.shotDmg('electric', false, true) * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1));
+      const n = stormBalance.targetCount + stormBalance.targetsPerBranch * aLv
+        + g.run.relicNum('s_elec_field') + g.run.relicValue('s_sr_elec_storm', 'targetAdd');
+      const stormRelicDmg = g.run.relicNum('s_sr_elec_storm') + g.run.relicNum('s_elec_field');
+      const dmg = combat.shotDmg('electric', false, true) * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1) + stormRelicDmg / 100);
       // 全图随机 N 个存活目标（Fisher-Yates）
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y));
       const pool = alive.slice();
@@ -362,6 +393,12 @@ function tickElectric(combat, dt) {
         const delay = Math.floor(idx * batches / n) * 0.12;
         // 雷击伤害（即时结算）
         combat.damage(e, dmg, 'electric', undefined, '雷暴');   // v1.17.50 标注
+        if (g.run.relic3('s_elec_field')) {
+          combat.groundDots = combat.groundDots || [];
+          const r = 90;
+          combat.groundDots.push({ x: e.x, y: e.y, r, ttl: g.run.relicValue('s_elec_field', 'groundDuration'), dps: combat.shotDmg('electric', true, true) * g.run.relicValue('s_elec_field', 'groundDps') / 100, damageInterval: 1, paralyzeChance: g.run.relicValue('s_elec_field', 'paralyze') / 100, paralyzeDuration: 1, onParalyze: (cb, enemy) => registerShockStack(cb, enemy), key: 'electric', skill: '雷暴' });
+          combat.fxRing(e.x, e.y, '#ffe978', r, 0.35, 3);
+        }
         // v1.16.101 雷霆3★：雷暴击中麻痹的敌人时，将其麻痹向 90 码内 2 名敌人传导（各 1 秒）
         if (combat.game.run.relic3('elec_storm') && e.paralyzed > 0) {
           const spread2 = combat.enemies().filter((o) => o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= stormBalance.chainRadius)
@@ -374,11 +411,12 @@ function tickElectric(combat, dt) {
           });
         }
         // B 高压：每个被雷暴直接击中的目标独立判定麻痹。
-        if (bLv > 0 && Math.random() < stormBalance.paralysisChance[bLv]) {
+        if (bLv > 0 && Math.random() < Math.min(1, stormBalance.paralysisChance[bLv] + paralysisBonus)) {
           const paralysis = SKILL_NUM.electric['麻痹'];
           const duration = paralysis.duration + paralysis.durationPerBranch * combat.branchLv('electric', '麻痹', 'B');
           e.paralyzed = Math.max(e.paralyzed || 0, duration);
           combat.applySlow(e, paralysis.slow, duration);
+          registerShockStack(combat, e);
           combat.fxBeam(combat.towerMuzzle('electric').x, combat.towerMuzzle('electric').y, e.x, e.y, '#7fc7ff', 0.25, 3.5);
           combat.fxFlash(e.x, e.y, '#7fc7ff');
           combat.fxParticle(e.x, e.y, '#b9e8ff', 6, 42, 0.4, 125, 4);
@@ -401,12 +439,12 @@ function stepOrb(combat, s, dt) {
   const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < Collision.reach(o, SKILL_NUM.electric['活电'].hitRadius));
   if (hitE) {
     if (s.fx) s.fx.t = s.fx.dur;
-    combat.damage(hitE, s.dmg, 'electric');
+      combat.damage(hitE, s.dmg, 'electric', undefined, '活电');
     combat.tryAttackDebuff('electric', hitE, s.dmg);   // v1.16.53 活电电球属普攻强化：统一麻痹判定（吃麻痹技能加成）
     // v1.16.101 电球3★：电球游走路径留电痕 1 秒，触碰敌人受 10% 伤害
     if (combat.game.run.relic3('elec_orb')) {
       combat.groundDots = combat.groundDots || [];
-      combat.groundDots.push({ x: hitE.x, y: hitE.y, r: 50, ttl: 1, dps: combat.shotDmg('electric', false, true) * 0.1, key: 'electric' });
+      combat.groundDots.push({ x: hitE.x, y: hitE.y, r: 50, ttl: 1, dps: combat.shotDmg('electric', false, true) * 0.1, key: 'electric', skill: '球形闪电' });
       combat.fxRing(hitE.x, hitE.y, '#f4d03f', 50, 0.4, 3);
     }
     combat.fxFlash(hitE.x, hitE.y, '#f4d03f');
@@ -449,9 +487,10 @@ function stepBallLightning(combat, s, dt) {
       if (targets.length) {
         combat.fxRing(s.x, s.y, '#8feaff', s.damageRadius, 0.24, 3);
         targets.forEach((enemy) => {
-          combat.damage(enemy, s.dmg, 'electric', undefined, '球形闪电');   // v1.17.50 标注
+          combat.damage(enemy, s.dmg, 'electric', { kind: 'dot' }, '球形闪电');   // 雷球每秒脉冲计入 DOT 与技能明细
           enemy.paralyzed = Math.max(enemy.paralyzed || 0, s.paralysisDuration);
           combat.applySlow(enemy, s.paralysisSlow, s.paralysisDuration);
+          registerShockStack(combat, enemy);
           // 雷球到目标的瞬时电弧 + 命中闪光，让每次范围脉冲都能看见伤害反馈。
           combat.fxBeam(s.x, s.y, enemy.x, enemy.y, '#fff2a8', 0.18, 3.5);
           combat.fxFlash(enemy.x, enemy.y, '#ffe978', 0.2);

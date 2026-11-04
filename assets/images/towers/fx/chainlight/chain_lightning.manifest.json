@@ -1,0 +1,77 @@
+{
+ "id": "lightning/chain-lightning",
+ "name": "chain_lightning",
+ "fps": 12,
+ "frames": 5,
+ "loop": false,
+ "frameSize": [
+  428,
+  200
+ ],
+ "scale": 2,
+ "trim": "union",
+ "pivot": [
+  80,
+  164
+ ],
+ "trimOrigin": [
+  52,
+  6
+ ],
+ "sourceSeconds": [
+  0.1,
+  0.5
+ ],
+ "bytes": {
+  "png8": 54866,
+  "rgba": 76605
+ },
+ "perFrameKB": 10.72,
+ "files": [
+  {
+   "file": "anim_chain_lightning_01.png",
+   "w": 428,
+   "h": 200,
+   "ox": 52,
+   "oy": 6,
+   "bytes": 2680,
+   "psnr": 67.78
+  },
+  {
+   "file": "anim_chain_lightning_02.png",
+   "w": 428,
+   "h": 200,
+   "ox": 52,
+   "oy": 6,
+   "bytes": 5359,
+   "psnr": 50.94
+  },
+  {
+   "file": "anim_chain_lightning_03.png",
+   "w": 428,
+   "h": 200,
+   "ox": 52,
+   "oy": 6,
+   "bytes": 14241,
+   "psnr": 43.26
+  },
+  {
+   "file": "anim_chain_lightning_04.png",
+   "w": 428,
+   "h": 200,
+   "ox": 52,
+   "oy": 6,
+   "bytes": 17282,
+   "psnr": 42.45
+  },
+  {
+   "file": "anim_chain_lightning_05.png",
+   "w": 428,
+   "h": 200,
+   "ox": 52,
+   "oy": 6,
+   "bytes": 15304,
+   "psnr": 43.96
+  }
+ ]
+}

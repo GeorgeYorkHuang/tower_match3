@@ -112,6 +112,7 @@ const IMG_SRC = {
   miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
   coin: 'assets/images/resources/coin.png', bullet: 'assets/images/towers/fx/bullet.png',
   silver: 'assets/images/resources/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
+  battleSupply: 'assets/images/interface/battle/battle_supply.png', // 局内商店「战地补给」AI图标
   chestWood: 'assets/images/resources/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
   chestBronze: 'assets/images/resources/chest_bronze.png', // 青铜
   chestSilver: 'assets/images/resources/chest_silver.png', // 白银
@@ -190,10 +191,11 @@ function loadImg(src) {
   return imgCache[src];
 }
 /** 已加载则绘制并返回 true；否则返回 false（调用方回退） */
-function drawImg(ctx, src, x, y, w, h) {
+function drawImg(ctx, src, x, y, w, h, crop) {
   const img = loadImg(src);
   if (img && img.width > 0) {
-    ctx.drawImage(img, x, y, w, h);
+    if (crop) ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
+    else ctx.drawImage(img, x, y, w, h);
     return true;
   }
   return false;
@@ -263,12 +265,28 @@ function drawAnimSheet(ctx, set, variant, x, y, size, p) {
 }
 
 /* v1.16.61 局内圣遗物图标（assets/images/relics/<塔系>/<id>.png，缺失时回退 emoji） */
-function relicIconSrc(id) {
+const LEGACY_RELIC_ICON_FALLBACK = {
+  r_fire_cap: 'fire_wall',
+  r_ice_cd: 'ice_domain', r_ice_spd: 'ice_marrow',
+  r_poison_energy: 'poison_branch', r_poison_cd: 'poison_miasma', r_poison_spd: 'poison_quick', r_poison_cap: 'poison_essence',
+  r_electric_energy: 'elec_surge', r_electric_cd: 'elec_domain', r_electric_cap: 'elec_overload',
+  r_boomerang_energy: 'boo_catch', r_boomerang_cd: 'boo_cyclone', r_boomerang_cap: 'boo_blade',
+  r_cannon_energy: 'can_armory', r_cannon_cd: 'can_airstrike',
+};
+function legacyRelicIconPath(id) {
   const dir = { fire_: 'fire', ice_: 'ice', poison_: 'poison', elec_: 'electric', boo_: 'boomerang', can_: 'cannon', cm_: 'universal' };
   for (const [pre, cat] of Object.entries(dir)) {
     if (typeof id === 'string' && id.startsWith(pre)) return `assets/images/relics/${cat}/${id}.png`;
   }
   return null;
+}
+function relicIconSrc(id) {
+  const direct = legacyRelicIconPath(id);
+  if (direct) return direct;
+  const migration = CONFIG.RELIC_REWORK && CONFIG.RELIC_REWORK.RELIC_MIGRATION || {};
+  const oldId = Object.keys(migration).find((legacyId) => migration[legacyId] === id && legacyRelicIconPath(legacyId))
+    || LEGACY_RELIC_ICON_FALLBACK[id];
+  return oldId ? legacyRelicIconPath(oldId) : null;
 }
 
 const STATUS_H = 140;                       // 状态条区高（v1.16.72 扩展至 y140：顶部安全区更充裕，避开灵动岛与右上小程序胶囊）
@@ -319,6 +337,7 @@ const FX_HANDLERS = {
   hitwall: 'fxHitwall',
   bullet: 'fxBullet',
   strikeShell: 'fxStrikeShell',
+  strikeAim: 'fxStrikeAim',
   strike: 'fxStrike',
   boom: 'fxBoom',
   flash: 'fxFlashFx',
@@ -561,7 +580,7 @@ class Renderer {
   fxFloatText(ctx, f) { return this._getCommonFx().fxFloatText(ctx, f); }
 
   _getProjectileFx() {
-    if (!this._projectileFx) this._projectileFx = createProjectileFx({ drawImg });
+    if (!this._projectileFx) this._projectileFx = createProjectileFx({ drawImg, loadImg });
     return this._projectileFx;
   }
 
@@ -577,6 +596,8 @@ class Renderer {
   }
 
   fxStrikeShell(ctx, f) { return this._getCannonFx().fxStrikeShell(ctx, f); }
+
+  fxStrikeAim(ctx, f) { return this._getCannonFx().fxStrikeAim(ctx, f); }
 
   fxStrike(ctx, f) { return this._getCannonFx().fxStrike(ctx, f); }
 
@@ -833,9 +854,9 @@ class Renderer {
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
   /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
-  /** 商店页 v5.3c：自上而下 每日碎片精选 → 圣遗物宝箱（限购）→ 技能解锁 */
+  /** 商店页：每日碎片精选与圣遗物宝箱 */
   _getMenuShopScreen() {
-    if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, skillOwned: this._skillOwned.bind(this), panelShell: this._menuPanelShell.bind(this), wrapText: this.wrapText.bind(this) });
+    if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell: this._menuPanelShell.bind(this), wrapText: this.wrapText.bind(this) });
     return this._menuShopScreen;
   }
 
@@ -981,6 +1002,7 @@ class Renderer {
 
   _getSkillLoadout() {
     if (!this._skillLoadout) this._skillLoadout = createSkillLoadout({
+      drawImg,
       panelShell: this._menuPanelShell.bind(this),
       skillIcon: this._skillIcon.bind(this),
       wrapText: this.wrapText.bind(this),

@@ -498,16 +498,18 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     const cx0 = Math.max(10 + r, Math.min(740 - totalW + gap - r, x + size / 2 - totalW / 2 + r));
     shown.forEach((it, i) => {
       const cx = cx0 + i * gap;
+      const iconScale = it.kind === 'iceBlock' ? 0.7 : (it.kind === 'vine' ? 0.8 : 1);
+      const iconR = r * iconScale;
       ctx.fillStyle = 'rgba(0,0,0,0.68)';
-      ctx.beginPath(); ctx.arc(cx, icY, r, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, icY, iconR, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = it.tint; ctx.lineWidth = 1.3;
-      ctx.beginPath(); ctx.arc(cx, icY, r, 0, Math.PI * 2); ctx.stroke();
-      drawDebuffIconMark(ctx, it.kind, cx, icY, 6.1, it.tint);
+      ctx.beginPath(); ctx.arc(cx, icY, iconR, 0, Math.PI * 2); ctx.stroke();
+      drawDebuffIconMark(ctx, it.kind, cx, icY, 6.1 * iconScale, it.tint);
       if (it.stack > 1) {
         ctx.fillStyle = '#12351e'; ctx.beginPath(); ctx.arc(cx + 6.2, icY + 6.2, 4.2, 0, Math.PI * 2); ctx.fill();
         text(ctx, String(it.stack), cx + 6.2, icY + 6.2, 7, '#effff1', 'center');
       }
-      if (it.left > 0) text(ctx, Math.ceil(it.left), cx + r - 1, icY - r + 1, 8, '#ffffff', 'left');
+      if (it.left > 0) text(ctx, Math.ceil(it.left), cx + iconR - 1, icY - iconR + 1, 8, '#ffffff', 'left');
     });
     if (overflow) text(ctx, '+' + overflow, cx0 + shown.length * gap, icY, 9, '#ffd34d', 'center');
   }

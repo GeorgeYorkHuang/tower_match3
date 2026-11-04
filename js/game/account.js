@@ -25,12 +25,22 @@ function switchProfile(game, testing, preset) {
     if (preset !== 'fresh') {
       const m = game.meta;
       m.gold = 999999; m.diamond = 99999; m.starStones = 999;
-      Object.values(CONFIG.RELIC_RUN.tower).concat([CONFIG.RELIC_RUN.common]).forEach(list =>
+      Object.values(CONFIG.RELIC_RUN.tower).concat([CONFIG.RELIC_RUN.common, CONFIG.RELIC_RUN.ur || []]).forEach(list =>
         list.forEach(d => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; m.shards[d.id] = 999; }));
       Object.keys(CONFIG.TOWERS).forEach(k => { m.towerCodex[k] = 1; });
       ['match4','match5','chain'].forEach(slot => { m.skillUnlocks[slot] = CONFIG.MATCH_SKILL[slot].map(d => d.id); });
       m.skillUnlocks.global = GlobalSkills.POOL.map(d => d.id);
     }
+  }
+  // 继续已有测试档时也补齐新增卡表的解锁状态；保留已有星级，不覆盖测试进度。
+  if (testing && preset !== 'fresh') {
+    const m = game.meta;
+    Object.values(CONFIG.RELIC_RUN.tower).concat([CONFIG.RELIC_RUN.common, CONFIG.RELIC_RUN.ur || []]).forEach((list) => {
+      list.forEach((d) => {
+        m.runCodex[d.id] = 1;
+        if (!m.relicStars[d.id]) m.relicStars[d.id] = 1;
+      });
+    });
   }
   const dailyFirst = game.meta.dailyFirst ? JSON.parse(JSON.stringify(game.meta.dailyFirst)) : null;
   if (game.save.save() === false) {

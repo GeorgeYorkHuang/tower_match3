@@ -12,6 +12,7 @@ function reset(combat) {
   combat.bCatch = {};          // v1.16.42 回旋镖接镖冷却计时
   combat._nextDmg = {};        // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
   combat.groundDots = [];      // 火·火柱余烬 / 毒·毒池·毒沼：地面持续区域
+  combat.volcanoes = [];       // 火·火山圣遗物：4 秒喷发队列
   combat.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
   combat.iceGrounds = [];      // v1.16.98 冰晶3★/冰雾3★：减速/降攻速地面
   combat.poisonSticks = [];    // 毒·毒棒：独立攻击的召唤物（v1.15）
@@ -37,7 +38,6 @@ function update(combat, dt, initEnemyState) {
   // v1.16.102 疾接3★：城墙无敌帧递减
   if (g.run._wallInvT > 0) g.run._wallInvT = Math.max(0, g.run._wallInvT - dt);
   if (g.run._shuffleBuffTtl > 0) g.run._shuffleBuffTtl = Math.max(0, g.run._shuffleBuffTtl - dt);
-  if (g.run._burnallTtl > 0) g.run._burnallTtl = Math.max(0, g.run._burnallTtl - dt);
   // v1.17.43 疾电3★：电塔麻痹叠层攻速窗口递减（归零则清空层数）
   if (g.run._elecHaste && g.run._elecHaste.ttl > 0) {
     g.run._elecHaste.ttl = Math.max(0, g.run._elecHaste.ttl - dt);
@@ -52,6 +52,7 @@ function update(combat, dt, initEnemyState) {
         const near = combat.enemies().filter((o) => o.hp > 0).sort((a, b) => Math.hypot(a.x - es.x, a.y - es.y) - Math.hypot(b.x - es.x, b.y - es.y))[0];
         if (near) {
           combat.damage(near, es.dmg, 'fire');
+          if (es.burn) combat.applyBurn(near, es.dmg, 'fire');
           combat.fxFlash(near.x, near.y, '#ff9f43', 0.3);
           combat.fxRing(near.x, near.y, '#ff7043', 30, 0.3, 3);
           g.fx.push({ type: 'shot', kind: 'line', color: '#ff9f43', x: es.x, y: es.y, tx: near.x, ty: near.y, t: 0, dur: 0.3, key: 'fire', aim: true, scale: 0.9 });
@@ -88,16 +89,25 @@ function update(combat, dt, initEnemyState) {
   combat.updateWindTrails(dt);
   // 3.11 回旋镖·风眼涡旋
   combat.updateVortexes(dt);
+  // Activation delay is combat time: paused with combat and scaled by battle speed.
+  const activating = new Set();
+  g.run.slotOrder.forEach((key) => {
+    const tower = g.run.effects.tower(key);
+    if (tower && tower._activationDelay > 0) {
+      activating.add(key);
+      tower._activationDelay = Math.max(0, tower._activationDelay - dt);
+    }
+  });
   // 4. 塔攻击调度（每塔独立节奏）
-  g.run.slotOrder.slice().forEach((key) => combat.tickTower(key, dt));
+  g.run.slotOrder.slice().forEach((key) => { if (!activating.has(key)) combat.tickTower(key, dt); });
   // 5. 周期技
   // 5. 周期技（按塔分节：火/冰/电/毒/炮/回旋镖）
-  combat.tickFire(dt);
-  combat.tickIce(dt);
-  combat.tickElectric(dt);
-  combat.tickPoison(dt);
-  combat.tickCannon(dt);
-  combat.tickBoomerang(dt);
+  if (!activating.has('fire')) combat.tickFire(dt);
+  if (!activating.has('ice')) combat.tickIce(dt);
+  if (!activating.has('electric')) combat.tickElectric(dt);
+  if (!activating.has('poison')) combat.tickPoison(dt);
+  if (!activating.has('cannon')) combat.tickCannon(dt);
+  if (!activating.has('boomerang')) combat.tickBoomerang(dt);
   // 6. 死亡清场（死亡技能已在伤害结算处触发）
   // v1.17.23 fix：v1.17.22 把全歼统计挂在 main.stepEnemies 的尸体过滤处，但此处更早把尸体
   //   filter 掉了 → 统计永远看不到死亡，clearedWaves 恒 0（深度轨迹不走、通关数恒「全歼 0 波」）。

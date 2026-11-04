@@ -21,7 +21,9 @@ module.exports = {
 
   relicAttr(id) {
     if (this.RELIC_ATTR.attack.includes(id)) return 'attack';
-    if (id.startsWith('fire') || id.startsWith('cannon') || id.startsWith('boo')) return 'attack';
+    const tower = this.relicTowerKey(id);
+    if (id === `r_${tower}_atk` || ['fire', 'cannon', 'boomerang'].includes(tower)
+      || id.startsWith('fire') || id.startsWith('cannon') || id.startsWith('boo')) return 'attack';
     return 'control';
   },
 
@@ -63,6 +65,8 @@ module.exports = {
   },
 
   relicNum(id, star) {
+    const revised = this.RELIC_REWORK && this.RELIC_REWORK.RELIC_VALUES[id];
+    if (revised && revised.primary) return revised.primary[Math.max(0, Math.min(3, star || 0))] || 0;
     const d = this.relicRunDef(id);
     if (!d) return 0;
     const txt = (star >= 2 && d.star2) ? d.star2 : d.desc;
@@ -70,6 +74,13 @@ module.exports = {
     const re = /([0-9]+(?:\.[0-9]+)?)/g; let mm;
     while ((mm = re.exec(txt || ''))) v = parseFloat(mm[1]);
     return v;
+  },
+
+  relicValue(id, effect, star) {
+    const revised = this.RELIC_REWORK && this.RELIC_REWORK.RELIC_VALUES[id];
+    const values = revised && revised[effect];
+    if (!Array.isArray(values)) return 0;
+    return values[Math.max(0, Math.min(3, star || 0))] || 0;
   },
 
   relicTowerKey(id) {

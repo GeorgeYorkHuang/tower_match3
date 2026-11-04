@@ -10,22 +10,24 @@ function hitPoison(combat, e, dmg) {
 
 function tickPoison(combat, dt) {
   const g = combat.game;
+  const run = combat.game.run;
+  const relicCd = Math.max(0.2, 1 - run.relicNum('r_poison_cd') / 100);
   const poolBalance=SKILL_NUM.poison['毒池'], stickBalance=SKILL_NUM.poison['毒棒'], vineBalance=SKILL_NUM.poison['毒藤'];
   // 毒池每 5 秒释放：池内每 0.25 秒结算一次直伤（基础每跳 5% 攻击），每秒叠 1 层毒。
   const pool = combat.lv('poison', '毒池');
   if (pool > 0) {
     combat.timers.pool = (combat.timers.pool || 0) + dt;
-    if (combat.timers.pool >= poolBalance.period * combat._weakPeriod('poison')) {
+    if (combat.timers.pool >= poolBalance.period * combat._weakPeriod('poison') * relicCd) {
       combat.timers.pool = 0;
       combat.castEnergy('poison', '毒池');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('poison', e.x, e.y));
       if (!alive.length) return;
       const tgt = alive[Math.floor(Math.random() * alive.length)];
       const pr = poolBalance.radius * (1 + poolBalance.radiusPerBranch * combat.branchLv('poison', '毒池', 'C'));
-      const dps = combat.shotDmg('poison', false, true) * poolBalance.damage * (1 + poolBalance.damagePerBranch * combat.branchLv('poison', '毒池', 'A'));
+      const dps = combat.shotDmg('poison', false, true) * poolBalance.damage * (1 + poolBalance.damagePerBranch * combat.branchLv('poison', '毒池', 'A')) * (1 + run.relicNum('s_sr_poison_pool') / 100);
       const ttl = poolBalance.duration + poolBalance.durationPerBranch * combat.branchLv('poison', '毒池', 'B');
       combat.groundDots = combat.groundDots || [];
-      combat.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, damageInterval: poolBalance.damageInterval, stackPerSec: poolBalance.stacksPerSecond, seed: Math.random() * 100, color: '#1e8449', ring: combat.game.run.relic3('poison_fen'), skill: '毒池' });   // v1.17.50 标注
+      combat.groundDots.push({ x: tgt.x, y: tgt.y, r: pr, ttl, key: 'poison', dps, damageInterval: poolBalance.damageInterval, stackPerSec: poolBalance.stacksPerSecond, slow: run.relic3('s_sr_poison_pool') ? run.relicValue('s_sr_poison_pool', 'slow') / 100 : 0, seed: Math.random() * 100, color: '#1e8449', skill: '毒池' });
       combat.fxRing(tgt.x, tgt.y, '#1e8449', pr, 0.8, 5);
       combat.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
     }
@@ -34,11 +36,11 @@ function tickPoison(combat, dt) {
   const stick = combat.lv('poison', '毒棒');
   if (stick > 0) {
     combat.timers.stick = (combat.timers.stick || 0) + dt;
-    const cd = Math.max(stickBalance.minPeriod, stickBalance.period - stickBalance.periodReduction * combat.branchLv('poison', '毒棒', 'B')) * combat._weakPeriod('poison');
+    const cd = Math.max(stickBalance.minPeriod, stickBalance.period - stickBalance.periodReduction * combat.branchLv('poison', '毒棒', 'B')) * combat._weakPeriod('poison') * relicCd;
     if (combat.timers.stick >= cd) {
       combat.timers.stick = 0;
       combat.castEnergy('poison', '毒棒');
-      const n = stickBalance.count + combat.branchLv('poison', '毒棒', 'A');
+      const n = stickBalance.count + combat.branchLv('poison', '毒棒', 'A') + run.relicNum('s_poison_nest') + run.relicValue('s_sr_poison_stick', 'stickAdd');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('poison', e.x, e.y));
       if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
       for (let i = 0; i < n; i++) {
@@ -47,7 +49,7 @@ function tickPoison(combat, dt) {
         const py = near.y + (Math.random() - 0.5) * 60;
         const ttl = stickBalance.duration + stickBalance.durationPerBranch * combat.branchLv('poison', '毒棒', 'B');
         combat.poisonSticks = combat.poisonSticks || [];
-        combat.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: combat.shotDmg('poison', false, true) * stickBalance.damage, targets: stickBalance.targets + combat.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+        combat.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: combat.shotDmg('poison', false, true) * stickBalance.damage * (1 + run.relicNum('s_sr_poison_stick') / 100), targets: stickBalance.targets + combat.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
         combat.fxRing(px, py, '#1e8449', 40, 0.5, 4);
         combat.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
       }
@@ -57,7 +59,7 @@ function tickPoison(combat, dt) {
   const vine = combat.lv('poison', '毒藤');
   if (vine > 0) {
     combat.timers.vine = (combat.timers.vine || 0) + dt;
-    if (combat.timers.vine >= vineBalance.period * combat._weakPeriod('poison')) {
+    if (combat.timers.vine >= vineBalance.period * combat._weakPeriod('poison') * relicCd) {
       combat.timers.vine = 0;
       combat.castEnergy('poison', '毒藤');
       const n = vineBalance.targets + combat.branchLv('poison', '毒藤', 'A');
@@ -67,7 +69,7 @@ function tickPoison(combat, dt) {
       const mus = combat.towerMuzzle('poison');
       picks.forEach((e) => {
         const vr = 1 - (e.vineResist || 0);    // 藤蔓亲和（Lv7 垂藤浮卫）：缠绕/定身时长减免
-        if (!e.immuneFreeze) e.frozen = Math.max(e.frozen || 0, dur * vr);
+        combat.damage(e, combat.shotDmg('poison', false, true) * vineBalance.damage, 'poison', undefined, '毒藤');
         e._vineT = Math.max(e._vineT || 0, dur * vr);
         // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
         g.fx.push({ type: 'vine', x: mus.x, y: mus.y, tx: e.x, ty: e.y, t: 0, dur: 0.55, seed: Math.random() * 100 });
@@ -84,11 +86,12 @@ function updatePoisonSticks(combat, dt) {
     const st = combat.poisonSticks[i];
     st.ttl -= dt;
     if (st.ttl <= 0) {
-      // v1.16.100 毒巢3★：毒棒消失时留下 2 秒小毒池（10%/秒）
-      if (combat.game.run.relic3('poison_nest')) {
+      // SSR「毒巢」3★：毒棒消失后留下毒液地面。
+      if (combat.game.run.relic3('s_poison_nest')) {
         combat.groundDots = combat.groundDots || [];
-        combat.groundDots.push({ x: st.x, y: st.y, r: 70, ttl: 2, dps: combat.shotDmg('poison', true) * 0.1, key: 'poison', skill: '毒棒' });   // v1.17.50 毒巢3★归毒棒
-        combat.fxRing(st.x, st.y, '#1e8449', 70, 0.5, 3);
+        const r = 70, ttl = combat.game.run.relicValue('s_poison_nest', 'groundDuration');
+        combat.groundDots.push({ x: st.x, y: st.y, r, ttl, dps: combat.shotDmg('poison', true) * combat.game.run.relicValue('s_poison_nest', 'groundDps') / 100, damageInterval: 1, stackPerSec: 1, key: 'poison', skill: '毒棒' });
+        combat.fxRing(st.x, st.y, '#1e8449', r, 0.5, 3);
       }
       combat.poisonSticks.splice(i, 1); continue;
     }

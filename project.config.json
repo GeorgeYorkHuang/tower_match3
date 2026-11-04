@@ -100,6 +100,10 @@
       {
         "type": "regexp",
         "value": "^_test_.*\\.cjs$"
+      },
+      {
+        "type": "regexp",
+        "value": "^assets/.*\\.bak_.*$"
       }
     ],
     "include": []

@@ -85,6 +85,7 @@ function createRelicScreen(deps = {}) {
       const star = owned ? (s.relicStars[d.id] || 1) : 0;
       // 卡底：已解锁浅底 / 未解锁黑底 + 稀有度色边
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
+      drawImg(ctx, 'assets/images/interface/cards/relic-card-v1.png', rx, ry2, cw, ch);
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
       // 图标（左上 44px；未解锁用问号）
       const icx = rx + cw / 2, icy = ry2 + 40;
@@ -151,6 +152,7 @@ function createRelicScreen(deps = {}) {
       push('deepChest', i, bx, by, bw, bh);
       const ch = slots[i];
       fillRoundRect(ctx, bx, by, bw, bh, 14, ch ? '#1d2330' : '#141a22');
+      drawImg(ctx, 'assets/images/interface/cards/chest-slot-v1.png', bx, by, bw, bh);
       strokeRoundRect(ctx, bx, by, bw, bh, 14, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
       fillRoundRect(ctx, bx + 10, by + 6, bw - 20, 12, 6, ctx.fillStyle);
@@ -203,6 +205,7 @@ function createRelicScreen(deps = {}) {
       const owned = _relicUnlocked(s, d.id);
       const icx = rx + cw / 2, icy = ry2 + 70;   // v1.16.88 图标区占上 2/3（高 140），圆心居中
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
+      drawImg(ctx, 'assets/images/interface/cards/relic-card-v1.png', rx, ry2, cw, ch);
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
       if (owned) {
         // 上 2/3：圣遗物图片居中（104px，四周留白）
@@ -293,7 +296,10 @@ function createRelicScreen(deps = {}) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    const oy = panelShell(ctx, s, push, '', 840, true, 560);   // v1.17.8 窄面板 560 与卡片同宽
+    const oy = panelShell(ctx, s, push, '', 840, true, 560);
+    drawImg(ctx, 'assets/images/interface/cards/relic-detail-v1.png', 95, oy, 560, 840);
+    // Redraw the close control above the background; hit bounds stay owned by panelShell.
+    text(ctx, '×', 605, oy + 46, 28, '#e9ddbd', 'center');   // v1.17.8 窄面板 560 与卡片同宽
     const rar = CONFIG.relicRarity(id);
     const rc = _relicRarColor(rar);
     const owned = _relicUnlocked(s, id);
@@ -303,10 +309,10 @@ function createRelicScreen(deps = {}) {
     ctx.save();
     const rg = ctx.createLinearGradient(0, oy + 20, 0, oy + 64);
     rg.addColorStop(0, '#fff2b3'); rg.addColorStop(1, rc);
-    fillRoundRect(ctx, cardX, oy + 20, 132, 44, 22, rg);
+    fillRoundRect(ctx, cardX + 24, oy + 24, 120, 40, 20, rg);
     ctx.restore();
-    strokeRoundRect(ctx, cardX, oy + 20, 132, 44, 22, 'rgba(255,255,255,0.6)', 1.5);
-    text(ctx, `◆ ${rar.toUpperCase()}`, cardX + 26, oy + 42, 22, '#2a1a02', 'left');
+    strokeRoundRect(ctx, cardX + 24, oy + 24, 120, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
+    text(ctx, `◆ ${rar.toUpperCase()}`, cardX + 84, oy + 44, 22, '#2a1a02', 'center');
     // ---- 图标区：无圆底，直接放大图案至 200px 区域 ----
     const gx = 375, gy = oy + 168, dia = 200;
     const src = relicIconSrc(id);
@@ -314,8 +320,8 @@ function createRelicScreen(deps = {}) {
     // ---- v1.17.48 红色来源条：替代碎片进度（红件只由指定战场的 20/40/60 波 Boss 掉落）----
     if (rar === 'ur') {
       const by0 = oy + 268;
-      fillRoundRect(ctx, cardX, by0, 560, 40, 20, 'rgba(60,16,10,0.85)');
-      strokeRoundRect(ctx, cardX, by0, 560, 40, 20, UR_COLOR, 1.6);
+      fillRoundRect(ctx, cardX + 24, by0, 512, 40, 20, 'rgba(60,16,10,0.85)');
+      strokeRoundRect(ctx, cardX + 24, by0, 512, 40, 20, UR_COLOR, 1.6);
       text(ctx, `红色圣遗物 · ${urFieldName(d)} · 20/40/60 波 Boss 掉落`, 375, by0 + 21, 18, '#ffb3a3', 'center');
     }
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
@@ -339,15 +345,15 @@ function createRelicScreen(deps = {}) {
       text(ctx, need > 0 ? `${shards} / ${need}` : (owned && star >= 3 ? 'MAX' : '0 / 0'), gx, py0 + ph / 2 + 1, 20, '#ffffff', 'center');
     }
     // ---- 名称 ----
-    text(ctx, d.name, 375, py0 + ph + 14 + 21, 42, '#ffffff', 'center');
+    text(ctx, d.name, 375, oy + 330, 38, '#ffffff', 'center');
     // ---- 3★/2★/1★ 三行（420 宽居中；星标=★★★/★★/★；当前星级高亮）----
-    const rw = 420, rx = (750 - rw) / 2, ry0 = py0 + ph + 14 + 48 + 34;
+    const rw = 420, rx = (750 - rw) / 2, ry0 = oy + 370;
     const cols = [
       { star: '★★★', txt: d.star3 ? d.star3 + (CONFIG.STAR3_ENABLED ? '' : '（后续版本生效）') : '（待接入）', lv: 3 },
       { star: '★★', txt: d.star2 || '（暂无）', lv: 2 },
       { star: '★', txt: d.desc || '（暂无）', lv: 1 },
     ];
-    const rh = 84, rgap = 10;
+    const rh = 80, rgap = 16;
     cols.forEach((c, ci) => {
       const cy0 = ry0 + ci * (rh + rgap);
       const active = owned && star === c.lv;
@@ -370,7 +376,7 @@ function createRelicScreen(deps = {}) {
       lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
     });
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
-    const btnY = ry0 + 3 * (rh + rgap) + 24;
+    const btnY = oy + 710;
     if (rar === 'ur' && !owned) {
       // v1.17.47 红件无碎片渠道：只说明获取方式，不放解锁/升星按钮
       text(ctx, `尚未获得 · 击败 ${urFieldName(d)} 的 20 / 40 / 60 波 Boss 可获得`, 375, btnY + 31, 20, '#c07a6c', 'center');

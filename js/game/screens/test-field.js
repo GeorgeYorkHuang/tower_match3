@@ -54,58 +54,54 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     // 入口带
     fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
     text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
-    // v1.16.73 测试战场：添加圣遗物（三选一，可反复添加测试效果）
-    push('tf_addRelic', null, 250, AREA_Y + 14, 140, 40);
-    fillRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, 'rgba(0,0,0,0.35)');
-    strokeRoundRect(ctx, 250, AREA_Y + 14, 140, 40, 10, '#7ca8ff', 1.5);
-    text(ctx, '＋ 添加圣遗物', 320, AREA_Y + 40, 15, '#7ca8ff', 'center');
+    // 测试战场开局已默认启用全部圣遗物。
+    text(ctx, '全部圣遗物已按 3★ 效果启用', 398, AREA_Y + ENTRY_H / 2, 16, '#ffcf70', 'center');
     // v1.16.104 测试战场：添加 3★ 圣遗物（已拥有圣遗物按 3★ 质变生效测试）
-    push('tf_addRelic3', null, 405, AREA_Y + 14, 140, 40);
-    fillRoundRect(ctx, 405, AREA_Y + 14, 140, 40, 10, 'rgba(0,0,0,0.35)');
-    strokeRoundRect(ctx, 405, AREA_Y + 14, 140, 40, 10, '#ffb347', 1.5);
-    text(ctx, '✦ 3★ 圣遗物', 475, AREA_Y + 40, 15, '#ffb347', 'center');
     text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
-    // 防线血条（测试战场恒满；v1.17.11 血条改画在塔位行上方 1039，塔槽 1053 起不受遮挡）
-    this.wall(ctx, s.lineHp, s.lineMaxHp, 1039);
+    // 防线血条（测试战场恒满；位置与正式战场塔位行底部对齐）
+    this.wall(ctx, s.lineHp, s.lineMaxHp, WALL_Y + L.towerRow.h - 14);
     // 敌人与特效（位于战场区，不被控制条覆盖）；地面持续效果（毒池/毒棒）画在敌人下层
     if (combat) this.groundFx(ctx, combat);
+    if (fx) this.fxGround(ctx, fx);
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
     this.damageNumbers(ctx, damageNumbers);
     // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）
     const cur = (s.towers || [])[0] || null;
-    if (!drawImg(ctx, IMG_SRC.towerRow, 0, 1042, 750, L.towerRow.h)) {   // v1.17.11 测试战场塔位行保持原 y1042（正式战场已上移至 967 即城墙）
-      fillRoundRect(ctx, AREA_X, 1042, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
+    if (!drawImg(ctx, IMG_SRC.towerRow, 0, WALL_Y, 750, L.towerRow.h)) {
+      fillRoundRect(ctx, AREA_X, WALL_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
     }
-    text(ctx, '出战塔', 65, 1042 + 16, 14, 'rgba(255,255,255,0.4)', 'center');
+    text(ctx, '出战塔', 65, WALL_Y + 16, 14, 'rgba(255,255,255,0.4)', 'center');
     if (cur) {
-      push('tf_slot', cur.key, 15, 1053, 100, 100);
+      const slotY = WALL_Y + 11;
+      push('tf_slot', cur.key, 15, slotY, 100, 100);
       const ix = 15 + (100 - L.towerIcon.size) / 2;
-      const iy = 1053 + (100 - L.towerIcon.size) / 2;
+      const iy = slotY + (100 - L.towerIcon.size) / 2;
       if (!drawImg(ctx, IMG_SRC[cur.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
         drawTowerGlyph(ctx, cur.key, ix, iy, L.towerIcon.size);
       }
       // v1.17.10 等级小字（不再显示右上角数字徽章，避免遮挡塔图标）
-      text(ctx, `Lv${cur.level}`, 15 + 50, 1053 + 100 - 10, 13, 'rgba(255,255,255,0.75)', 'center');
+      text(ctx, `Lv${cur.level}`, 15 + 50, slotY + 100 - 10, 13, 'rgba(255,255,255,0.75)', 'center');
       // 能量竖条（槽内右侧；v1.16.77 弹药→能量）
       const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
-      const bx = 15 + 100 - 17, by0 = 1053 + 8, bh = 100 - 16;
+      const bx = 15 + 100 - 17, by0 = slotY + 8, bh = 100 - 16;
       EnergyCapsule.draw(ctx, bx, by0, 13, bh, aRatio);
-      text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 6.5, 1053 + 5, 10, aRatio < 0.2 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
+      text(ctx, `${Math.floor(cur.ammo || 0)}`, bx + 6.5, slotY + 5, 10, aRatio < 0.2 ? '#ff6b6b' : 'rgba(255,255,255,0.7)', 'center');
     }
     // 6 塔切换钮
-    text(ctx, '更换', 158, 1042 + 16, 14, 'rgba(255,255,255,0.4)', 'left');
+    text(ctx, '更换', 158, WALL_Y + 16, 14, 'rgba(255,255,255,0.4)', 'left');
     (s.allTowers || []).forEach((tw, i) => {
       const bx = 185 + i * 66;
+      const switchY = WALL_Y + 11;
       const active = cur && tw.key === cur.key;
-      push('tf_switch', tw.key, bx, 1053, 56, 56);
-      fillRoundRect(ctx, bx, 1053, 56, 56, 10, active ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)');
-      strokeRoundRect(ctx, bx, 1053, 56, 56, 10, active ? '#f7c948' : 'rgba(255,255,255,0.2)', active ? 2 : 1);
-      text(ctx, tw.icon, bx + 28, 1053 + 26, 24, '#ffffff', 'center');
-      text(ctx, tw.name, bx + 28, 1053 + 50, 12, active ? '#f7c948' : 'rgba(255,255,255,0.6)', 'center');
+      push('tf_switch', tw.key, bx, switchY, 56, 56);
+      fillRoundRect(ctx, bx, switchY, 56, 56, 10, active ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)');
+      strokeRoundRect(ctx, bx, switchY, 56, 56, 10, active ? '#f7c948' : 'rgba(255,255,255,0.2)', active ? 2 : 1);
+      text(ctx, tw.icon, bx + 28, switchY + 26, 24, '#ffffff', 'center');
+      text(ctx, tw.name, bx + 28, switchY + 50, 12, active ? '#f7c948' : 'rgba(255,255,255,0.6)', 'center');
     });
     // 底部控制区
-    const cY = 1042 + L.towerRow.h;   // v1.17.11 测试战场塔位行基准 1042
+    const cY = WALL_Y + L.towerRow.h;
     fillRoundRect(ctx, AREA_X, cY, AREA_W, LOGIC_H - cY - 16, 12, 'rgba(255,255,255,0.04)');
     text(ctx, `— 刷怪测试 · ${cur ? '出战塔：' + cur.name : ''} —`, 375, cY + 30, 20, '#9fb2c3', 'center');
     const btnW = 208, btnH = 64, btnGap = 16, bX = 44;

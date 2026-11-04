@@ -22,8 +22,8 @@ const RelicProgression = require('./relics/progression.js');
  *   - dailyPicks      每日精选：{ date: 'YYYY-MM-DD', picks: [{relic, price}] }
  *   - towerUnlocks    兼容保留字段（v1.6 起不再跨局持久化塔位；每局 0 塔开局，先消先得写入对局内 slotOrder）
  */
-const CONFIG = require('./config.js');
 const GlobalSkills = require('./global-skills.js');
+const CONFIG = require('./config.js');
 
 
 
@@ -247,6 +247,25 @@ class Meta {
     /* v1.16.76 激励系统（旧档兼容：无字段给默认值） */
     m.relicStars = d.relicStars || {};
     m.shards = d.shards || {};
+    // 塔类圣遗物分批迁移：把已映射旧卡状态合并到新 ID；尚未迁移的塔继续沿用旧 ID。
+    const relicMigration = CONFIG.RELIC_REWORK && CONFIG.RELIC_REWORK.RELIC_MIGRATION || {};
+    Object.keys(relicMigration).forEach((oldId) => {
+      if (!oldId.startsWith('fire_') && !oldId.startsWith('ice_') && !oldId.startsWith('poison_') && !oldId.startsWith('elec_') && !oldId.startsWith('can_') && !oldId.startsWith('boo_') && !oldId.startsWith('cm_')) return;
+      const newId = relicMigration[oldId];
+      if (newId === oldId) return;
+      const active = Object.keys(CONFIG.RELIC_RUN.tower).some((key) => CONFIG.RELIC_RUN.tower[key].some((r) => r.id === newId))
+        || CONFIG.RELIC_RUN.common.some((r) => r.id === newId)
+        || (CONFIG.RELIC_RUN.ur || []).some((r) => r.id === newId);
+      if (!active) return;
+      if (m.relics[oldId]) m.relics[newId] = (m.relics[newId] || 0) + m.relics[oldId];
+      if (m.runCodex[oldId]) m.runCodex[newId] = Math.max(m.runCodex[newId] || 0, m.runCodex[oldId]);
+      if (m.relicStars[oldId]) m.relicStars[newId] = Math.max(m.relicStars[newId] || 0, m.relicStars[oldId]);
+      if (m.shards[oldId]) m.shards[newId] = (m.shards[newId] || 0) + m.shards[oldId];
+      delete m.relics[oldId];
+      delete m.runCodex[oldId];
+      delete m.relicStars[oldId];
+      delete m.shards[oldId];
+    });
     m.starStones = d.starStones || 0;
     m.deepChests = Array.isArray(d.deepChests) ? d.deepChests.slice(0, CONFIG.DEPTH_CHEST.slots) : [];
     m.milestones = d.milestones || {};

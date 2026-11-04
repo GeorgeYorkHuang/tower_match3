@@ -3,7 +3,7 @@
 const SKILL_NUM = require('../../config/tower-skills.js');
 const CONFIG = require('../../config.js');
 
-function hitCannon(combat, e, dmg) {
+function hitCannon(combat, e, dmg, impactPosition) {
   const g = combat.game;
   // v1.16.14 军火库 C 双倍火力：普攻 10%/20%/30% 概率造成双倍伤害（仅主目标）
   const armC = combat.branchLv('cannon', '军火库', 'C');
@@ -20,7 +20,7 @@ function hitCannon(combat, e, dmg) {
   }
   if (overheat) dmg *= 2;
   // v1.16.103 弹药库3★：能量溢出时转化为 5% 暴击率（上限 +25%＝5 层；命中时判定）
-  if (g.run.relic3('can_armory') && powT && powT.energy >= g.run.armoryEnergyMax()) {
+  if (g.run.relic3('can_armory') && powT && powT.energy >= g.run.armoryEnergyMax('cannon')) {
     powT._ovCrit = Math.min(5, (powT._ovCrit || 0) + 1);
     if (Math.random() < 0.05 * powT._ovCrit) {
       dmg *= 2;
@@ -49,7 +49,9 @@ function hitCannon(combat, e, dmg) {
   }
   combat.damage(e, dmg, 'cannon');
   // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
-  combat.explode(e.x, e.y, r, splDmg, 'cannon', knock, slowAfter, e);
+  const impactX = impactPosition ? impactPosition.x : e.x;
+  const impactY = impactPosition ? impactPosition.y : e.y;
+  combat.explode(impactX, impactY, r, splDmg, 'cannon', knock, slowAfter, e);
   if (combat.branchLv('cannon', '重炮', 'C') > 0) {
     combat.enemies().forEach((o) => {
       if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20 * combat.branchLv('cannon', '重炮', 'C')) combat.applySlow(o, 0.30, 1);
@@ -80,7 +82,7 @@ function detonateShardBomb(combat, x, y, attackDmg, branchA, branchB, branchC, a
       for (let i = 1; i <= hitCount; i++) {
         combat.delayed.push({
           t: 0, delay: interval * i,
-          fn: (ctx) => { if (enemy.hp > 0) ctx.damage(enemy, attackDmg * bal.dotDamage, 'cannon', undefined, '碎裂弹'); },   // v1.17.50 B 灼烧延迟归碎裂弹
+          fn: (ctx) => { if (enemy.hp > 0) ctx.damage(enemy, attackDmg * bal.dotDamage, 'cannon', { kind: 'dot' }, '碎裂弹'); },   // B 分段伤害计入 DOT 与技能明细
         });
       }
     });
@@ -124,12 +126,13 @@ function detonateShardBomb(combat, x, y, attackDmg, branchA, branchB, branchC, a
 
 function tickCannon(combat, dt) {
   const g = combat.game;
+  const relicCd = Math.max(0.2, 1 - g.run.relicNum('r_cannon_cd') / 100);
   // 炮·碎裂弹：每 8 秒发射一枚，命中后沿 0°/45°/90° 扇出三枚小弹。
   const shatterLv = combat.lv('cannon', '碎裂弹');
   if (shatterLv > 0) {
     combat.timers.shatter = (combat.timers.shatter || 0) + dt;
     const bal = SKILL_NUM.cannon['碎裂弹'];
-    if (combat.timers.shatter >= bal.period * combat._weakPeriod('cannon')) {
+    if (combat.timers.shatter >= bal.period * combat._weakPeriod('cannon') * relicCd) {
       const target = combat.pickTarget('cannon');
       if (target) {
         combat.timers.shatter = 0;
@@ -166,31 +169,34 @@ function tickCannon(combat, dt) {
       }
     }
   }
-  // 炮·炮火支援（v1.16 周期）：每 12 秒对敌人密集区降下 3 发炮击（60%×威力，半径130；A 增援 +1发/级；C 焦土留燃烧地面 2s 30%/s）
-  // v1.16.31：逐发弹道——每发间隔 0.1s 从塔口升空（0.3s 至高点 300px）后**消失**；发射 1.0s 后在目标头顶
-  //           高 300px 处**出现**并 0.3s 垂直落下（第 1 发落地 1.3s，之后每发 +0.1s，3~6 发总动画 1.5~1.8s）；
-  //           每发落地前 0.5s 地面出现 130px 棕色描边受击圈（持续至落地爆炸）
+  // 炮·炮火支援：每 12 秒逐发发射，发射间隔 0.1s；升空 0.4s → 瞄准圈闪烁 1s → 高空落弹 0.5s。
+  // 落弹期间显示半径 130 的地面预警圈，落地时结算 60% 攻击伤害；A 增援 +1 发/级，C 焦土留地面燃烧区。
   const support = combat.lv('cannon', '炮火支援');
   if (support > 0) {
     combat.timers.support = (combat.timers.support || 0) + dt;
-    if (combat.timers.support >= SKILL_NUM.cannon['炮火支援'].period * combat._weakPeriod('cannon')) {
+    if (combat.timers.support >= SKILL_NUM.cannon['炮火支援'].period * combat._weakPeriod('cannon') * relicCd) {
       combat.timers.support = 0;
       combat.castEnergy('cannon', '炮火支援');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y));
       if (alive.length) {
-        const n = SKILL_NUM.cannon['炮火支援'].count + combat.branchLv('cannon', '炮火支援', 'A');
+        const n = SKILL_NUM.cannon['炮火支援'].count + combat.branchLv('cannon', '炮火支援', 'A') + g.run.relicNum('s_can_splash');
         const dmg = combat.shotDmg('cannon', false, true) * SKILL_NUM.cannon['炮火支援'].damage * (1 + SKILL_NUM.cannon['炮火支援'].damagePerBranch * combat.branchLv('cannon', '炮火支援', 'B'));
+        const warningR = SKILL_NUM.cannon['炮火支援'].radius * (1 + (g.run.relicNum('s_sr_can_splash') + g.run.relicValue('s_sr_can_powder', 'radius')) / 100);
         const mus = combat.towerMuzzle('cannon');
         for (let i = 0; i < n; i++) {
           const t = alive[Math.floor(Math.random() * alive.length)];
-          const px = t.x + (Math.random() - 0.5) * 40;
-          const py = t.y + (Math.random() - 0.5) * 40;
-          const off = 0.1 * i;                       // 逐发间隔 0.1s
-          // 炮弹：升空 0.3s → 高点悬停至 1.0s → 0.3s 垂直落下（总 1.3s + 偏移）
-          g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, t: 0, dur: 1.3 + off, offset: off, seed: Math.random() * 100 });
-          // 炮击圈：落地前 0.5s 出现（显示至落地爆炸，时长 0.8s）
-          g.fx.push({ type: 'strike', x: px, y: py, r: SKILL_NUM.cannon['炮火支援'].radius, t: 0, dur: 0.8 + off, offset: off, seed: Math.random() * 100 });
-          combat.delayed.push({ x: px, y: py, r: SKILL_NUM.cannon['炮火支援'].radius, dmg, delay: 1.3 + off, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: combat.branchLv('cannon', '炮火支援', 'C'), skill: '炮火支援' });   // v1.17.50 标注
+          const px = t.x;
+          const py = t.y;
+          const off = 0.1 * i;
+          const impactAt = 1.9 + off;
+          // 塔口升空 0.4s 后消失；瞄准 1s；炮弹再从目标头顶 300px 处垂直落下 0.5s。
+          g.fx.push({ type: 'strikeShell', sx: mus.x, sy: mus.y, tx: px, ty: py, target: t, t: 0, dur: impactAt, offset: off, seed: Math.random() * 100 });
+          // 升空后对目标位置闪烁两次，完整时序 0.1入+0.2亮+0.2灭，重复一次。
+          // 锁定圈只包住单个目标；130码打击范围由后续地面预警圈明确显示。
+          g.fx.push({ type: 'strikeAim', x: px, y: py, r: 40, target: t, t: 0, dur: 1.4 + off, offset: off, seed: Math.random() * 100 });
+          // 地面受击圈只在 0.5s 落弹阶段显示，落地时与伤害结算同步结束。
+          g.fx.push({ type: 'strike', x: px, y: py, r: warningR, target: t, t: 0, dur: impactAt, offset: off, seed: Math.random() * 100 });
+          combat.delayed.push({ x: px, y: py, r: SKILL_NUM.cannon['炮火支援'].radius, target: t, dmg, delay: impactAt, t: 0, key: 'cannon', knock: 0, slowAfter: false, ember: combat.branchLv('cannon', '炮火支援', 'C'), skill: '炮火支援' });   // v1.17.50 标注
         }
       }
     }
@@ -200,7 +206,7 @@ function tickCannon(combat, dt) {
   const mineLv = combat.lv('cannon', '地雷阵');
   if (mineLv > 0) {
     combat.timers.mine = (combat.timers.mine || 0) + dt;
-    if (combat.timers.mine >= SKILL_NUM.cannon['地雷阵'].period * combat._weakPeriod('cannon')) {
+    if (combat.timers.mine >= SKILL_NUM.cannon['地雷阵'].period * combat._weakPeriod('cannon') * relicCd) {
       combat.timers.mine = 0;
       combat.castEnergy('cannon', '地雷阵');
       const n = SKILL_NUM.cannon['地雷阵'].count + SKILL_NUM.cannon['地雷阵'].countPerBranch * combat.branchLv('cannon', '地雷阵', 'A');
@@ -247,7 +253,7 @@ function tickCannon(combat, dt) {
   const turret = combat.lv('cannon', '炮台');
   if (turret > 0) {
     combat.timers.turret = (combat.timers.turret || 0) + dt;
-    const cd = Math.max(SKILL_NUM.cannon['炮台'].minPeriod, SKILL_NUM.cannon['炮台'].period - SKILL_NUM.cannon['炮台'].periodReductionPerBranch * combat.branchLv('cannon', '炮台', 'B')) * combat._weakPeriod('cannon');
+    const cd = Math.max(SKILL_NUM.cannon['炮台'].minPeriod, SKILL_NUM.cannon['炮台'].period - SKILL_NUM.cannon['炮台'].periodReductionPerBranch * combat.branchLv('cannon', '炮台', 'B')) * combat._weakPeriod('cannon') * relicCd;
     if (combat.timers.turret >= cd) {
       combat.timers.turret = 0;
       combat.castEnergy('cannon', '炮台');
@@ -356,7 +362,7 @@ function updateTurrets(combat, dt) {
       // v1.16.103 增援3★：炮台消失时返还 2 点能量
       if (g.run.relic3('can_reinforce')) {
         const ct = combat.tower('cannon');
-        if (ct) ct.energy = Math.min(ct.energy + 2, g.run.armoryEnergyMax());
+        if (ct) ct.energy = Math.min(ct.energy + 2, g.run.armoryEnergyMax('cannon'));
       }
       combat.turrets.splice(i, 1);
       continue;
@@ -369,7 +375,8 @@ function updateTurrets(combat, dt) {
         // v1.16.103 炮群3★：多门炮台同时存在时，每门伤害 +10%/门
         const turretDmg = g.run.relic3('can_turret') ? tu.dmg * (1 + 0.1 * (combat.turrets.length - 1)) : tu.dmg;
         combat.damage(tgt, turretDmg, 'cannon', undefined, '炮台');   // v1.17.50 标注
-        combat.explode(tgt.x, tgt.y, tu.r, turretDmg * SKILL_NUM.cannon['炮台'].splashDamage, 'cannon', 0, false, undefined, '炮台');   // v1.17.50 溅射归炮台
+        const splashDmg = turretDmg * SKILL_NUM.cannon['炮台'].splashDamage / SKILL_NUM.cannon['炮台'].damage;
+        combat.explode(tgt.x, tgt.y, tu.r, splashDmg, 'cannon', 0, false, undefined, '炮台');   // 爆炸独立按攻击力百分比结算
         combat.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
         // v1.16.6 炮台开火炮口闪光 + 后坐火星
         combat.fxFlash(tu.x, tu.y - 8, '#ffd24a', 0.15);

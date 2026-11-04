@@ -35,14 +35,31 @@ function createGroundLayer({ drawImg }) {
         ctx.globalAlpha = 1;
       });
     }
-    // v1.17.43 燃烧地面：6 帧贴图循环（150ms/帧 ≈ 0.9s 一轮）
-    // 炮台燃烧地面（cannonBurn）与火系余烬/焦土（key:'fire'）共用；焦土地面本体约占贴图宽 0.85、中心在 (0.495, 0.451)
+    // 燃烧地面：6 帧贴图循环 + 上升余烬。贴图可见宽度约占画布 92.6%，按 gd.r 精确映射为 2R。
+    // 炮台燃烧地面（cannonBurn）与火系余烬/焦土（key:'fire'）共用；帧图火焰中心约在 (0.5, 0.594)，底边已逐帧对齐。
     const drawBurnPatch = (x, y, R, fade, seed) => {
-      const S = R * 2.35;
-      const fi = Math.floor(((tNow / 150 + seed * 0.037) % 1) * 6) % 6;
+      const S = R * 2.16;
+      const phase = (tNow / 115 + seed * 0.037) % 6;
+      const fi = Math.floor(phase) % 6;
+      ctx.save();
       ctx.globalAlpha = fade;
-      const ok = drawImg(ctx, `assets/images/towers/fx/burnground/burnground${fi + 1}.png`, x - 0.495 * S, y - 0.451 * S, S, S);
-      ctx.globalAlpha = 1;
+      const ok = drawImg(ctx, `assets/images/towers/fx/burnground/burnground${fi + 1}.png`, x - 0.5 * S, y - 0.594 * S, S, S);
+      // 余烬按固定相位循环上升并淡出，seed 只负责错开不同燃烧区域的节奏。
+      for (let k = 0; k < 6; k++) {
+        const q = ((tNow / 920 + k / 6 + seed * 0.019) % 1 + 1) % 1;
+        const angle = seed * 1.7 + k * 2.399963;
+        const spread = R * (0.12 + 0.58 * q);
+        const ex = x + Math.cos(angle) * spread;
+        const ey = y + R * 0.12 - q * (R * 0.9);
+        const emberFade = Math.sin(Math.PI * q) * fade;
+        const emberR = 1.2 + 1.8 * (1 - q);
+        ctx.globalAlpha = 0.78 * emberFade;
+        ctx.fillStyle = k % 3 === 0 ? '#fff1a6' : '#ff9b3d';
+        ctx.beginPath(); ctx.arc(ex, ey, emberR, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.22 * emberFade;
+        ctx.beginPath(); ctx.arc(ex, ey, emberR * 2.8, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
       return ok;
     };
     // 毒池（v1.16.1 深绿毒液池）/ 毒沼（v1.16.42 60px 暗褐绿泥沼，与毒池区分）——画在敌人下层

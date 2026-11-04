@@ -21,13 +21,24 @@ module.exports = {
     this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
+    // 测试战场默认注入全部局内圣遗物，并以 3★ 状态运行；只写入本局 Run，不修改账号存档。
+    const testRelics = [];
+    Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => testRelics.push(...list));
+    testRelics.push(...CONFIG.RELIC_RUN.common, ...(CONFIG.RELIC_RUN.ur || []));
+    this.run._testStar3Mode = true;
+    this.run._testStar3 = {};
+    this.runRelics = testRelics.map((d) => d.id);
+    this.battleRelics = testRelics.map((d) => {
+      this.run.runRelic[d.id] = 1;
+      this.run._testStar3[d.id] = true;
+      return { id: d.id, icon: d.icon, name: d.name, desc: d.desc, star3: true };
+    });
     this.waveTime = 0;
     this.enemies = [];
     this.pickQueue = [];
     this.pickIndex = 0;
     this.pickCell = null;
     this.combat.reset();
-    this.battleRelics = [];
     this.runShardDetail = {};    // v1.17 测试战场重置碎片明细
     this.runShardGained = 0;     // v1.17.20 同步重置掉落总数（测试战场不参与结算，避免残留计数）
     // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
@@ -75,7 +86,7 @@ module.exports = {
       slots.push({
         key, name: CONFIG.COLORS[t.color].name,
         icon: TOWER_ICON[key] || '?', unlocked: true,
-        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(),   // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）；v1.16.77 能量口径
+        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(key), // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）；v1.16.77 能量口径
         skills,
       });
     });
@@ -143,7 +154,7 @@ module.exports = {
   spawnTestEnemies(type, count) {
     const ly = this.renderer.ly;
     const entryY = ly.areaY + ly.entryH;
-    const wallY = this.state === 'testfield' ? 1042 : ly.wallY;   // v1.17.11 测试战场塔位行保持 1042，正式战场塔位区即城墙（967）
+    const wallY = ly.wallY;
     const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
     // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
     const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
@@ -232,20 +243,20 @@ module.exports = {
       case 'dbg_diamond': m.diamond += 100; this.toast('💎 +100', '#7ca8ff'); break;
       case 'dbg_shard': {
         Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => m.addShard(d.id, 2)));
-        CONFIG.RELIC_RUN.common.forEach((d) => m.addShard(d.id, 2));
+        CONFIG.RELIC_RUN.common.concat(CONFIG.RELIC_RUN.ur || []).forEach((d) => m.addShard(d.id, 2));
         this.toast('全部圣遗物碎片 +2', '#a86bff');
         break;
       }
       case 'dbg_unlock': {
         Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; }));
-        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; });
+        CONFIG.RELIC_RUN.common.concat(CONFIG.RELIC_RUN.ur || []).forEach((d) => { m.runCodex[d.id] = 1; if (!m.relicStars[d.id]) m.relicStars[d.id] = 1; });
         this.toast('已解锁全部圣遗物（1★）', '#7ef0a3');
         break;
       }
       case 'dbg_star3': {
         // v1.16.105 调试：全部圣遗物直接升 3★（解锁 + 星级拉满），便于 IDE 端完整验证 3★ 养成/图鉴/战斗链路
         Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; }));
-        CONFIG.RELIC_RUN.common.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; });
+        CONFIG.RELIC_RUN.common.concat(CONFIG.RELIC_RUN.ur || []).forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; });
         this.toast('全部圣遗物已升至 3★', '#ffb347');
         break;
       }

@@ -15,7 +15,8 @@ function buy(run, id) {
   const maxHp = run.lineMaxHp || CONFIG.LINE.hp;
   const towers = [...new Set(run.slotOrder)].map(k => run.effects.tower(k)).filter(t => t && t.level > 0);
   if (item.heal && run.lineHp >= maxHp) return { ok: false, reason: 'full' };
-  if (item.energy && !towers.some(t => t.energy < run.armoryEnergyMax())) return { ok: false, reason: 'energy' };
+  if (item.energy && !towers.some(t => t.energy < run.armoryEnergyMax(t.key))) return { ok: false, reason: 'energy' };
+  if (item.resetBoard && (!run.board || typeof run.board.regen !== 'function')) return { ok: false, reason: 'board' };
   if (run.gold < state.cost) return { ok: false, reason: 'gold' };
   run.gold -= state.cost;
   if (item.max === 0) {
@@ -29,13 +30,16 @@ function buy(run, id) {
     run.storeTimers[id] = Math.max(run.storeTimers[id] || 0, item.duration);
   }
   if (item.heal) run.lineHp = Math.min(maxHp, run.lineHp + Math.round(maxHp * item.heal));
-  if (item.energy) towers.forEach(t => { t.energy = Math.min(run.armoryEnergyMax(), t.energy + item.energy); });
+  if (item.energy) towers.forEach(t => { t.energy = Math.min(run.armoryEnergyMax(t.key), t.energy + item.energy); });
+  if (item.resetBoard) run.board.regen();
   return { ok: true, item, cost: state.cost };
 }
-function tick(run, dt) {
+function tick(run, dt, speed = 1) {
   if (!(dt > 0)) return;
   if (run.storeTimers) for (const id of Object.keys(run.storeTimers)) {
-    run.storeTimers[id] = Math.max(0, run.storeTimers[id] - dt);
+    const item = CONFIG.STORE.items.find(it => it.id === id);
+    const timerDt = item && item.durationClock === 'real' ? dt / Math.max(0.01, speed || 1) : dt;
+    run.storeTimers[id] = Math.max(0, run.storeTimers[id] - timerDt);
     if (!run.storeTimers[id]) delete run.storeTimers[id];
   }
   if (run.storeCooldowns) for (const id of Object.keys(run.storeCooldowns)) {

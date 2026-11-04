@@ -138,9 +138,13 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     let x = x0 + (showG ? slotSize + slotGap : 0);
     for (let i = 0; i < slotCount; i++) {
       const tw = towers[i] || null;
+      const spawning = tw && (this.towerSpawnFx || []).some((fx) =>
+        fx.kind === 'spawnportal' && fx.towerKey === tw.key && fx.t < 0.7);
+      if (spawning) { x += slotSize + slotGap; continue; }
+
       // v1.17.45 槽体完全透明（无底色）；空槽 = 半透明灰色蒙版（无文字提示）
       if (!tw) {
-        fillRoundRect(ctx, x, slotY, slotSize, slotSize, 8, 'rgba(140,150,160,0.28)');
+        // Empty tower slots are transparent.
       } else {
         // 塔图标（32×32 居中，图片优先，回退自绘几何图形——emoji 在部分 canvas 环境不渲染）
         const ix = x + (slotSize - L.towerIcon.size) / 2;

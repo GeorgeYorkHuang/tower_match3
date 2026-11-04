@@ -17,7 +17,7 @@ function periodicTimers() {
 
 function _weakPeriod(combat, key) {
   const t = combat.tower(key);
-  return t ? EnergyState.evaluate(t.energy, combat.game.run.armoryEnergyMax()).cooldown : 1;
+  return t ? EnergyState.evaluate(t.energy, combat.game.run.armoryEnergyMax(key)).cooldown : 1;
 }
 
 function castPeriodicNow(combat, key) {
@@ -37,6 +37,7 @@ function castPeriodicNow(combat, key) {
 function spawnChainShots(combat, ent) {
   const g = combat.game;
   const { key, x, y } = ent;
+  if (!combat.tower(key)) return;
   const main = combat.pickTarget(key);
   if (!main) return;
   let dmg = combat.shotDmg(key);

@@ -189,7 +189,7 @@ class GameMain {
     // 所有技能通过「打怪经验 → 整体升级 → 三选一」获取（技能卡激活 / 分支卡续升）
     // 圣物·磐石印：城墙血量上限；v1.16.78 城墙加固（局内圣遗物）：城墙血量 +N%
     const b = this.meta.relicBonus();
-    const wallRelic = this.run.relicNum('cm_wall');
+    const wallRelic = this.run.relicNum('s_sr_cm_wall');
     this.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * b.wall) * (1 + wallRelic / 100));
     this.run.lineMaxHp = this.run.lineHp;   // v1.13.25 冰墙回血上限基准
     this.state = 'fighting';
@@ -270,7 +270,10 @@ class GameMain {
     //  避免"逻辑快、动画慢"的不和谐；菜单/弹层等状态倍速为 1 不受影响）
     const fxMul = (this.state === 'fighting' || this.state === 'testfield')
       ? (this.state === 'testfield' ? this.testSpeed : this.runSpeed) : 1;
-    this.fx = this.fx.filter((f) => { f.t += dt * fxMul; return f.t < f.dur; });
+    this.fx = this.fx.filter((f) => {
+      f.t += dt * fxMul;
+      return f.t < f.dur;
+    });
     // 三消动画推进（交换 → 消除 → 逐级连锁，由 match3 控制器管理）
     if (this.state === 'fighting' || this.state === 'testfield') this.match3.update(dt);
     // 主界面：宝箱开箱倒计时完成 → 发卡；每日精选跨天自动刷新
@@ -282,6 +285,7 @@ class GameMain {
     if (this.state === 'fighting') {
       // 战斗内圣物宝箱（精英掉落）三选一：有队列先弹层，暂停战斗推进
       if (this.pendingRelicPicks.length) {
+        this.shopOpen = false;
         this.relicPick = this.pendingRelicPicks.shift();
         this.relicPickHits = [];
         this.relicPick.t = 0; // v1.16.74 三选一窗口弹出动画（缩放渐入）
@@ -302,6 +306,7 @@ class GameMain {
       // 陆续投放本波敌人（非一次性同屏）
       this.wave.tick(bdt);
       this.stepEnemies(bdt);
+      this.syncTargetedCannonFx();
       // v1.12.1 失败立即结算：城墙血量归零 → 直接进入失败界面（不再等当前波打完）
       if (this.run.broken) { this.waveEnd(); return; }
       // v1.17.8 波次结束：本波全部击杀 → 立即出下一波；或全部投放完成后 3s（场上残怪保留，叠加波继续打）
@@ -329,11 +334,12 @@ class GameMain {
     if (this.state === 'testfield') {
       this.run.slotOrder.forEach((k) => {
         const t = this.run.effects.tower(k);
-        if (t) t.energy = this.run.armoryEnergyMax();
+        if (t) t.energy = this.run.armoryEnergyMax(k);
       });
       this.dmgNumbers.step(dt * this.testSpeed);
       this.waveTime += dt;
       this.stepEnemies(dt * this.testSpeed);
+      this.syncTargetedCannonFx();
       return;
     }
   }
@@ -380,7 +386,7 @@ class GameMain {
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
   stepEnemies(dt) {
     EliteFx.step(this.run, this.enemies, dt);
-    BattleShop.tick(this.run, dt);
+    BattleShop.tick(this.run, dt, this.state === 'fighting' ? this.runSpeed : this.testSpeed);
     if(this.menuStage==='ancient' && this.state==='fighting' && this.run.wave>=40 && (this.meta.ancientBestWave||0)<40){this.meta.ancientBestWave=40;this.save.save();}
     Bosses.tick(this,dt);
     if (this.run.broken) return;
@@ -431,7 +437,7 @@ class GameMain {
   /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
    *  v1.16.43 修复：无塔（槽位未解锁）时怪物到城墙也应攻城掉血——此前被「无塔不战斗」提前 return 跳过，城墙完全不扣血 */
   siegeEnemies(dt) {
-    const wallEdge = this.state === 'testfield' ? 1042 : this.ly.wallY;
+    const wallEdge = this.ly.wallY;
     let wallHits = 0, wallHitY = wallEdge - 10;
     for (const e of this.enemies) {
       // 以怪物脚底/精灵下沿到达行走区边界作为攻城线，避免大体型怪进入塔位区。
@@ -462,7 +468,7 @@ class GameMain {
           // v1.14 测试战场：城墙无敌（不扣血，专注技能验证）
           // v1.16.96 城墙受击统一入口：减伤护符3★ 大额截断 + 生命回复3★ 护盾优先抵扣
           if (leak > 0 && this.state !== 'testfield') this.run.lineHp -= this.run.applyWallDamage(leak);
-          if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice');
+          if (iw.reflect > 0) this.combat.damage(e, absorbed * iw.reflect, 'ice', undefined, '冰墙');
           this.combat.applySlow(e, ICE_WALL_BALANCE.attackerSlow, ICE_WALL_BALANCE.attackerSlowDuration);
           e.atkSlowAdd = ICE_WALL_BALANCE.attackDelay; e.atkSlowT = ICE_WALL_BALANCE.attackerSlowDuration;
           // 冰墙受击视觉：冰晶飞溅
@@ -482,13 +488,8 @@ class GameMain {
     if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallHitY, t: 0, dur: 0.3 });
   }
 
-  /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
-   *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
-  moveEnemy(e, dt) {
-    if (e.frozen > 0 || e._bossStun > 0) return;
-    const wallEdge = this.state === 'testfield' ? 1042 : this.ly.wallY;
-    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5); // 精灵下沿到达行走区边界时开始攻城
-    if (e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY)) return;
+  enemyMoveSpeed(e) {
+    if (e.frozen > 0 || e._vineT > 0 || e._bossStun > 0) return 0;
     let slowEff = e.slow && e.slow.ttl > 0 ? e.slow.mult : 1;
     if (this.run.relic3('cm_stasis') && e.isBoss) slowEff = 1 - (1 - slowEff) * 0.5;
     // v1.16.100 缓毒3★：中毒减速与冰缓/麻痹叠加时，总减速上限 +15%（移动再减 15%）
@@ -500,7 +501,54 @@ class GameMain {
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
     // v1.16.78 霜风峡谷风场被动：移速 ×1.10^风场层数
     const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
-    e.y += e.speed * slowEff * stasisMul * windMul * Bosses.moveScale(this) * dt;
+    return (e.speed || 0) * slowEff * stasisMul * windMul * Bosses.moveScale(this);
+  }
+
+  predictEnemyPosition(e, seconds) {
+    if (!e) return { x: 0, y: 0 };
+    const wallEdge = this.ly.wallY;
+    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5);
+    let y = e.y;
+    if (!(e.frozen > 0 || e._vineT > 0 || e._bossStun > 0 || e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY))) {
+      y += this.enemyMoveSpeed(e) * Math.max(0, seconds || 0);
+      y = Math.min(y, lineY);
+      if (e.bossStandoffY != null) y = Math.min(y, e.bossStandoffY);
+    }
+    return { x: e.x, y };
+  }
+
+  syncTargetedCannonFx() {
+    this.fx.forEach((f) => {
+      if (!f.target) return;
+      const canPredict = f.target.hp > 0 && this.enemies.includes(f.target);
+      if (f.type === 'strikeAim') {
+        f.x = f.target.x; f.y = f.target.y;
+      } else if (f.type === 'strike') {
+        const localT = f.t - (f.offset || 0);
+        const remaining = Math.max(0, 1.9 - localT);
+        const pos = canPredict ? this.predictEnemyPosition(f.target, remaining) : f.target;
+        f.x = pos.x; f.y = pos.y;
+      } else if (f.type === 'strikeShell' && f.t - (f.offset || 0) >= 1.4) {
+        const localT = f.t - (f.offset || 0);
+        const remaining = Math.max(0, 1.9 - localT);
+        const pos = canPredict ? this.predictEnemyPosition(f.target, remaining) : f.target;
+        f.tx = pos.x; f.ty = pos.y;
+      } else if (f.kind === 'mortar') {
+        const remaining = Math.max(0, f.dur - f.t);
+        const pos = canPredict ? this.predictEnemyPosition(f.target, remaining) : f.target;
+        f.tx = pos.x; f.ty = pos.y;
+      }
+    });
+  }
+
+  /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
+   *  v1.16.96 时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
+  moveEnemy(e, dt) {
+    if (e.frozen > 0 || e._vineT > 0 || e._bossStun > 0) return;
+    const wallEdge = this.ly.wallY;
+    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5); // 精灵下沿到达行走区边界时开始攻城
+    if (e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY)) return;
+    e.y += this.enemyMoveSpeed(e) * dt;
     if (e.bossStandoffY != null) e.y = Math.min(e.y, e.bossStandoffY);
   }
 
@@ -519,6 +567,7 @@ class GameMain {
 
   waveEnd() {
     if (this.run.finalVictory && this.runSummary && this.runSummary.victory) return;
+    this.shopOpen = false;
     // v1.17.48 波末银币完成度回填：本波已出场怪中已死亡的比例（叠加波按 waveNo 只算本波）
     //   此前银币纯按波数发放，完全不消块/不出弹也拿满额，导致「挂机第一波 107 金币」。
     const _wn = this.run.wave || 1;
@@ -633,6 +682,7 @@ class GameMain {
 
   /** 塔升级三选一：把全部待升级（pending）生成跨塔候选队列并进入 picking；无待升级返回 false */
   flushUpgrades() {
+    this.shopOpen = false;
     if (this.state === 'picking') return true;
     const q = this.run.effects.buildUpgradeQueue(this.run.slotOrder.slice());
     if (!q.length) return false;
@@ -682,7 +732,7 @@ class GameMain {
   /** v1.17.20 中途退出/重开时的碎片兜底：有账才结算，按失守比例折算并提示 */
   settleRunShardsOnExit(reason) { return RunSettlement.settleRunShardsOnExit.call(this, reason); }
 
-  /** v1.16.77 局内商店购买：扣局内银币并施加临时强化（energy 补给 / 城墙修复为即时效果） */
+  /** v1.16.77 局内商店购买：扣局内银币并施加临时强化或即时药剂效果。 */
   buyStoreItem(idx) {
     const item = CONFIG.STORE.items[idx];
     if (!item) return false;
@@ -827,6 +877,7 @@ class GameMain {
 
   /* ---------- 渲染 ---------- */
   render() {
+    this.renderer.towerSpawnFx = this.fx;
     const s = (this.scale > 0 && isFinite(this.scale)) ? this.scale : 1;
     ctx.setTransform(s, 0, 0, s, 0, 0);
     ctx.fillStyle = '#0d1117';
@@ -849,7 +900,7 @@ class GameMain {
       if (this.state === 'relicpick') {
         // v1.16.109 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
         if (!this.relicPick.t) this.relicPick.t = Date.now();
-        this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: 1053, towerBottom: 1153 }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
+        this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: this.ly.wallY + 11, towerBottom: this.ly.wallY + 111 }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
       }
       if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
       else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
@@ -961,12 +1012,12 @@ class GameMain {
         expRatio: Math.min(1, run.exp / run.expNeed()),   // v1.17 修复：0 级也显示进度（原 expLevel>0 条件导致首波三消经验条恒 0）
         range: this.combat.range(key),
         baseRange: Math.max(60, CONFIG.TOWERS[key].range - 50),
-        energyAttack: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).attack,
-        energyInterval: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).interval,
-        energyColor: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax()).color,
+        energyAttack: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax(key)).attack,
+        energyInterval: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax(key)).interval,
+        energyColor: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax(key)).color,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
-        ammo: t.energy, ammoMax: this.run.armoryEnergyMax(),            // v1.16.77 能量（塔位条显示；军火库 +50）
+        ammo: t.energy, ammoMax: this.run.armoryEnergyMax(key),          // v1.16.77 能量（塔位条显示；军火库 +50）
         skills,
       });
     }

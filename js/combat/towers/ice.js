@@ -227,19 +227,21 @@ function iceHitFx(combat, o, d) {
 
 function tickIce(combat, dt) {
   const g = combat.game;
+  const relicCd = Math.max(0.2, 1 - combat.game.run.relicNum('r_ice_cd') / 100);
   // 冰·冰花（v1.13.23 原霜星改周期技；v1.16.21 分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
   //     A 扩张 范围 +20/40/60%、B 霜力 伤害 +20/40/60%、C 繁花 数量 +1/+2/+3；原 A 碎散传染移除）
   const flowerBalance = SKILL_NUM.ice['冰花'];
   const flower = combat.lv('ice', '冰花');
   if (flower > 0) {
     combat.timers.iceFlower = (combat.timers.iceFlower || 0) + dt;
-    if (combat.timers.iceFlower >= flowerBalance.period * combat._weakPeriod('ice')) {
+    if (combat.timers.iceFlower >= flowerBalance.period * combat._weakPeriod('ice') * relicCd) {
       combat.timers.iceFlower = 0;
       combat.castEnergy('ice', '冰花');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y));
       if (alive.length) {
-        const n = flowerBalance.baseCount + SKILL_NUM.ice['冰花'].n[combat.branchLv('ice', '冰花', 'C')];
-        const dmg = combat.shotDmg('ice', false, true) * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')]);
+        const n = flowerBalance.baseCount + SKILL_NUM.ice['冰花'].n[combat.branchLv('ice', '冰花', 'C')] + combat.game.run.relicValue('s_sr_ice_boom', 'bloomAdd');
+        const relicDmg = combat.game.run.relicNum('s_sr_ice_boom') + combat.game.run.relicNum('s_ice_bloom');
+        const dmg = combat.shotDmg('ice', false, true) * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')] + relicDmg / 100);
         const r = flowerBalance.baseRadius * (1 + SKILL_NUM.ice['冰花'].radius[combat.branchLv('ice', '冰花', 'A')]);
         const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
         targets.forEach((tgt) => {
@@ -256,24 +258,18 @@ function tickIce(combat, dt) {
               cb.fxRing(tgt.x, tgt.y, '#7fd4ff', fxR, 0.5, 5);
               cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
               cb.fxFlash(tgt.x, tgt.y, '#7fd4ff');
-              // v1.16.98 冰晶3★：冰花爆炸后残留冰晶地面 2 秒，敌人经过减速 20%
-              if (cb.game.run.relic3('ice_crystal')) {
-                cb.iceGrounds.push({ x: tgt.x, y: tgt.y, r: fxR, ttl: 2, slow: 0.2 });
-              }
-              // v1.16.98 雪崩3★：冰花落地后每 2 秒在原地再次爆炸，共追加 2 次，每次伤害为上一段的 80%
-              if (cb.game.run.relic3('ice_avalanche')) {
-                const mkAval = (delay, mult) => cb.delayed.push({
-                  x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg * mult, delay, t: 0, key: 'ice',
-                  fn: (cb2) => {
-                    const h2 = cb2.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
-                    h2.forEach((o) => cb2.damage(o, fxDmg * mult, 'ice', undefined, '冰花'));   // v1.17.50 雪崩3★归冰花
-                    cb2.fxRing(tgt.x, tgt.y, '#a9d6f5', fxR, 0.45, 4);
-                    cb2.fxParticle(tgt.x, tgt.y, '#b8e6ff', 12, 80, 0.5, 140, 5);
-                    cb2.fxFlash(tgt.x, tgt.y, '#a9d6f5', 0.25);
-                  }
-                });
-                mkAval(2, 0.8);
-                mkAval(4, 0.64);
+              // SSR「冰花·碎绽」：主冰花落地后裂成六枚小冰花，各自再次造成 30% 范围伤害。
+              if (cb.game.run.relic3('s_ice_bloom')) {
+                const count = cb.game.run.relicValue('s_ice_bloom', 'splitCount');
+                const splitR = 60, splitDmg = fxDmg * cb.game.run.relicValue('s_ice_bloom', 'splitDamage') / 100;
+                for (let i = 0; i < count; i++) {
+                  const a = Math.PI * 2 * i / count;
+                  const sx = tgt.x + Math.cos(a) * fxR * 0.6, sy = tgt.y + Math.sin(a) * fxR * 0.6;
+                  cb.enemies().forEach((o) => {
+                    if (o.hp > 0 && Math.hypot(o.x - sx, o.y - sy) <= splitR) cb.damage(o, splitDmg, 'ice', undefined, '冰花碎绽');
+                  });
+                  cb.fxRing(sx, sy, '#b8e6ff', splitR, 0.28, 2);
+                }
               }
             }
           });
@@ -289,7 +285,7 @@ function tickIce(combat, dt) {
   const orbSkill = combat.lv('ice', '冬珠');
   if (orbSkill > 0) {
     combat.timers.frostOrb = (combat.timers.frostOrb || 0) + dt;
-    if (combat.timers.frostOrb >= orbBalance.period * combat._weakPeriod('ice')) {
+    if (combat.timers.frostOrb >= orbBalance.period * combat._weakPeriod('ice') * relicCd) {
       combat.timers.frostOrb = 0;
       combat.castEnergy('ice', '冬珠');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y));
@@ -321,7 +317,7 @@ function tickIce(combat, dt) {
           ob.tickT += ob.tickI;
           combat.enemies().forEach((o) => {
             if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
-            combat.damage(o, ob.dmg, 'ice', undefined, '冬珠');   // v1.17.50 标注
+            combat.damage(o, ob.dmg, 'ice', { kind: 'dot' }, '冬珠');   // 冬珠周期伤害计入 DOT 与技能明细
             if (ob.slowMult > 0) combat.applySlow(o, ob.slowMult, orbBalance.slowDuration, 'ice');
             // v1.16.98 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
             if (combat.game.run.relic3('ice_domain') && o.slow && o.slow.ttl > 0 && !(o._domainCd > 0)) {
@@ -366,7 +362,7 @@ function tickIce(combat, dt) {
         combat.iceWall = null;
       }
     }
-    if (combat.timers.iceWall >= iceWallBalance.period * combat._weakPeriod('ice')) {
+    if (combat.timers.iceWall >= iceWallBalance.period * combat._weakPeriod('ice') * relicCd) {
       combat.timers.iceWall = 0;
       combat.castEnergy('ice', '冰墙');
       combat.iceWall = {
@@ -405,7 +401,7 @@ function tickIce(combat, dt) {
       const n = Math.floor(acc / 100);
       g.run._wallDmgAcc -= n * 100;
       const it = combat.tower('ice');
-      if (it) it.energy = Math.min(it.energy + n, g.run.armoryEnergyMax());
+      if (it) it.energy = Math.min(it.energy + n, g.run.armoryEnergyMax('ice'));
     }
   }
 }

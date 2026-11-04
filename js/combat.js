@@ -89,6 +89,7 @@ class CombatSystem {
   /** 出战塔对象（v1.16.4：测试战场单塔模式——仅 slotOrder 内塔生效，旧塔周期技/技能链立即停用） */
   tower(key) {
     const t = this.game.run.effects.tower(key);
+    if (t && t._activationDelay > 0) return null;
     const order = this.game.run.slotOrder;
     if (t && order && order.length && !order.includes(key)) return null;
     return t;
@@ -126,8 +127,10 @@ class CombatSystem {
     // v1.16.78 攻速戒指（局内圣遗物）：全塔攻击间隔缩短 N%（按星级）
     const spdR = this.relicVal('cm_speed');
     if (spdR > 0) iv /= (1 + spdR / 100);
-    // v1.16.114 塔专属攻速圣遗物（1★/2★）：熔炉之息/寒髓/电光/速射/疾风回旋 按塔生效
-    const TOWER_ASPD = { fire: 'fire_forge', ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
+    const relicSpd = this.relicVal(`r_${key}_spd`);
+    if (relicSpd > 0) iv /= (1 + relicSpd / 100);
+    // 塔专属攻速圣遗物（火塔熔炉之息已改为火柱伤害，不再提供攻速）。
+    const TOWER_ASPD = { ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
     const aspR = this.relicVal(TOWER_ASPD[key]);
     if (aspR > 0) iv /= (1 + aspR / 100);
     // v1.17.43 疾电1★/2★：电塔攻击间隔缩短 8%/12%；3★：麻痹叠层每层 +10% 攻速（3 秒窗口，最多 2 层）
@@ -143,8 +146,6 @@ class CombatSystem {
     else if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
     // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
-    // v1.16.96 焚天3★：火柱/火墙/火雨施放后 3 秒内全塔攻速 +25%
-    if (this.game.run._burnallTtl > 0) iv /= 1.25;
     return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1)) / Bosses.attackScale(this.game, key);
   }
 
@@ -156,7 +157,12 @@ class CombatSystem {
     const g = this.game;
     const run = g && g.run;
     if (!run || !run.relicRun || run.relicRun(id) <= 0) return 0;
-    const star = (g.meta && g.meta.starOf) ? g.meta.starOf(id) : 1;
+    const star = run._testStar3 && run._testStar3[id] ? 3
+      : (g.meta && g.meta.starOf) ? g.meta.starOf(id) : 1;
+    const configured = CONFIG.RELIC_VALUES && CONFIG.RELIC_VALUES[id] && CONFIG.RELIC_VALUES[id].primary;
+    if (configured) return configured[star] || 0;
+    const revised = CONFIG.RELIC_REWORK && CONFIG.RELIC_REWORK.RELIC_VALUES[id] && CONFIG.RELIC_REWORK.RELIC_VALUES[id].primary;
+    if (revised) return revised[star] || 0;
     return CONFIG.relicNum(id, star);
   }
 
@@ -167,8 +173,10 @@ class CombatSystem {
     if (!run || !run.runRelic) return 0;
     const cat = CONFIG.RELIC_RUN.tower[key];
     if (!cat) return 0;
-    let sum = 0;
+    let sum = this.relicVal(`r_${key}_atk`);
     cat.forEach((d) => {
+      // 火塔圣遗物已各自在对应火伤/周期技能挂点结算，禁止再由文案推断为全塔伤害乘区。
+      if (key === 'fire' || key === 'ice' || key === 'poison' || key === 'electric' || key === 'cannon' || key === 'boomerang') return; // 重做卡牌效果由对应状态/技能挂点结算，避免误加成全塔。
       if (run.relicRun(d.id) > 0 && d.desc && d.star2 && /伤害/.test(d.desc) && /伤害/.test(d.star2)) {
         sum += this.relicVal(d.id);
       }
@@ -247,7 +255,12 @@ class CombatSystem {
     if (s.t >= s.dur) {
       if (s.sweep) this.sweepDamage(s, dt);
       else if (s.onReach) s.onReach(s);
-      else this.resolveShot(s);
+      else {
+        if (s.key === 'cannon' && s.target && this.game.predictEnemyPosition) {
+          s.impactPosition = this.game.predictEnemyPosition(s.target, dt);
+        }
+        this.resolveShot(s);
+      }
       // v1.17.43 磁场3★：球形闪电的雷球游走结束时原地爆炸（60% 伤害，半径 80）
       if (s.ballLightning && this.game.run.relic3('elec_magnet')) {
         this.explode(s.x, s.y, 80, this.shotDmg('electric', false, true) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');   // v1.17.50 标注
@@ -342,7 +355,7 @@ class CombatSystem {
   /** v1.16.112 火塔普攻级挂点（每攻击一次判定一次，与弹道数量无关）：
    *  熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量）
    *  火焰弹射（1★/2★）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量 */
-  _fireAttackOnAttack() { return FireTower._fireAttackOnAttack(this); }
+  _fireAttackOnAttack(target, dmg) { return FireTower._fireAttackOnAttack(this, target, dmg); }
 
   /** v1.16.112 薄壳：火塔弹道命中入口（未学多重火球的普攻弹道 resolveShot → hit() → hitFire） */
   hitFire(e, dmg) { return FireTower.hitFire(this, e, dmg); }
@@ -351,7 +364,7 @@ class CombatSystem {
    *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
    *   每枚命中走完整结算（灼烧/焰雨三连/大火球爆炸/多重火球 C 散射分裂）。
    *   解决原"普攻先命中再从目标处散射"的割裂感 */
-  _fireMultiShot(e, dmg) { return FireTower._fireMultiShot(this, e, dmg); }
+  _fireMultiShot(e, dmg, fromTriple) { return FireTower._fireMultiShot(this, e, dmg, fromTriple); }
 
   /** v1.16.112 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
   _fireAttackHit(e, dmg) { return FireTower._fireAttackHit(this, e, dmg); }
@@ -413,7 +426,7 @@ class CombatSystem {
 
 
   /* ============ 炮塔（重炮/震击/碎裂弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
-  hitCannon(e, dmg) { return CannonTower.hitCannon(this, e, dmg); }
+  hitCannon(e, dmg, impactPosition) { return CannonTower.hitCannon(this, e, dmg, impactPosition); }
 
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
   tickCannon(dt) { return CannonTower.tickCannon(this, dt); }

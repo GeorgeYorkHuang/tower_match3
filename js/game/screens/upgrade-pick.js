@@ -18,15 +18,19 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     PickLayout.backdrop(ctx, box);
     ctx.globalAlpha = inK;
-    // 中央面板：投影厚度 + 半透明玻璃底 + 高光描边（立体感）
-    fillRoundRect(ctx, x + 4, y + 6, w, h, 20, 'rgba(0,0,0,0.38)');       // 右下投影
-    const panelGrad = ctx.createLinearGradient(0, y, 0, y + h);
-    panelGrad.addColorStop(0, 'rgba(30,40,54,0.82)');
-    panelGrad.addColorStop(0.5, 'rgba(22,30,42,0.78)');
-    panelGrad.addColorStop(1, 'rgba(16,23,33,0.82)');
-    fillRoundRect(ctx, x, y, w, h, 20, panelGrad);
-    strokeRoundRect(ctx, x, y, w, h, 20, '#4a5462', 2);
-    strokeRoundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, 18, 'rgba(255,255,255,0.14)', 1);   // 内高光
+    // 外层面板使用不透明深色底板，候选卡保持独立卡片背景。
+    const panelBg = ctx.createLinearGradient(0, y, 0, y + h);
+    panelBg.addColorStop(0, '#263341');
+    panelBg.addColorStop(0.52, '#1b2734');
+    panelBg.addColorStop(1, '#111a24');
+    fillRoundRect(ctx, x, y, w, h, 20, panelBg);
+    const panelEdge = ctx.createLinearGradient(x, y, x + w, y + h);
+    panelEdge.addColorStop(0, 'rgba(245,205,112,0.9)');
+    panelEdge.addColorStop(0.5, 'rgba(255,255,255,0.42)');
+    panelEdge.addColorStop(1, 'rgba(245,205,112,0.72)');
+    ctx.strokeStyle = panelEdge; ctx.lineWidth = 2;
+    roundRect(ctx, x, y, w, h, 20); ctx.stroke();
+    strokeRoundRect(ctx, x + 2, y + 2, w - 4, h - 4, 18, 'rgba(255,255,255,0.18)', 1);
     // group.tower 可能是 key 字符串（settlePending 传入），统一解析为 {key, name}
     const tk = typeof group.tower === 'string' ? group.tower : group.tower.key;
     const tName = typeof group.tower === 'string'
@@ -101,13 +105,14 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       ctx.fillStyle = glowCol;
       ctx.beginPath(); ctx.arc(cx + cardW / 2, topY + cardH / 2, cardW * 0.78, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = cAlpha;
-      // 卡片框：投影厚度 + 半透明玻璃底
-      fillRoundRect(ctx, cx + 3, topY + 5, cardW, cardH, 16, 'rgba(0,0,0,0.32)');              // 卡片投影
+      // 三张候选卡继续保留卡片底图和玻璃底；仅外层大面板底板透明。
+      fillRoundRect(ctx, cx + 3, topY + 5, cardW, cardH, 16, 'rgba(0,0,0,0.32)');
       const cardGrad = ctx.createLinearGradient(0, topY, 0, topY + cardH);
       cardGrad.addColorStop(0, 'rgba(38,50,66,0.75)');
       cardGrad.addColorStop(1, 'rgba(24,33,44,0.72)');
       fillRoundRect(ctx, cx, topY, cardW, cardH, 16, cardGrad);
-      // v1.16.7 渐变描边：上亮（塔色）→ 下隐（透明），替代单色描边
+      drawImg(ctx, 'assets/images/interface/cards/skill-choice-v1.png', cx, topY, cardW, cardH);
+      // 卡片渐变描边：上亮（塔色）→ 下隐（透明）
       const edgeGrad = ctx.createLinearGradient(0, topY, 0, topY + cardH);
       edgeGrad.addColorStop(0, fromTint);
       edgeGrad.addColorStop(0.55, fromTint + '99');
@@ -218,7 +223,7 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       strokeRoundRect(ctx, iconCx + ir - 16, iconCy - ir + 2, 40, 40, 20, 'rgba(255,255,255,0.6)', 1.5);
       text(ctx, isSkill ? 'NEW' : (isNewBranch ? 'Lv0' : `Lv${ef.branchLv}`), iconCx + ir + 4, iconCy - ir + 24, isSkill ? 16 : 19, isUpgrade ? '#ffffff' : '#1a1a1a', 'center');
       // v1.16.55 技能名（金色 40px 大字，nameY=topY+182，与图标底 130 留 12px、与下方标签留 20px）
-      const nameY = topY + 182;
+      const nameY = topY + 188;
       // v1.16.57 分支标签胶囊：新技能/分支标签整体下移 10px（tY = nameY+30）；
       //   分支文字较长（分支名 · LvX → Y）时字号 21→最小 16 自适应，保证胶囊不超出卡片外框
       const tSize = 21;
@@ -227,7 +232,7 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       //   确认分支（isNewBranch，分支 Lv0→1） = 三个分支名胶囊并排，本次确认的分支金色高亮，其余两个暗色
       //   分支升级（isUpgrade） = 「LvX → LvY」金色单胶囊
       const tagGlow = 0.20 + 0.12 * breathe;
-      const tY = nameY + 30;
+      const tY = nameY + 34;
       if (isNewBranch) {
         const skillCfg = defOf(ef.name, ef.fromTower);
         const brKeys = ['a', 'b', 'c'];
@@ -309,8 +314,8 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
           }
         });
       }
-      // 技能名（金色大字 + 轻微阴影）
-      text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.35)', 'center');
+      // 技能名稍下移，与图标和塔色描边错开。
+      text(ctx, ef.name, cx + cardW / 2 + 1, nameY + 2, 40, 'rgba(0,0,0,0.55)', 'center');
       text(ctx, ef.name, cx + cardW / 2, nameY, 40, '#f7c948', 'center');
       // v1.16.57 描述区玻璃面板（panelY=topY+272，胶囊下方留 22px；字号 21、行距 30，最多 4 行），
       // 超出截断加省略号，与下方「确认激活/升级」按钮保持间距
@@ -319,12 +324,12 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       const clipped = rawLines.length > 4;
       const lines = rawLines.slice(0, 4);
       if (clipped) lines[3] = lines[3] + '…';
-      const panelY = topY + 272;
+      const panelY = topY + 284;
       const panelH = lines.length * 30 + 34;
-      fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(0,0,0,0.26)');
-      strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.08)', 1);
+      fillRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(9,15,22,0.84)');
+      strokeRoundRect(ctx, cx + 8, panelY, cardW - 16, panelH, 12, 'rgba(255,255,255,0.14)', 1);
       lines.forEach((ln, li) => {
-        text(ctx, ln, cx + cardW / 2, panelY + 22 + li * 30, 21, '#c7d1dc', 'center');
+        text(ctx, ln, cx + cardW / 2, panelY + 22 + li * 30, 21, '#e6edf5', 'center');
       });
       // 按钮文案（v1.17.2 两态）：新技能=学习技能 / 分支（新分支+升级）=确认分支
       const btnW = cardW - 28, btnH = 56, btnX = cx + 14, btnY = topY + cardH - btnH - 16;
@@ -344,7 +349,7 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
     if (reroll) {
-      const rx = 210, ry = y + h - 64, rw = 330, rh = 44;
+      const rx = 210, ry = y + h - 76, rw = 330, rh = 44;
       const affordable = reroll.gold >= reroll.cost;
       fillRoundRect(ctx, rx, ry, rw, rh, 22, affordable ? '#514222' : '#2d343c');
       strokeRoundRect(ctx, rx, ry, rw, rh, 22, affordable ? '#f1cf7d' : '#66717b', 1.5);

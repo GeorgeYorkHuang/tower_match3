@@ -16,7 +16,7 @@ module.exports = {
     // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；v1.16.78 赏金猎人 +N%）；v1.16.96 赏金猎人3★ 连续3波无宝箱必掉
     if (e.type === 'elite') {
       const chance = RelicKill.eliteChestChance(this.run, b);
-      if (Math.random() < chance || this.run.bountyGuarantee()) {
+      if (Math.random() < chance) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
         this.run._waveChestDropped = true;
         this.toast('精英宝箱 · 消除棋盘相邻方块领取', '#f7c948');
@@ -26,7 +26,8 @@ module.exports = {
     if (e.isBoss) {
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = waveNo > 0 && waveNo % 20 === 0;
-      const chestChance = majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance;
+      const bountyMult = 1 + this.run.relicNum('s_sr_cm_bounty') / 100;
+      const chestChance = Math.min(1, (majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance) * bountyMult);
       const fieldChestDropped = !e.isFinalBoss && Math.random() < chestChance;
       if (fieldChestDropped) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: majorBoss ? 'majorBoss' : 'miniBoss' });
@@ -123,7 +124,11 @@ module.exports = {
     if (!pool.length) return null;
     // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
     const W = CONFIG.RELIC_PICK_WEIGHT;
-    const pickRar = () => { const r = Math.random(); return r < W.r ? 'r' : r < W.r + W.sr ? 'sr' : 'ssr'; };
+    const promote = (rar) => {
+      if (!this.run.relic3('s_sr_cm_bounty')) return rar;
+      return rar === 'r' ? 'sr' : rar === 'sr' ? 'ssr' : rar;
+    };
+    const pickRar = () => promote((() => { const r = Math.random(); return r < W.r ? 'r' : r < W.r + W.sr ? 'sr' : 'ssr'; })());
     const cands = [];
     const used = new Set();
     for (let i = 0; i < 3; i++) {
