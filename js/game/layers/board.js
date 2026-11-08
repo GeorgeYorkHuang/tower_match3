@@ -4,10 +4,21 @@ const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
 // 仅根据棋盘/动画快照绘制，不执行匹配、补落、扫描交换或奖励结算。
 function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, subBlockGlyph, easeOutCubic }) {
-  function board(ctx, grid, selected, anim, shake, theme, hint) {
+  // Four-match special blocks only; save/restore preserves fade and other canvas state.
+  function specialGlow(ctx,piece,x,y,size) {
+    if (!piece || typeof piece !== 'object' || !['row','col','cross','split','rand'].includes(piece.s)) return;
+    ctx.save();
+    ctx.shadowColor='#72f6ff';ctx.shadowBlur=9;
+    strokeRoundRect(ctx,x+2,y+2,size-4,size-4,8,'rgba(83,232,255,0.55)',4);
+    ctx.shadowBlur=4;
+    strokeRoundRect(ctx,x+2,y+2,size-4,size-4,8,'#d8ffff',1.5);
+    ctx.restore();
+  }
+  function board(ctx, grid, selected, anim, shake, theme, hint, chestHoles) {
+    const emptyChestCells = new Set(chestHoles || []);
     ChipSkin.preload();   // 底板与共用图案预载；数量由ChipSkin资源清单维护。
     const { boardX, boardY, cell, boardRows, boardCols } = this.ly;
-    // v1.17.29 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
+    // 棋盘抖动：消除震动时整体随机微移（随进度渐弱）
     let shP = -1;
     if (shake && shake.t) {
       shP = (Date.now() - shake.t) / shake.dur;
@@ -50,7 +61,7 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
       for (let r = 0; r < boardRows; r++) {
         for (let c = 0; c < boardCols; c++) {
           const color = g0[r][c];
-          if (!color) continue;
+          if (!color || emptyChestCells.has(r + ',' + c)) continue;
           let x = px(r, c), y = py(r, c);
           if (r === r1 && c === c1) { // 从 (r2,c2) 滑向 (r1,c1)
             x = px(r2, c2) + (x - px(r2, c2)) * t;
@@ -76,32 +87,36 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
       return;
     }
 
-    /* 阶段 2：消除（0.5s 串行段）→ 下落（0.4s 串行段）——v5.6.3 拆分为两段：消除格在 clear 段全程淡出缩小，下落补位在 fall 段匀速滑落 */
+    /* 阶段 2：消除（0.5s 串行段）→ 下落（0.4s 串行段）——拆分为两段：消除格在 clear 段全程淡出缩小，下落补位在 fall 段匀速滑落 */
     const g0 = (anim && (anim.base || anim.swapGrid)) ? (anim.base || anim.swapGrid) : grid; // 本级下落前棋盘
     const g1 = (anim && anim.final) ? anim.final : grid;                                    // 本级下落后棋盘
     if (anim && anim.phase === 'clear') {
-      const fade = Math.min(1, anim.progress);   // v5.6.3 消除段 0.5s 全程淡出（原 progress/0.35）
+      const fade = Math.min(1, anim.progress);   // 消除段 0.5s 全程淡出（原 progress/0.35）
       if (fade < 1) {
         for (let r = 0; r < boardRows; r++) {
           for (let c = 0; c < boardCols; c++) {
             if (!anim.cleared.has(r + ',' + c)) continue;
             const color = g0[r][c];
             if (!color || color.s === 'chest') continue;
-            const cBase = (typeof color === 'object') ? (color.c || null) : color;   // v5.2 特殊块
+            const cBase = (typeof color === 'object') ? (color.c || null) : color;   // 特殊块
             const x = boardX + c * cell + 2, y = boardY + r * cell + 2;
             const sz = (cell - 4) * (1 - fade * 0.35);
             const inset = (cell - 4 - sz) / 2;
             ctx.globalAlpha = 1 - fade;
-            // v1.17.44 淡出层同样两层绘制，特殊块不会在消除瞬间「变回」普通块
+            // 淡出层同样两层绘制，特殊块不会在消除瞬间「变回」普通块
             const isObjF = typeof color === 'object';
             const bcF = isObjF ? ChipSkin.baseColorOf(color) : cBase;
             if (drawImg(ctx, ChipSkin.BASES[bcF], x + inset, y + inset, sz, sz)) {
               const glyphF = isObjF ? ChipSkin.specialSrc(color) : ChipSkin.normalSrc(bcF);
-              if (isObjF && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + inset + sz / 4, y + inset + sz / 4, sz / 2);
-              else if (glyphF) drawImg(ctx, glyphF, x + inset, y + inset, sz, sz);
+              // 父子雷在静止与淡出阶段共用尺寸，保留相同的核心大小。
+              if (glyphF && !drawImg(ctx, glyphF, x + inset, y + inset, sz, sz)
+                && isObjF && color.s === 'split' && color.sub) {
+                subBlockGlyph(ctx, x + inset, y + inset, sz);
+              }
             } else if (!cBase || !drawImg(ctx, BOARD_IMG[cBase], x + inset, y + inset, sz, sz)) {
               fillRoundRect(ctx, x + inset, y + inset, sz, sz, 8, COLOR_FILL[cBase] || '#333');
             }
+            specialGlow(ctx,color,x+inset,y+inset,sz);
             ctx.globalAlpha = 1;
           }
         }
@@ -118,7 +133,7 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     // 预算：每列消除格数 colDrop、每列消除行 colClearedRows
     const colDrop = new Array(boardCols).fill(0);
     const colClearedRows = new Array(boardCols).fill(0).map(() => []);
-    if (anim && anim.cleared) {   // v5.6.3 clear/fall 两段都需要下落预算
+    if (anim && anim.cleared) {   // clear/fall 两段都需要下落预算
       for (const key of anim.cleared) {
         const [cr, cc] = key.split(',').map(Number);
         if (cc >= 0 && cc < boardCols && cr >= 0 && cr < boardRows) {
@@ -130,15 +145,15 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
       if (srcRow === -1) return colDrop[c]; // 新补方块：随整列下移 colDrop 格
       return colClearedRows[c].filter((cr) => cr > srcRow).length; // 未消除格：其下方消除格数
     };
-    const inClear = !!(anim && (anim.phase === 'clear' || anim.phase === 'wait'));   // v5.6.4 等待段保持消除后原位（空位停留），fall 段才下落
+    const inClear = !!(anim && (anim.phase === 'clear' || anim.phase === 'wait'));   // 等待段保持消除后原位（空位停留），fall 段才下落
     for (let r = 0; r < boardRows; r++) {
       for (let c = 0; c < boardCols; c++) {
-        let color = inClear ? (g0[r][c] || null) : g1[r][c];   // v5.6.3 clear 段画原位，fall 段画最终布局
-        if (!color) continue;
+        let color = inClear ? (g0[r][c] || null) : g1[r][c];   // clear 段画原位，fall 段画最终布局
+        if (!color || emptyChestCells.has(r + ',' + c)) continue;
         if (inClear && anim.cleared.has(r + ',' + c)) continue; // 消除格由淡出层绘制，不重复
         let x = boardX + c * cell + 2;
         let y = boardY + r * cell + 2;
-        if (anim && anim.phase === 'fall' && anim.progress < 1) {   // v5.6.3 下落段独立计时
+        if (anim && anim.phase === 'fall' && anim.progress < 1) {   // 下落段独立计时
           const elapsed = anim.progress * anim.durFall; // 已流逝时间（秒）
           const srcRow = this._sourceRow(anim, g1, r, c);
           const dist = dropCellsOf(srcRow, c) * cell; // 同列内所有移动格距离一致
@@ -180,12 +195,14 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     }
     if (color && color.s === 'obstacle') {
       const ice=color.theme==='frost';
+      const obstacleSrc = ice ? 'assets/images/interface/board/obstacle-frost-v1.png' : 'assets/images/interface/board/obstacle-lava-v1.png';
+      if (drawImg(ctx, obstacleSrc, x, y, cell-4, cell-4)) return;
       fillRoundRect(ctx,x,y,cell-4,cell-4,8,ice?'#29475d':'#49312c');
       strokeRoundRect(ctx,x+3,y+3,cell-10,cell-10,7,ice?'#a8e6ff':'#ff9a53',2);
       text(ctx,ice?'❄':'◆',x+(cell-4)/2,y+(cell-4)/2+7,24,ice?'#c9f3ff':'#ffb66b','center'); return;
     }
     const size = cell - 4;
-    const isObj = color !== null && typeof color === 'object';   // v5.2 特殊块 {c,s,sub?}
+    const isObj = color !== null && typeof color === 'object';   // 特殊块 {c,s,sub?}
     const base = isObj ? (color.s === 'rainbow' ? null : (color.c || color.tint || null)) : color;
     const bc = isObj ? ChipSkin.baseColorOf(color) : base;
     if (isObj && color.s === 'rainbow') {
@@ -196,14 +213,17 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     } else if (drawImg(ctx, ChipSkin.BASES[bc], x, y, size, size)) {
       const glyph = isObj ? ChipSkin.specialSrc(color) : ChipSkin.normalSrc(bc);
       if (glyph) {
-        const glyphSize = isObj && color.s === 'split' && color.sub ? size * 0.5 : size;
-        const inset = (size - glyphSize) / 2;
-        if (isObj && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + inset, y + inset, glyphSize);
-        else drawImg(ctx, glyph, x + inset, y + inset, glyphSize, glyphSize);
+        // 子雷直接使用减去外围部件的图片，不再缩小一半或改画三角符号。
+        if (!drawImg(ctx, glyph, x, y, size, size) && isObj && color.s === 'split' && color.sub) {
+          subBlockGlyph(ctx, x, y, size);
+        }
       }
     } else if (base && drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
-      // Child mine keeps its white emblem even while only the old base asset is ready.
-      if (isObj && color.s === 'split' && color.sub) subBlockGlyph(ctx, x + size / 4, y + size / 4, size / 2);
+      // 底板回退时优先保留新版子雷图标，图片未就绪才使用同系矢量兜底。
+      if (isObj && color.s === 'split' && color.sub
+        && !drawImg(ctx, ChipSkin.specialSrc(color), x, y, size, size)) {
+        subBlockGlyph(ctx, x, y, size);
+      }
       // 其它回退：旧整图自带符号，不再叠图案
     } else {
       fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
@@ -215,6 +235,7 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     if (selected && selected[0] === r && selected[1] === c) {
       strokeRoundRect(ctx, x - 2, y - 2, size + 4, size + 4, 10, '#ffffff', 4);
     }
+    specialGlow(ctx,color,x,y,size);
   }
 
   function _sourceRow(anim, grid, r, c) {

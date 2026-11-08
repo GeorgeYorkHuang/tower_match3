@@ -6,11 +6,11 @@ module.exports = {
     seconds: 40,                // 波时长
     matchesPerWave: 5,          // 操作模型：每波有效消除次数
     matchDist: { '3': 0.70, '4': 0.20, L5: 0.05, '5': 0.05 },  // 3连/直4/L5/直5 消占比
-    maxWave: 9999,              // v1.16.76 无尽化：移除 50 波硬上限（撤离点承担终点，收益 40 波后递减）
+    maxWave: 9999,              // 无尽化：移除 50 波硬上限（撤离点承担终点，收益 40 波后递减）
   },
 
   ENEMY: {
-    // v1.17 怪物代际重构（已确认 v2）：取消血量成长曲线，每 5 波一代新怪、新旧代按比例混合替换
+    // 怪物代际重构（已确认 v2）：取消血量成长曲线，每 5 波一代新怪、新旧代按比例混合替换
     // levels[] 下标 0 = Lv1；hp/atk 为单只数值；spd 为设计移速（代码按 /1.5 归一化为基准系数）；armor 为减伤
     levels: [
       { type: 'normal', hp: 250,  atk: 8,  spd: 1.5, armor: 0.00 }, // Lv1 普通 波1-4
@@ -113,17 +113,17 @@ module.exports = {
     eliteHpMult: BALANCE.elite.hp,                        // 精英血量 = 主等级 ×3
     eliteAtkMult: BALANCE.elite.attack,                       // 精英攻击 = 主等级 ×3
     eliteArmor: BALANCE.elite.armor,                      // 精英自带6%减伤
-    // 怪物种类（渲染/血条/速度系数基准；v1.17 血量/移速由 levels 直接定值，不再乘 hpMult/spdMult）
+    // 怪物种类（渲染/血条/速度系数基准；血量/移速由 levels 直接定值，不再乘 hpMult/spdMult）
     types: {
       normal: { hpMult: 1.0, spdMult: 1.0 },
       runner: { hpMult: 0.6, spdMult: 1.8 },
       tank:   { hpMult: 2.8, spdMult: 0.6 },
       elite:  { hpMult: BALANCE.elite.hp, spdMult: 0.85, armor: BALANCE.elite.armor },  // 精英血量/护甲与独立平衡配置同源
     },
-    // 攻城攻击兜底（combat.js initEnemyState 使用；v1.17 生成值来自 levels.atk × 精英/Boss 倍率）
+    // 攻城攻击兜底（combat.js initEnemyState 使用；生成值来自 levels.atk × 精英/Boss 倍率）
     attack: { normal: 8, runner: 4, tank: 18, boss: 90, elite: 40 },
     attackInterval: { normal: 1.0, runner: 0.7, tank: 1.6, boss: 1.2, elite: 1.1 }, // 攻击间隔（秒）
-    speed: { slow: 0.9, normal: 1.5, fast: 2.1 },  // 速度三档（v1.12 调试：整体提升 50%），快怪血量减半
+    speed: { slow: 0.9, normal: 1.5, fast: 2.1 },  // 速度三档（调试：整体提升 50%），快怪血量减半
   },
 
 };

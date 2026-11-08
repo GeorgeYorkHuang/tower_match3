@@ -1,1 +1,0 @@
-Poison cloud from https://github.com/patch-gg/pixelfx (MIT). 48 frames, 12fps, 4-second loop.

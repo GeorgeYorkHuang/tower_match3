@@ -2,7 +2,7 @@
 const BALANCE = require('../config/global-balance.js');
 const POOL = [
  ['shuffle','全局洗牌','棋盘','打乱棋盘，并触发已学技能齐发。','#ffad58'],
- ['refill','能量补给','辅助','全场已激活塔补充8点能量。','#79e5a4'],
+ ['refill','能量补给','辅助','全场已激活塔补充10点能量。','#79e5a4'],
  ['forge','神兵铸就','输出','全塔攻击提升25%，持续12秒。','#ffd36b'],
  ['haste','急速风暴','输出','全塔攻速提升40%，持续10秒。','#72d9ff'],
  ['volley','弹幕齐射','输出','全塔下一次普攻变为三连发，总伤害150%。','#ff967c'],
@@ -17,7 +17,7 @@ const POOL = [
  ['twins','双子印记','三消','下次四消同时遗留两个同类特殊方块。','#e7a5ff'],
  ['charge','元素充能','三消','下次有效消除优先为对应颜色塔、再为另一座塔各补10能量。','#83e4dd'],
  ['gold','黄金浪潮','收益','6秒内击杀获得的局内金币翻倍。','#ffe17c'],
-].map(([id,name,category,desc,color],i)=>({id,name,category,desc,color,glyph:i}));
+].map(([id,name,category,desc,color],i)=>({id,name,category,desc,color,glyph:i})).filter(def => !['shuffle', 'barrier', 'pull'].includes(def.id));
 // 展示文案与实际行为共用参数，避免改数值后说明过期。
 const descriptions = {
  forge:()=>`全塔攻击提升${Math.round((BALANCE.forge.damageMultiplier-1)*100)}%，持续${BALANCE.forge.duration}秒。`,

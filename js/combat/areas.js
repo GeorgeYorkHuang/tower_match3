@@ -7,7 +7,7 @@ function updateDelayed(combat, dt) {
     d.t += dt;
     if (d.t >= d.delay) {
       combat.delayed.splice(i, 1);
-      if (d.fn) { d.fn(combat); continue; }   // v1.16.9 自定义延迟回调（冰花第 3 帧末结算）
+      if (d.fn) { d.fn(combat); continue; }   // 自定义延迟回调（冰花第 3 帧末结算）
       const targetLive = d.target && d.target.hp > 0 && combat.enemies().includes(d.target);
       const impactPos = targetLive && combat.game.predictEnemyPosition
         ? combat.game.predictEnemyPosition(d.target, dt)
@@ -19,9 +19,9 @@ function updateDelayed(combat, dt) {
         : 0;
       const impactRadius = d.r * (1 + cannonRadiusBonus);
       combat.explode(impactX, impactY, d.r, d.dmg, d.key, d.knock, d.slowAfter, undefined, d.skill);   // 炮火支援跟随锁定目标的实时落点
-      // v1.16.103 空袭3★：炮火支援落点 20% 概率二次轰炸（40% 伤害）
+      // 空袭3★：炮火支援落点 20% 概率二次轰炸（40% 伤害）
       if (d.key === 'cannon' && combat.game.run.relic3('can_airstrike') && Math.random() < 0.2) {
-        combat.explode(impactX + (Math.random() - 0.5) * 40, impactY + (Math.random() - 0.5) * 40, d.r * 0.7, d.dmg * 0.4, 'cannon', undefined, undefined, undefined, d.skill);   // v1.17.50 标注
+        combat.explode(impactX + (Math.random() - 0.5) * 40, impactY + (Math.random() - 0.5) * 40, d.r * 0.7, d.dmg * 0.4, 'cannon', undefined, undefined, undefined, d.skill);   // 标注
       }
       // 炮火支援 C 焦土：落点留燃烧地面 2s（每秒 30% 伤害）
       if (d.ember > 0) {
@@ -43,6 +43,10 @@ function updateGroundDots(combat, dt) {
     const gd = combat.groundDots[i];
     const activeDt = Math.min(dt, Math.max(0, gd.ttl));
     gd.ttl -= dt;
+    // 毒池动画只消耗本帧实际存活的战斗时间；暂停、倍速与伤害计时一致。
+    if (gd.key === 'poison' && gd.skill === '毒池' && !gd.swamp) {
+      gd._poolVisualAge = (gd._poolVisualAge || 0) + activeDt;
+    }
     // Poison field damage and stack/energy ticks use separate field-level clocks.
     // Advance them once per field, never once per enemy in the area.
     let poisonDamageTicks = 0;
@@ -72,7 +76,7 @@ function updateGroundDots(combat, dt) {
       if (dist > gd.r) {
         if (gd._burnInside) gd._burnInside.delete(o);
         if (gd._seedInside) gd._seedInside.delete(o);
-        // v1.16.100 腐沼3★：毒池边缘生成毒雾环，进出敌人各叠 1 层毒
+        // 腐沼3★：毒池边缘生成毒雾环，进出敌人各叠 1 层毒
         if (gd.ring && dist <= gd.r * 1.1) {
           ringActive.add(o);
           let ringT = (ringTimers.get(o) || 0) + activeDt;
@@ -109,7 +113,7 @@ function updateGroundDots(combat, dt) {
         gd._seedInside.add(o);
         o._seedGroundT = Math.max(o._seedGroundT || 0, Math.min(gd.ttl, activeDt + 0.15));
       }
-      // v1.16.42 毒沼：泥沼减速（与毒池区分——毒沼纯叠毒 + 减速，无直伤）
+      // 毒沼：泥沼减速（与毒池区分——毒沼纯叠毒 + 减速，无直伤）
       if (gd.swamp && gd.slow) combat.applySlow(o, gd.slow, 1);
       else if (gd.key === 'poison' && gd.slow) combat.applySlow(o, gd.slow, 1, 'poison');
       if (paraTimers) {
@@ -129,7 +133,7 @@ function updateGroundDots(combat, dt) {
       }
       if (gd.key === 'poison' && gd.stackPerSec) {
         if (poisonStackTicks > 0) combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', gd.stackPerSec * poisonStackTicks);
-        // v1.16.100 毒云3★：毒池上的敌人每秒丢失 1 点能量（对 Boss 无效；敌人无能量系统时挂点保留）
+        // 毒云3★：毒池上的敌人每秒丢失 1 点能量（对 Boss 无效；敌人无能量系统时挂点保留）
         if (poisonStackTicks > 0 && combat.game.run.relic3('poison_cloud') && !gd.swamp && !o.isBoss && o.energy > 0) {
           o.energy = Math.max(0, o.energy - poisonStackTicks);
         }
@@ -144,7 +148,7 @@ function updateGroundDots(combat, dt) {
     if (gd.ttl <= 0) { combat.groundDots.splice(i, 1); continue; }
     if (gd.key === 'poison') {
       if (gd.swamp) {
-        // v1.16.42 毒沼视觉粒子：暗褐绿泥沼气泡（与毒池的亮绿液区分）
+        // 毒沼视觉粒子：暗褐绿泥沼气泡（与毒池的亮绿液区分）
         if (Math.random() < 0.5) {
           combat.fxParticle(gd.x + (Math.random() * gd.r * 2 - gd.r), gd.y + (Math.random() * gd.r * 2 - gd.r), '#6e8b3d', 2, 16, 0.5, 50, 4);
         }

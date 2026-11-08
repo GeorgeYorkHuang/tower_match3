@@ -8,15 +8,16 @@ const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
 
 // Menu hit priority, purchase/equip actions and modal routing. No renderer dependency.
 function onMenuTap(game, p) {
+    if (require('./talent-actions.js').handle(game,p)) return;
     if (game.menuPanel) {
       const bounds = game.menuHits.find(it => it.key === 'panelBounds');
       if (bounds && !bounds.hit(p.x, p.y)) { game.menuPanel = null; return; }
       const ptype = game.menuPanel.type;
-      if (['accountMenu', 'accountInfo', 'testProfile'].includes(ptype)) {
+      if (['accountMenu', 'accountInfo', 'accountMail', 'testProfile'].includes(ptype)) {
         const target = game.menuHits.find(it => (it.key.startsWith('account') || it.key.startsWith('profile')) && it.hit(p.x, p.y));
-        if (target) { AccountMenu.handle(game, target.key); return; }
+        if (target) { AccountMenu.handle(game, target.key, target.data); return; }
       }
-      // v1.16.78 圣物图鉴翻页（relicDex 面板内）
+      // 圣物图鉴翻页（relicDex 面板内）
       if (ptype === 'relicDex') {
         const total = game._relicRunTotal();
         for (const it of game.menuHits) {
@@ -38,12 +39,12 @@ function onMenuTap(game, p) {
           game.menuPanel = null;
           return;
         }
-        // v1.16.76 调试面板（仅 DEBUG 构建）
+        // 调试面板（仅 DEBUG 构建）
         if (ptype === 'debug' && it.key.indexOf('dbg_') === 0 && it.hit(p.x, p.y)) {
           game.handleDebugTap(it.key);
           return;
         }
-        // v1.16.76 圣遗物升星（图鉴/升星/详情面板内点击行）
+        // 圣遗物升星（图鉴/升星/详情面板内点击行）
         if ((ptype === 'relicDex' || ptype === 'starUp' || ptype === 'relicInfo') && it.key === 'relicStar' && it.hit(p.x, p.y)) {
           const err = game.meta.upStar(it.data);
           if (err) game.toast(err, '#ff6b6b');
@@ -53,7 +54,13 @@ function onMenuTap(game, p) {
           }
           return;
         }
-        // v1.17.20 碎片手动解锁（圣遗物详情面板内）：消耗阈值碎片点亮图鉴
+        // 碎片手动解锁（圣遗物详情面板内）：消耗阈值碎片点亮图鉴
+        if (ptype === 'relicInfo' && it.key === 'craftShard' && it.hit(p.x, p.y)) {
+          const err = game.meta.craftShard(it.data);
+          if (!err) game.save.save();
+          game.toast(err || '已合成碎片 ×1', err ? '#ff6b6b' : '#dfbdff');
+          return;
+        }
         if (it.key === 'relicUnlock' && it.hit(p.x, p.y)) {
           const need = game.meta.shardNeed(it.data);
           const err = game.meta.unlockByShard(it.data);
@@ -65,7 +72,7 @@ function onMenuTap(game, p) {
           }
           return;
         }
-        // v5.3c 技能配置面板：已解锁 → 点选配置；未解锁 → 金币购买后自动配置（全局技能固定 2 款不写槽）
+        // 技能配置面板：已解锁 → 点选配置；未解锁 → 金币购买后自动配置（全局技能固定 2 款不写槽）
         if ((ptype === 'matchCfg' || ptype === 'globalCfg') && it.key === 'mSkill' && it.hit(p.x, p.y)) {
           const slot = it.data.slot;
           const id = it.data.id;
@@ -102,7 +109,7 @@ function onMenuTap(game, p) {
           return;
         }
       }
-      // v1.17.45：globalPage 翻页键已下架（全局面板改为视口内惯性滚动，触摸由 panel-scroll.js 处理）
+      // ：globalPage 翻页键已下架（全局面板改为视口内惯性滚动，触摸由 panel-scroll.js 处理）
       return; // 面板打开时忽略底层按钮
     }
     for (const it of game.menuHits) {
@@ -114,33 +121,33 @@ function onMenuTap(game, p) {
           game.menuPanel = null;
           return;
         case 'relicInfo':
-          // v1.16.78 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
+          // 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
           game.menuPanel = { type: 'relicInfo', id: it.data };
           return;
         case 'matchCfg':
-          // v5.3 主页三消技能配置行 → 三消技能配置面板
+          // 主页三消技能配置行 → 三消技能配置面板
           game.menuPanel = { type: 'matchCfg', slot: it.data && it.data.slot || 'match4' };
           return;
         case 'globalCfg':
-          // v5.3 主页全局技能配置行 → 全局技能配置面板（v1.17.45 滚动版：scrollY 归零）
+          // 主页全局技能配置行 → 全局技能配置面板（滚动版：scrollY 归零）
           game.menuPanel = { type: 'globalCfg', index: it.data && it.data.index || 0, scrollY: 0 };
           return;
         case 'relicPage': {
-          // v1.16.78 圣物图鉴：翻页
+          // 圣物图鉴：翻页
           const total = game._relicRunTotal();
           game.relicDexPage = Math.max(0, Math.min(total - 1, game.relicDexPage + it.data));
           return;
         }
         case 'codexSel':
-          // v1.16.75 塔图鉴：切换选中塔
+          // 塔图鉴：切换选中塔
           game.codexSel = it.data;
           return;
         case 'codexSkill':
-          // v1.16.78 塔图鉴：点技能卡 → 打开 A/B/C 分支效果面板
+          // 塔图鉴：点技能卡 → 打开 A/B/C 分支效果面板
           game.menuPanel = { type: 'codexSkill', tower: it.data.tower, idx: it.data.idx };
           return;
         case 'codexLearn': {
-          // v1.16.75 塔图鉴：金币学习解锁塔（回旋镖 3000 / 炮塔 5000）
+          // 塔图鉴：金币学习解锁塔（回旋镖 3000 / 炮塔 5000）
           const key = it.data;
           if (game.meta.towerCodex[key]) return;
           const cost = key === 'cannon' ? 5000 : 3000;
@@ -153,13 +160,13 @@ function onMenuTap(game, p) {
           return;
         }
         case 'stage': {
-          // v1.17.48 战场卡改为信息层：战场说明 + 专属掉落（不再提示未解锁/解锁条件，进场校验仍在 enter）
+          // 战场卡改为信息层：战场说明 + 专属掉落（不再提示未解锁/解锁条件，进场校验仍在 enter）
           game.menuPanel = { type: 'stageDrops', stage: game.menuStage };
           return;
         }
         case 'stagePrev':
         case 'stageNext': {
-          // v1.16.78 ◀ ▶ 按合约切换战场：未解锁战场不再静默跳过（可见、进场时校验）
+          // ◀ ▶ 按合约切换战场：未解锁战场不再静默跳过（可见、进场时校验）
           const order = FieldAccess.visible(game.testProfile);
           const dir = it.key === 'stageNext' ? 1 : -1;
           let idx = order.indexOf(game.menuStage);
@@ -171,7 +178,7 @@ function onMenuTap(game, p) {
           return;
         }
         case 'enter': {
-          // v1.16.30 按所选战场进入：测试战场 → 免三消直测；正式战斗需校验解锁（v1.16.78）
+          // 按所选战场进入：测试战场 → 免三消直测；正式战斗需校验解锁（）
           game.menuPanel = null;
           const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);
           if(why){FieldAccess.prompt(game,why);return;}
@@ -184,7 +191,7 @@ function onMenuTap(game, p) {
           game.menuPanel = { type: 'relicDex' };
           return;
         case 'starUp':
-          // v1.16.76 圣遗物升星面板（碎片/金币/星辉石 → 2★ 效果升级 / 3★ 质变）
+          // 圣遗物升星面板（碎片/金币/钻石 → 2★ 效果升级 / 3★ 质变）
           game.menuPanel = { type: 'starUp' };
           return;
         case 'shopShard': {
@@ -201,6 +208,21 @@ function onMenuTap(game, p) {
               price: d.price, shards: d.shards, relic: d.relic,
             },
           };
+          return;
+        }
+        case 'adOffer': {
+          const chest=it.data==='chest';
+          game.menuPanel={type:'shopDetail',kind:'adReward',item:{adKey:it.data,name:chest?'每日免费青铜宝箱':'每日免费钻石',price:0,
+            desc:chest?'完整观看广告，领取R碎片6～10、SR碎片1～2。每日一次，不含金币或钻石。':'完整观看广告，领取1钻石。每日一次。',color:'#86ccaa'}};
+          return;
+        }
+        case 'shopSection':
+          game._shopScrollVelocity = 0;
+          game.shopScroll = Math.max(0, Math.min(game.renderer._shopMaxScroll || 0, [0, 648, 1296][it.data] || 0));
+          return;
+        case 'diamondOffer': {
+          const offer=require('../../economy/diamond-shop.js').OFFERS[it.data];if(!offer)return;
+          game.menuPanel={type:'shopDetail',kind:{gold:'diamondGold',star:'diamondStar',scarlet:'diamondScarlet'}[it.data],item:{name:offer.name,price:offer.price,desc:offer.desc,color:it.data==='scarlet'?'#dc706d':'#57b9b4'}};
           return;
         }
         case 'shopChest': {
@@ -261,14 +283,14 @@ function onMenuTap(game, p) {
           return;
         }
         case 'deepChest': {
-          // v1.16.76 深度宝箱：就绪点击开启；未就绪提示剩余时间（钻石足够则提示可速开）
+          // 深度宝箱：就绪点击开启；未就绪提示剩余时间（钻石足够则提示可速开）
           const m = game.meta;
           const ch = m.deepChests[it.data];
           if (!ch) { game.toast('空槽位 · 局末按最深波次获得', '#5a6c80'); return; }
           if (m.chestReady(ch)) {
             const gain = m.openDeepChest(it.data);
             game.save.save();
-            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // v1.17.9d 开箱弹窗：收益一次弹出
+            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // .9d 开箱弹窗：收益一次弹出
             return;
           }
           const tier = CONFIG.DEPTH_CHEST.tiers.find((t) => t.key === ch.tier);
@@ -277,14 +299,14 @@ function onMenuTap(game, p) {
           if (m.diamond >= cost && m.speedOpen(it.data)) {
             const gain = m.openDeepChest(it.data);
             game.save.save();
-            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // v1.17.9d 速开同样弹窗
+            if (gain) game.menuPanel = { type: 'chestOpen', mode: 'deep', gain, tier: ch.tier, openedAt: Date.now() };   // .9d 速开同样弹窗
             return;
           }
           game.toast(`${tier.name} 开启中 · 还需 ${remainMin} 分钟（${cost}💎 立即开启）`, '#9fb2c3');
           return;
         }
         case 'debug':
-          // v1.16.76 调试工具入口（仅 DEBUG 构建）
+          // 调试工具入口（仅 DEBUG 构建）
           game.menuPanel = { type: 'debug' };
           return;
         default:
@@ -298,6 +320,14 @@ function confirmShopBuy(game) {
   const pnl = game.menuPanel;
   const item = pnl && pnl.item;
   if (!item) return;
+  if (pnl.kind === 'adReward') { require('../flows/ad-actions.js').watch(game,item.adKey); return; }
+  if (['diamondGold','diamondStar','diamondScarlet'].includes(pnl.kind)) {
+    const m=game.meta,old={gold:m.gold,diamond:m.diamond,shards:m.shards,relicDust:m.relicDust,totalDiamondSpent:m.totalDiamondSpent},key={diamondGold:'gold',diamondStar:'star',diamondScarlet:'scarlet'}[pnl.kind];
+    let result;try{result=require('../../economy/diamond-shop.js').buy(m,key);if(!result.ok){game.toast(result.reason==='diamond'?'钻石不足':'奖励生成失败','#ff6b6b');return;}if(game.save.save()===false)throw Error('save');}catch(error){Object.assign(m,old);game.toast('保存失败，未扣除钻石，请重试','#ff6b6b');return;}
+    if(key!=='gold')game.menuPanel={type:'chestOpen',mode:'shop',tier:key,gain:result.gain,openedAt:Date.now()};
+    else{game.menuPanel=null;game.toast('金币 +1000','#f7c948');}
+    game.menuHits=[];return;
+  }
   if (pnl.kind === 'shard') {
     const res = game.meta.buyShardOffer({ relic: item.relic, shards: item.shards, price: item.price });
     if (!res.ok) { game.toast('金币不足', '#ff6b6b'); return; }
@@ -315,8 +345,8 @@ function confirmShopBuy(game) {
     }
     game.save.save();
     game.menuPanel = { type: 'chestOpen', mode: 'shop',
-      tier: ({ blue: 'bronze', purple: 'silver', gold: 'gold' })[item.key],
-      gain: { shardDetail: Object.fromEntries(res.gains.map(g => [g.id, g.n])) }, openedAt: Date.now() };
+      tier: ({ wood: 'wood', star: 'star', blue: 'bronze', purple: 'silver', gold: 'gold' })[item.key],
+      gain: { dust: res.dust, shardDetail: Object.fromEntries(res.gains.map(g => [g.id, g.n])) }, openedAt: Date.now() };
     game.menuHits = [];
     return;
   }

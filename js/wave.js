@@ -26,10 +26,10 @@ class WaveDirector {
     if (g.run.finalVictory) return;
     g.run.startWave();
     g.waveTime = 0;
-    if (!keepEnemies) g.enemies = [];   // v1.17.3 40s 超时叠加波：不清残怪，新一波继续出
-    this._freezeDone = false;   // v1.16.78 冻结时刻：每波首个敌人冰冻
+    if (!keepEnemies) g.enemies = [];   // 40s 超时叠加波：不清残怪，新一波继续出
+    this._freezeDone = false;   // 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
-    // v1.17.9 本波参考时长 ≈ 投放时长(数量/平均每批 × 平均间隔1.5s) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
+    // 本波参考时长 ≈ 投放时长(数量/平均每批 × 平均间隔1.5s) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
     const avgBatch = (1 + Math.max(1, Math.ceil(g.run.wave / 5))) / 2;
     this.waveDur = Math.max(4, Math.round((this.plan.length / avgBatch) * 1.5) + 3);
     g.state = 'fighting';
@@ -42,21 +42,21 @@ class WaveDirector {
   }
 
   /** 生成本波敌人的投放计划（不立即出场，由 tick 按间隔陆续放出）
-   *  v1.17 代际重构（已确认 v2）：普通怪按 CONFIG.ENEMY.levelMix(w) 等级权重取模投放，
+   *  代际重构（已确认 v2）：普通怪按 CONFIG.ENEMY.levelMix(w) 等级权重取模投放，
    *  单只血量 = 等级表值；精英/Boss 用本波主等级 × 倍率。诅咒 ×1.15^n 乘到每只血量 */
   buildPlan() {
     const w = this.game.run.wave;
-    const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // v1.16.78 深渊诅咒被动
-    // v1.17.6 数量增长：基数 15，每 2 波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
+    const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // 深渊诅咒被动
+    // 数量增长：基数 15，每 2 波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
     const count = CONFIG.ENEMY.countForWave(w);
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
-    const eliteCount = Math.floor(count / 20);                  // v1.17.6 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
+    const eliteCount = Math.floor(count / 20);                  // 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
     const mix = CONFIG.ENEMY.levelMix(w);                       // 代际权重数组（主代 + 副代 + 残留代）
     const mainLv = CONFIG.ENEMY.mainLevel(w);                   // 本波主等级（精英/Boss 属性基准）
     this.plan = [];
     this.timer = 0;
     this._eid = 0;
-    this.planDoneAt = null;   // v1.17.5 投放完成时刻（game.waveTime），null=未放完
+    this.planDoneAt = null;   // 投放完成时刻（game.waveTime），null=未放完
     const bossN = hasBoss ? 1 : 0;
     const normalCount = count - bossN - eliteCount;
     for (let i = 0; i < normalCount; i++) {
@@ -70,7 +70,7 @@ class WaveDirector {
     if (hasBoss) {
       this.plan.push({ lv: mainLv, type: 'boss', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.bossHpMult * curseMult, offset: 0.5 + Math.random() * 0.3, isBoss: true }); // Boss 最后出场
     }
-    // v1.17.9 投放节奏：每 1~2s（随机）投放一批，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多）
+    // 投放节奏：每 1~2s（随机）投放一批，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多）
     this.interval = 1 + Math.random();   // 首批间隔也随机 1~2s
     if(Bosses.setup(this)) return;
     this.hasBoss = hasBoss;
@@ -82,10 +82,10 @@ class WaveDirector {
     if (!this.plan.length) return;
     this.timer += dt;
     if(this.game.run.bossLock){if(this.timer>=this.interval){this.timer=0;this.spawnOne();}return;}
-    const maxBatch = Math.max(1, Math.ceil(this.game.run.wave / 5)); // v1.17.8 单批上限随波次
+    const maxBatch = Math.max(1, Math.ceil(this.game.run.wave / 5)); // 单批上限随波次
     if (this.timer >= this.interval && this.plan.length) {
       this.timer = 0;
-      this.interval = 1 + Math.random();   // v1.17.9 下一批间隔随机 1~2s
+      this.interval = 1 + Math.random();   // 下一批间隔随机 1~2s
       const n = 1 + Math.floor(Math.random() * maxBatch); // 本批投放只数：1~maxBatch 随机
       for (let i = 0; i < n && this.plan.length; i++) this.spawnOne();
     }
@@ -101,14 +101,14 @@ class WaveDirector {
     this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
     const born=this.game.enemies[this.game.enemies.length-1];
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
-    // v1.17.52 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
+    // 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
     if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born._ringClock=0;born._ringCount=0;}
     if(it.isSummon)born.isSummon=true;
     if(Number.isFinite(it.spawnX)) born.x=it.spawnX;
-    if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // v1.17.5 投放完成时间戳
+    if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // 投放完成时间戳
   }
 
-  /** v1.16.131 出怪 X 坐标：避开行动区两侧灌木贴图障碍。
+  /** 出怪 X 坐标：避开行动区两侧灌木贴图障碍。
    *  背景图 assets/images/interface/battle/action_area_edges.jpg 实测：左右边缘各一排灌木丛（左 0-72px / 右 678-750px，
    *  含过渡带），取安全边距 75px → 出怪中心落在 [areaX+75, areaX+areaW-75] 内（含自身尺寸内缩） */
   spawnX(size) {
@@ -119,7 +119,7 @@ class WaveDirector {
   }
 
   /** 敌人入列（id / 位置 / 血量 / 速度 / 类型 / 攻城攻击参数 / A1 状态字段）
-   *  v1.17 代际重构：lv 为代际等级，攻击/减伤/移速/展示等级由 CONFIG.ENEMY.levelOf(lv) 取值；
+   *  代际重构：lv 为代际等级，攻击/减伤/移速/展示等级由 CONFIG.ENEMY.levelOf(lv) 取值；
    *  精英/Boss 在等级表基础上叠加自带 armor 与攻击倍率 */
   pushEnemy(hp, entryY, speed, offset, isBoss, type, lv) {
     const lcfg = CONFIG.ENEMY.levelOf(lv || 1);
@@ -133,30 +133,30 @@ class WaveDirector {
       x: this.spawnX(size),
       y: entryY + 20 * offset,
       hp, maxHp: hp, isBoss, type: type || 'normal',
-      genLv: lv || 1,                            // v1.17 代际等级（击杀金币/掉落按此取值）
+      genLv: lv || 1,                            // 代际等级（击杀金币/掉落按此取值）
       tier: (lv || 1) + (type === 'elite' ? 2 : type === 'tank' ? 1 : isBoss ? 4 : 0), // 展示等级 = 代际等级 + 类型档
       armor,
       speed: speed * (lcfg.spd / 1.5) * (isBoss ? 0.8 : 1), // 移速按等级表设计值归一化（Lv1 普通 = 基准 1.0）
-      speedBase: speed,                                     // v1.17.43 基准移速（UR 风灯：判定「移速高于基准」的比值基准）
+      speedBase: speed,                                     // 基准移速（UR 风灯：判定「移速高于基准」的比值基准）
       attack: lcfg.atk * (isBoss ? CONFIG.ENEMY.bossAtkMult : (type === 'elite' ? (CONFIG.ENEMY.eliteAtkMult || 1) : 1)), // 攻城每次伤害
       attackInterval: CONFIG.ENEMY.attackInterval[atkKey] || CONFIG.ENEMY.attackInterval.normal, // 攻城攻击间隔
       attackT: 0,
       vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
     };
     const en = initEnemyState(e);
-    en.waveNo = this.game.run.wave;   // v1.17.22 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零
+    en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零
     const ga = this.game;
     ga._waveAlive = ga._waveAlive || {};
     ga._waveAlive[en.waveNo] = (ga._waveAlive[en.waveNo] || 0) + 1;
-    // v1.17.48 本波出场总数（波末银币按「已击杀/已出场」折算，见 run.endWave 与 main.waveEnd）
+    // 本波出场总数（波末银币按「已击杀/已出场」折算，见 run.endWave 与 main.waveEnd）
     ga._waveTotal = ga._waveTotal || {};
     ga._waveTotal[en.waveNo] = (ga._waveTotal[en.waveNo] || 0) + 1;
-    // v1.16.78 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；v1.16.96 3★：其后 60 码内 2 名敌人各冻 2 秒
+    // 冻结时刻：每波首个敌人被冰冻 N 秒（按星级）；3★：其后 60 码内 2 名敌人各冻 2 秒
     if (!this._freezeDone) {
       const frz = this.game.run.relicNum('cm_freeze');
       if (frz > 0) {
         en.frozen = frz;
-        this.game.run.relicFx('cm_freeze', `首敌冻结 ${frz} 秒`, en.x, en.y); // v1.17 生效提示
+        this.game.run.relicFx('cm_freeze', `首敌冻结 ${frz} 秒`, en.x, en.y); // 生效提示
       }
       if (this.game.run.relic3('cm_freeze')) {
         const cands = this.game.enemies.filter((o) => o.hp > 0 && !(o.frozen > 0) && Math.abs(o.y - en.y) <= 60 && o.y > en.y);

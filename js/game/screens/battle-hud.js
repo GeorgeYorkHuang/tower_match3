@@ -4,7 +4,7 @@ const { fillRoundRect, text, progressBar } = require('../ui.js');
 function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_Y, AREA_W, ENTRY_H }) {
   function status(ctx, s) {
     const goldIcon = 40;
-    // v1.17.2 局内银币（左下安全区 18,70：整体避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
+    // 局内银币（左下安全区 18,70：整体避开灵动岛与右上小程序胶囊；局内银币跨波保留、局末折算为金币）
     if (!drawImg(ctx, IMG_SRC.silver, 18, 70, goldIcon, goldIcon)) {
       fillRoundRect(ctx, 18, 70, goldIcon, goldIcon, 10, '#c9d6e4');
       text(ctx, '¥', 38, 90, 20, '#5b6b7c', 'center');
@@ -31,7 +31,7 @@ function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_
       if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,AREA_Y+7,13,n===60?'#ffab95':'#e5d7aa',n===60?'right':'center');
     }
     text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,AREA_Y+7,14,'#e9dfc4','left');
-    // v1.17.2 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
+    // 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
       const rx = wx, ry = AREA_Y + 42, rIcon = 22, rGap = 28, rMax = 10;
@@ -45,7 +45,7 @@ function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_
         if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
           text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 13, '#ffffff', 'center');
         }
-        if (rc.star3) {   // v1.16.113 3★ 质变角标
+        if (rc.star3) {   // 3★ 质变角标
           fillRoundRect(ctx, icx + 8, ry - 3, 17, 12, 6, '#ffb347');
           text(ctx, '★3', icx + 16, ry + 9, 9, '#5c3800', 'center');
         }

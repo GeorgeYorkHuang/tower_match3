@@ -6,7 +6,7 @@ const CHAIN_STYLE = require('../../config/chain-flight.js');
 // 飞光拖尾沿用原事件的trail，不缓存或共享事件实例。
 function createMatchFx({ COLOR_FILL }) {
   function fxBeamp(ctx, f) {
-      // v1.16.38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮
+      // .38b 三消飞光（美化）：光点从盘面汇聚点飞向塔位/全局技能按钮
       // 200px匀减速下落0.3s → 最低点停留0.05s → 加速上升0.65s。
       const elapsed=Math.max(0,Math.min(MATCH_GLOW.duration,f.t));
       const p=elapsed/MATCH_GLOW.duration;
@@ -26,7 +26,7 @@ function createMatchFx({ COLOR_FILL }) {
       if (!f.trail) f.trail = [];
       f.trail.push({ x, y });
       if (f.trail.length > 8) f.trail.shift();
-      // 拖尾：越靠后越淡越小（v1.16.41 ×1.5）
+      // 拖尾：越靠后越淡越小（×1.5）
       for (let ti = 0; ti < f.trail.length - 1; ti++) {
         const tp = f.trail[ti];
         const k = (ti + 1) / f.trail.length;
@@ -34,7 +34,7 @@ function createMatchFx({ COLOR_FILL }) {
         ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(tp.x, tp.y, 2.25 + 3.3 * k, 0, Math.PI * 2); ctx.fill();
       }
-      // 本体：三层光晕（外柔光 → 中彩光 → 白芯，v1.16.41 ×1.5）
+      // 本体：三层光晕（外柔光 → 中彩光 → 白芯，×1.5）
       ctx.globalAlpha = 0.20 * (1 - p * 0.4);
       ctx.fillStyle = '#ffffff';
       ctx.beginPath(); ctx.arc(x, y, 19.5 + 6 * p, 0, Math.PI * 2); ctx.fill();
@@ -47,7 +47,7 @@ function createMatchFx({ COLOR_FILL }) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2); ctx.fill();
-      // 末端：到达终点 → 扩散涟漪 + 星芒闪光（停留 0.35s 视觉，v1.16.41 涟漪同步 ×1.5）
+      // 末端：到达终点 → 扩散涟漪 + 星芒闪光（停留 0.35s 视觉，涟漪同步 ×1.5）
       if (p >= 0.8) {
         const q = (p - 0.8) / 0.2;
         const qq = 1 - Math.pow(1 - q, 2);
@@ -67,7 +67,7 @@ function createMatchFx({ COLOR_FILL }) {
   }
 
   function fxMatch(ctx, f) {
-      // 三消消除反馈：彩色星芒迸发（十字线 + 中心白点，随进度扩散淡出）+ v1.17.29 环形冲击波
+      // 三消消除反馈：彩色星芒迸发（十字线 + 中心白点，随进度扩散淡出）+ 环形冲击波
       const p = Math.min(1, f.t / f.dur);
       const r = 6 + p * 16;
       const col = (f.color && COLOR_FILL[f.color]) ? COLOR_FILL[f.color] : '#ffffff';
@@ -78,7 +78,7 @@ function createMatchFx({ COLOR_FILL }) {
       ctx.moveTo(f.x - r, f.y); ctx.lineTo(f.x + r, f.y);
       ctx.moveTo(f.x, f.y - r); ctx.lineTo(f.x, f.y + r);
       ctx.stroke();
-      // v1.17.29 外扩冲击波环
+      // 外扩冲击波环
       ctx.globalAlpha = (1 - p) * 0.4;
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.6;
@@ -90,7 +90,7 @@ function createMatchFx({ COLOR_FILL }) {
       ctx.fillStyle=col;ctx.beginPath();ctx.arc(f.x,f.y,4.2,0,Math.PI*2);ctx.fill();
   }
 
-  /** v5.6 特殊块生成"降临"：地面光圈 + 升空光柱 + 类型符号旋转放大定格 */
+  /** 特殊块生成"降临"：地面光圈 + 升空光柱 + 类型符号旋转放大定格 */
   function fxSpecialSpawn(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.6));
     const e = 1 - Math.min(1, p * 1.5);   // 收缩系数
@@ -135,7 +135,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6 特殊块引爆：预告警示（前 25%）→ 多层爆环 + 放射线 + 粒子迸发（级联延迟由 f.t<0 控制） */
+  /** 特殊块引爆：预告警示（前 25%）→ 多层爆环 + 放射线 + 粒子迸发（级联延迟由 f.t<0 控制） */
   function fxSpecialBlast(ctx, f) {
     const dur = f.dur || 0.5;
     const p = Math.min(1, f.t / dur);
@@ -240,7 +240,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6 全屏爆闪：特殊块引爆瞬间整屏闪（0.14s 渐隐；v5.6.8 支持自定义颜色/强度，用于五消金色爆闪） */
+  /** 全屏爆闪：特殊块引爆瞬间整屏闪（0.14s 渐隐；支持自定义颜色/强度，用于五消金色爆闪） */
   function fxScreenFlash(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.14));
     const col = f.color || '#ffffff';
@@ -251,7 +251,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6.8 五消·彩虹生成：七色旋转光柱 + 光环升腾（0.55s） */
+  /** 五消·彩虹生成：七色旋转光柱 + 光环升腾（0.55s） */
   function fxRainbowSpawn(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.55));
     const e = 1 - p;
@@ -291,7 +291,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6.8 五消·自动扫描：金色光幕从棋盘顶扫到底，扫过格金色描边高亮（0.5s） */
+  /** 五消·自动扫描：金色光幕从棋盘顶扫到底，扫过格金色描边高亮（0.5s） */
   function fxScanSweep(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.5));
     const { w, h, cell } = f;
@@ -320,7 +320,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6.8 五消·染色：该色涟漪两圈扩散 + 染色格水波闪光 */
+  /** 五消·染色：该色涟漪两圈扩散 + 染色格水波闪光 */
   function fxRecolorWave(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.4));
     const cell = f.cell || 46;
@@ -347,7 +347,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6.8 五消·随机播种：星光从五消中心射向播种格 + 落地闪光环 */
+  /** 五消·随机播种：星光从五消中心射向播种格 + 落地闪光环 */
   function fxSeedStar(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.5));
     const q = Math.max(0, p);
@@ -379,7 +379,7 @@ function createMatchFx({ COLOR_FILL }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v5.6.8 五消·彩虹全消粒子雨：目标色方块碎裂粒子从棋盘格升腾下落 */
+  /** 五消·彩虹全消粒子雨：目标色方块碎裂粒子从棋盘格升腾下落 */
   function fxRainParticle(ctx, f) {
     const p = Math.min(1, f.t / (f.dur || 0.8));
     const cell = f.cell || 46;

@@ -44,7 +44,8 @@ module.exports = {
     // 不按测试号日志规则隐藏。
     sources: null,
     size: { base: 22, big: 28, dot: 16, crit: 30 },
-    life: { base: 0.75, dot: 0.6, big: 0.95 },
+    life: { base: 0.6, dot: 0.55, big: 0.7 },
+    motion: { horizontalSpeed: 110, launchSpeed: 240, gravity: 1200, fadeStart: 0.45 },
     rise: 46,                // 整个生命周期上飘的像素
     drift: 10,               // 横向漂移上限（确定性哈希，不消耗逻辑 RNG）
     stack: { step: 22, max: 4 },        // 同一个敌人同时多条时的纵向错位

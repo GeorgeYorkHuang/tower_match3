@@ -4,7 +4,7 @@ const BoardChests = require('./board-chests.js');
  * =====================================================================
  * 数据约定：
  *   grid[row][col] = 颜色 key（'red'|'blue'|'green'|'yellow'|'purple'|'orange'）或 null
- *   v5.2 特殊方块：格子值为 { c: 颜色key|null, s: 'row'|'col'|'cross'|'split'|'rand'|'rainbow', sub?: true }
+ *   特殊方块：格子值为 { c: 颜色key|null, s: 'row'|'col'|'cross'|'split'|'rand'|'rainbow', sub?: true }
  *     （sub=true 为分裂雷次级块，爆炸不再派生）
  *   row 0 为棋盘顶部（靠塔位区），col 0 为左侧
  *
@@ -34,7 +34,7 @@ function Board(cfg) {
   this.stats = { genCount: 0, regenCount: 0, cascadeTotal: 0, swapCount: 0 };
 }
 
-/* ---------- 特殊方块工具（v5.2） ---------- */
+/* ---------- 特殊方块工具（） ---------- */
 
 /** 格子颜色值：普通块返回自身，特殊块返回其 c 字段 */
 function cellColor(v) { return v !== null && typeof v === 'object' ? v.c : v; }
@@ -56,7 +56,7 @@ Board.prototype._randomSpecialId = function _randomSpecialId() {
   return ids[Math.floor(Math.random() * ids.length)];
 };
 
-/** v5.6.7 从棋盘现存普通颜色中随机选一色（彩虹块被爆炸波及时的清色目标） */
+/** 从棋盘现存普通颜色中随机选一色（彩虹块被爆炸波及时的清色目标） */
 Board.prototype._randomBoardColor = function _randomBoardColor() {
   const seen = new Set();
   for (let r = 0; r < this.rows; r++)
@@ -182,12 +182,12 @@ Board.prototype.findMatches = function findMatches() {
       r = end + 1;
     }
   }
-  // 彩虹块不参与任何自动匹配（v5.6.7：仅玩家交换彩虹块+色块触发全消，或爆炸波及随机色）
+  // 彩虹块不参与任何自动匹配（：仅玩家交换彩虹块+色块触发全消，或爆炸波及随机色）
   return mergeCross(h, v);
 };
 
 
-/** 相交合并：横/纵组共享格 → 合并为复合组（L/T 形），并标形状；彩虹组独立保留（不参与合并，v5.6.7） */
+/** 相交合并：横/纵组共享格 → 合并为复合组（L/T 形），并标形状；彩虹组独立保留（不参与合并，） */
 function mergeCross(h, v) {
   // 分离彩虹组（保持 rainbow/color 语义，不参与 L/T 合并）
   const rainbows = h.filter((g) => g.rainbow);
@@ -252,7 +252,7 @@ Board.prototype.resolve = function resolve() {
   const stepList = [];
   for (;;) {
     const matches = this.findMatches();
-    // v5.6.7 彩虹块交换：玩家把彩虹块与任意色块交换 → 该色全盘清除（并入本步匹配，走正常清除/结算/特效）
+    // 彩虹块交换：玩家把彩虹块与任意色块交换 → 该色全盘清除（并入本步匹配，走正常清除/结算/特效）
     if (this._rainbowSwapColor) {
       const color = this._rainbowSwapColor;
       const consumed = this._rainbowSwapCell; this._rainbowSwapCell = null;
@@ -268,7 +268,7 @@ Board.prototype.resolve = function resolve() {
     }
     if (!matches.length) break;
     steps++;
-    // v5.6.7 彩虹组保留配对色（findMatches 已按相邻同色记录 color），其余组按组首格取色
+    // 彩虹组保留配对色（findMatches 已按相邻同色记录 color），其余组按组首格取色
     matches.forEach((m) => { if (!m.rainbow) m.color = cellColor(this.grid[m.cells[0][0]][m.cells[0][1]]); });
     const toClear = this._markMatrix(false);
     matches.forEach((m) => m.cells.forEach(([r, c]) => { toClear[r][c] = true; }));
@@ -279,15 +279,15 @@ Board.prototype.resolve = function resolve() {
     const handled = new Set();
     const splitSeeds = [];      // 分裂雷占位 {r, c, color}
     const rainbowClear = [];    // 彩虹块待清颜色
-    // v1.17.29 特效数据透传：匹配组自身格 / 本步遗留特殊块（生成特效）/ 特殊块引爆波及格（爆炸特效）
+    // 特效数据透传：匹配组自身格 / 本步遗留特殊块（生成特效）/ 特殊块引爆波及格（爆炸特效）
     const matchCells = new Set();
     const stepPlanted = [];
     const blastList = [], blastSet = new Set();
-    // v5.6.8 高连技演出数据：本步首个五消组信息 / 染色格 / 播种格（供 match3 五消演出）
+    // 高连技演出数据：本步首个五消组信息 / 染色格 / 播种格（供 match3 五消演出）
     let m5Info = null;
     const recolorCells = [], seedCells = [];
     matches.forEach((m) => m.cells.forEach(([r, c]) => matchCells.add(r + ',' + c)));
-    // v5.6.7 彩虹块触发组色映射（彩虹格 → 配对色）：被爆炸波及的无色彩虹块则随机选一色
+    // 彩虹块触发组色映射（彩虹格 → 配对色）：被爆炸波及的无色彩虹块则随机选一色
     const rainbowColorOf = new Map();
     matches.forEach((m) => {
       if (!m.rainbow || !m.color) return;
@@ -314,7 +314,7 @@ Board.prototype.resolve = function resolve() {
       const st = v.s;
       const sub = v.sub === true;
       if (st === 'rainbow') {
-        // 配任意色消除 → 清该色全盘；被爆炸波及（无配对色）→ 随机选棋盘现存一色清除（v5.6.7）
+        // 配任意色消除 → 清该色全盘；被爆炸波及（无配对色）→ 随机选棋盘现存一色清除（）
         const color = rainbowColorOf.get(r + ',' + c) || this._randomBoardColor();
         if (color) rainbowClear.push(color);
       } else if (st === 'split') {
@@ -396,7 +396,7 @@ Board.prototype.resolve = function resolve() {
         if (mc && m.cells.some(([r, c]) => r === mc[0] && c === mc[1])) kept = mc;
         if (!kept) kept = m.cells[Math.floor(Math.random() * m.cells.length)];
         const sid0 = this.hooks.onMatch4(m.cells, kept, m.color, steps - 1);
-        // v5.2 随机 5 款：配置 'random' 时每次四消从 5 款四连技中随机抽取一款
+        // 随机 5 款：配置 'random' 时每次四消从 5 款四连技中随机抽取一款
         const sid = sid0 === 'random' ? this._randomSpecialId() : sid0;
         if (sid && CONFIG.MATCH_SKILL.match4.some((s) => s.id === sid)) {
           toClear[kept[0]][kept[1]] = false;
@@ -408,7 +408,7 @@ Board.prototype.resolve = function resolve() {
         }
       } else if (shape !== '3' && this.hooks.onMatch5) {
         const op = this.hooks.onMatch5(m.cells, m.color, shape, steps - 1);
-        // v5.6.8 记录首个五消组演出信息（rainbow/scan/recolor/seed）
+        // 记录首个五消组演出信息（rainbow/scan/recolor/seed）
         if (!m5Info) m5Info = { op, color: m.color, center: this._centerCell(m.cells) };
         if (op === 'rainbow') {
           // 组中心格转彩虹块（不进清除）
@@ -596,7 +596,7 @@ Board.prototype.trySwap = function trySwap(r1, c1, r2, c2) {
   const a = this.grid[r1][c1], b = this.grid[r2][c2];
   if (a === null || b === null || specialType(a) === 'obstacle' || specialType(b) === 'obstacle' || BoardChests.isChest(a) || BoardChests.isChest(b)) return { ok: false };
   this.grid[r1][c1] = b; this.grid[r2][c2] = a;
-  // v5.6.7 彩虹块与任意色块交换 → 该色全盘清除（无需形成普通三消组，resolve 消费 _rainbowSwapColor）
+  // 彩虹块与任意色块交换 → 该色全盘清除（无需形成普通三消组，resolve 消费 _rainbowSwapColor）
   const sa = this.grid[r1][c1], sb = this.grid[r2][c2];
   const ra = specialType(sa) === 'rainbow', rb = specialType(sb) === 'rainbow';
   let rainbowSwapColor = null;
@@ -611,7 +611,7 @@ Board.prototype.trySwap = function trySwap(r1, c1, r2, c2) {
     return { ok: false };
   }
   this.stats.swapCount++;
-  this._movedCell = [r1, c1];   // v5.2 交互四消保留格：玩家落格优先（resolve 内消费后置 null）
+  this._movedCell = [r1, c1];   // 交互四消保留格：玩家落格优先（resolve 内消费后置 null）
   this._rainbowSwapCell = rainbowSwapColor ? (ra ? [r1,c1] : [r2,c2]) : null;
   this._rainbowSwapColor = rainbowSwapColor;   // 彩虹交换清色（可为 null）
   const resolved = this.resolve();

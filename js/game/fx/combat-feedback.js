@@ -1,17 +1,21 @@
 'use strict';
+const HitFeedback = require('./hit-feedback.js');
 const Presentation = require('../../config/combat-presentation.js');
 // Presentation only: actual health plus shield loss, before reentrant death callbacks.
-function recordDamage(combat, enemy, hpBefore, sourceKey, kind = 'hit', shieldBefore = 0) {
+function recordDamage(combat, enemy, hpBefore, sourceKey, kind = 'hit', shieldBefore = 0, skill) {
+  let isCritical = false;
   if (kind && typeof kind === 'object') {
+    isCritical = !!(kind.isCritical || kind.crit);
     sourceKey = kind.sourceKey || sourceKey;
     kind = kind.kind || 'hit';
   }
+  if (hpBefore > enemy.hp || shieldBefore > (enemy.shield || 0)) HitFeedback.record(enemy, kind, skill);
   const numbers = combat.game && combat.game.dmgNumbers;
   if (!numbers || !Presentation.damageNumbers.enabled || !Presentation.allowsSource(sourceKey)) return;
   const healthLoss = Math.min(Math.max(0, hpBefore), Math.max(0, hpBefore - enemy.hp));
   const shieldLoss = Math.max(0, shieldBefore - Math.max(0, Number(enemy.shield) || 0));
   const amount = healthLoss + shieldLoss;
   if (!(amount > 0) || !Number.isFinite(amount)) return;
-  numbers.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y - 40, sourceKey, amount, kind });
+  numbers.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y - 40, sourceKey, amount, kind, isCritical });
 }
 module.exports = { recordDamage };

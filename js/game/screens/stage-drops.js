@@ -1,5 +1,5 @@
 /**
- * v1.17.48 主页战场卡信息层：战场说明 + 该战场专属掉落。
+ * 主页战场卡信息层：战场说明 + 该战场专属掉落。
  * 点击战场图标不再提示「未解锁 / 解锁条件」，改为信息展示；进场校验仍在 enter 分支。
  */
 'use strict';
@@ -7,6 +7,7 @@ const CONFIG = require('../../config.js');
 const BOSSES = require('../../config/bosses.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 
+const RED=require('../../config/red-relics.js');
 const UR_COLOR = '#ff5a3c';
 
 function urListOf(fieldId) {
@@ -24,14 +25,14 @@ function bossLine(id) {
   if (id === 'test') return '无 Boss 战 · 不计收益';
   if (id === 'abyss') return 'Boss · 复用圣坛花园三只（按诅咒乘算）';
   const bs = bossListOf(id);
-  if (!bs.length) return 'Boss · 20 / 40 / 60 波（待实装）';
+  if (!bs.length) return 'Boss · 20 / 40 / 60 波';
   return 'Boss · ' + bs.map((b) => `${b.wave} 波 ${b.name}`).join(' · ');
 }
 
 function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
   /**
    * 单张红件卡：只给 图标 + 名称（+ 持有态小标）。
-   * v1.17.49：战场介绍不再写效果文案（效果统一在圣物图鉴看），图标放大 50%（86→129）。
+   * ：战场介绍不再写效果文案（效果统一在圣物图鉴看），图标放大 50%（86→129）。
    */
   function _urCard(ctx, s, d, x, y, w, h) {
     const star = (s.relicStars && s.relicStars[d.id]) || (s.runCodex && s.runCodex[d.id] ? 1 : 0);
@@ -51,7 +52,7 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     // 名称
     text(ctx, d.name, cx, y + 14 + ic + 27, 24, owned ? '#ffd0c6' : '#c8b5b0', 'center');
     // 持有态小标（置于名称下方，避免与大图标重叠）
-    const tag = owned ? (star >= 3 ? '已满级' : `已获得 ${star}★`) : '未获得';
+    const fragments=(s.shards&&s.shards[d.id])||0;const tag = owned ? (star >= 3 ? '已满级' : `已获得 ${star}★`) : fragments>0?'碎片 '+fragments+'/'+(CONFIG.DUPLICATE_SHARDS.ur||10):'未获得';
     const tw = owned ? 96 : 72;
     fillRoundRect(ctx, cx - tw / 2, y + 14 + ic + 43, tw, 24, 12, owned ? UR_COLOR : 'rgba(255,255,255,0.10)');
     text(ctx, tag, cx, y + 14 + ic + 56, 13, owned ? '#2a0b06' : '#9aa8b6', 'center');
@@ -102,7 +103,7 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     // ---- 专属掉落 ----
     const urs = urListOf(id);
     text(ctx, '专属掉落', 62, cy, 23, UR_COLOR, 'left');
-    if (urs.length) text(ctx, '20 / 40 / 60 波 Boss', 690, cy, 16, '#8e6a62', 'right');
+    if (urs.length) text(ctx, '60波通关Boss · 保底'+RED.fragments.join('～')+'片', 690, cy, 16, '#8e6a62', 'right');
 
     const cardY = cy + 20;
     if (urs.length) {

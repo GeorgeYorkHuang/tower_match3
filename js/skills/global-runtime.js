@@ -19,7 +19,8 @@ function cast(combat,id){
  case 'chainstorm':s.chainstorm=true;break;case 'twins':s.twins=true;break;case 'charge':s.charge=true;break;case 'gold':s.gold=BALANCE.gold.duration;break;
  default:return false;
  }
- combat.fxFlash(375,800,def.color,0.35);combat.fxRing(375,800,def.color,240,0.5,6);
+ require('../game/fx/global-feedback.js').emit(combat,id);
+ combat.fxFlash(375,800,def.color,0.35);
  if(g.toast)g.toast(def.name+' · 已释放',def.color);return true;
 }
 

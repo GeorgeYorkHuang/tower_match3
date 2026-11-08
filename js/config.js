@@ -17,11 +17,11 @@ module.exports = {
     towerRow:       { h: 122  },          // 塔位区（紧贴城墙下方）
     towerSlot:      { size: 100, gap: 28, count: 4 }, // 槽 100×100，间距 28，整体 484 居中
     towerIcon:      { size: 98, badge: 16, expBar: { w: 98, h: 6 } }, // 图标近占满槽位
-    boardArea:      { w: 750, h: 420 },   // 棋盘区（7 格 ×60 = 420，v1.17.11 塔位区即城墙后棋盘上移扩展）
-    boardCell:      { size: 60, cols: 11, rows: 7, marginX: 15, marginBottom: 6 }, // 77 格（v1.17.11 6×12 → 7×11）
+    boardArea:      { w: 750, h: 420 },   // 棋盘区（7 格 ×60 = 420，塔位区即城墙后棋盘上移扩展）
+    boardCell:      { size: 60, cols: 11, rows: 7, marginX: 15, marginBottom: 6 }, // 77 格（6×12 → 7×11）
     funcBar:        { h: 102, keySize: 88 }, // 底部功能键区（三消棋盘下方）
-    enemy:          { normal: 72, runner: 60, tank: 96, boss: 128, elite: 92 }, // 怪物显示尺寸（按类型，v1.5 放大一倍）
-    pickLayer:      { w: 640, h: 660 },   // 三选一弹层（v1.7：横向三卡，上图标/中介绍/下描述）
+    enemy:          { normal: 72, runner: 60, tank: 96, boss: 128, elite: 92 }, // 怪物显示尺寸（按类型，放大一倍）
+    pickLayer:      { w: 640, h: 660 },   // 三选一弹层（：横向三卡，上图标/中介绍/下描述）
     menu:           { tabY: 150, tabH: 84, tabW: 165, gap: 15 }, // 主界面页签区（4 页签：战斗/配置/商店/圣物）
   },
 
@@ -45,7 +45,7 @@ module.exports = {
     },
   },
 
-  PENALTY_RATIO: 0.5,           // 惩罚色消除 → 随机已有塔经验，数值打五折（v1.12 起惩罚色改为全局技能充能，此值保留作口径记录）
+  PENALTY_RATIO: 0.5,           // 惩罚色消除 → 随机已有塔经验，数值打五折（起惩罚色改为全局技能充能，此值保留作口径记录）
 
   DIRECT_FIRST: 2,              // 新手/标准路径：前 2 次消除定向红/绿（引导协同开局）
 
@@ -72,10 +72,10 @@ module.exports = {
       win:  { accent: '#f7c948', soft: 'rgba(247,201,72,0.20)', dim: 'rgba(247,201,72,0.16)', btn: '#2b6d4f' },
       lose: { accent: '#ff6b6b', soft: 'rgba(231,76,60,0.20)', dim: 'rgba(231,76,60,0.16)', btn: '#3a6ea5' },
     },
-    RARITY: { r: '#4aa3ff', sr: '#a86bff', ssr: '#f7c948' },   // v1.17.22 大卡边框/胶囊用，先登记
+    RARITY: { r: '#4aa3ff', sr: '#a86bff', ssr: '#f7c948' },   // 大卡边框/胶囊用，先登记
     TRAIL: { x0: 70, x1: 680, lineY: 404, waveMax: 60, nodeR: 10, endR: 14, flagH: 34, labelGap: 34 },
     // 时间轴关键帧（ms），与计划文档「六、动画时间轴」一致
-    // v1.17.48 旗帜/轨迹段放慢近一倍：已走段生长 380→720，里程碑旗逐个亮起 60→120ms 间隔，
+    // 旗帜/轨迹段放慢近一倍：已走段生长 380→720，里程碑旗逐个亮起 60→120ms 间隔，
     //   末端与后续账单按新节奏顺延（末节点完成 ≈1.36s，整场演出 2.16→2.72s，仍有「点击跳过」）
     TL: {
       stage: 0, ribbon: 120, title: 140, meta: 260,
@@ -88,18 +88,18 @@ module.exports = {
   MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
 
   KILL_DROP: {
-    miniBossChestChance: 0.5,         // 每5波小Boss战斗宝箱掉率50%
+    miniBossChestChance: 0.55,        // 每5波小Boss战斗宝箱掉率55%
     majorBossChestChance: 1,          // 每20波大Boss战斗宝箱掉率100%
-    eliteShardChance: 0.05,           // 精英5%概率掉1片
-    miniBossShardChance: 0.20,        // 每5波小Boss20%概率掉碎片
+    eliteShardChance: 0.10,           // 精英10%概率掉1片
+    miniBossShardChance: 0.25,        // 每5波小Boss25%概率掉碎片
     miniBossShardMin: 2,
     miniBossShardMax: 4,
     majorBossShardBase: 2,            // 每20波大Boss保底2片
-    majorBossShardBonusChance: 0.5,   // 50%概率额外掉3~6片
+    majorBossShardBonusChance: 0.55,  // 55%概率额外掉3~6片
     majorBossShardBonusMin: 3,
     majorBossShardBonusMax: 6,
     rarityWeight: { r: 0.60, sr: 0.32, ssr: 0.08 },  // 碎片稀有度权重
-    // v1.17 击杀银币（随代际等级成长）：单怪 = (5~10 浮动) × 等级系数 × 类型倍率 × 战场银币倍率
+    // 击杀银币（随代际等级成长）：单怪 = (5~10 浮动) × 等级系数 × 类型倍率 × 战场银币倍率
     // 等级系数 goldLevelMult(lv) = 1 + 0.125×(lv-1)：Lv1=1.0（5~10）→ Lv9=2.0（10~20）→ Lv10=2.125
     // 波50 mix=Lv9 60%+Lv10 40% → 平均系数 2.05 ≈ 波1 的 2 倍（用户目标）；替代旧 1.06^w 通胀
     killGold: [5, 10],                // 普通击杀单怪银币区间（Lv1 基准）
@@ -114,12 +114,115 @@ module.exports = {
     bonusCardShards: 5,        // 额外圣遗物卡折算碎片数
     // 单局最深波次 → 宝箱档位（50 波顶配）
     tiers: [
-      { key: 'wood',   name: '木质宝箱', max: 9,   openSec: 15 * 60,      speedDiamond: 2,  gold: [100, 200], shards: [2, 4],  cardChance: 0.20, cardRarity: 'r',    diamond: 0, stone: 0 },
-      { key: 'bronze', name: '青铜宝箱', max: 19,  openSec: 1 * 3600,     speedDiamond: 6,  gold: [250, 450], shards: [5, 9],  cardChance: 0.35, cardRarity: 'r',    diamond: 0, stone: 0 },
-      { key: 'silver', name: '白银宝箱', max: 29,  openSec: 3 * 3600,     speedDiamond: 15, gold: [500, 800], shards: [10, 16], cardChance: 1.0, cardRarity: 'sr',   diamond: 0, stone: 0 },
-      { key: 'gold',   name: '黄金宝箱', max: 39,  openSec: 8 * 3600,     speedDiamond: 30, gold: [900, 1500], shards: [18, 30], cardChance: 1.0, cardRarity: 'sr',  diamond: 3, stoneChance: 0.10, goldCardChance: 0.25 },
-      { key: 'star',   name: '星辉宝箱', max: 9999, openSec: 12 * 3600,   speedDiamond: 50, gold: [1800, 3000], shards: [35, 60], cardChance: 1.0, cardRarity: 'ssr', diamond: 5, stone: 1 },
+  {
+    "key": "wood",
+    "name": "木质宝箱",
+    "max": 9,
+    "openSec": 900,
+    "gold": [
+      150,
+      250
     ],
+    "fragments": {
+      "r": [
+        4,
+        6
+      ]
+    }
+  },
+  {
+    "key": "bronze",
+    "name": "青铜宝箱",
+    "max": 19,
+    "openSec": 3600,
+    "gold": [
+      350,
+      550
+    ],
+    "fragments": {
+      "r": [
+        6,
+        10
+      ],
+      "sr": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "key": "silver",
+    "name": "白银宝箱",
+    "max": 29,
+    "openSec": 10800,
+    "gold": [
+      700,
+      1000
+    ],
+    "fragments": {
+      "r": [
+        8,
+        12
+      ],
+      "sr": [
+        4,
+        6
+      ]
+    },
+    "ssrChance": 0.25
+  },
+  {
+    "key": "gold",
+    "name": "黄金宝箱",
+    "max": 39,
+    "openSec": 21600,
+    "gold": [
+      1300,
+      1800
+    ],
+    "fragments": {
+      "r": [
+        10,
+        16
+      ],
+      "sr": [
+        8,
+        12
+      ],
+      "ssr": [
+        2,
+        2
+      ]
+    },
+    "diamond": 3,
+    "bonusDiamondChance": 0.1
+  },
+  {
+    "key": "star",
+    "name": "星辉宝箱",
+    "max": 9999,
+    "openSec": 28800,
+    "gold": [
+      2200,
+      3200
+    ],
+    "fragments": {
+      "r": [
+        12,
+        20
+      ],
+      "sr": [
+        12,
+        18
+      ],
+      "ssr": [
+        4,
+        4
+      ]
+    },
+    "diamond": 6
+  }
+],
     slots: 4,                 // 同时开启上限
   },
 
@@ -157,7 +260,15 @@ module.exports = {
   },
 
   ECONOMY: {
-    goldPerWaveBase: 60, goldPerWaveGrowth: 1.08,   // 每波基础银币 = 60 × 1.08^(w-1)（全局，不绑塔）
+    goldPerWaveBase: 60,
+    goldPerWaveEarlyStep: 6,
+    goldPerWaveLateStep: 2,
+    goldPerWaveKnee: 20,
+    waveSilver(wave) {
+      const w = Math.max(1, Math.floor(Number(wave) || 1));
+      return this.goldPerWaveBase + Math.min(w - 1, this.goldPerWaveKnee - 1) * this.goldPerWaveEarlyStep
+        + Math.max(0, w - this.goldPerWaveKnee) * this.goldPerWaveLateStep;
+    },
     goldTargetCap: 100000,      // 30 分钟期末囤积上限断言
   },
 
@@ -187,7 +298,7 @@ module.exports = {
   },
 
   DAILY: {
-    perDay: 6,                  // v5.3c 每日碎片精选数量（改为碎片奖励，非整件）
+    perDay: 6,                  // 每日碎片精选数量（改为碎片奖励，非整件）
     shards: { r: 3, sr: 2, ssr: 1 },      // 各稀有度每日碎片数量
     price: { r: 300, sr: 600, ssr: 1200 }, // 各稀有度精选金币价
     refreshHour: 0,             // 每日 0 点刷新
@@ -221,3 +332,13 @@ for (const domain of [
   }
 }
 
+
+// Active UR registry: the six Sanctum talent relics. Legacy field UR cards are retired.
+for (const card of require('./config/red-relics.js').cards()) {
+ module.exports.RELIC_RARITY[card.id]='ur';
+ module.exports.RELIC_REWORK.RELIC_RARITY[card.id]='ur';
+ module.exports.RELIC_RUN.ur.push({id:card.id,name:card.name,icon:'◆',desc:card.desc,star2:card.star2,star3:card.star3,talent:true,tower:card.tower,field:require('./config/red-relics.js').fieldOf(card.id)});
+}
+
+// Both configuration facades expose the same active UR list.
+module.exports.RELIC_REWORK.RELIC_RUN.ur=module.exports.RELIC_RUN.ur;

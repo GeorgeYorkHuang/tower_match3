@@ -3,7 +3,7 @@
 const SMALL_BOOMERANG = 'assets/images/towers/fx/boomerang/boomerang_storm_bounce_purple.png';
 const VORTEX_SPRITE = 'assets/images/towers/fx/boomerang/vortex_spin.png';
 function fxCyclone(ctx, f, drawImg) {
-      // v1.16.21 风暴镖重做：三同心圈（不可见）沿圈旋转的十字飞镖，引用 combat 实时 darts（命中消失同步）
+      // 风暴镖重做：三同心圈（不可见）沿圈旋转的十字飞镖，引用 combat 实时 darts（命中消失同步）
       // 小镖改用素材图中的绿色三刃回旋镖，绕轨道自旋。
       const darts = f.darts || [];
       for (const d of darts) {

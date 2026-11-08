@@ -43,7 +43,7 @@ function _iceMultiShot(combat, e, dmg) {
   const R = combat.range('ice');                 // 射界半径（= 塔射程）
   if (cLv > 0) {
     // C 增殖：超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
-    const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + combat.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★
+    const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + combat.relicVal('ice_blizzard');   // 暴雪1★/2★
     const perDmg = dmg * balance.swarmDamage * (1 + balance.damagePerBranch * bLv);
     const hitR = balance.swarmHitRadius;                             // 超小冰锥碰撞半径更小
     const strike = (o, d, shot) => combat.hitIce(o, d, shot);
@@ -57,7 +57,7 @@ function _iceMultiShot(combat, e, dmg) {
     // 增殖仅由每枚真实冰锥碰撞结算，不额外对主目标即时扣血。
     return;
   }
-  const n = balance.count + aLv + combat.relicVal('ice_blizzard');   // v1.16.114 暴雪1★/2★：每次攻击冰锥数量 +2/+3
+  const n = balance.count + aLv + combat.relicVal('ice_blizzard');   // 暴雪1★/2★：每次攻击冰锥数量 +2/+3
   const perDmg = dmg * balance.damage * (1 + balance.damagePerBranch * bLv);
   const hitR = balance.hitRadius;                                     // 散射冰锥碰撞半径
   const strike = (o, d, shot) => combat.hitIce(o, d, shot); // 多重冰锥与普通冰锥共用命中/碎冰逻辑
@@ -94,7 +94,7 @@ function _iceMultiShot(combat, e, dmg) {
 
 function hitIce(combat, e, dmg, projectile = null, options = {}) {
   combat.damage(e, dmg, 'ice');
-  // v1.16.114 暴雪1★/2★（未学多重冰锥时）：单发追加 N 枚散射冰锥（命中结算：冰缓/冰冻/暴雪3★ 冰爆）
+  // 暴雪1★/2★（未学多重冰锥时）：单发追加 N 枚散射冰锥（命中结算：冰缓/冰冻/暴雪3★ 冰爆）
   const blzN = combat.relicVal('ice_blizzard');
   if (blzN > 0) {
     const mzI = combat.towerMuzzle('ice');
@@ -113,16 +113,16 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
       combat.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur: durI, sx: mzI.x, sy: mzI.y, tx: txI, ty: tyI, hitR: 45, onHit: stI }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: mzI.x, y: mzI.y, t: 0, dur: durI, key: 'ice', aim: true, scale: 1.15, tx: txI, ty: tyI });
     }
   }
-  // v1.13.27 普攻命中打击特效：冰锥撞击爆冰晶（白屑 + 蓝屑 + 小环 + 微闪）
+  // 普攻命中打击特效：冰锥撞击爆冰晶（白屑 + 蓝屑 + 小环 + 微闪）
   combat.fxParticle(e.x, e.y, '#eaf6ff', 6, 44, 0.30, 130, 5);
   combat.fxParticle(e.x, e.y, '#a9d6f5', 4, 62, 0.35, 90, 4);
   combat.fxRing(e.x, e.y, '#d6f0ff', 16, 0.2, 2);
-  // 普攻冰缓+冰冻（v1.16.21→v1.16.53 统一判定）：冰缓基础 20%（寒霜 +25% + A 极寒每级 +15%）；
+  // 普攻冰缓+冰冻（→统一判定）：冰缓基础 20%（寒霜 +25% + A 极寒每级 +15%）；
   //   冰冻学技能后 20%（A 档位）；强化攻击同吃此加成
   combat.tryAttackDebuff('ice', e, dmg);
-  // v1.16.98 暴雪3★：主目标命中判定（已冰缓 → 30% 冰爆）
+  // 暴雪3★：主目标命中判定（已冰缓 → 30% 冰爆）
   combat.iceHitFx(e, dmg);
-  // v1.16.98 冰雾（1★/2★ 补齐保留项行为）：普攻 20%/30% 概率额外减速目标周围敌人（半径100）
+  // 冰雾（1★/2★ 补齐保留项行为）：普攻 20%/30% 概率额外减速目标周围敌人（半径100）
   //   3★：触发时残留冰雾地面 3 秒，域内敌人攻速 -20%
   const fogN = combat.game.run.relicNum('ice_fog');
   if (fogN > 0 && Math.random() < fogN / 100) {
@@ -137,15 +137,15 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
       combat.fxRing(e.x, e.y, '#d6f0ff', 100, 0.6, 4);
     }
   }
-  // v1.16.130 多重冰锥发射已移至 attackOnce _iceMultiShot（一次普攻从塔口扇形飞出 n 枚，中心锁定主目标）；
+  // 多重冰锥发射已移至 attackOnce _iceMultiShot（一次普攻从塔口扇形飞出 n 枚，中心锁定主目标）；
   //   C 增殖分支保留在 _iceMultiShot（超小冰锥各自索敌独立飞行）
-  // 碎冰（v1.13.24 原低温全塔改；v1.16.21 分支重做）：冰锥命中目标后碎裂成 3 枚小碎冰，飞行速度与原冰锥一致，
+  // 碎冰（原低温全塔改；分支重做）：冰锥命中目标后碎裂成 3 枚小碎冰，飞行速度与原冰锥一致，
   //   沿弹道方向呈 60° 角散射（±30°），碎冰命中敌人即止（不穿透）
   //   A 裂片 +1/级（3→4→5）、B 碎劲 伤害档位 +15%/30%/45%、C 冻结 命中 5%/10%/15% 几率冻结 2s
   const shard = combat.lv('ice', '碎冰');
   if (shard > 0 && !options.deferShatter) {
     const g = combat.game;
-    // v1.16.37 统一 towerMuzzle（测试战场单塔大槽）
+    // 统一 towerMuzzle（测试战场单塔大槽）
     const mz = combat.towerMuzzle('ice');
     const msx = mz.x, msy = mz.y;
     const len = Math.hypot(e.x - msx, e.y - msy) || 1;
@@ -167,12 +167,12 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
         : fallbackSpeed;
     const hitR = SKILL_NUM.ice['碎冰'].hitRadius;
     const strike = (o, d) => {
-      // v1.16.98 碎冰强化3★：碎冰命中已有冰缓的敌人时伤害 ×1.5
+      // 碎冰强化3★：碎冰命中已有冰缓的敌人时伤害 ×1.5
       if (combat.game.run.relic3('ice_shard') && o.slow && o.slow.ttl > 0) d *= 1.5;
       combat.damage(o, d, 'ice');
-      combat.tryAttackDebuff('ice', o, d);   // v1.16.53 碎冰小碎冰属普攻强化：统一冰缓/冰冻判定（C 冻结为其专属保留）
-      combat.iceHitFx(o, d);                 // v1.16.98 暴雪3★
-      // v1.13.27 碎冰命中：冰晶迸发 + 闪光 + 小环
+      combat.tryAttackDebuff('ice', o, d);   // 碎冰小碎冰属普攻强化：统一冰缓/冰冻判定（C 冻结为其专属保留）
+      combat.iceHitFx(o, d);                 // 暴雪3★
+      // 碎冰命中：冰晶迸发 + 闪光 + 小环
       combat.fxFlash(o.x, o.y, '#d6f0ff', 0.22);
       combat.fxParticle(o.x, o.y, '#b8e6ff', 6, 46, 0.35, 140, 5);
       combat.fxRing(o.x, o.y, '#7fd4ff', 26, 0.25, 3);
@@ -194,7 +194,7 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
       combat.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur: shardDur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur: shardDur, key: 'ice', aim: true, scale: 0.85, tx, ty });
     }
   }
-  // 冰穿刺（v1.16.21 重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）
+  // 冰穿刺（重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）
   //   A 冰穿 穿透目标 +1/+2/+3（1→2/3/4 名）；B 透射 穿透后伤害 +30%/60%/90%；C 冰霜透射 命中后对敌人身后 60px·90° 扇形造成 30%/40%/50% 伤害
   // 穿透目标由实体弹道逐个碰撞结算；C 分支在每次命中后追加身后扇形伤害。
   const pierce = combat.lv('ice', '冰穿刺');
@@ -228,7 +228,7 @@ function iceHitFx(combat, o, d) {
 function tickIce(combat, dt) {
   const g = combat.game;
   const relicCd = Math.max(0.2, 1 - combat.game.run.relicNum('r_ice_cd') / 100);
-  // 冰·冰花（v1.13.23 原霜星改周期技；v1.16.21 分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
+  // 冰·冰花（原霜星改周期技；分支重做）：每 8 秒对最近 N 个敌人召唤冰花（爆炸范围 100·本体 80% 伤害；
   //     A 扩张 范围 +20/40/60%、B 霜力 伤害 +20/40/60%、C 繁花 数量 +1/+2/+3；原 A 碎散传染移除）
   const flowerBalance = SKILL_NUM.ice['冰花'];
   const flower = combat.lv('ice', '冰花');
@@ -245,7 +245,7 @@ function tickIce(combat, dt) {
         const r = flowerBalance.baseRadius * (1 + SKILL_NUM.ice['冰花'].radius[combat.branchLv('ice', '冰花', 'A')]);
         const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
         targets.forEach((tgt) => {
-          // v1.16.9 伤害改为延迟到冰花第 3 帧动画末尾（dur 1.1s ÷ 4 帧 ≈ 0.275s/帧 → 0.825s≈0.8s）结算，
+          // 伤害改为延迟到冰花第 3 帧动画末尾（dur 1.1s ÷ 4 帧 ≈ 0.275s/帧 → 0.825s≈0.8s）结算，
           // 此时冰花绽放完成"爆炸"，一并触发范围伤害与扩散演出
           const fxDmg = dmg;
           const fxR = r;
@@ -253,7 +253,7 @@ function tickIce(combat, dt) {
             x: tgt.x, y: tgt.y, r: fxR, dmg: fxDmg, delay: 0.8, t: 0, key: 'ice',
             fn: (cb) => {
               const hitOnes = cb.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - tgt.x, o.y - tgt.y) <= fxR);
-              hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice', undefined, '冰花'));   // v1.17.50 标注
+              hitOnes.forEach((o) => cb.damage(o, fxDmg, 'ice', undefined, '冰花'));   // 标注
               // 爆炸演出：扩散冰环 + 冰晶碎瓣 + 闪光（与伤害同时）
               cb.fxRing(tgt.x, tgt.y, '#7fd4ff', fxR, 0.5, 5);
               cb.fxParticle(tgt.x, tgt.y, '#b8e6ff', 16, 90, 0.6, 160, 6);
@@ -273,13 +273,13 @@ function tickIce(combat, dt) {
               }
             }
           });
-          // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（v1.13.26）
+          // 冰花视觉：绽放六瓣冰花本体 + 扩散冰环 + 冰晶碎瓣 + 闪光（）
           combat.game.fx.push({ type: 'shot', kind: 'icebloom', x: tgt.x, y: tgt.y, r: fxR, t: 0, dur: 1.1 });
         });
       }
     }
   }
-  // 冰·冬珠（v1.13.23 原冻结率改持续球；v1.16.21 分支重做）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
+  // 冰·冬珠（原冻结率改持续球；分支重做）：每 10 秒释放冰霜之球，球持续 5s，期内周期对周围造成伤害
   //     A 寒域 范围减速 20%/30%/40%；B 扩张 范围 +20/40/60%；C 凝华 伤害频率 0.7/0.55/0.4 秒一跳（原数量+1 移除）
   const orbBalance = SKILL_NUM.ice['冬珠'];
   const orbSkill = combat.lv('ice', '冬珠');
@@ -294,13 +294,13 @@ function tickIce(combat, dt) {
         const cLv = combat.branchLv('ice', '冬珠', 'C');
         const tickI = cLv > 0 ? SKILL_NUM.ice['冬珠'].tickI[cLv] : orbBalance.defaultTickInterval;
         const slowMult = SKILL_NUM.ice['冬珠'].slowMult[combat.branchLv('ice', '冬珠', 'A')];
-        const dmg = combat.shotDmg('ice', false, true) * orbBalance.damage;   // v1.16.11 平衡：冬珠每跳 0.55→0.44×普攻
+        const dmg = combat.shotDmg('ice', false, true) * orbBalance.damage;   // 平衡：冬珠每跳 0.55→0.44×普攻
         const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbBalance.targetCount);   // 最近 1 个敌人位置落球（C 不再增加数量）
         combat.frostOrbs = combat.frostOrbs || [];
         spots.forEach((sp) => {
           combat.frostOrbs.push({ x: sp.x, y: sp.y, r, ttl: orbBalance.duration, tickT: 0, tickI, dmg, slowMult });
           combat.game.fx.push({ type: 'shot', kind: 'frostorb', x: sp.x, y: sp.y, r, t: 0, dur: orbBalance.duration });
-          // v1.13.27 冬珠浮现光效：冰球凝现闪光 + 冰雾
+          // 冬珠浮现光效：冰球凝现闪光 + 冰雾
           combat.fxFlash(sp.x, sp.y, '#d6f0ff', 0.3);
           combat.fxParticle(sp.x, sp.y, '#b8e6ff', 8, 70, 0.5, 140, 5);
         });
@@ -319,7 +319,7 @@ function tickIce(combat, dt) {
             if (o.hp <= 0 || Math.hypot(o.x - ob.x, o.y - ob.y) > ob.r) return;
             combat.damage(o, ob.dmg, 'ice', { kind: 'dot' }, '冬珠');   // 冬珠周期伤害计入 DOT 与技能明细
             if (ob.slowMult > 0) combat.applySlow(o, ob.slowMult, orbBalance.slowDuration, 'ice');
-            // v1.16.98 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
+            // 冬域3★：冬珠伤害命中冰缓的敌人时，将其冰缓转化为冰冻 0.5 秒（同一敌人 3 秒内仅触发一次）
             if (combat.game.run.relic3('ice_domain') && o.slow && o.slow.ttl > 0 && !(o._domainCd > 0)) {
               o._domainCd = 3;
               combat.freezeE(o, 0.5);
@@ -332,7 +332,7 @@ function tickIce(combat, dt) {
       combat.frostOrbs = remain;
     }
   }
-  // 冰墙（v1.13.25 原永冻改，驻场城墙护盾；v1.16.21 数值重做）：每 20 秒为城墙附魔冰盾，持续 10s，
+  // 冰墙（原永冻改，驻场城墙护盾；数值重做）：每 20 秒为城墙附魔冰盾，持续 10s，
   //     抵御 300 伤害；攻击冰墙的敌人减速 40% + 攻击间隔 +0.5s（由 main.js 攻城段结算吸收/反伤/迟缓）
   //     A 凝壁 持续 +2/+4/+6s（档位式）；B 霜反 反伤 30%/60%/90%；C 融暖 结束回血 +50/+100/+150
   const iceWallBalance = SKILL_NUM.ice['冰墙'];
@@ -348,11 +348,11 @@ function tickIce(combat, dt) {
           const maxHp = combat.game.run.lineMaxHp || CONFIG.LINE.hp;
           combat.game.run.lineHp = Math.min(maxHp, combat.game.run.lineHp + iw.heal);
         }
-        // v1.16.47：冰盾碎裂白光一闪（v1.16.53 扩散环扩至整墙）
+        // ：冰盾碎裂白光一闪（扩散环扩至整墙）
         combat.fxFlash(375, combat.ly().wallY, '#ffffff', 0.3);
         combat.fxRing(375, combat.ly().wallY, '#7fd4ff', 700, 0.5, 5);
         combat.fxParticle(375, combat.ly().wallY, '#b8e6ff', 16, 90, 0.6, 160, 6);
-        // v1.16.98 冰甲3★：冰盾破碎时向周围释放冰环，冻结敌人 1 秒
+        // 冰甲3★：冰盾破碎时向周围释放冰环，冻结敌人 1 秒
         if (combat.game.run.relic3('ice_armor')) {
           combat.enemies().forEach((o) => {
             if (o.hp > 0 && o.y >= combat.ly().areaY) combat.freezeE(o, 1);
@@ -367,18 +367,18 @@ function tickIce(combat, dt) {
       combat.castEnergy('ice', '冰墙');
       combat.iceWall = {
         ttl: iceWallBalance.duration + SKILL_NUM.ice['冰墙'].ttl[combat.branchLv('ice', '冰墙', 'A')],   // 基础 10s + A 档位 +2/+4/+6s
-        absorb: iceWallBalance.absorb,   // v1.16.21：基础抵御 300 点伤害
+        absorb: iceWallBalance.absorb,   // ：基础抵御 300 点伤害
         reflect: SKILL_NUM.ice['冰墙'].reflect[combat.branchLv('ice', '冰墙', 'B')],   // B 反伤 30%/60%/90%
         heal: SKILL_NUM.ice['冰墙'].heal[combat.branchLv('ice', '冰墙', 'C')],      // C 融暖结束回血 +50/+100/+150
       };
-      combat.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: combat.ly().wallY, r: 700, t: 0, dur: combat.iceWall.ttl });   // v1.16.53 r=700 覆盖整座城墙（25~725）
+      combat.game.fx.push({ type: 'shot', kind: 'icewall', x: 375, y: combat.ly().wallY, r: 700, t: 0, dur: combat.iceWall.ttl });   // r=700 覆盖整座城墙（25~725）
       combat.fxRing(375, combat.ly().wallY, '#7fd4ff', 700, 0.6, 5);
       combat.fxParticle(375, combat.ly().wallY, '#b8e6ff', 18, 100, 0.7, 180, 6);
-      // v1.16.47：冰盾生成寒光一闪
+      // ：冰盾生成寒光一闪
       combat.fxFlash(375, combat.ly().wallY, '#d6f0ff');
     }
   }
-  // ===== tickIce 尾部：冰塔 3★ 地面与城墙联动（v1.16.98） =====
+  // ===== tickIce 尾部：冰塔 3★ 地面与城墙联动（） =====
   // 冰晶3★ 减速地面 / 冰雾3★ 降攻速地面：域内敌人持续受影响
   if (combat.iceGrounds && combat.iceGrounds.length) {
     const rem = [];

@@ -6,7 +6,7 @@ const EnergyState = require('../config/energy-state.js');
 
 function range(combat, key) {
   const cfg = CONFIG.TOWERS[key];
-  const base = Math.max(60, cfg.range - 50);   // v1.16.21：全塔射程统一缩小 50px（普攻/技能同口径）
+  const base = Math.max(60, cfg.range - 50);   // ：全塔射程统一缩小 50px（普攻/技能同口径）
   const tower = combat.tower ? combat.tower(key) : null;
   const run = combat.game && combat.game.run;
   const maxEnergy = run && run.armoryEnergyMax ? run.armoryEnergyMax(key) : CONFIG.GLOBAL_SKILL.energyMax;

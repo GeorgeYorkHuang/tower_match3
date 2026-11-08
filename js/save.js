@@ -2,7 +2,7 @@ const Migrations = require('./save/migrations.js');
 const { copySaveData } = require('./save/snapshot.js');
 /**
  * save.js —— 存档管理：读写 wx 本地存档（Meta 局外数据 + 对局镜像）
- * v5（v1.4.0）：技能卡/技能槽/圣物装备槽 已移除；圣物 = 唯一养成资源（拥有即常驻）。
+ * v5（）：技能卡/技能槽/圣物装备槽 已移除；圣物 = 唯一养成资源（拥有即常驻）。
  * 对局内塔等级/技能（本局成长）不持久化，重进游戏按每塔默认 3 技能重新激活。
  */
 const CONFIG = require('./config.js');
@@ -35,10 +35,10 @@ class SaveManager {
     } catch (e) { this.lastLoadStatus = 'error'; this._blockedKeys.add(this.storageKey); return null; }
   }
 
-  /** v1.13.19 技能改名迁移：弹跳 → 活电（旧档技能卡/槽位不丢失） */
+  /** 技能改名迁移：弹跳 → 活电（旧档技能卡/槽位不丢失） */
   _renameBounceSkill(d) { return Migrations._renameBounceSkill(d); }
 
-  /** v1.13.23-25 冰塔技能改名迁移：减速场→寒霜、寒潮→多重冰锥、霜星→冰花、冻结率→冬珠、低温全塔→碎冰、永冻→冰墙 */
+  /** -25 冰塔技能改名迁移：减速场→寒霜、寒潮→多重冰锥、霜星→冰花、冻结率→冬珠、低温全塔→碎冰、永冻→冰墙 */
   _renameIceSkills(d) { return Migrations._renameIceSkills(d); }
 
   /** v1 → v2 迁移：金币/塔解锁保留；塔等级经验不再跨局（技能卡系统接管） */
@@ -59,8 +59,8 @@ class SaveManager {
     if (!meta) return;
     this.game.meta = meta;
     const run = this.game.run;
-    // v1.16.77 局内金币不再镜像局外银币：局内金币由本局波末+击杀自持，战斗结束统一结算成银币
-    // v1.6：塔位解锁不再跨局保留——每局从 0 塔开始，由最先消除的 4 种颜色决定出战塔
+    // 局内金币不再镜像局外银币：局内金币由本局波末+击杀自持，战斗结束统一结算成银币
+    // ：塔位解锁不再跨局保留——每局从 0 塔开始，由最先消除的 4 种颜色决定出战塔
     // （先消先得写入 run.slotOrder，不持久化）
   }
 
@@ -71,7 +71,7 @@ class SaveManager {
     const meta = this.game.meta;
     if (!meta) return false;
     try {
-      // v1.6：不再把对局塔位（先消先得）持久化到 towerUnlocks——每局从 0 塔开始
+      // ：不再把对局塔位（先消先得）持久化到 towerUnlocks——每局从 0 塔开始
       wx.setStorageSync(this.storageKey, meta.toJSON());
       return true;
     } catch (e) { return false; }

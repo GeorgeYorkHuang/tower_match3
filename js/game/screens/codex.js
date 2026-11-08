@@ -11,9 +11,9 @@ function createCodexScreen(deps) {
     const keys = Object.keys(CONFIG.TOWERS);
     const colorName = (k) => (CONFIG.COLORS[CONFIG.TOWERS[k].color] || {}).name || k;
     // ---- 贴合式塔标签（attached tabs）：仅上圆角，激活页签与下方面板同底色无缝粘连 ----
-    // v1.16.94 只显示图标（56px = 原"图标+塔名"合计高度），激活页签=塔色不透明
-    // v1.16.110 六页签等宽：726/6=121，无缝拼接 + 未激活页签间竖线分隔
-    // v1.16.129 ty0 206→230：顶部标题/货币下移到安全区下方后，页签行随之下移让位
+    // 只显示图标（56px = 原"图标+塔名"合计高度），激活页签=塔色不透明
+    // 六页签等宽：726/6=121，无缝拼接 + 未激活页签间竖线分隔
+    // ty0 206→230：顶部标题/货币下移到安全区下方后，页签行随之下移让位
     const tw2 = 121, th2 = 72, tg2 = 0, tx0 = 12, ty0 = 230;
     keys.forEach((k, i) => {
       const cx = tx0 + i * (tw2 + tg2);
@@ -31,6 +31,7 @@ function createCodexScreen(deps) {
       ctx.closePath();
       ctx.fillStyle = sel ? cCol : 'rgba(15,20,28,0.88)';   // 激活=塔色不透明
       ctx.fill();
+      drawImg(ctx, 'garden:towerTab', cx, ty0, tw2, th2);
       if (sel) {
         // 激活：顶边白色高亮条 + 描边（底边开口，视觉上"长"在面板上）
         ctx.strokeStyle = cCol; ctx.lineWidth = 2; ctx.stroke();
@@ -43,12 +44,12 @@ function createCodexScreen(deps) {
       if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz, isz)) {
         drawTowerGlyph(ctx, k, cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz);
       }
-      // v1.16.110 竖线分隔（相邻两页签均未激活时）
+      // 竖线分隔（相邻两页签均未激活时）
       if (i < keys.length - 1 && !sel && s.codexSel !== keys[i + 1]) {
         fillRoundRect(ctx, cx + tw2, ty0 + 12, 1, th2 - 24, 0, 'rgba(0,0,0,0.35)');
       }
     });
-    // ---- 详情面板（紧贴标签行底部，无间隙）：v1.16.94 塔色 60% 透明 + 高度 +50% + 4 列属性 ----
+    // ---- 详情面板（紧贴标签行底部，无间隙）：塔色 60% 透明 + 高度 +50% + 4 列属性 ----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
     const T = CONFIG.TOWERS[k];
     const cCol = TOWER_HEX[T.color] || '#8ea3b8';
@@ -57,6 +58,7 @@ function createCodexScreen(deps) {
     const PH = 222;                            // 148 × 1.5
     const panelCol = hexA(cCol, 0.40);         // 塔色 40% 不透明（60% 透明）
     fillRoundRect(ctx, dx, dy, dw, PH, 0, panelCol);
+    drawImg(ctx, 'garden:towerDetail', dx, dy, dw, PH);
     fillRoundRect(ctx, dx, dy + PH - 14, dw, 14, 7, panelCol);   // 底部补圆角
     drawImg(ctx, 'assets/images/interface/cards/tower-stats-v1.png', dx, dy, dw, PH);
     text(ctx, colorName(k), dx + 26, dy + 33, 38, '#ffffff', 'left');
@@ -77,23 +79,23 @@ function createCodexScreen(deps) {
       strokeRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.35)', 1);
       text(ctx, c.txt, valX, rowY, 18, '#e8f0f8', 'left');
     });
-    // v1.16.110 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡；v1.17.10 按塔攻速×DPS 定价（attackCost）
+    // 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡；按塔攻速×DPS 定价（attackCost）
     const enV = (CONFIG.TOWERS[k] && CONFIG.TOWERS[k].attackCost) || GS.perAttack || 0.5;
     const ecW = 155, ecH = 34, ecX = dx + dw - 20 - ecW, ecY = dy + 15;
     fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
     strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);
     text(ctx, `⚡ 耗能 ${Number(enV).toFixed(2)}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 16, '#f4d03f', 'center');
-    // ---- 技能池卡片（v1.16.91 大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
+    // ---- 技能池卡片（大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
-    // v1.16.128 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）
+    // 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）
     text(ctx, '技能池', dx + 30, dy + 264, 30, '#ffffff', 'left');
     const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
-    const cw3 = 300, ch3 = 205;               // v1.16.128 卡高 210→205
-    const gx0 = Math.round(750 * 0.05) + 10;  // v1.16.128 5% 左边距再向内 10px
+    const cw3 = 300, ch3 = 205;               // 卡高 210→205
+    const gx0 = Math.round(750 * 0.05) + 10;  // 5% 左边距再向内 10px
     const colX = [gx0, 750 - gx0 - cw3];      // 两列对称（左右各内收 10）
     const gy0 = dy + 292;                     // 首行 y（面板加高后下移）
     const rows = Math.ceil(pool.length / 2);
-    const bottomY = TAB_Y - 54;               // v1.16.129 底部留白 5%屏高→54px（约 3.3%），补回页签行下移占用的 24px
+    const bottomY = TAB_Y - 54;               // 底部留白 5%屏高→54px（约 3.3%），补回页签行下移占用的 24px
     const rgap = rows > 1 ? Math.floor((bottomY - gy0 - rows * ch3) / (rows - 1)) : 0;   // 纵向均匀间隔
     pool.forEach((sk, i) => {
       const col = i % 2, row = Math.floor(i / 2);
@@ -117,7 +119,7 @@ function createCodexScreen(deps) {
         text(ctx, sk.icon || '?', gx + 48, gy + 44, 32, '#ffffff', 'center');
       }
       text(ctx, sk.name, gx + 92, gy + 30, 33, '#ffffff', 'left');
-      // v1.16.110 类型行 + 能耗胶囊（卡片右上）：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
+      // 类型行 + 能耗胶囊（卡片右上）：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
       const en = CONFIG.SKILL_ENERGY[sk.name];
       const enTxt = en === undefined ? 0 : en;
       text(ctx, sk.type || '', gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
@@ -132,7 +134,7 @@ function createCodexScreen(deps) {
       descLines.forEach((ln, li) => {
         text(ctx, ln, gx + 20, gy + 102 + li * 32, 24, '#d7e2ee', 'left');
       });
-      // v1.16.110 移除右下角"点击查看详情 >>>"（卡片整体可点，入口语义由能耗胶囊+说明区承担）
+      // 移除右下角"点击查看详情 >>>"（卡片整体可点，入口语义由能耗胶囊+说明区承担）
     });
   }
   function codexSkillPanel(ctx, s, push) {
@@ -211,8 +213,8 @@ function createCodexScreen(deps) {
       }
       const bi2 = overview.indexOf('：');
       const bName = bi2 > 0 ? overview.slice(0, bi2) : overview;
-      const bDesc = bi2 > 0 ? overview.slice(bi2 + 1) : '';
-      const lvls = sk[pk] || [];
+      const bDesc = require('../../branch-description.js').current(sk, bk, 0);
+      const lvls = require('../../branch-description.js').upgrades(sk, bk);
 
 
       fillRoundRect(ctx, cx0 + 22, cy0 + 18, 60, 60, 16, cCol);
@@ -223,9 +225,9 @@ function createCodexScreen(deps) {
         text(ctx, ln, cx0 + 104, cy0 + 73 + li * 29, 25, '#c9d6e4', 'left');
       });
       fillRoundRect(ctx, cx0 + 22, cy0 + 121, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
-      lvls.slice(0, 3).forEach((t, li) => {
+      lvls.forEach((t, li) => {
         const ry2 = cy0 + 143 + li * 25;
-        text(ctx, `Lv${li + 1}→${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
+        text(ctx, `Lv${li + 2}→Lv${li + 3}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
         const ln = fit(t, cw - 220, 22);
         text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');
       });

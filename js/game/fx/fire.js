@@ -1,9 +1,8 @@
 'use strict';
 const { fillRoundRect } = require('../ui.js');
-const FirepillarFx = require('./firepillar.js');
-const FirewallFx = require('./firewall.js');
 // 火系表现只读事件；资源/选帧仍复用原模块，伤害窗口和队列不归本模块。
 function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimSheet }) {
+  const approved = require('./approved-fire.js').create(drawImg);
   const combined = {"fire-ring":{"src":"assets/images/towers/fx/fire-ring/fire-ring-sheet.png","w":224,"h":128,"ox":112,"oy":92,"duration":3.9,"start":0.2,"cols":6,"n":60},"flame-pillar":{"src":"assets/images/towers/fx/flame-pillar/flame-pillar-sheet.png","w":184,"h":256,"ox":92,"oy":232,"duration":5,"start":0,"cols":11,"n":76}};
   Object.values(combined).forEach((fx) => loadImg(fx.src));
   function drawCombinedPillar(ctx, f, id) {
@@ -17,11 +16,11 @@ function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimShee
     ctx.restore();
   }
   class FireFx {
-  /** v1.17.36 火柱拆层：本函数为【上层】——只有柱体本体与上升火星，地面火环见 fxPillarBase */
+  /** 火柱拆层：本函数为【上层】——只有柱体本体与上升火星，地面火环见 fxPillarBase */
   fxPillar(ctx, f) { drawCombinedPillar(ctx, f, 'flame-pillar'); }
-  fxPillarBase(ctx, f) { drawCombinedPillar(ctx, f, 'fire-ring'); }
+  fxPillarBase(ctx, f) { approved.ring(ctx,f); }
 
-  /* v1.17.25 程序化火柱回退（原 v1.13.9 四阶段绘制，贴图未就绪时使用） */
+  /* 程序化火柱回退（原 四阶段绘制，贴图未就绪时使用） */
   _fxPillarProc(ctx, cx, cy, R, seed, p) {
       if (p < 0.25) {
         // 帧 1 地上画圈：双环火圈扩张 + 圈上火苗 + 地面红晕（圈=伤害范围，半径与 explode 一致）
@@ -90,43 +89,9 @@ function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimShee
       }
   }
 
-  fxFireWall(ctx, f) {
-      // 火焰墙（v1.16.21 烈焰墙）：长条可穿越火墙（长 w·宽 h·持续 6s）
-      // v1.17.17/18：墙体主体改为 4 帧透明贴图（12fps 循环），source-over 主体 + 45% lighter 辉光；
-      //           代码层保留地面红晕与上升火花；贴图未加载完成时回退 v1.16.21 程序化绘制，不出现空墙。
-      const p = Math.min(1, f.t / f.dur);
-      const cx = f.x, cy = f.y, w = f.w || 100, h = f.h || 30, seed = f.seed || 0;
-      const fade = FirewallFx.fade(p);
-      // 地面红晕（墙体底缘）
-      ctx.globalAlpha = 0.25 * fade;
-      ctx.fillStyle = 'rgba(255,112,67,0.4)';
-      ctx.beginPath(); ctx.ellipse(cx, cy + h / 2, w * 0.55, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 4 帧贴图：12fps 循环，按 seed 错相（同屏多面火墙不同步）；底边贴地面线，宽=墙宽，高按 512:160
-      // v1.17.18：透明底帧，主体 source-over 保住卡通描边与暗红底色（加法会发白），
-      //           再叠一遍 45% lighter 做辉光——暗色战场有熔光感，亮草地也不冲淡
-      for (let i = 1; i <= FirewallFx.N; i++) loadImg(IMG_SRC['firewall' + i]);
-      const fi = FirewallFx.frameIndex(f.t, seed);
-      const { FW, FH, bx, by } = FirewallFx.layout(cx, cy, w, h);
-      ctx.globalAlpha = fade;
-      const drawn = drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
-      if (drawn) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = fade * 0.45;
-        drawImg(ctx, IMG_SRC['firewall' + fi], bx, by, FW, FH);
-        ctx.restore();
-      }
-      if (!drawn) this._fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade);
-      // 上升火花（代码层粒子，与贴图层叠加：贴图给形，粒子给活）
-      for (const spark of FirewallFx.sparkSpec(cx, cy, seed, w, h, p, fade)) {
-        ctx.fillStyle = spark.color; ctx.globalAlpha = spark.alpha;
-        ctx.beginPath(); ctx.arc(spark.x, spark.y, spark.r, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-  }
+  fxFireWall(ctx, f) { approved.wall(ctx,f); }
 
-  /* v1.16.21 程序化火墙（贴图未就绪时的回退绘制：N 段竖火焰 + 亮芯） */
+  /* 程序化火墙（贴图未就绪时的回退绘制：N 段竖火焰 + 亮芯） */
   _fxFireWallProc(ctx, cx, cy, w, h, seed, p, fade) {
       const segs = Math.max(4, Math.round(w / 14));
       for (let i = 0; i < segs; i++) {
@@ -145,55 +110,9 @@ function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimShee
       ctx.globalAlpha = 1;
   }
 
-  fxRain(ctx, f) {
-      // 火雨区域标识（v1.13.14）：双环 + 半透明红晕，标注火雨覆盖圈（火雨点由独立 raindrop fx 绘制）
-      const p = Math.min(1, f.t / f.dur);
-      const cx = f.x, cy = f.y, R = f.r || 140, seed = f.seed || 0;
-      ctx.globalAlpha = 0.22 + 0.08 * Math.sin(p * 20 + seed);
-      ctx.strokeStyle = '#ff7043'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#ff9f43'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(cx, cy, R * 0.85, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,112,67,0.12)';
-      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-  }
+  fxRain(ctx, f) { approved.rain(ctx,f); }
 
-  fxRaindrop(ctx, f) {
-      // 单颗火雨点（v1.13.14）：从上方 260px 平行圈起点垂直落向落点（0.5s），落地小爆焰（0.25s 淡出）
-      // 每颗独立时间线：combat 以负 t 延迟生成时刻错峰，落地瞬间同步结算伤害
-      const FALL = 0.5;
-      const seed = f.seed || 0;
-      const s = seed % 1;
-      const br = 5 + s * 4;
-      if (f.t < FALL) {
-        // 下落火球：起点 (x,y) → 落点 (tx,ty)，带尾焰
-        const k = Math.max(0, f.t / FALL);
-        const cx = f.x + (f.tx - f.x) * k;
-        const cy = f.y + (f.ty - f.y) * k;
-        ctx.globalAlpha = (1 - k) * 0.5 + s * 0.3;
-        ctx.fillStyle = '#ff7043';
-        ctx.beginPath(); ctx.arc(cx, cy - 6 - s * 14 * (1 - k * 0.5), 2.5 + s * 3, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = '#ff7043';
-        ctx.beginPath(); ctx.arc(cx, cy, br, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffe08a';
-        ctx.beginPath(); ctx.arc(cx - br * 0.2, cy - br * 0.15, br * 0.5, 0, Math.PI * 2); ctx.fill();
-      } else {
-        // v1.16.74 落地爆焰：anim_fallstrike 冲击段（帧3-7 映射 0.25s），替换原程序化小爆焰（避免重叠渲染）
-        const k = Math.min(1, (f.t - FALL) / 0.25);
-        if (!drawAnimSheet(ctx, 'fallstrike', 'orange', f.tx, f.ty, 96, (3 + k * 4.99) / 8)) {
-          // 兜底：原小爆焰
-          ctx.globalAlpha = 0.9 * (1 - k);
-          ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 + k * 1.6), 0, Math.PI * 2); ctx.stroke();
-          ctx.globalAlpha = (1 - k) * 0.9;
-          ctx.fillStyle = s < 0.5 ? '#ff7043' : '#ffd24a';
-          ctx.beginPath(); ctx.arc(f.tx, f.ty, br * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      }
-  }
+  fxRaindrop(ctx, f) { /* Meteor instances are drawn by their wave event. */ }
 
   }
   return new FireFx();

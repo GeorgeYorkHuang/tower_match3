@@ -14,7 +14,7 @@ function resolveShot(combat, s) {
   const g = combat.game;
   const e = s.target;
   if (!e || e.hp <= 0 || !g.enemies.includes(e)) return; // 目标已死/消失 → 落空
-  if (s.onHit) { s.onHit(e, s.dmg, s, true); return; }   // v1.13.2：自定义命中回调（多重火球分击等，不触发技能链）
+  if (s.onHit) { s.onHit(e, s.dmg, s, true); return; }   // ：自定义命中回调（多重火球分击等，不触发技能链）
   combat.hit(s.key, e, s.dmg, s);
   if (s.onAfterHit) s.onAfterHit(e, s.dmg);
 }

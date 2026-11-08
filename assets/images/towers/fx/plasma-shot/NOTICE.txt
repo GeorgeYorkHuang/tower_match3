@@ -1,3 +1,0 @@
-Plasma shot from https://github.com/patch-gg/pixelfx (MIT).
-Adapted from Sprite Fusion energy, Copyright (c) 2026 Hugo Duprez, MIT.
-24 frames at 30fps, 144x60, origin (108,30).

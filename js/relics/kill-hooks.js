@@ -6,7 +6,7 @@ const SKILL_NUM = require('../config/tower-skills.js');
 function relicStar(run, id) {
   if (!run || run.relicRun(id) <= 0) return 0;
   if (run._testStar3 && run._testStar3[id]) return 3;
-  return run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1;
+  return Math.max(run._talentCenterId===id?1:0,run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1);
 }
 
 function fireDeath(combat, e) {
@@ -26,7 +26,7 @@ function fireExplosionSpread(combat, e, boomR) {
 }
 
 function poisonEssence(combat, e, key) {
-  // v1.16.100 剧毒精华3★：毒满层的敌人死亡时毒液溅射，90码 内叠 2 层（不依赖毒爆技能）
+  // 剧毒精华3★：毒满层的敌人死亡时毒液溅射，90码 内叠 2 层（不依赖毒爆技能）
   if (key === 'poison' && combat.game.run.relic3('poison_essence') && combat.hasDot(e, 'poison')) {
     const pd = e.dots.find((d) => d.type === 'poison');
     if (pd && pd.stack >= pd.maxStack) {
@@ -42,7 +42,7 @@ function poisonEssence(combat, e, key) {
 }
 
 function poisonTrail(combat, next) {
-  // v1.16.100 蔓延3★：蔓延路径也留毒痕，每秒 10% 伤害（3 秒）
+  // 蔓延3★：蔓延路径也留毒痕，每秒 10% 伤害（3 秒）
   if (combat.game.run.relic3('poison_spread')) {
     combat.groundDots = combat.groundDots || [];
     combat.groundDots.push({ x: next.x, y: next.y, r: 80, ttl: 3, dps: combat.shotDmg('poison', true) * 0.1, key: 'poison' });
@@ -51,14 +51,14 @@ function poisonTrail(combat, next) {
 }
 
 function iceDeath(combat, e, key) {
-  // v1.16.98 霜爆3★：击杀冰冻敌人时引发冰爆（100% 伤害，半径 120 码），并将范围内所有敌人冻结 1 秒
+  // 霜爆3★：击杀冰冻敌人时引发冰爆（100% 伤害，半径 120 码），并将范围内所有敌人冻结 1 秒
   if (key === 'ice' && combat.game.run.relic3('ice_frostburst') && e.frozen > 0) {
     combat.explode(e.x, e.y, 120, combat.shotDmg('ice', true), 'ice');
     combat.enemies().forEach((o) => {
       if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 120) combat.freezeE(o, 1);
     });
   }
-  // v1.16.99 霜刺3★：冰缓的敌人被击杀时，减速光环扩散至周围 80码
+  // 霜刺3★：冰缓的敌人被击杀时，减速光环扩散至周围 80码
   if (key === 'ice' && combat.game.run.relic3('ice_spike') && e.slow && e.slow.ttl > 0) {
     combat.enemies().forEach((o) => {
       if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) combat.applySlow(o, 0.3, 3);
@@ -69,7 +69,7 @@ function iceDeath(combat, e, key) {
 }
 
 function electricDeath(combat, e, key) {
-  // v1.16.101 静电3★：被麻痹敌人死亡时释放静电，麻痹周围敌人 0.8 秒
+  // 静电3★：被麻痹敌人死亡时释放静电，麻痹周围敌人 0.8 秒
   if (key === 'electric' && combat.game.run.relic3('elec_static') && e.paralyzed > 0) {
     combat.enemies().forEach((o) => {
       if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100) {
@@ -83,7 +83,7 @@ function electricDeath(combat, e, key) {
 }
 
 function boomerangDeath(combat, e, key) {
-  // v1.16.102 血刃3★：流血的敌人死亡时喷溅血液：80 码内敌人附加 1 层流血
+  // 血刃3★：流血的敌人死亡时喷溅血液：80 码内敌人附加 1 层流血
   if (key === 'boomerang' && combat.game.run.relic3('boo_blood') && combat.hasDot(e, 'bleed')) {
     combat.enemies().forEach((o) => {
       if (o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 80) {
@@ -93,7 +93,7 @@ function boomerangDeath(combat, e, key) {
     combat.fxRing(e.x, e.y, '#c0392b', 80, 0.5, 4);
     combat.fxParticle(e.x, e.y, '#c0392b', 10, 70, 0.5, 140, 5);
   }
-  // v1.16.102 追猎3★：标记的敌人被其他塔击杀时，返还 1 点能量
+  // 追猎3★：标记的敌人被其他塔击杀时，返还 1 点能量
   if (key === 'boomerang' && combat.game.run.relic3('boo_mark') && (e._mark || 0) > 0 && e.lastDmgKey && e.lastDmgKey !== 'boomerang') {
     const bt = combat.tower('boomerang');
     if (bt) bt.energy = Math.min(bt.energy + 1, combat.game.run.armoryEnergyMax('boomerang'));
@@ -102,7 +102,7 @@ function boomerangDeath(combat, e, key) {
 }
 
 function cannonDeath(combat, e, key) {
-  // v1.16.103 燃烧弹3★：被点燃的敌人死亡时爆炸（96% 伤害，半径 100 码）
+  // 燃烧弹3★：被点燃的敌人死亡时爆炸（96% 伤害，半径 100 码）
   if (key === 'cannon' && combat.game.run.relic3('can_incend') && combat.hasDot(e, 'burn')) {
     combat.explode(e.x, e.y, 100, combat.shotDmg('cannon', true) * 0.96, 'cannon');
   }

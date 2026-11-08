@@ -10,7 +10,7 @@ const COMBAT_BALANCE = require('../config/combat-common.js');
 function relicStar(run, id) {
   if (!run || run.relicRun(id) <= 0) return 0;
   if (run._testStar3 && run._testStar3[id]) return 3;
-  return run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1;
+  return Math.max(run._talentCenterId===id?1:0,run.metaRef && run.metaRef.starOf ? run.metaRef.starOf(id) : 1);
 }
 
 function dotBoost(combat) {
@@ -33,7 +33,7 @@ function applyBurn(combat, e, dmg, src) {
   let dot = e.dots.find((d) => d.type === 'burn');
   const tickI = SKILL_NUM.fire['点燃'].tickInterval;
   const cBoost = cLv > 0 ? SKILL_NUM.fire['点燃'].emberDmg[cLv] : 0;
-  // v1.16.96 薪柴3★：灼烧概率溢出（≥80%）转灼烧伤害加成
+  // 薪柴3★：灼烧概率溢出（≥80%）转灼烧伤害加成
   const fuelBoost = combat.game.run._fuelBoost || 0;
   const burnBonus = run.relicNum('s_sr_fire_burn') + run.relicNum('s_fire_burn');
   const dps = dmg * SKILL_NUM.fire['点燃'].damagePerSecond * (1 + cBoost) * (1 + (fuelBoost + burnBonus) / 100);
@@ -41,6 +41,7 @@ function applyBurn(combat, e, dmg, src) {
   let ttl = SKILL_NUM.fire['点燃'].duration + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0) + burnDuration;
   if (cLv > 0) ttl -= SKILL_NUM.fire['点燃'].emberTtlCut[cLv];
   ttl = Math.max(ttl, SKILL_NUM.fire['点燃'].minDuration);
+  ttl=require('../talents/runtime.js').statusDuration(combat.game.run,'fire',ttl);
   if (!dot) {
     e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI, skill: '灼烧' });
     dot = e.dots[e.dots.length - 1];
@@ -54,7 +55,7 @@ function applyBurn(combat, e, dmg, src) {
   }
   // 灼烧 B 燃尽：满层 → 小爆炸（60% 攻击伤害，范围 30/60/90px）
   const burnLv = combat.branchLv('fire', '灼烧', 'B');
-  // v1.16.96 赤印3★：灼烧叠满层时触发爆发（80% 攻击伤害，半径 60码）——与 B 燃尽可并存
+  // 赤印3★：灼烧叠满层时触发爆发（80% 攻击伤害，半径 60码）——与 B 燃尽可并存
   const atMax = dot.stack >= maxStack;
   if (burnLv > 0 && dot.stack >= maxStack) {
     dot.stack = 1;
@@ -69,7 +70,8 @@ function applyPoison(combat, e, dmg, src, layers) {
   const boost = combat.dotBoost();
   const poisonRelicBonus = combat.game.run.relicNum('s_sr_poison_dot');
   const perStackDps = dmg * boost.dmg * (1 + poisonRelicBonus / 100);
-  const ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * combat.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
+  let ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * combat.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
+  ttl=require('../talents/runtime.js').statusDuration(combat.game.run,'poison',ttl);
   const cap = SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * combat.branchLv('poison', '毒性强化', 'C');
   const add = Math.max(1, layers || 1);
   const freq = 1 / (1 - SKILL_NUM.poison['剧毒'].freq[combat.branchLv('poison', '剧毒', 'C')]);
@@ -84,7 +86,7 @@ function applyPoison(combat, e, dmg, src, layers) {
     dot.ttl = Math.max(dot.ttl, ttl);
     dot.skill = '毒性强化';
   }
-  // v1.16.100 缠毒3★：被缠绕的敌人每被叠 1 层中毒，缠绕时间延长 0.5 秒（上限 +3 秒）
+  // 缠毒3★：被缠绕的敌人每被叠 1 层中毒，缠绕时间延长 0.5 秒（上限 +3 秒）
   if (combat.game.run.relic3('poison_vine') && e._vineT > 0) {
     e._vineT = Math.min(e._vineT + 0.5 * add, 6);
   }
@@ -106,6 +108,7 @@ function poisonStack(combat, e) {
 
 function applyBleed(combat, e, dmg) {
   e.bleedT = SKILL_NUM.boomerang['放血'].duration + SKILL_NUM.boomerang['放血'].durationPerBranch * combat.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
+  e.bleedT=require('../talents/runtime.js').statusDuration(combat.game.run,'boomerang',e.bleedT);
   const cLv = combat.branchLv('boomerang', '放血', 'C');
   const bleedDmg = dmg * (1 + combat.game.run.relicNum('s_sr_boo_bleed') / 100)
     * (SKILL_NUM.boomerang['放血'].damage + SKILL_NUM.boomerang['放血'].damagePerBranch * cLv);
@@ -120,14 +123,13 @@ function applyBleed(combat, e, dmg) {
 
 function applySlow(combat, e, mult, ttl, source) {
   const run = combat.game.run;
+  const talent=require('../talents/runtime.js');ttl=talent.statusDuration(run,source,ttl);mult=talent.slowStrength(run,source,mult);
   if (source === 'ice') mult = Math.min(0.9, mult + (run.relicNum('s_sr_ice_chill') + run.relicNum('s_ice_chill')) / 100);
-  // v1.16.114 冰川1★/2★：所有减速效果的幅度提升 15%/20%
+  // 冰川1★/2★：所有减速效果的幅度提升 15%/20%
   mult *= (1 + combat.relicVal('ice_glacier') / 100);
-  // v1.16.114 凝霜1★/2★：减速持续时间延长 1/1.5 秒（与凝霜3★ 同口径）
+  // 凝霜1★/2★：减速持续时间延长 1/1.5 秒（与凝霜3★ 同口径）
   ttl += combat.relicVal('ice_condense');
-  // v1.17.43 UR 霜风之眼1★/2★：所有控制类效果时长 +20%/+30%
-  ttl *= (1 + combat.relicVal('ur_frost_eye') / 100);
-  // v1.16.98 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
+  // 冰川3★：敌人身上每存在 1 个减速类 debuff，其受到的减速效果 +8%（多 debuff 协同）
   if (combat.game.run.relic3('ice_glacier')) {
     const n = ((e.slow && e.slow.ttl > 0) ? 1 : 0) + (e.frozen > 0 ? 1 : 0) + ((e._vineT || 0) > 0 ? 1 : 0);
     if (n > 0) mult = Math.min(COMBAT_BALANCE.glacierSlowCap, mult * (1 + 0.08 * n));
@@ -135,7 +137,7 @@ function applySlow(combat, e, mult, ttl, source) {
   const key = source === 'ice' ? '_iceSlow' : '_genericSlow';
   const visualKey = source === 'ice' ? '_iceSlowT' : '_genericSlowT';
   let appliedTtl = ttl;
-  // v1.16.98 凝霜3★：冰缓持续时间延长 1 秒
+  // 凝霜3★：冰缓持续时间延长 1 秒
   if (combat.game.run.relic3('ice_condense')) appliedTtl += 1;
   const state = e[key];
   if (!state || state.ttl <= 0) e[key] = { mult: 1 - mult, ttl: appliedTtl, stacks: 1 };
@@ -161,11 +163,12 @@ function refreshSlow(e) {
 }
 
 function freezeE(combat, e, dur) {
+  dur=require('../talents/runtime.js').statusDuration(combat.game.run,'ice',dur);
   if (e.immuneFreeze) return;
-  const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.game.run.relicValue('s_sr_ice_freeze', 'primary')) * (1 + combat.relicVal('ur_frost_eye') / 100);
+  const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.game.run.relicValue('s_sr_ice_freeze', 'primary'));
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
-  // v1.16.99 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
+  // 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
   if (d > prev && combat.game.run.relic3('ice_marrow')) {
     const it = combat.tower('ice');
     if (it) it.energy = Math.min(it.energy + 2, combat.game.run.armoryEnergyMax('ice'));
@@ -177,17 +180,19 @@ function freezeE(combat, e, dur) {
 function hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
 
 function tickBaseStatus(combat, e, dt) {
+  require('../talents/runtime.js').tick(combat,e,dt);
+  if(e.hp<=0)return;
   const boost = combat.dotBoost();
   if (e._fireWallBurnT > 0) e._fireWallBurnT = Math.max(0, e._fireWallBurnT - dt);
   if (e._seedGroundT > 0) e._seedGroundT = Math.max(0, e._seedGroundT - dt);
-  // v1.16.101 闪电链增强3★：连锁增伤窗口递减
+  // 闪电链增强3★：连锁增伤窗口递减
   if (e._elecBoost) {
     e._elecBoost.ttl -= dt;
     if (e._elecBoost.ttl <= 0) e._elecBoost = null;
   }
-  // v1.16.98 冬域3★：冰缓→冰冻转化冷却
+  // 冬域3★：冰缓→冰冻转化冷却
   if (e._domainCd > 0) e._domainCd -= dt;
-  // v1.16.99 寒髓3★：冻结事件检测（由未冻结→冻结为一次，任意来源；charge 在 freezeE 处理，此处补非 freezeE 路径）
+  // 寒髓3★：冻结事件检测（由未冻结→冻结为一次，任意来源；charge 在 freezeE 处理，此处补非 freezeE 路径）
   if (e.frozen > 0) {
     if (!e._wasFrozen && combat.game.run.relic3('ice_marrow')) {
       e._wasFrozen = true;
@@ -197,7 +202,7 @@ function tickBaseStatus(combat, e, dt) {
   } else {
     e._wasFrozen = false;
   }
-  // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%（冻得越久越脆）
+  // 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%（冻得越久越脆）
   if (e.frozen > 0) {
     e._frozenLongT = (e._frozenLongT || 0) + dt;
     e._fragile = (e._frozenLongT >= 1.5);
@@ -212,7 +217,7 @@ function tickBaseStatus(combat, e, dt) {
       combat.freezeE(e, combat.game.run.relicValue('s_ice_chill', 'freezeDuration'));
     }
   } else if (!combat.game.run.relic3('s_ice_chill')) e._deepChillT = 0;
-  // v1.16.100 腐化3★：中毒的敌人每移动 60 码，额外受到其最大生命值 2% 的真实伤害（对 Boss 单次上限 1%，无视减伤）
+  // 腐化3★：中毒的敌人每移动 60 码，额外受到其最大生命值 2% 的真实伤害（对 Boss 单次上限 1%，无视减伤）
   if (combat.game.run.relic3('poison_corrode') && combat.hasDot(e, 'poison') && e.hp > 0) {
     const spd = (e.speed || 0) * (e.slow && e.slow.ttl > 0 ? e.slow.mult : 1);
     e._corrodeD = (e._corrodeD || 0) + spd * dt;
@@ -229,7 +234,7 @@ function tickBaseStatus(combat, e, dt) {
         Damage.recordDmgStat(combat, e, hpBefore, 0, 'poison', 'true');
         Bosses.afterDamage(combat.game, e);
         if (e.hp <= 0 && !e._dying) { e._dying = true; combat.kills.poison = (combat.kills.poison || 0) + 1; combat.onKill(e); }
-      }   // v1.17.23 击杀归属：腐化3★致死归毒塔（不走 damage()）
+      }   // 击杀归属：腐化3★致死归毒塔（不走 damage()）
       combat.fxParticle(e.x, e.y, '#6e8b3d', 3, 26, 0.4, 90, 4);
       if (e._bossRetired) break;
     }
@@ -250,13 +255,13 @@ function tickBaseStatus(combat, e, dt) {
       }
       d.tickT -= dt;
       if (d.tickT <= 0) {
-        // v1.16.21 毒塔：中毒跳频 = 剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（freq=1/间隔，基础 1Hz/1s）；burn 等旧 DoT 保持 2Hz
+        // 毒塔：中毒跳频 = 剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（freq=1/间隔，基础 1Hz/1s）；burn 等旧 DoT 保持 2Hz
         const tickI = d.freq ? 1 / d.freq : 0.5;
         d.tickT += tickI;
         // 毒（层数×每层 dps）走 stackDps；灼烧等旧 DoT 走 dps×全局强化
         const poisonLayers = d.stack == null ? 1 : d.stack;
         const dealt = d.stackDps ? poisonLayers * d.stackDps * tickI : d.dps * boost.dmg * tickI;
-        // v1.16.100 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
+        // 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
         let dealtV = dealt;
         if (d.type === 'poison' && combat.game.run.relicRun('s_poison_curse') > 0) {
           const pct = combat.game.run.relicNum('s_poison_curse') / 100;
@@ -271,7 +276,7 @@ function tickBaseStatus(combat, e, dt) {
         if (d.type === 'poison' && e._poisonChain > 0) dealtV *= (1 + 0.10 * e._poisonChain);
         combat.damage(e, dealtV, d.src, { kind: 'dot', sourceKey: d.src || ({ burn: 'fire', poison: 'poison', bleed: 'boomerang' })[d.type] }, d.skill || ({ burn: '灼烧', poison: '毒性强化' })[d.type]);
         d.totalDealt = (d.totalDealt || 0) + dealt;
-        // v1.16.100 毒腺3★：中毒伤害的 20% 转化为城墙修复
+        // 毒腺3★：中毒伤害的 20% 转化为城墙修复
         if (d.type === 'poison' && combat.game.run.relic3('poison_gland')) {
           const maxHp = combat.game.run.lineMaxHp || CONFIG.LINE.hp;
           combat.game.run.lineHp = Math.min(maxHp, (combat.game.run.lineHp || 0) + dealt * 0.2);
@@ -315,7 +320,7 @@ function tickBaseStatus(combat, e, dt) {
   e._genericSlowT = e._genericSlow ? e._genericSlow.ttl : 0;
   refreshSlow(e);
   if (e.corrode) { e.corrode.ttl -= dt; if (e.corrode.ttl <= 0) e.corrode = null; }
-  // 流血（v1.16.12，回旋镖普攻）：随移动距离结算——每累计移动 100px 跳一次伤害
+  // 流血（，回旋镖普攻）：随移动距离结算——每累计移动 100px 跳一次伤害
   if (e.bleedT > 0) {
     e.bleedT -= dt;
     e._bleedDist = (e._bleedDist || 0) + Math.max(0, e.y - (e._bleedLastY != null ? e._bleedLastY : e.y));

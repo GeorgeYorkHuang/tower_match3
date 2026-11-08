@@ -6,8 +6,8 @@ const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 function rewardsFor(gain) {
   const entries = Object.entries(gain.shardDetail || {}).filter(([, n]) => Number(n) > 0)
     .map(([id, n]) => ({ kind: 'relic', id, count: Number(n) }));
+  if (gain.dust > 0) entries.push({ kind: 'dust', count: gain.dust });
   if (gain.diamond > 0) entries.push({ kind: 'diamond', count: gain.diamond });
-  if (gain.stone > 0) entries.push({ kind: 'stone', count: gain.stone });
   if (gain.gold > 0) entries.push({ kind: 'gold', count: gain.gold }); // Coins always land last.
   return entries;
 }
@@ -28,7 +28,7 @@ function createChestRewards({ drawImg, IMG_SRC, relicIconSrc, now = () => Date.n
     glow.addColorStop(0, 'rgba(250,204,95,0.20)'); glow.addColorStop(1, 'rgba(250,204,95,0)');
     ctx.fillStyle = glow; ctx.fillRect(box.x + 2, box.y + 2, box.w - 4, 148);
     push('panelBounds', null, box.x, box.y, box.w, box.h);
-    const tiers = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar };
+    const tiers = { scarlet:require('../../economy/diamond-shop.js').OFFERS.scarlet.icon, wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar };
     if (!drawImg(ctx, tiers[panel.tier] || IMG_SRC.chestOpen, 339, box.y + 22, 72, 72)) text(ctx, '宝箱', 375, box.y + 57, 25, '#ffdc80', 'center');
     text(ctx, '宝箱收益', 375, box.y + 119, UI.titleSize, '#ffe3a1', 'center');
     const rewardY = box.y + 152;
@@ -68,9 +68,12 @@ function createChestRewards({ drawImg, IMG_SRC, relicIconSrc, now = () => Date.n
           ctx.fillStyle = '#f7c948'; ctx.beginPath(); ctx.arc(UI.cardW / 2, 72, 48, 0, Math.PI * 2); ctx.fill();
           text(ctx, '金', UI.cardW / 2, 72, 38, '#7a4d12', 'center');
         }
+      } else if (en.kind === 'dust') {
+        text(ctx, '✦', UI.cardW / 2, 67, 76, '#dfbdff', 'center');
+        text(ctx, '圣物粉尘', UI.cardW / 2, UI.cardH - 19, UI.nameSize, '#dfbdff', 'center');
       } else {
         text(ctx, en.kind === 'diamond' ? '💎' : '✪', UI.cardW / 2, 67, 76, en.kind === 'diamond' ? '#8fdcff' : '#d2b0ff', 'center');
-        text(ctx, en.kind === 'diamond' ? '钻石' : '星辉石', UI.cardW / 2, UI.cardH - 19, UI.nameSize, '#dbe5f3', 'center');
+        text(ctx, en.kind === 'diamond' ? '钻石' : '钻石', UI.cardW / 2, UI.cardH - 19, UI.nameSize, '#dbe5f3', 'center');
       }
       text(ctx, '×' + en.count.toLocaleString('en-US'), UI.cardW / 2, UI.cardH + 20, UI.countSize, en.kind === 'gold' ? '#ffe08a' : '#e5d9ff', 'center');
       ctx.restore();

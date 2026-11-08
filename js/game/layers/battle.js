@@ -9,7 +9,7 @@ const CONFIG_BOSS = require('../../config/bosses.js').altar_galvin;
 // 场景组件只绘制与登记命中；Main仍决定层级，点击和技能释放仍归原路由。
 function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y, TOWER_ROW_Y, BOARD_Y }) {
   function actionArea(ctx, s) {
-    // 行动区背景图（y128 起 720 高 = 怪物行走区）；v1.16.77 按战场切换主题背景；加载失败回退深色底
+    // 行动区背景图（y128 起 720 高 = 怪物行走区）；按战场切换主题背景；加载失败回退深色底
     const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
       ? `assets/images/interface/battle/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
@@ -49,19 +49,19 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
       text(ctx,'藤甲 '+(b.shieldLayers||0)+'/'+(b.shieldMaxLayers||1),375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
     }
-    // 塔位区（v1.17.11 即城墙，先画背景）
+    // 塔位区（即城墙，先画背景）
     this.towerRow(ctx, s);
-    // 防线血条（v1.17.11 移至塔位区底部，覆盖在塔位区背景之上）
+    // 防线血条（移至塔位区底部，覆盖在塔位区背景之上）
     this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
-    // 棋盘（v1.17.29 传入 _shake 支持消除抖动）
-    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage, s.boardHint);
+    // 棋盘（传入 _shake 支持消除抖动）
+    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage, s.boardHint, s.boardChestHoles);
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
-    // v1.17 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
+    // 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
   }
 
   function wall(ctx, hp, maxHp, barY, shield) {
-    // v1.17.11 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
+    // 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
     // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
     const barH = 14;
     const by = barY !== undefined ? barY : (TOWER_ROW_Y + L.towerRow.h - barH);
@@ -88,7 +88,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     fillRoundRect(ctx, 0, fy, 750, h, 0, '#131820');
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
-    // v1.16.89 底部功能条三键：设置 / 帮助 / 商店（商店改入分页栏，点击弹出面板）
+    // 底部功能条三键：设置 / 帮助 / 商店（商店改入分页栏，点击弹出面板）
     const labels = ['⚙ 设置', 'ℹ 帮助', '🛒 商店'];
     const keys = ['setting', 'help', 'shop'];
     const kw = 150, kh = 80;
@@ -97,7 +97,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     for (let i = 0; i < labels.length; i++) {
       const x = gap + i * (kw + gap);
       const y = fy + (h - kh) / 2;
-      // v1.16.30 美化：渐变玻璃底 + 顶部高光 + 白描边 + 图标/文字两行
+      // 美化：渐变玻璃底 + 顶部高光 + 白描边 + 图标/文字两行
       const bgrad = ctx.createLinearGradient(0, y, 0, y + kh);
       bgrad.addColorStop(0, '#2a3342'); bgrad.addColorStop(1, '#1b222e');
       fillRoundRect(ctx, x + 2, y + 3, kw, kh, 14, 'rgba(0,0,0,0.28)');
@@ -109,13 +109,13 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       text(ctx, labels[i].split(' ')[1], x + kw / 2, y + 66, 17, '#8ea3b8', 'center');
       this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
     }
-    // v1.16.30 加速按钮：城墙上方 · 怪物移动区右下角
-    // v1.16.48 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
+    // 加速按钮：城墙上方 · 怪物移动区右下角
+    // 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
     const spX = 750 - 16 - 124, spY = WALL_Y - 8 - 66, spW = 124, spH = 66;
     const spdCol = s.runSpeed >= 4 ? '#ff8c42' : s.runSpeed >= 2 ? '#f7c948' : '#3a4552';
     this._speedBadge(ctx,spX,spY,spW,spH,s.runSpeed||1);
     this.speedHit = { hit: (px, py) => px >= spX && px <= spX + spW && py >= spY && py <= spY + spH };
-    // v1.17.50 伤害统计按钮：怪物行动区左下角（与加速按钮对称）
+    // 伤害统计按钮：怪物行动区左下角（与加速按钮对称）
     const dsX = AREA_X + 16, dsY = WALL_Y - 8 - 66, dsW = 124, dsH = 66;
     this._dmgStatBadge(ctx, dsX, dsY, dsW, dsH);
     this.dmgStatHit = { hit: (px, py) => px >= dsX && px <= dsX + dsW && py >= dsY && py <= dsY + dsH };
@@ -123,14 +123,14 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
 
   function towerRow(ctx, s, count, showGlobal) {
     const towers = s.towers;
-    const slotCount = count || this.ly.slotCount; // v1.14 测试战场传 6；正式战斗默认 4
+    const slotCount = count || this.ly.slotCount; // 测试战场传 6；正式战斗默认 4
     const { slotSize, slotGap, slotY } = this.ly;
     // 塔位区背景图（石板放置地面）；加载失败回退浅色条
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
       fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
     }
     text(ctx, '塔位', AREA_X + 14, TOWER_ROW_Y + 24, 18, 'rgba(255,255,255,0.4)');
-    // v1.17.10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
+    // .10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
     const showG = showGlobal !== false;
     const itemN = showG ? slotCount + 2 : slotCount;
     const totalX = itemN * slotSize + (itemN - 1) * slotGap;
@@ -138,11 +138,10 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     let x = x0 + (showG ? slotSize + slotGap : 0);
     for (let i = 0; i < slotCount; i++) {
       const tw = towers[i] || null;
-      const spawning = tw && (this.towerSpawnFx || []).some((fx) =>
-        fx.kind === 'spawnportal' && fx.towerKey === tw.key && fx.t < 0.7);
+      const spawning = tw && tw.activationHidden;
       if (spawning) { x += slotSize + slotGap; continue; }
 
-      // v1.17.45 槽体完全透明（无底色）；空槽 = 半透明灰色蒙版（无文字提示）
+      // 槽体完全透明（无底色）；空槽 = 半透明灰色蒙版（无文字提示）
       if (!tw) {
         // Empty tower slots are transparent.
       } else {
@@ -152,20 +151,20 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
         if (!drawImg(ctx, IMG_SRC[tw.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
           drawTowerGlyph(ctx, tw.key, ix, iy, L.towerIcon.size);
         }
-        // v1.17.45：去掉槽底 Lv 文字；等级由弹药柱条 + 塔本体表现
-        // v1.13.1 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
+        // ：去掉槽底 Lv 文字；等级由弹药柱条 + 塔本体表现
+        // 弹药条：图标右侧纵向柱状（自下而上填充，ammo/ammoMax），无弹药红色警示
         const aRatio = tw.ammoMax > 0 ? Math.min(1, (tw.ammo || 0) / tw.ammoMax) : 0;
         const bx = x + slotSize - 17;
         const by0 = slotY + 8;
         const bh = slotSize - 16;
         EnergyCapsule.draw(ctx, bx, by0, 13, bh, aRatio);
-        // v1.8：移除单塔经验条（经验整体化，经验条在出怪区上方）
+        // ：移除单塔经验条（经验整体化，经验条在出怪区上方）
       }
       x += slotSize + slotGap;
     }
-    // v1.17.10e 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y，与 4 塔槽按 x 轴等间距（slotGap）居中
+    // .10e 全局技能充能条：与塔槽同尺寸（100×100）、与塔同 y，与 4 塔槽按 x 轴等间距（slotGap）居中
     //   左=全局洗牌，右=弹药补给；累计充能每 chargePerUse 点 = 1 格（横向 3 段，上限 3 格）
-    // v1.14 测试战场（showGlobal=false）不渲染全局技能按钮
+    // 测试战场（showGlobal=false）不渲染全局技能按钮
     if (showG) {
       const sz = this.ly.slotSize;
       const perUse = Math.max(1, s.chargePerUse || 30);
@@ -184,7 +183,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
   function _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) {
     const maxCells = 3;
     const ready = filled >= 1;
-    // v1.17.45：不再用整体半透明压暗；未充能改为图标上覆盖半透明灰蒙版（图标本体不透明）
+    // ：不再用整体半透明压暗；未充能改为图标上覆盖半透明灰蒙版（图标本体不透明）
     // 背景：未充能 = 无背景色；已充能 = 主题色渐变背景（替换底色）
     if (ready) {
       const bg = ctx.createLinearGradient(0, by, 0, by + bh);
@@ -222,7 +221,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     ctx.restore();text(ctx,'×'+speed,x+w/2+18,y+h/2,22,accent,'center');
   }
 
-  /** v1.17.50 伤害统计按钮（行动区左下角） */
+  /** 伤害统计按钮（行动区左下角） */
   function _dmgStatBadge(ctx,x,y,w,h) {
     fillRoundRect(ctx,x,y,w,h,12,'rgba(38,46,58,0.55)');
     strokeRoundRect(ctx,x,y,w,h,12,'rgba(255,255,255,0.14)',1.5);

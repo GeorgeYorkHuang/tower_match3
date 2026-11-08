@@ -70,7 +70,8 @@ function create(opts) {
   function push(ev) {
     stats.pushed++;
     const kind = ev.kind || 'hit';
-    const life = ev.life || (kind === 'dot' ? conf.life.dot : (ev.big || ev.amount >= conf.bigAt ? conf.life.big : conf.life.base));
+    const isCritical = !!(ev.isCritical || ev.crit || kind === 'crit');
+    const life = ev.life || (kind === 'dot' ? conf.life.dot : (ev.big || isCritical ? conf.life.big : conf.life.base));
     const color = ev.color || colorOf(ev.sourceKey);
 
     // 1) 合并：同敌人 + 同来源 + 可合并类型 + 在窗口内
@@ -98,7 +99,7 @@ function create(opts) {
 
     const s = stackIndex(ev.enemyId);
     const id = ++seq;
-    const size = kind === 'dot' ? conf.size.dot : (ev.amount >= conf.bigAt || ev.crit ? conf.size.big : conf.size.base);
+    const size = kind === 'dot' ? conf.size.dot : (ev.big || isCritical ? conf.size.big : conf.size.base);
     const item = {
       id,
       enemyId: ev.enemyId,
@@ -111,7 +112,8 @@ function create(opts) {
       count: 1,
       age: 0,
       life,
-      size: ev.crit ? conf.size.crit : size,
+      size: isCritical ? conf.size.crit : size,
+      isCritical,
       color,
       text: formatAmount(ev.amount, conf),
       offsetY: Math.min(s, conf.stack.max - 1) * conf.stack.step,
@@ -139,18 +141,25 @@ function create(opts) {
       const p = Math.max(0, Math.min(1, it.age / it.life));
       const fin = conf.fadeIn > 0 ? Math.min(1, it.age / conf.fadeIn) : 1;
       // 后 25% 生命周期淡出
-      const fadeOut = p <= 0.75 ? 1 : 1 - (p - 0.75) / 0.25;
+      const m = conf.motion;
+      // Constant horizontal velocity and vertical acceleration form one parabola.
+      const variation = 1 + jitter(it.id + 97) * 0.12;
+      const t = it.age;
+      const dx = m.horizontalSpeed * variation * t;
+      const dy = -m.launchSpeed * variation * t + 0.5 * m.gravity * t * t;
+      const fadeOut = p <= m.fadeStart ? 1 : (1 - p) / (1 - m.fadeStart);
       const pop = 0.86 + 0.14 * fin;
       return {
         id: it.id,
         enemyId: it.enemyId,
         text: it.text,
-        x: it.x,
-        y: it.baseY - conf.rise * p - it.offsetY,
-        size: it.size * pop,
+        x: it.x + dx,
+        y: it.baseY + dy - it.offsetY,
+        size: it.size * pop * (it.amount > 500 ? 2 : it.amount > 100 ? 1.5 : 1),
         color: it.color,
         alpha: Math.max(0, Math.min(1, fin * fadeOut)),
         kind: it.kind,
+        isCritical: it.isCritical,
       };
     });
   }

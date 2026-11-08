@@ -1,4 +1,5 @@
 'use strict';
+const Mail=require('../economy/mail.js');
 const ACCESS = require('../config/test-access.js');
 const CONFIG = require('../config.js');
 const GlobalSkills = require('../global-skills.js');
@@ -24,7 +25,7 @@ function switchProfile(game, testing, preset) {
     game.meta = new Meta();
     if (preset !== 'fresh') {
       const m = game.meta;
-      m.gold = 999999; m.diamond = 99999; m.starStones = 999;
+      m.gold = 999999; m.diamond = 99999;
       Object.values(CONFIG.RELIC_RUN.tower).concat([CONFIG.RELIC_RUN.common, CONFIG.RELIC_RUN.ur || []]).forEach(list =>
         list.forEach(d => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; m.shards[d.id] = 999; }));
       Object.keys(CONFIG.TOWERS).forEach(k => { m.towerCodex[k] = 1; });
@@ -58,20 +59,30 @@ function switchProfile(game, testing, preset) {
   game.toast(testing ? '已进入独立测试档' : '已登出测试档 · 恢复正常档案', '#7ef0a3');
 }
 function promptPassphrase(game) {
-  if (!ACCESS.enabled) { game.toast('测试入口已关闭', '#ff6b6b'); return; }
   if (typeof wx === 'undefined' || !wx.showModal) { game.toast('当前环境不支持口令输入', '#ff6b6b'); return; }
   const request = game._passphraseRequest = (game._passphraseRequest || 0) + 1;
   const storageKey = game.save.storageKey, panel = game.menuPanel;
-  wx.showModal({ title: '测试口令', editable: true, placeholderText: '请输入测试口令',
+  wx.showModal({ title: '兑换码', editable: true, placeholderText: '请输入兑换码',
     success(res) {
       if (!res.confirm || game.state !== 'menu' || game._passphraseRequest !== request || game.save.storageKey !== storageKey || game.menuPanel !== panel) return;
-      if (String(res.content || '').trim() !== ACCESS.passphrase) { game.toast('口令不正确', '#ff6b6b'); return; }
-      game.menuPanel = { type: 'testProfile' };
+      const code=String(res.content||'').trim();
+      if(ACCESS.enabled&&code===ACCESS.passphrase){game.menuPanel={type:'testProfile'};return;}
+      const result=Mail.transact(game,meta=>Mail.redeem(meta,code));
+      if(!result.ok){game.toast(result.reason==='used'?'该兑换码已使用':result.reason==='save'?'保存失败，请重试':['reward','disabled'].includes(result.reason)?'该兑换码暂不可用':'兑换码无效','#ff6b6b');return;}
+      game.menuPanel={type:'accountMail',scrollY:0};game.toast('兑换成功，奖励已发送至邮箱','#9bdfa3');
     },
   });
 }
-function handle(game, key) {
-  if (key === 'accountPass') { promptPassphrase(game); return; }
+function handle(game, key, data) {
+  if (key === 'accountTutorial') { require('./tutorial.js').restart(game); return; }
+  if (key === 'accountMail') { game.menuPanel = { type: 'accountMail',scrollY:0 }; return; }
+  if(['accountMailClaim','accountMailClaimAll','accountMailDeleteRead'].includes(key)){
+    if(!game.menuPanel||game.menuPanel.type!=='accountMail')return;
+    const deleting=key==='accountMailDeleteRead',result=Mail.transact(game,meta=>deleting?Mail.deleteClaimed(meta):Mail.claim(meta,key==='accountMailClaim'?data:null));
+    if(!result.ok){game.toast(result.reason==='save'?'保存失败，请重试':deleting?'暂无已领取邮件':'暂无可领取奖励','#b8c7ac');return;}
+    game.toast(deleting?'已删除'+result.count+'封已领取邮件':require('../economy/mail-rewards.js').summary(result.rewards),'#bfe2aa');return;
+  }
+  if (key === 'accountPass' || key === 'accountRedeem') { promptPassphrase(game); return; }
   if (key === 'accountMusic') {
     game.meta.musicOn = game.meta.musicOn === false;
     game.sfx.setMusicEnabled(game.meta.musicOn);

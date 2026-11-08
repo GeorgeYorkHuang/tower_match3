@@ -11,7 +11,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     // 背景
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    // 状态条（v1.16.30 整体下移避开灵动岛）
+    // 状态条（整体下移避开灵动岛）
     const tgrad = ctx.createLinearGradient(0, 0, 0, STATUS_H);
     tgrad.addColorStop(0, '#16233a'); tgrad.addColorStop(1, '#0d1117');
     ctx.fillStyle = tgrad; ctx.fillRect(0, 0, 750, STATUS_H);
@@ -23,7 +23,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     push('tf_speed', null, 630, 54, 112, 56);
     const spdCol = s.speed >= 4 ? '#ff8c42' : s.speed >= 2 ? '#f7c948' : '#5b6b7c';
     this._speedBadge(ctx,636,58,100,48,s.speed);
-    // v1.16.113 测试战场：本局圣遗物行（注入即显示；★3 角标 = 3★ 质变生效；点击查看详情）
+    // 测试战场：本局圣遗物行（注入即显示；★3 角标 = 3★ 质变生效；点击查看详情）
     const rels = s.battleRelics || [];
     if (rels.length) {
       const rx = 130, ry = 116, rIcon = 24, rGap = 30, rMax = 10;
@@ -55,9 +55,9 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     fillRoundRect(ctx, AREA_X, AREA_Y, AREA_W, ENTRY_H, 8, '#1f2732');
     text(ctx, `敌人 ${s.enemyCount} 只`, AREA_X + 16, AREA_Y + ENTRY_H / 2, 20, '#9fb2c3');
     // 测试战场开局已默认启用全部圣遗物。
-    text(ctx, '全部圣遗物已按 3★ 效果启用', 398, AREA_Y + ENTRY_H / 2, 16, '#ffcf70', 'center');
-    // v1.16.104 测试战场：添加 3★ 圣遗物（已拥有圣遗物按 3★ 质变生效测试）
-    text(ctx, '点塔位配置技能', AREA_X + AREA_W - 150, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
+    text(ctx, '常规圣物3★ · 红卡按天赋装配', 398, AREA_Y + ENTRY_H / 2, 16, '#ffcf70', 'center');
+    // 测试战场：添加 3★ 圣遗物（已拥有圣遗物按 3★ 质变生效测试）
+    text(ctx, '点塔位配置技能', AREA_X + AREA_W - 12, AREA_Y + ENTRY_H / 2, 17, '#7cd6a6', 'right');
     // 防线血条（测试战场恒满；位置与正式战场塔位行底部对齐）
     this.wall(ctx, s.lineHp, s.lineMaxHp, WALL_Y + L.towerRow.h - 14);
     // 敌人与特效（位于战场区，不被控制条覆盖）；地面持续效果（毒池/毒棒）画在敌人下层
@@ -66,7 +66,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     if (enemies) this.enemies(ctx, enemies);
     if (fx) this.fx(ctx, fx);
     this.damageNumbers(ctx, damageNumbers);
-    // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（v1.14.1）
+    // 塔位行：单塔出战（当前塔大槽）+ 6 塔切换钮（）
     const cur = (s.towers || [])[0] || null;
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, WALL_Y, 750, L.towerRow.h)) {
       fillRoundRect(ctx, AREA_X, WALL_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
@@ -80,9 +80,9 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
       if (!drawImg(ctx, IMG_SRC[cur.key], ix, iy, L.towerIcon.size, L.towerIcon.size)) {
         drawTowerGlyph(ctx, cur.key, ix, iy, L.towerIcon.size);
       }
-      // v1.17.10 等级小字（不再显示右上角数字徽章，避免遮挡塔图标）
+      // 等级小字（不再显示右上角数字徽章，避免遮挡塔图标）
       text(ctx, `Lv${cur.level}`, 15 + 50, slotY + 100 - 10, 13, 'rgba(255,255,255,0.75)', 'center');
-      // 能量竖条（槽内右侧；v1.16.77 弹药→能量）
+      // 能量竖条（槽内右侧；弹药→能量）
       const aRatio = cur.ammoMax > 0 ? Math.min(1, (cur.ammo || 0) / cur.ammoMax) : 0;
       const bx = 15 + 100 - 17, by0 = slotY + 8, bh = 100 - 16;
       EnergyCapsule.draw(ctx, bx, by0, 13, bh, aRatio);
@@ -120,6 +120,8 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
       });
     });
     text(ctx, '点上方“出战塔”配技能 · 点“更换”切塔 · 分支按钮循环 0→3', 375, cY + 216, 16, '#5b6b7c', 'center');
+    push('tf_talentCharge',null,230,1380,290,62);
+    fillRoundRect(ctx,230,1380,290,62,12,'rgba(226,190,105,0.12)');strokeRoundRect(ctx,230,1380,290,62,12,'#d8b66a',1.5);text(ctx,'红卡充能 '+(s.talentReady||0)+'/'+(s.talentGold||0),375,1412,23,'#ffe1a0','center');
     // 返回主界面
     push('tf_back', null, 100, 1490, 550, 76);
     fillRoundRect(ctx, 100, 1490, 550, 76, 18, 'rgba(255,255,255,0.06)');
@@ -131,7 +133,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     return hits;
   }
 
-  /** v1.14 测试战场技能配置面板：8 技能行 × (A/B/C 分支循环按钮 + 清除)，底部全激活/清空 */
+  /** 测试战场技能配置面板：8 技能行 × (A/B/C 分支循环按钮 + 清除)，底部全激活/清空 */
   function testSkillPanel(ctx, key, s, push) {
     const tower = s.towers.find((t) => t && t.key === key);
     if (!tower) return;
@@ -158,7 +160,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
       fillRoundRect(ctx, px + 24, ry + 14, 52, 52, 10, sk.level > 0 ? sk.color : 'rgba(255,255,255,0.06)');
       text(ctx, sk.icon, px + 50, ry + 48, 26, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'center');
       text(ctx, sk.name, px + 92, ry + 34, 22, sk.level > 0 ? '#ffffff' : '#8ea3b8', 'left');
-      // v1.16.3：分支等级行用真实分支名（branchName 提取 config 文案冒号前名称），不再用 A/B/C 代号
+      // ：分支等级行用真实分支名（branchName 提取 config 文案冒号前名称），不再用 A/B/C 代号
       const cfg = pool.find((q) => q.name === sk.name) || null;
       const bn = (br) => this.branchName(cfg, br);
       const parts = [];

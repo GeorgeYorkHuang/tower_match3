@@ -1,14 +1,15 @@
 /** R09: relic pages and presentation helpers. No Meta/Run references or asset cache. */
 'use strict';
 const CONFIG = require('../../config.js');
+const RelicCard = require('./relic-card.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
-// v1.16.76 圣遗物定义速查表（升星面板用）
+// 圣遗物定义速查表（升星面板用）
 const RELIC_DEF_MAP = {};
 Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => l.forEach((d) => { RELIC_DEF_MAP[d.id] = d; }));
 CONFIG.RELIC_RUN.common.forEach((d) => { RELIC_DEF_MAP[d.id] = d; });
-(CONFIG.RELIC_RUN.ur || []).forEach((d) => { RELIC_DEF_MAP[d.id] = d; });   // v1.17.47 红色战场专属
+(CONFIG.RELIC_RUN.ur || []).forEach((d) => { RELIC_DEF_MAP[d.id] = d; });   // Sanctum talent relic registry
 
-/** v1.17.48 红色（ur）圣遗物：与其它稀有度走同一套「未获得=问号」规则，不再单独标注与揭示来源 */
+/** Sanctum UR relics share fragment progression and use the field-specific Boss pool. */
 const UR_COLOR = '#ff5a3c';
 function isUrRarity(rar) { return rar === 'ur'; }
 function urFieldName(def) {
@@ -26,7 +27,7 @@ function createRelicScreen(deps = {}) {
     const list = [];
     Object.values(RR.tower).forEach((l) => list.push(...l));
     list.push(...RR.common);
-    list.push(...(RR.ur || []));      // v1.17.47 红色（战场专属）排在最前
+    list.push(...(RR.ur || []));      // 红色（战场专属）排在最前
     const o = { ur: -1, ssr: 0, sr: 1, r: 2 };   // 图鉴按稀有度降序（红→金→紫→蓝）
     return list.slice().sort((a, b) => o[CONFIG.relicRarity(a.id)] - o[CONFIG.relicRarity(b.id)]);
   }
@@ -58,13 +59,15 @@ function createRelicScreen(deps = {}) {
     text(ctx, label, x + w / 2, y + h / 2 + 1, 17, '#ffffff', 'center');
   }
 
+  function _redFragmentCard(ctx,s,d,x,y,w,h,compact){const have=s.shards[d.id]||0,need=CONFIG.DUPLICATE_SHARDS.ur||10,ready=have>=need,size=compact?58:104,cy=y+(compact?40:70),src=relicIconSrc(d.id);ctx.save();ctx.globalAlpha=ready?1:.70;if(!(src&&drawImg(ctx,src,x+w/2-size/2,cy-size/2,size,size)))text(ctx,'◆',x+w/2,cy,40,UR_COLOR,'center');ctx.restore();const font=Math.min(compact?17:23,(w-12)/Math.max(1,d.name.length));text(ctx,d.name,x+w/2,y+(compact?90:150),font,ready?'#ffe08a':'#ecc3b6','center');_capsuleBar(ctx,x+12,y+h-(compact?39:40),w-24,compact?28:32,Math.min(1,have/need),ready?'可解锁 '+have+'/'+need:have+'/'+need,ready?'#f6d67c':'#bd6c67',ready?'#c48a1a':'#734641');if(ready)strokeRoundRect(ctx,x,y,w,h,12,'#f7c948',2.5);}
+
   function _menuRelicGrid(ctx, s, push, pageKey, showChest) {
     const PER_ROW = 4, PAGE = 16;
     const list = _relicRunList();
     const pages = Math.max(1, Math.ceil(list.length / PAGE));
     const page = Math.min(s.relicDexPage || 0, pages - 1);
     const unlocked = list.filter((d) => _relicUnlocked(s, d.id)).length;
-    // v1.16.78 主页保留宝箱入口（原圣物页宝箱区块）
+    // 主页保留宝箱入口（原圣物页宝箱区块）
     if (showChest) {
       push('chest', null, 55, 262, 250, 42);
       fillRoundRect(ctx, 55, 262, 250, 42, 10, '#3a2b1a');
@@ -72,7 +75,7 @@ function createRelicScreen(deps = {}) {
       text(ctx, `📦 宝箱 ×${s.chests} 点击开启`, 180, 290, 18, '#ffffff', 'center');
     }
     text(ctx, `圣遗物图鉴 ${unlocked}/${list.length}`, 55, 290, 26, '#ffffff', 'left');
-    text(ctx, '未解锁=问号占位 · 点卡查看 1/2/3★效果', 480, 290, 17, '#8ea3b8', 'left');
+    text(ctx, '点击查看效果 · 集齐碎片后解锁', 480, 290, 17, '#8ea3b8', 'left');
     const cw = 149, ch = 150, gx = 14, gy = 14;
     const x0 = 55;
     const y0 = showChest ? 336 : 318;
@@ -102,12 +105,7 @@ function createRelicScreen(deps = {}) {
         text(ctx, `${CONFIG.relicRarity(d.id).toUpperCase()}${star > 1 ? ' ' + star + '★' : ''}`, rx + 14, ry2 + 128, 15, rc, 'left');
         text(ctx, d.desc ? d.desc.slice(0, 12) + (d.desc.length > 12 ? '…' : '') : '', rx + 14, ry2 + 72, 14, '#9fb2c3', 'left');
       } else if (rar === 'ur') {
-        // v1.17.48 红色圣遗物：未获得一律问号占位（与其它未解锁卡一致，不暴露名称/来源/专属标签）
-        ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2);
-        ctx.fillStyle = '#151a22'; ctx.fill();
-        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 34, rc, 'center');
-        text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
+        _redFragmentCard(ctx,s,d,rx,ry2,cw,ch,true);
       } else {
         const needG = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const shG = s.shards[d.id] || 0;
@@ -126,8 +124,7 @@ function createRelicScreen(deps = {}) {
           text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
         }
       }
-      // 点击区：已解锁 → 详情；可解锁 → 详情（内含解锁按钮）；红卡未获得 → 无操作（问号态不可点开）
-      const clickableG = owned || (rar !== 'ur' && _relicUnlockable(s, d.id));
+      const clickableG = true;
       push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
@@ -137,10 +134,11 @@ function createRelicScreen(deps = {}) {
   }
 
   function menuRelic(ctx, s, push) {
+    text(ctx, `圣物粉尘  ${fmtNum(s.relicDust || 0)}`, 55, 239, 23, '#705282', 'left');
     const list = _relicRunList();
     const unlocked = list.filter((d) => _relicUnlocked(s, d.id)).length;
-    // v5.3 深度宝箱槽位（4 格）：从主页移至圣遗物图鉴顶部（解锁进度与卡片整体下移）
-    // v1.17.47 宝箱图标与「收益宝箱」统一：档位图 chestWood/Bronze/Silver/Gold/Star，空槽用 chestClosed
+    // 深度宝箱槽位（4 格）：从主页移至圣遗物图鉴顶部（解锁进度与卡片整体下移）
+    // 宝箱图标与「收益宝箱」统一：档位图 chestWood/Bronze/Silver/Gold/Star，空槽用 chestClosed
     const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
     const TIER_IMG = {
       wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver,
@@ -175,8 +173,8 @@ function createRelicScreen(deps = {}) {
         }
       }
     }
-    // 顶部固定区：标题 + 解锁进度条（v5.3 随宝箱上移整体下移 154px）
-    text(ctx, '圣遗物图鉴', 55, 448, 32, '#ffffff', 'left');
+    // 顶部固定区：标题 + 解锁进度条（随宝箱上移整体下移 154px）
+    text(ctx, '圣遗物图鉴', 55, 448, 32, '#51415e', 'left');
     const px0 = 250, pw = 460, py = 434;
     fillRoundRect(ctx, px0, py, pw, 24, 12, 'rgba(255,255,255,0.08)');
     const ratio = list.length ? unlocked / list.length : 0;
@@ -203,39 +201,14 @@ function createRelicScreen(deps = {}) {
       const rar = CONFIG.relicRarity(d.id);
       const rc = _relicRarColor(rar);
       const owned = _relicUnlocked(s, d.id);
-      const icx = rx + cw / 2, icy = ry2 + 70;   // v1.16.88 图标区占上 2/3（高 140），圆心居中
+      const icx = rx + cw / 2, icy = ry2 + 70;   // 图标区占上 2/3（高 140），圆心居中
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
       drawImg(ctx, 'assets/images/interface/cards/relic-card-v1.png', rx, ry2, cw, ch);
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
       if (owned) {
-        // 上 2/3：圣遗物图片居中（104px，四周留白）
-        const src = relicIconSrc(d.id);
-        if (!(src && drawImg(ctx, src, icx - 52, icy - 52, 104, 104))) {
-          ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
-          ctx.fillStyle = rc; ctx.globalAlpha = 0.22; ctx.fill(); ctx.globalAlpha = 1;
-          text(ctx, d.icon, icx, icy + 2, 44, '#ffffff', 'center');
-        }
-        // 星级角标（右上角小字）
-        const star = s.relicStars[d.id] || 1;
-        text(ctx, '★'.repeat(Math.min(star, 3)), rx + cw - 10, ry2 + 16, 18, rc, 'right');
-        // 下 1/3：名字居中 + 胶囊进度条（v1.16.110：h32=文字+原14条高，文字居中胶囊内）
-        text(ctx, d.name, icx, ry2 + 150, 24, '#ffffff', 'center');
-        const c3 = CONFIG.STAR_UP.cost[star + 1];
-        const need3 = c3 ? c3.shards : 0;
-        const sh3 = s.shards[d.id] || 0;
-        let ratio3, lbl3, ct3, cb3;
-        if (star >= 3) { ratio3 = 1; lbl3 = '已满级'; ct3 = '#f6d67c'; cb3 = '#c48a1a'; }
-        else if (need3 > 0 && sh3 >= need3) { ratio3 = 1; lbl3 = '可升星'; ct3 = '#f6d67c'; cb3 = '#c48a1a'; }
-        else { ratio3 = need3 > 0 ? Math.min(1, sh3 / need3) : 0; lbl3 = `${sh3}/${need3}`; ct3 = '#8fb6ff'; cb3 = '#5b86d6'; }
-        _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, ratio3, lbl3, ct3, cb3);
+        const star=s.relicStars[d.id]||1;RelicCard.content(ctx,d,{x:rx,y:ry2,w:cw,h:ch},{star,rarity:rar,shards:s.shards[d.id]||0,nextCost:CONFIG.STAR_UP.cost[star+1]},drawImg,relicIconSrc);
       } else if (rar === 'ur') {
-        // v1.17.48 红色圣遗物：未获得=问号占位（不显示名称、来源与专属标签）
-        ctx.beginPath(); ctx.arc(icx, icy, 46, 0, Math.PI * 2);
-        ctx.fillStyle = '#151a22'; ctx.fill();
-        ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
-        text(ctx, '?', icx, icy + 5, 46, rc, 'center');
-        text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
-        _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, 0, '? / ?', '#5a6b80', '#3d4c5e');
+        _redFragmentCard(ctx,s,d,rx,ry2,cw,ch,false);
       } else {
         const thr = CONFIG.DUPLICATE_SHARDS[rar] || 0;
         const sh4 = s.shards[d.id] || 0;
@@ -263,15 +236,14 @@ function createRelicScreen(deps = {}) {
           ctx.strokeStyle = rc; ctx.lineWidth = 1.5; ctx.stroke();
           text(ctx, '?', icx, icy + 5, 46, rc, 'center');
           text(ctx, '未解锁', icx, ry2 + 150, 24, '#4a5a6e', 'center');
-          // 底部：胶囊进度条（v1.16.110，阈值 = DUPLICATE_SHARDS，灰阶填充）
+          // 底部：胶囊进度条（，阈值 = DUPLICATE_SHARDS，灰阶填充）
           const r4 = thr > 0 ? Math.min(1, sh4 / thr) : 0;
           _capsuleBar(ctx, rx + 12, ry2 + 170, cw - 24, 32, r4, `${sh4}/${thr}`, '#5a6b80', '#3d4c5e');
         }
       }
-      // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，v1.16.85）
+      // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
-      // v1.17.20 可解锁卡也进详情面板（在那里点「解锁」按钮，避免误触直接扣碎片）；v1.17.48 红卡未获得为问号态，不可点开
-      const clickable = owned || (rar !== 'ur' && _relicUnlockable(s, d.id));
+      const clickable = true;
       if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();
@@ -299,7 +271,7 @@ function createRelicScreen(deps = {}) {
     const oy = panelShell(ctx, s, push, '', 840, true, 560);
     drawImg(ctx, 'assets/images/interface/cards/relic-detail-v1.png', 95, oy, 560, 840);
     // Redraw the close control above the background; hit bounds stay owned by panelShell.
-    text(ctx, '×', 605, oy + 46, 28, '#e9ddbd', 'center');   // v1.17.8 窄面板 560 与卡片同宽
+    text(ctx, '×', 605, oy + 46, 28, '#e9ddbd', 'center');   // 窄面板 560 与卡片同宽
     const rar = CONFIG.relicRarity(id);
     const rc = _relicRarColor(rar);
     const owned = _relicUnlocked(s, id);
@@ -317,21 +289,14 @@ function createRelicScreen(deps = {}) {
     const gx = 375, gy = oy + 168, dia = 200;
     const src = relicIconSrc(id);
     if (!(src && drawImg(ctx, src, gx - dia / 2, gy - dia / 2, dia, dia))) text(ctx, d.icon, gx, gy, 150, '#ffffff', 'center');
-    // ---- v1.17.48 红色来源条：替代碎片进度（红件只由指定战场的 20/40/60 波 Boss 掉落）----
-    if (rar === 'ur') {
-      const by0 = oy + 268;
-      fillRoundRect(ctx, cardX + 24, by0, 512, 40, 20, 'rgba(60,16,10,0.85)');
-      strokeRoundRect(ctx, cardX + 24, by0, 512, 40, 20, UR_COLOR, 1.6);
-      text(ctx, `红色圣遗物 · ${urFieldName(d)} · 20/40/60 波 Boss 掉落`, 375, by0 + 21, 18, '#ffb3a3', 'center');
-    }
     // ---- 胶囊立体进度条（与图标同宽 200px，内显 shards/need）----
     const shards = s.shards[id] || 0;
-    // v1.17.20 未解锁时进度条口径 = 解锁所需碎片（原实现取 STAR_UP.cost[1] 不存在 → 恒显 0/0）
+    // 未解锁时进度条口径 = 解锁所需碎片（原实现取 STAR_UP.cost[1] 不存在 → 恒显 0/0）
     const unlockNeed = CONFIG.DUPLICATE_SHARDS[rar] || 0;
     const cost = CONFIG.STAR_UP.cost[star + 1];
     const need = owned ? (cost ? cost.shards : 0) : unlockNeed;
     const px0 = gx - 100, py0 = oy + 268, pw = 200, ph = 36;
-    if (rar !== 'ur') {
+    {
       fillRoundRect(ctx, px0, py0, pw, ph, 18, 'rgba(20,26,38,0.95)');
       strokeRoundRect(ctx, px0, py0, pw, ph, 18, '#3a4553', 2);
       const pr = need > 0 ? Math.min(1, shards / need) : 0;
@@ -343,6 +308,14 @@ function createRelicScreen(deps = {}) {
         fillRoundRect(ctx, px0 + 8, py0 + 4, fw - 16, 8, 4, 'rgba(255,255,255,0.55)');
       }
       text(ctx, need > 0 ? `${shards} / ${need}` : (owned && star >= 3 ? 'MAX' : '0 / 0'), gx, py0 + ph / 2 + 1, 20, '#ffffff', 'center');
+    }
+    const dustCost = require('../../config/relic-dust.js').craft[rar];
+    if (dustCost && star < 3) {
+      const capacity = (star ? 0 : unlockNeed) + (star < 2 ? CONFIG.STAR_UP.cost[2].shards : 0) + CONFIG.STAR_UP.cost[3].shards;
+      const full = shards >= capacity;
+      fillRoundRect(ctx, cardX + 36, oy + 786, 488, 48, 12, '#342641');
+      text(ctx, full ? '碎片已满' : '合成1片 · '+dustCost+'粉尘（持有 '+(s.relicDust || 0)+'）', 375, oy + 810, 20, '#dfbdff', 'center');
+      if (!full) push('craftShard', id, cardX + 36, oy + 786, 488, 48);
     }
     // ---- 名称 ----
     text(ctx, d.name, 375, oy + 330, 38, '#ffffff', 'center');
@@ -376,12 +349,10 @@ function createRelicScreen(deps = {}) {
       lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
     });
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
+    if(rar==='ur')text(ctx,'来源：猩红宝箱 / '+urFieldName(d)+'通关Boss',375,oy+678,17,'#ffb3a3','center');
     const btnY = oy + 710;
-    if (rar === 'ur' && !owned) {
-      // v1.17.47 红件无碎片渠道：只说明获取方式，不放解锁/升星按钮
-      text(ctx, `尚未获得 · 击败 ${urFieldName(d)} 的 20 / 40 / 60 波 Boss 可获得`, 375, btnY + 31, 20, '#c07a6c', 'center');
-    } else if (!owned) {
-      // v1.17.20 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示
+    if (!owned) {
+      // 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示
       if (_relicUnlockable(s, id)) {
         push('relicUnlock', id, rx, btnY, rw, 62);
         const bg = ctx.createLinearGradient(0, btnY, 0, btnY + 62);
@@ -390,7 +361,7 @@ function createRelicScreen(deps = {}) {
         strokeRoundRect(ctx, rx, btnY, rw, 62, 16, '#f7c948', 2.5);
         text(ctx, `解锁 · 消耗 ${unlockNeed} 碎片`, rx + rw / 2, btnY + 31, 24, '#ffd34d', 'center');
       } else {
-        text(ctx, `碎片 ${shards}/${unlockNeed} · 战斗中击杀精英/Boss 掉落`, 375, btnY + 31, 22, '#5a6c80', 'center');
+        text(ctx, rar==='ur'?`碎片 ${shards}/${unlockNeed} · 猩红宝箱或通关Boss获取`:`碎片 ${shards}/${unlockNeed} · 战斗中击杀精英/Boss 掉落`, 375, btnY + 31, rar==='ur'?19:22, '#a7b99d', 'center');
       }
     } else if (cost && star < 3) {
       push('relicStar', id, rx, btnY, rw, 62);
@@ -400,10 +371,10 @@ function createRelicScreen(deps = {}) {
       strokeRoundRect(ctx, rx, btnY, rw, 62, 16, rc, 2.5);
       text(ctx, `升到 ${star + 1}★`, rx + rw / 2 - 66, btnY + 31, 24, '#ffd34d', 'center');
       const coinX = rx + rw / 2 + 46;
-      // v1.17 升星消耗金币（局外永久货币）
+      // 升星消耗金币（局外永久货币）
       if (!drawImg(ctx, IMG_SRC.coin, coinX - 12, btnY + 19, 24, 24)) text(ctx, '🪙', coinX, btnY + 31, 20, '#ffe9a8', 'center');
       text(ctx, fmtNum(cost.gold), coinX + 18, btnY + 31, 22, '#ffe9a8', 'left');
-      if (cost.stone) text(ctx, `⭐ ${cost.stone}`, coinX + 120, btnY + 31, 20, '#a86bff', 'center');
+      if (rar === 'ssr' && cost.diamond) text(ctx, `⭐ ${cost.diamond}`, coinX + 120, btnY + 31, 20, '#a86bff', 'center');
     } else {
       text(ctx, '已达满级 3★', 375, btnY + 31, 28, '#f7c948', 'center');
     }
@@ -411,7 +382,7 @@ function createRelicScreen(deps = {}) {
 
   function menuStarUp(ctx, s, push) {
     panelShell(ctx, s, push, '⭐ 圣遗物升星', 940);
-    text(ctx, `星辉石 ×${s.starStones || 0}（金级升 3★ 需要）`, 375, 262, 20, '#a86bff', 'center');
+    text(ctx, `钻石 ×${s.diamond || 0}（金级升 3★ 需要）`, 375, 262, 20, '#a86bff', 'center');
     const ids = Object.keys(s.relicStars || {}).filter((id) => s.relicStars[id] > 0);
     if (!ids.length) {
       text(ctx, '尚未解锁圣遗物', 375, 420, 24, '#8ea3b8', 'center');
@@ -452,7 +423,7 @@ function createRelicScreen(deps = {}) {
       ry += 86;
     });
     if (ids.length > shown.length) text(ctx, `共 ${ids.length} 枚已解锁 · 优先展示可升星项`, 375, ry + 20, 17, '#5a6c80', 'center');
-    text(ctx, '2★=效果升级 · 3★=特殊质变（金级需星辉石）', 375, 1080, 17, '#5a6c80', 'center');
+    text(ctx, '2★=效果升级 · 3★=特殊质变（金级需钻石）', 375, 1080, 17, '#5a6c80', 'center');
   }
   return { _relicRunList, _relicUnlocked, _relicUnlockable, _relicRarColor, _capsuleBar, _menuRelicGrid, menuRelic, menuRelicDex, menuRelicInfo, menuStarUp };
 }

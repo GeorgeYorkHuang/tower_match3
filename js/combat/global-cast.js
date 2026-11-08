@@ -8,7 +8,7 @@ function castGlobal(combat, which) {
   if (!g.run.spendAmmo(which)) return false;
   const GS = CONFIG.GLOBAL_SKILL;
   const index = which === 'shuffle' ? 0 : 1;
-  which = (g.run.globalSlots || ['shuffle','refill'])[index];
+  which = (g.run.globalSlots || ['refill','forge'])[index];
   if (which !== 'shuffle' && which !== 'refill') return GlobalSkills.cast(combat,which);
   if (which === 'shuffle') {
     // 全局洗牌：打乱当前三消棋盘所有方块（重新生成，无初始三消）
@@ -17,12 +17,11 @@ function castGlobal(combat, which) {
     g.anim = null;                       // 清掉进行中交换/消除动画，避免与新棋盘渲染冲突
     g.selected = null; g.pickCell = null;
     combat.fxFlash(375, 800, '#ff8c42', 0.5);
-    combat.fxRing(375, 800, '#ff8c42', 300, 0.5, 8);
     g.toast && g.toast('🔀 全局洗牌', '#ff8c42');
-    // v1.16.89 洗牌重做：额外触发一遍已有技能——周期技计时器置满立即触发一次 + 全体塔按已激活技能数追加普攻
+    // 洗牌重做：额外触发一遍已有技能——周期技计时器置满立即触发一次 + 全体塔按已激活技能数追加普攻
     const n = combat.castGlobalBurst();
     if (n > 0) g.toast && g.toast(`⚡ 技能齐发 · 全塔普攻 ×${n}`, '#ff8c42');
-    // v1.16.96 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3（shotDmg 统一乘区）
+    // 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3（shotDmg 统一乘区）
     if (g.run.relic3('cm_shuffle')) g.run._shuffleBuffTtl = 2;
   } else {
     // 能量补给：所有已解锁塔各 +refillEnergy（封顶能量上限）
@@ -36,10 +35,11 @@ function castGlobal(combat, which) {
       refilled += tw.energy - before;
     });
     combat.fxFlash(375, 800, '#7ef0a3', 0.5);
-    combat.fxRing(375, 800, '#7ef0a3', 300, 0.5, 8);
     g.toast && g.toast(`🔋 能量补给 +${GS.refillEnergy}`, '#7ef0a3');
     if (refilled > 0) g.toast && g.toast(`全场补给 ${Math.round(refilled)} 点`, '#7ef0a3');
   }
+  require('../game/fx/global-feedback.js').emit(combat,which);
+  require('../game/tutorial.js').globalUsed(g,which);
   return true;
 }
 

@@ -40,7 +40,7 @@ const CONFIG = require('./config.js');
 const EnergyState = require('./config/energy-state.js');
 
 /* =====================================================================
- * SKILL_NUM —— 技能行为数值表（重构 v1.16.43）
+ * SKILL_NUM —— 技能行为数值表（重构 ）
  * 档位数组约定：arr[lv]，lv = 分支等级（0=未学，取 arr[0]，通常为 0/无效值）。
  * 展示文案在 config.js EFFECT_POOLS（desc/a/b/c）；此处是**行为数值**单源，
  * combat 内一律经 SKILL_NUM 取数，禁止散落魔法数组。
@@ -79,14 +79,14 @@ class CombatSystem {
     this.atkTimers = {};    // 每塔攻击计时
     this.kills = {};        // 每塔击杀计数（回收/充能联动）
     this.bWait = {};        // 回旋镖：镖在飞行中 → true（接回后才能投下一个）
-    this.bCatch = {};       // v1.16.42 回旋镖接镖冷却计时（未学接镖：接镖后 0.5s 才投下一镖）
-    this._nextDmg = {};     // 回旋镖·接镖 C 续投：下镖伤害加成（v1.16）
+    this.bCatch = {};       // 回旋镖接镖冷却计时（未学接镖：接镖后 0.5s 才投下一镖）
+    this._nextDmg = {};     // 回旋镖·接镖 C 续投：下镖伤害加成（）
   }
 
   reset() { return Lifecycle.reset(this); }
 
   /* ---------- 工具 ---------- */
-  /** 出战塔对象（v1.16.4：测试战场单塔模式——仅 slotOrder 内塔生效，旧塔周期技/技能链立即停用） */
+  /** 出战塔对象（：测试战场单塔模式——仅 slotOrder 内塔生效，旧塔周期技/技能链立即停用） */
   tower(key) {
     const t = this.game.run.effects.tower(key);
     if (t && t._activationDelay > 0) return null;
@@ -94,14 +94,14 @@ class CombatSystem {
     if (t && order && order.length && !order.includes(key)) return null;
     return t;
   }
-  /** 技能数值等级（v1.16.5：统一口径 = 激活?1+分支:0；与原版激活 1 档/分支逐级+1 一致，满级 4 档） */
+  /** 技能数值等级（：统一口径 = 激活?1+分支:0；与原版激活 1 档/分支逐级+1 一致，满级 4 档） */
   lv(key, name) {
     const b = this.tower(key);
     if (!b) return 0;
     const ef = b.pool.find((e) => e.name === name);
     return ef ? ef.level : 0;
   }
-  /** 分支等级（A/B/C）——分支独立成长（v1.13 火塔重构起：分支加成按各自分支等级） */
+  /** 分支等级（A/B/C）——分支独立成长（火塔重构起：分支加成按各自分支等级） */
   branchLv(key, name, br) {
     const b = this.tower(key);
     if (!b) return 0;
@@ -116,15 +116,16 @@ class CombatSystem {
   interval(key) {
     const cfg = CONFIG.TOWERS[key];
     let iv = cfg.atkInterval;
+    iv /= 1+require('./talents/runtime.js').bonus(this.game.run,key).speed;
     // 冰·低温全塔：全塔 +10%/级，冰塔额外 +15%/级
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));
-    // 回旋镖·接镖 A 已改为飞行速度提升（v1.16.5，见发射段 bDur），不再提供攻速加成
+    // 回旋镖·接镖 A 已改为飞行速度提升（，见发射段 bDur），不再提供攻速加成
     // 圣物·疾风戒：全塔攻速 +8%/级
     const m = this.game.meta;
     const spdLv = (m && m.relicBonus && m.relicBonus().speed) || 0;
     if (spdLv > 0) iv /= (1 + 0.08 * spdLv);
-    // v1.16.78 攻速戒指（局内圣遗物）：全塔攻击间隔缩短 N%（按星级）
+    // 攻速戒指（局内圣遗物）：全塔攻击间隔缩短 N%（按星级）
     const spdR = this.relicVal('cm_speed');
     if (spdR > 0) iv /= (1 + spdR / 100);
     const relicSpd = this.relicVal(`r_${key}_spd`);
@@ -133,7 +134,7 @@ class CombatSystem {
     const TOWER_ASPD = { ice: 'ice_marrow', electric: 'elec_light', cannon: 'can_rapid', boomerang: 'boo_speed' };
     const aspR = this.relicVal(TOWER_ASPD[key]);
     if (aspR > 0) iv /= (1 + aspR / 100);
-    // v1.17.43 疾电1★/2★：电塔攻击间隔缩短 8%/12%；3★：麻痹叠层每层 +10% 攻速（3 秒窗口，最多 2 层）
+    // 疾电1★/2★：电塔攻击间隔缩短 8%/12%；3★：麻痹叠层每层 +10% 攻速（3 秒窗口，最多 2 层）
     if (key === 'electric') {
       const fR = this.relicVal('elec_fast');
       if (fR > 0) iv /= (1 + fR / 100);
@@ -144,7 +145,7 @@ class CombatSystem {
     const store = this.game.run.storeBuff ? this.game.run.storeBuff() : { spd: 0 };
     if (store.speedMultiplier != null) iv /= store.speedMultiplier;
     else if (store.spd > 0) iv /= (1 + 0.15 * store.spd);
-    // v1.16.96 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
+    // 智慧典籍3★：升级触发全塔 3 秒攻速 +20%（窗口秒数由 run._tomeBuffTtl 承载，combat.update 递减）
     if (this.game.run._tomeBuffTtl > 0) iv /= 1.2;
     return Math.max(COMBAT_BALANCE.minAttackInterval, iv / (this.game.run.gsState && this.game.run.gsState.haste > 0 ? GS_BALANCE.haste.speedMultiplier : 1)) / Bosses.attackScale(this.game, key);
   }
@@ -152,13 +153,13 @@ class CombatSystem {
   /** 塔当前射程（射程/技能叠加） */
   range(key) { return Targeting.range(this, key); }
 
-  /** v1.16.78 圣遗物当前星级数值（1★=desc / 2★=star2 文本最后数字）；未获得返回 0 */
+  /** 圣遗物当前星级数值（1★=desc / 2★=star2 文本最后数字）；未获得返回 0 */
   relicVal(id) {
     const g = this.game;
     const run = g && g.run;
     if (!run || !run.relicRun || run.relicRun(id) <= 0) return 0;
     const star = run._testStar3 && run._testStar3[id] ? 3
-      : (g.meta && g.meta.starOf) ? g.meta.starOf(id) : 1;
+      : Math.max(run._talentCenterId===id?1:0,(g.meta && g.meta.starOf) ? g.meta.starOf(id) : 1);
     const configured = CONFIG.RELIC_VALUES && CONFIG.RELIC_VALUES[id] && CONFIG.RELIC_VALUES[id].primary;
     if (configured) return configured[star] || 0;
     const revised = CONFIG.RELIC_REWORK && CONFIG.RELIC_REWORK.RELIC_VALUES[id] && CONFIG.RELIC_REWORK.RELIC_VALUES[id].primary;
@@ -166,7 +167,7 @@ class CombatSystem {
     return CONFIG.relicNum(id, star);
   }
 
-  /** v1.16.78 塔圣遗物「伤害类」乘区：desc 与 star2 均描述伤害 → 该塔所有伤害（普攻+技能同源）×(1+ΣN%) */
+  /** 塔圣遗物「伤害类」乘区：desc 与 star2 均描述伤害 → 该塔所有伤害（普攻+技能同源）×(1+ΣN%) */
   relicTowerDmg(key) {
     const g = this.game;
     const run = g && g.run;
@@ -184,13 +185,13 @@ class CombatSystem {
     return sum;
   }
 
-  /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径）；isSkill=true 表示技能/DoT 上下文（v1.16.96 全局充能3★ 技能伤加成只吃技能） */
+  /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径）；isSkill=true 表示技能/DoT 上下文（全局充能3★ 技能伤加成只吃技能） */
   shotDmg(key, isSkill, isTowerSkill) { return Damage.shotDmg(this, key, isSkill, isTowerSkill); }
 
-  /** v1.16.77 周期技弱化倍率：塔能量耗尽 → 周期 ×1.5（伤害弱化已由 shotDmg 统一 ×0.5） */
+  /** 周期技弱化倍率：塔能量耗尽 → 周期 ×1.5（伤害弱化已由 shotDmg 统一 ×0.5） */
   _weakPeriod(key) { return Linkage._weakPeriod(this, key); }
 
-  /* ---------- v5.2 三消连消技 ---------- */
+  /* ---------- 三消连消技 ---------- */
 
   /** 周期技能 timer 映射：连锁技能随机释放（tick 内 timer 到点即施放） */
   static PERIODIC_TIMERS() { return Linkage.periodicTimers(); }
@@ -204,16 +205,16 @@ class CombatSystem {
   spawnChainShots(ent) { return Linkage.spawnChainShots(this, ent); }
 
 
-  /** v1.16.77 周期技能施放扣能量：能量 >= 成本时扣除并全额施放；不足则弱化施放（不扣，伤害 ×0.5） */
+  /** 周期技能施放扣能量：能量 >= 成本时扣除并全额施放；不足则弱化施放（不扣，伤害 ×0.5） */
   castEnergy(key, name) { return Linkage.castEnergy(this, key, name); }
 
-  /** 毒·毒性强化（v1.16.21）：选择后中毒 DoT 由 10% 提升为 15%（+50% 单跳）；A 每级 18%/21%/24%（档位式）；B 时长 +2/+4/+6s（档位式） */
+  /** 毒·毒性强化（）：选择后中毒 DoT 由 10% 提升为 15%（+50% 单跳）；A 每级 18%/21%/24%（档位式）；B 时长 +2/+4/+6s（档位式） */
   dotBoost() { return Statuses.dotBoost(this); }
 
   /* ---------- 主更新：弹道命中 → 状态推进 → 塔攻击 → 周期技 → 死亡触发 ---------- */
   update(dt) { return Lifecycle.update(this, dt, initEnemyState); }
 
-  /* ---------- 弹道与召唤物推进（v1.16.43 重构：主循环子方法） ---------- */
+  /* ---------- 弹道与召唤物推进（重构：主循环子方法） ---------- */
 
   /** 单枚飞行弹道推进一帧；返回 false 表示命中结算/耗尽，应移除 */
   addProjectile(shot, visual) { return Projectiles.addProjectile(this, shot, visual); }
@@ -261,9 +262,9 @@ class CombatSystem {
         }
         this.resolveShot(s);
       }
-      // v1.17.43 磁场3★：球形闪电的雷球游走结束时原地爆炸（60% 伤害，半径 80）
+      // 磁场3★：球形闪电的雷球游走结束时原地爆炸（60% 伤害，半径 80）
       if (s.ballLightning && this.game.run.relic3('elec_magnet')) {
-        this.explode(s.x, s.y, 80, this.shotDmg('electric', false, true) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');   // v1.17.50 标注
+        this.explode(s.x, s.y, 80, this.shotDmg('electric', false, true) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');   // 标注
       }
       return false;
     }
@@ -277,7 +278,7 @@ class CombatSystem {
   /** 地面持续区域推进（火·余烬直伤 / 毒·毒池·毒沼直伤+每秒叠毒+泥沼减速） */
   updateGroundDots(dt) { return Areas.updateGroundDots(this, dt); }
 
-  /** 毒·毒棒推进（v1.15）：独立攻击周边 200px 敌人（直伤 + 叠毒），持续结束消失 */
+  /** 毒·毒棒推进（）：独立攻击周边 200px 敌人（直伤 + 叠毒），持续结束消失 */
   updatePoisonSticks(dt) { return PoisonTower.updatePoisonSticks(this, dt); }
 
   /** 炮·地雷阵推进：飞行中不可引爆，落地布设 0.3s 后可引爆；C 碎雷星状散射弹片 */
@@ -286,7 +287,7 @@ class CombatSystem {
   /** 炮·炮台推进：独立炮击最靠墙敌人（直伤+爆炸），持续结束消失 */
   updateTurrets(dt) { return CannonTower.updateTurrets(this, dt); }
 
-  /** 回旋镖·风暴镖推进（v1.16.21）：三同心圈旋转十字飞镖，每镖独立命中 10% 伤害，命中不消失 */
+  /** 回旋镖·风暴镖推进（）：三同心圈旋转十字飞镖，每镖独立命中 10% 伤害，命中不消失 */
   updateStorms(dt) { return BoomerangTower.updateStorms(this, dt); }
 
   /** 回旋镖·风痕推进：路径伤害区，C 卷痕减速 */
@@ -302,7 +303,7 @@ class CombatSystem {
   }
 
   /* ---------- 伤害结算 ---------- */
-  damage(e, dmg, srcKey, kind, skill) { return Damage.damage(this, e, dmg, srcKey, kind, skill); }   // v1.17.50 透传 skill（伤害统计）
+  damage(e, dmg, srcKey, kind, skill) { return Damage.damage(this, e, dmg, srcKey, kind, skill); }   // 透传 skill（伤害统计）
 
   /* ---------- 死亡触发：各塔死亡技能（爆燃/毒爆/霜星/扩散/回收/致死） ---------- */
   onKill(e) { return Death.onKill(this, e); }
@@ -313,10 +314,10 @@ class CombatSystem {
   /* ---------- 塔攻击调度 ---------- */
   tickTower(key, dt) { return Attacks.tickTower(this, key, dt); }
 
-  /** 选择攻击目标（v1.16.130）：射程内直线距离最近的一个怪物（更智能：优先打靠近塔的威胁） */
+  /** 选择攻击目标（）：射程内直线距离最近的一个怪物（更智能：优先打靠近塔的威胁） */
   pickTarget(key) { return Targeting.pickTarget(this, key); }
 
-  /** v1.16.130 额外目标：主目标 Y 轴往上 40px 截面范围（水平带 [main.y-40, main.y]）内的随机敌人；带内无其他敌人时回退主目标 */
+  /** 额外目标：主目标 Y 轴往上 40px 截面范围（水平带 [main.y-40, main.y]）内的随机敌人；带内无其他敌人时回退主目标 */
   pickAltTarget(key, main) { return Targeting.pickAltTarget(this, key, main); }
 
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
@@ -325,18 +326,18 @@ class CombatSystem {
   /* ---------- 弹道命中结算 ---------- */
   resolveShot(s) { return Projectiles.resolveShot(this, s); }
 
-  /** 散射弹道（无目标）沿途碰撞检测（v1.13.13）：按 t/dur 线性插值当前位置，命中半径内敌人返回该敌，未命中返回 null */
+  /** 散射弹道（无目标）沿途碰撞检测（）：按 t/dur 线性插值当前位置，命中半径内敌人返回该敌，未命中返回 null */
   scatterCheck(s) { return Projectiles.scatterCheck(this, s); }
   hasRemainingScatterTarget(s) { return Projectiles.hasRemainingScatterTarget(this, s); }
 
   /** 回旋镖轨迹点：二次 Bézier 出程越过目标 200 码，之后沿另一侧抛物线绕回 */
   sweepPos(s, p) { return Projectiles.sweepPos(s, p); }
 
-  /** 回旋镖沿途伤害（v1.16）：椭圆大弧扫过路径上的所有敌人，每敌单镖最多命中一次；折返 C 宽返吸附 +20%/级；风痕留痕 */
+  /** 回旋镖沿途伤害（）：椭圆大弧扫过路径上的所有敌人，每敌单镖最多命中一次；折返 C 宽返吸附 +20%/级；风痕留痕 */
   sweepDamage(s) { return BoomerangTower.sweepDamage(this, s); }
 
   /**
-   * 普攻 debuff 统一判定（v1.16.53）：普攻与**普攻强化攻击**（电·连锁/活电、火·多重火球、
+   * 普攻 debuff 统一判定（）：普攻与**普攻强化攻击**（电·连锁/活电、火·多重火球、
    *   冰·多重冰锥/碎冰、镖·多镖等）命中均走此判定——各塔基础 20% 概率，学对应 dot 强化技能后
    *   概率提升（公式与普攻一致：基础 20% + 技能 +25%[电·麻痹为 +20%] + A 分支每级 +15%）
    */
@@ -345,34 +346,34 @@ class CombatSystem {
   /* ---------- 六塔命中行为 ---------- */
   hit(key, e, dmg, projectile) { return Impacts.hit(this, key, e, dmg, projectile); }
 
-  /* ============ 火塔（v1.13 重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
-  /** v1.16.112 火塔普攻命中统一挂点（3★ 圣遗物）：hitFire 与多重火球 strike 共用，保证所有普攻路径生效
+  /* ============ 火塔（重构：点燃/灼烧/火柱/大火球/爆燃/多重火球/烈焰墙/火雨） ============ */
+  /** 火塔普攻命中统一挂点（3★ 圣遗物）：hitFire 与多重火球 strike 共用，保证所有普攻路径生效
    *  焰雨3★：火球命中同一目标 3 次 → 下次命中必为三连火球（追加 3 发等额伤害 + 三连火花爆发）
    *  熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量）
    *  火焰弹射（1★/2★）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量 */
   _attackFireOnHit(e, dmg) { return FireTower._attackFireOnHit(this, e, dmg); }
 
-  /** v1.16.112 火塔普攻级挂点（每攻击一次判定一次，与弹道数量无关）：
+  /** 火塔普攻级挂点（每攻击一次判定一次，与弹道数量无关）：
    *  熔炉之息3★：每 5 次普攻附带一次免费火柱（150% 伤害·半径120，不耗能量）
    *  火焰弹射（1★/2★）：普攻 25%/40% 概率额外发射一枚火球；3★：弹射火球命中时 50% 概率返还 1 点能量 */
   _fireAttackOnAttack(target, dmg) { return FireTower._fireAttackOnAttack(this, target, dmg); }
 
-  /** v1.16.112 薄壳：火塔弹道命中入口（未学多重火球的普攻弹道 resolveShot → hit() → hitFire） */
+  /** 薄壳：火塔弹道命中入口（未学多重火球的普攻弹道 resolveShot → hit() → hitFire） */
   hitFire(e, dmg) { return FireTower.hitFire(this, e, dmg); }
 
-  /** v1.16.130 多重火球重做：一次普攻从塔口扇形飞出 n 枚火球——
+  /** 多重火球重做：一次普攻从塔口扇形飞出 n 枚火球——
    *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
    *   每枚命中走完整结算（灼烧/焰雨三连/大火球爆炸/多重火球 C 散射分裂）。
    *   解决原"普攻先命中再从目标处散射"的割裂感 */
   _fireMultiShot(e, dmg, fromTriple) { return FireTower._fireMultiShot(this, e, dmg, fromTriple); }
 
-  /** v1.16.112 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
+  /** 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
   _fireAttackHit(e, dmg) { return FireTower._fireAttackHit(this, e, dmg); }
 
-  /** v1.16.114 单发大火球爆炸（普攻单发 / 焰雨追加火球共用；含爆核1★/2★ 半径扩大与 3★ 边缘击退点燃） */
+  /** 单发大火球爆炸（普攻单发 / 焰雨追加火球共用；含爆核1★/2★ 半径扩大与 3★ 边缘击退点燃） */
   _fireSingleBlast(e, dmg) { return FireTower._fireSingleBlast(this, e, dmg); }
 
-  /** v1.16.114 火球命中统一结算（焰雨三连 / 焰雨1★2★ 追加火球共用）：
+  /** 火球命中统一结算（焰雨三连 / 焰雨1★2★ 追加火球共用）：
    *  伤害 + 统一灼烧判定 + 多重火球 C 散射分裂 + 大火球爆炸——即三连在多重火球/大火球下多次触发其攻击效果 */
   _fireImpact(o, d, ang) { return FireTower._fireImpact(this, o, d, ang); }
 
@@ -387,7 +388,7 @@ class CombatSystem {
 
   /* ============ 冰塔 ============ */
 
-  /** v1.16.130 多重冰锥重做：一次普攻从塔口扇形飞出 n 枚冰锥——
+  /** 多重冰锥重做：一次普攻从塔口扇形飞出 n 枚冰锥——
    *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
    *   C 增殖分支保留：10/14/18 枚超小型冰锥各自索敌独立飞行 */
   _iceMultiShot(e, dmg) { return IceTower._iceMultiShot(this, e, dmg); }
@@ -407,19 +408,19 @@ class CombatSystem {
   // ===== tickPoison =====
 
 
-  /* ============ 毒塔（v1.15 重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气） ============ */
+  /* ============ 毒塔（重做：基础中毒 20% 概率叠层 / 剧毒 / 毒爆 / 毒池 / 毒棒 / 毒性强化 / 瘟疫 / 毒藤 / 瘴气） ============ */
   hitPoison(e, dmg) { return PoisonTower.hitPoison(this, e, dmg); }
 
-  /** 毒·中毒叠层（v1.16.21）：每层每秒 = 单发伤害×10%，基础持续 5 秒，上限 5 层（毒性强化 C +2/级）；
+  /** 毒·中毒叠层（）：每层每秒 = 单发伤害×10%，基础持续 5 秒，上限 5 层（毒性强化 C +2/级）；
    *  剧毒 B 时长 +2s/级（不变）；剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（1s → 0.9/0.8/0.7s） */
   applyPoison(e, dmg, src, layers) { return Statuses.applyPoison(this, e, dmg, src, layers); }
 
   /** 当前中毒层数（毒爆 B 继承用） */
   poisonStack(e) { return Statuses.poisonStack(this, e); }
 
-  /** 塔口坐标（普攻/技能弹道统一发射点，v1.16.37 统一口径）：
+  /** 塔口坐标（普攻/技能弹道统一发射点，统一口径）：
    *  正式战斗：塔位槽布局（槽中心）；测试战场：单塔出战大槽（渲染 testFieldLayer 硬编码 x=15/y=1053，中心 65,1103）
-   *  v1.16.39 槽数恒用渲染固定值（正式 4 槽），不随已激活塔数变化——得塔前/后塔位坐标稳定（旧实现 n=slotOrder.length，1 塔时算成单槽居中 → 塔区中心） */
+   *  槽数恒用渲染固定值（正式 4 槽），不随已激活塔数变化——得塔前/后塔位坐标稳定（旧实现 n=slotOrder.length，1 塔时算成单槽居中 → 塔区中心） */
   tickPoison(dt) { return PoisonTower.tickPoison(this, dt); }
 
   // ===== tickCannon =====
@@ -435,10 +436,10 @@ class CombatSystem {
 
 
   /* ============ 回旋镖塔 ============ */
-  /* ============ 回旋镖塔（v1.16 重做：折返增伤/多镖/接镖/风暴镖/弹力镖/风痕/风眼涡旋；猎手标记 2026-11-01 删除） ============ */
+  /* ============ 回旋镖塔（重做：折返增伤/多镖/接镖/风暴镖/弹力镖/风痕/风眼涡旋；猎手标记 2026-11-01 删除） ============ */
   hitBoomerang(e, dmg) { return BoomerangTower.hitBoomerang(this, e, dmg); }
 
-  /* 普攻流血（v1.16.21 回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
+  /* 普攻流血（回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
   applyBleed(e, dmg) { return Statuses.applyBleed(this, e, dmg); }
 
   tickBoomerang(dt) { return BoomerangTower.tickBoomerang(this, dt); }
@@ -450,10 +451,10 @@ class CombatSystem {
   applySlow(e, mult, ttl, source) { return Statuses.applySlow(this, e, mult, ttl, source); }
   refreshSlow(e) { return Statuses.refreshSlow(e); }
 
-  /** v1.16.98 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
+  /** 冰塔 3★ helper：冻结（Boss 时长 ×0.6 递减，design R3 建议） */
   freezeE(e, dur) { return Statuses.freezeE(this, e, dur); }
 
-  /** v1.16.98 暴雪3★：冰锥命中已冰缓的敌人时 30% 概率引发冰爆（60% 伤害·半径80） */
+  /** 暴雪3★：冰锥命中已冰缓的敌人时 30% 概率引发冰爆（60% 伤害·半径80） */
   iceHitFx(o, d) { return IceTower.iceHitFx(this, o, d); }
 
   towerMuzzle(key) { return Targeting.towerMuzzle(this, key); }
@@ -463,7 +464,7 @@ class CombatSystem {
 
   hasDot(e, type) { return Statuses.hasDot(e, type); }
 
-  explode(x, y, r, dmg, key, knock, slowAfter, exclude, skill) { return Damage.explode(this, x, y, r, dmg, key, knock, slowAfter, exclude, skill); }   // v1.17.50 透传 skill（伤害统计）
+  explode(x, y, r, dmg, key, knock, slowAfter, exclude, skill) { return Damage.explode(this, x, y, r, dmg, key, knock, slowAfter, exclude, skill); }   // 透传 skill（伤害统计）
 
   /* ---------- 周期技（按塔分节：火/冰/电/毒/炮/回旋镖） ---------- */
   /** 周期技总入口（兼容旧调用/测试；update 已按塔直接调度） */
@@ -495,11 +496,11 @@ class CombatSystem {
     this.game.fx.push({ type: 'beam', x1, y1, x2, y2, color, dur, width, t: 0 });
   }
 
-  /* ---------- v1.12 全局技能：消耗累计充能释放（1 次 = chargePerUse 点） ---------- */
+  /* ---------- 全局技能：消耗累计充能释放（1 次 = chargePerUse 点） ---------- */
   /** 释放全局技能：'shuffle' 打乱棋盘所有方块 / 'refill' 所有塔补充能量；累计充能不足返回 false */
   castGlobal(which) { return GlobalCast.castGlobal(this, which); }
 
-  /** v1.16.89 洗牌全局技能附带「技能齐发」：周期技计时器置满（下帧各触发一次并复位）+ 每塔按已激活技能总数追加等量普攻 */
+  /** 洗牌全局技能附带「技能齐发」：周期技计时器置满（下帧各触发一次并复位）+ 每塔按已激活技能总数追加等量普攻 */
   castGlobalBurst() { return GlobalCast.castGlobalBurst(this); }
 }
 

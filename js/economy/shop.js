@@ -52,15 +52,16 @@ function createShopService(options = {}) {
       agg[rid] = (agg[rid] || 0) + 1;
     }
     const gains = Object.keys(agg).map((rid) => ({ id: rid, n: agg[rid] }));
-    gains.forEach((g) => meta.addShard(g.id, g.n));
-    return { ok: true, gains };
+    let dust = 0;
+    gains.forEach(g => { const result = meta.addShard(g.id, g.n); dust += result.dust; g.n = result.kept; });
+    return { ok: true, gains: gains.filter(g => g.n > 0), dust };
   }
   // Offer comes from the already-rendered daily selection; preserve existing purchase semantics.
   function buyShardOffer(meta, offer) {
     if (meta.gold < offer.price) return { ok: false, reason: 'gold' };
     meta.gold -= offer.price;
-    meta.addShard(offer.relic, offer.shards);
-    return { ok: true };
+    const result = meta.addShard(offer.relic, offer.shards);
+    return { ok: true, dust: result.dust, kept: result.kept };
   }
   return { ensureDailyPicks, shopChestLeft, buyShopChest, buyShardOffer };
 }

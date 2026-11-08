@@ -1,5 +1,5 @@
 'use strict';
-/* v1.17.52 小 Boss「圣坛蔓钟」——每 5 波（5,10,15...）的无脚本 Boss（isBoss 且无 bossId）。
+/* 小 Boss「圣坛蔓钟」——每 5 波（5,10,15...）的无脚本 Boss（isBoss 且无 bossId）。
  * 贴图：enemies.js BOSS_ART.miniboss_bell（钟摆 8 帧，bossArtKey 标记由 wave.js spawnOne 写入）。
  * 特色机制：周期性"敲钟"——钟体震出金色光环，并从波次投放队列释放 2 只花粉小怪（isSummon）。
  * 数值均为建议值，owner 可调：RING_CD / RING_MAX / SPAWN_N / SPAWN_HP_MULT。 */

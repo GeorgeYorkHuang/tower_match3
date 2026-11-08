@@ -1,1 +1,0 @@
-Spawn portal from patch-gg/pixelfx (MIT), adapted from Sprite Fusion black-hole, Copyright (c) 2026 Hugo Duprez, MIT.

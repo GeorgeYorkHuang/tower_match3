@@ -15,7 +15,7 @@ module.exports = {
     '烈焰墙': { period:15, width:220, height:45, impactDamage:0.80, duration:6, tickInterval:0.5, slowDuration:0.6, range: [0, 0.2, 0.4, 0.6],         // B 引燃：墙范围
                 dmg: [0, 0.2, 0.4, 0.6],           // A 神火：墙伤害
                 slow: [0, 0.1, 0.2, 0.3] },        // C 迟滞：墙内减速
-    '火雨':   { period:12, baseRadius:140, waveDamage:0.50, baseWaves:3, waveGap:0.5, fallDuration:0.5, spawnWindow:0.1, radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
+    '火雨':   { period:12, baseRadius:140, waveDamage:0.50, baseWaves:3, waveGap:0.5, fallDuration:0.5, spawnWindow:0.3, radius: [0, 0.2, 0.4, 0.6],        // C 扩张：火雨圈范围
                 segDmg: [0, 0.4, 0.8, 1.2] },      // B 猛烈：每段伤害
   },
   ice: {
@@ -25,7 +25,7 @@ module.exports = {
                 dur: [0, 1, 1.5, 2],               // B 深结：冻结时长
                 shatter: [0, 0.30, 0.40, 0.50] },  // C 碎冰：击杀爆炸伤害
     '冰穿刺': { baseTargets:1, minProjection:20, laneHalf:60, coneLength:60, coneWidthRatio:1, pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
-                cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害（laneHalf=横向走廊半宽，v1.17.47 新增）
+                cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害（laneHalf=横向走廊半宽，新增）
     '多重冰锥': { count:3, damage:0.55, damagePerBranch:0.15, hitRadius:45, swarmDamage:0.10, swarmHitRadius:30, fanStep:0.08, swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
     '碎冰':   { count:3, baseDamage:0.45, spawnOffset:55, hitRadius:45, freezeDuration:2, halfAngle:Math.PI/6, dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
                 frz: [0, 0.05, 0.10, 0.15] },      // C 冻结：命中冻结概率
@@ -69,12 +69,13 @@ module.exports = {
     '麻痹':   { spreadRadius:100, spreadDuration:1, spreadSlow:0.5, spreadDecay:0.05, baseProbability:0.20, learnedProbability:0.20, probabilityPerBranch:0.15, duration:2, durationPerBranch:0.5, slow:0.5, cond: [0, 0.20, 0.30, 0.40] },     // C 传导：邻近传导概率
   },
   boomerang: {
+    pierceDamageMultiplier: 0.8, // 每次普攻接触命中衰减20%，首个目标也计入
     '折返增伤': { damage:0.65, damagePerBranch:0.25, slow:0.20, slowDuration:1 },
     '放血': { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, duration:4, durationPerBranch:1, distancePerTick:100, damage:0.40, damagePerBranch:0.20 },
     '多镖': { baseCount:1, damageDecayPerLevel:0.12, branchDecayMultiplier:0.5 },
     '风暴镖': { hitCooldown:0.3, hitRadius:14, period:12, damage:0.30, damagePerBranch:0.2, speedPerBranch:0.25, duration:3, rings:[{r:40,base:2.6},{r:80,base:-2.0},{r:120,base:2.4}], ringCounts:[4,6,8] },
     '弹力镖': { period:8, count:2, damage:1.20, damagePerBranch:0.25, bounces:10, bouncesPerBranch:5, duration:8, speed:400, hitRadius:30, spreadStep:0.5 },
-    '接镖':   { speedPerBranch:0.20, catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（v1.16.42）
+    '接镖':   { speedPerBranch:0.20, catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（）
     '风痕':   { sampleDistance:32, maxTrails:240, duration:1.5, durationPerBranch:0.5, damage:0.10, damagePerBranch:0.3, radius:34, slow: [0, 0.10, 0.20, 0.30] },     // C 卷痕：风痕内减速
     '风眼涡旋': { period:10, radius:120, radiusPerBranch:0.20, duration:2.5, pull:30, pullPerBranch:0.50, slow:0.20, slowDuration:0.4, endDamage:0.80, endDamagePerBranch:0.40 },   // 2026-11-01 新增：A 扩涡半径 / B 强涡牵引 / C 爆涡收尾伤害（减速固定 20%）
   },

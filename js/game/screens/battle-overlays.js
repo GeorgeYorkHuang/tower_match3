@@ -3,7 +3,7 @@ const CONFIG = require('../../config.js');
 const { fillRoundRect, strokeRoundRect, text, button } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 // 仅绘制设置/帮助和撤离决策；开关、保存、返回主菜单、撤离结算仍由原路由处理。
-function createBattleOverlays({ fmtNum }) {
+function createBattleOverlays({ fmtNum, drawImg }) {
   function funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
     const heights = { setting: 500, help: 1080 };   // 能量规则与宝箱交互说明扩充
@@ -12,22 +12,27 @@ function createBattleOverlays({ fmtNum }) {
     ctx.fillStyle = 'rgba(0,0,0,0.66)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
     hits.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + hgt };
-    fillRoundRect(ctx, x, y, w, hgt, 18, '#232a34');
-    strokeRoundRect(ctx, x, y, w, hgt, 18, '#3a6ea5', 3);
+    const panelSrc = layer.type === 'help'
+      ? 'assets/images/interface/skins/help-garden-v1.png'
+      : 'assets/images/interface/skins/settings-garden-v1.png';
+    if (!(drawImg && drawImg(ctx, panelSrc, x, y, w, hgt))) {
+      fillRoundRect(ctx, x, y, w, hgt, 18, '#18251b');
+      strokeRoundRect(ctx, x, y, w, hgt, 18, '#b49b60', 3);
+    }
     const title = { setting: '设置', help: '帮助' }[layer.type] || '';
-    text(ctx, title, 375, y + 52, 36, '#ffffff', 'center');
+    text(ctx, title, 375, y + 70, 36, '#ffe4a1', 'center');
     if (layer.type === 'setting') {
       text(ctx, `版本 ${layer.version || 'v1.0.0'}`, 375, y + 118, 22, '#9fb2c3', 'center');
-      // v1.16.107 声音开关行
+      // 声音开关行
       const sndOn = layer.soundOn !== false;
       text(ctx, '🔊 音效与背景音乐', x + 96, y + 176, 24, '#dfe6ee', 'left');
       hits.sound = button(ctx, x + 400, y + 148, 144, 56, sndOn ? '开' : '关', { bg: sndOn ? '#2b6d4f' : '#45505f', fontSize: 26 });
-      // v1.16.107 重新开始（不清档）
+      // 重新开始（不清档）
       text(ctx, '重新开始将返回主界面重开一局：', 375, y + 240, 20, 'rgba(255,255,255,0.7)', 'center');
       text(ctx, '塔等级 · 金币 · 解锁进度全部保留', 375, y + 272, 20, 'rgba(255,255,255,0.55)', 'center');
       hits.confirm = button(ctx, x + 120, y + 306, 400, 70, '重新开始', { bg: '#2b6d4f', fontSize: 28 });
     } else if (layer.type === 'help') {
-      // v1.16.89 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
+      // 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
       const lines = [
         '1. 滑动相邻方块消除 3 连，获得对应颜色的塔并为塔充能',
         '2. 塔每次普攻消耗 0.5 能量；能量越高，攻击与攻速越强',
@@ -44,12 +49,12 @@ function createBattleOverlays({ fmtNum }) {
       lines.forEach((ln) => {
         const ls = this.wrapText(ctx, ln, w - 90, 24).slice(0, 3);
         const bh = ls.length * 30 + 12;
-        fillRoundRect(ctx, x + 30, hy, w - 60, bh, 10, '#1d242e');
+        fillRoundRect(ctx, x + 30, hy, w - 60, bh, 10, 'rgba(17,31,22,0.62)');
         ls.forEach((t2, li) => text(ctx, t2, x + 46, hy + 20 + li * 30, 24, '#d7dee6', 'left'));
         hy += bh + 6;
       });
     }
-    hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#3a6ea5', fontSize: 26 });
+    hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#365c40', fontSize: 26 });
   }
 
   function evacuationLayer(ctx, g, hits) {
@@ -73,18 +78,18 @@ function createBattleOverlays({ fmtNum }) {
     const nextM = CONFIG.MILESTONES.find((m) => m > g.run.wave);
     if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#a86bff', 'center');
     // 按钮
-    // v1.16.86 修复：button() 返回 {hit} 对象，dispatchTouch 按 .hit 调用；此前误存裸函数导致按钮永不命中
+    // 修复：button() 返回 {hit} 对象，dispatchTouch 按 .hit 调用；此前误存裸函数导致按钮永不命中
     hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 正常撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 });
     hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续前进 · 正常进入下一波', { bg: '#3a6ea5', fontSize: 25 });
   }
 
-  /** v1.17.50 伤害统计弹层：每塔总伤害 + 普攻/DOT + 各技能等级与伤害（数据 g.run.dmgStat） */
+  /** 伤害统计弹层：每塔总伤害 + 普攻/DOT + 各技能等级与伤害（数据 g.run.dmgStat） */
   function dmgStatLayer(ctx, g, hits) {
     const w = 640, x = (750 - w) / 2;
     const stat = (g.run && g.run.dmgStat) || {};
     const towers = (g.sceneState ? g.sceneState().towers : []) || [];
     const skillLvOf = (key, name) => {
-      // 技能等级优先取槽内实装 level（v1.11 三选一状态）；无则回退分支最高+1 / combat.lv
+      // 技能等级优先取槽内实装 level（三选一状态）；无则回退分支最高+1 / combat.lv
       const slot = towers.find((t) => t.key === key);
       const sk = slot && slot.skills && slot.skills.find((q) => q && q.name === name);
       if (sk) return sk.level != null ? sk.level : 1 + Math.max(sk.branches.A || 0, sk.branches.B || 0, sk.branches.C || 0);

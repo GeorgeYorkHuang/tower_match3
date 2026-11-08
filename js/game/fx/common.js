@@ -31,7 +31,7 @@ function createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf }) {
       const p = Math.min(1, f.t / f.dur);
       const x = f.x + (f.tx - f.x) * p;
       const y = f.y + (f.ty - f.y) * p;
-      if (!drawImg(ctx, IMG_SRC.bullet, x - 8, y - 8, 16, 16)) {
+      if (!IMG_SRC.bullet || !drawImg(ctx, IMG_SRC.bullet, x - 8, y - 8, 16, 16)) {
         ctx.fillStyle = f.color || '#ffd24a';
         ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
       }
@@ -39,8 +39,8 @@ function createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf }) {
 
   function fxBoom(ctx, f) {
       const p = Math.min(1, f.t / f.dur);
-      // v1.16.74 统一爆炸演出：anim_explosion 精灵表按颜色变体播放
-      // （替换原 assets/images/explosionN 序列帧，并移除 v1.16.6 程序化"爆炸增强"叠加段，避免重叠渲染）
+      // 统一爆炸演出：anim_explosion 精灵表按颜色变体播放
+      // （替换原 assets/images/explosionN 序列帧，并移除 程序化"爆炸增强"叠加段，避免重叠渲染）
       const size = (f.r ? f.r * 2.4 : 108);
       if (!drawAnimSheet(ctx, 'explosion', animVariantOf(f.color), f.x, f.y, size, p)) {
         // 兜底：精灵表未加载时简版闪光圆
@@ -54,7 +54,7 @@ function createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf }) {
 
   function fxFlashFx(ctx, f) {
       const p = Math.min(1, f.t / f.dur);
-      // v1.16.74 命中火花：anim_spark 四芒星（6帧/15fps），替换原程序化闪光圆（避免重叠渲染）
+      // 命中火花：anim_spark 四芒星（6帧/15fps），替换原程序化闪光圆（避免重叠渲染）
       if (!drawAnimSheet(ctx, 'spark', 'gold', f.x, f.y, 60, p)) {
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.fillStyle = f.color || '#ffffff';

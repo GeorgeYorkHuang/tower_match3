@@ -1,6 +1,7 @@
 const BoardChests = require('./game/flows/board-chests.js');
 const BoardChestPieces = require('./board-chests.js');
 const MATCH_GLOW = require('./config/match-glow.js');
+const TowerActivation = require('./tower-activation.js');
 const ComboFeedback = require('./game/combo-feedback.js');
 /**
  * match3.js —— 三消控制器：交换触发 + 两阶段动画（交换→消除）+ 逐级连锁状态机 + 收益提示
@@ -17,6 +18,7 @@ class Match3Controller {
   /** 滑动到相邻格触发交换：有效则装配连锁动画并返回 true，无效返回 false */
   trySwap(r1, c1, r2, c2) {
     const g = this.game;
+    if (!require('./game/tutorial.js').allowSwap(g,r1,c1,r2,c2)) return false;
     if (g._chestBusy) return false;
     g._boardIdleTime = 0; g.boardHint = null;
     const oldGrid = g.run.board.grid.map((row) => row.slice()); // 动画用：交换前的棋盘
@@ -26,6 +28,7 @@ class Match3Controller {
     g.swapped = true;
     g.selected = null;
     this._assemble(ret, oldGrid, r1, c1, r2, c2);
+    require('./game/tutorial.js').swapped(g);
     // 三消联动：圣物经验补差 + 塔额外攻击（多消不同特效）
     if (g.onMatchBonus) g.onMatchBonus(ret);
     return true;
@@ -40,15 +43,15 @@ class Match3Controller {
     const first = steps[0];
     g.anim = {
       phase: 'swap', swap: [r1, c1, r2, c2], swapGrid,
-      progress: 0, durSwap: 0.2,   // v5.6.5 交换动画 0.2s
+      progress: 0, durSwap: 0.2,   // 交换动画 0.2s
       base: swapGrid, // 当前步下落前的棋盘（第 1 步 = 交换后棋盘）
       cleared: new Set(first.clearedCells.map(([r, c]) => r + ',' + c)),
       gravityOrigins: first.gravityOrigins, final: first.gridAfter, // 当前步下落补格后的棋盘
-      durClear: 0.15, durWait: 0.1, durFall: 0.3,   // v5.6.6 消除淡出 0.15s → 等待 0.1s → 下落 0.3s 串行
+      durClear: 0.15, durWait: 0.1, durFall: 0.3,   // 消除淡出 0.15s → 等待 0.1s → 下落 0.3s 串行
       cascade: { steps, index: 0, settledByStep: ret.settledByStep, chainShotsByStep: ret.chainShotsByStep || [], chainStart: ret.chainStart, fired: new Set() },
     };
     this.cascadeToast(0); // 第 1 步消除收益提示
-    if(!(first.m5&&first.m5.op==='scan'))this._specialsFx(first); // v1.17.29 特殊块生成/引爆特效 + 震动
+    if(!(first.m5&&first.m5.op==='scan'))this._specialsFx(first); // 特殊块生成/引爆特效 + 震动
     if(!(first.m5&&first.m5.op==='scan'))this._burst(first.clearedCells, first.matches); // 消除迸发反馈
     // 无解重排
     if (!g.run.board.isSolvable()) {
@@ -58,7 +61,7 @@ class Match3Controller {
   }
 
   /** 每帧推进动画状态机：交换 → 消除淡出 → 等待 → 下落 → 逐级连锁，直到棋盘稳定
-   *  v5.6.5 时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
+   *  时长：swap 0.2s / clear 0.15s / wait 0.2s / fall 0.3s */
   update(dt) {
     const g = this.game;
     this._tickStoreAutoMatch(dt);
@@ -98,7 +101,7 @@ class Match3Controller {
         a.phase = 'clear';
         if(st.m5&&st.m5.op==='scan'){a.phase='scan';a.scan=st.m5;this.cascadeToast(cs.index);return;}
         this._fireChainStep(a); // 新一级从消除段开始
-        this._specialsFx(st); // v1.17.29 连锁级特殊块特效
+        this._specialsFx(st); // 连锁级特殊块特效
         this.cascadeToast(cs.index);
         this._burst(st.clearedCells, st.matches); // 连锁级消除反馈
       } else {
@@ -172,7 +175,7 @@ class Match3Controller {
     if (!a || !a.cascade) return;
     const step = a.cascade.steps[idx];
     if (!step) return;
-    // v1.17.29 消除音效分层：连消 / 5消+ / 4消 / 普通3消
+    // 消除音效分层：连消 / 5消+ / 4消 / 普通3消
     if (g.playSfx) {
       const shapes = (step.matches || []).map((m) => m.shape);
       if (idx + 1 >= (a.cascade.chainStart || CONFIG.MATCH_SKILL.chainStart)) g.playSfx('combo', 0.35);
@@ -188,20 +191,20 @@ class Match3Controller {
     const got = ss.filter((s) => s.gotTower);
     got.forEach((reward) => {
       const activatedTower = g.run.effects.tower(reward.tower);
-      if (activatedTower) activatedTower._activationDelay = 1;
+      TowerActivation.start(activatedTower);
       const index = g.run.slotOrder.indexOf(reward.tower);
       if (index < 0) return;
       const { slotSize, slotGap, slotY } = g.ly;
       const count = (g.ly.slotCount || 4) + 2;
       const left = (750 - (count * slotSize + (count - 1) * slotGap)) / 2;
       g.fx.push({ type: 'shot', kind: 'spawnportal', towerKey: reward.tower, x: left + (index + 1) * (slotSize + slotGap) + slotSize / 2,
-        y: slotY + slotSize * 0.8, t: 0, dur: 1 });
+        y: slotY + slotSize * 0.8, t: 0, dur: TowerActivation.duration });
     });
     if (got.length) msgs.push(`获得 ${got.map((s) => CONFIG.COLORS[CONFIG.TOWERS[s.tower].color].name).join('、')}`);
     if (msgs.length) g.toast(msgs.join(' '), got.length ? '#7ef0a3' : '#f7c948');
   }
 
-  /** v5.6 特殊块特效：引爆分型级联（主爆优先，波及格按距中心棋盘距离延迟）+ 生成降临 + 全屏爆闪 + 震动 */
+  /** 特殊块特效：引爆分型级联（主爆优先，波及格按距中心棋盘距离延迟）+ 生成降临 + 全屏爆闪 + 震动 */
   _specialsFx(st) {
     const g = this.game;
     if (!g || !g.fx) return;
@@ -213,7 +216,7 @@ class Match3Controller {
       g.fx.push({
         type: 'specialBlast', s: b.s, sub: b.sub,
         x: boardX + b.c * cell + cell / 2, y: boardY + b.r * cell + cell / 2,
-        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.25, cell,   // v5.6.6 爆炸动画 0.25s（与消除淡出同时进行）
+        color: b.color, main: i === 0, t: -dist * 0.035, dur: 0.25, cell,   // 爆炸动画 0.25s（与消除淡出同时进行）
         parts: i === 0 ? this._blastParts(b.s) : null,
       });
     });
@@ -221,15 +224,15 @@ class Match3Controller {
       g.fx.push({
         type: 'specialSpawn', s: p.s, sub: p.sub,
         x: boardX + p.c * cell + cell / 2, y: boardY + p.r * cell + cell / 2,
-        color: p.color, t: 0, dur: 0.1, cell,   // v5.6.6 特殊块生成降临 0.1s（原 0.4）
+        color: p.color, t: 0, dur: 0.1, cell,   // 特殊块生成降临 0.1s（原 0.4）
       });
     });
     if (blasts.length && g.vibrate) g.vibrate(blasts.length >= 6 ? 2 : 1);
-    if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.24 });   // v5.6.2 全屏爆闪仅 +0.1s（0.14→0.24，超过 0.3s 会长时间白屏伤观感）
+    if (blasts.length) g.fx.push({ type: 'screenFlash', t: 0, dur: 0.24 });   // 全屏爆闪仅 +0.1s（0.14→0.24，超过 0.3s 会长时间白屏伤观感）
     this._match5Show(st);
   }
 
-  /** v5.6.8 五消技能演出：金色爆闪 + 震屏 + 类型弹字 + 按高连技专属特效（彩虹光柱/扫描光幕/染色涟漪/播种星光） */
+  /** 五消技能演出：金色爆闪 + 震屏 + 类型弹字 + 按高连技专属特效（彩虹光柱/扫描光幕/染色涟漪/播种星光） */
   _match5Show(st) {
     const g = this.game;
     if (!g || !g.fx || !st.m5) return;
@@ -271,7 +274,7 @@ class Match3Controller {
     }
   }
 
-  /** v5.6 主爆粒子参数：按分型生成飞散碎片（渲染层按 t 推进） */
+  /** 主爆粒子参数：按分型生成飞散碎片（渲染层按 t 推进） */
   _blastParts(s) {
     const n = { row: 16, col: 16, cross: 20, split: 20, rand: 12, rainbow: 24 }[s] || 14;
     const base = s === 'rainbow'
@@ -291,7 +294,7 @@ class Match3Controller {
     return parts;
   }
 
-  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.8s，v5.6.3 原 0.62s，渲染层绘制） */
+  /** 消除迸发反馈：每个被消除的方块中心爆出彩色星芒（0.8s，原 0.62s，渲染层绘制） */
   _burst(cells, matches) {
     const g = this.game;
     const { boardX, boardY, cell } = g.ly;
@@ -309,7 +312,7 @@ class Match3Controller {
         x: boardX + c * cell + cell / 2,
         y: boardY + r * cell + cell / 2,
         color,
-        t: 0, dur: 0.8,   // v5.6.3 消除迸发星芒 0.8s（原 0.62）
+        t: 0, dur: 0.8,   // 消除迸发星芒 0.8s（原 0.62）
       });
     });
   }

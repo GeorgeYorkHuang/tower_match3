@@ -1,9 +1,10 @@
 'use strict';
 // Poison tower attacks, periodic entities and enemy interactions use caller-owned state.
 const SKILL_NUM = require('../../config/tower-skills.js');
+const StickVisual = require('../poison-stick-visual.js');
 
 function hitPoison(combat, e, dmg) {
-  // v1.16.21 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）——v1.16.53 统一判定
+  // 基础中毒：20% 概率附加 1 层（剧毒 +25%，A 每级再 +15%）——统一判定
   combat.tryAttackDebuff('poison', e, dmg);
   combat.damage(e, dmg, 'poison');
 }
@@ -42,7 +43,7 @@ function tickPoison(combat, dt) {
       combat.castEnergy('poison', '毒棒');
       const n = stickBalance.count + combat.branchLv('poison', '毒棒', 'A') + run.relicNum('s_poison_nest') + run.relicValue('s_sr_poison_stick', 'stickAdd');
       const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('poison', e.x, e.y));
-      if (!alive.length) return;   // v1.16.18 没有敌人时不召唤毒棒
+      if (!alive.length) return;   // 没有敌人时不召唤毒棒
       for (let i = 0; i < n; i++) {
         const near = alive[Math.floor(Math.random() * alive.length)];
         const px = near.x + (Math.random() - 0.5) * 60;
@@ -50,12 +51,13 @@ function tickPoison(combat, dt) {
         const ttl = stickBalance.duration + stickBalance.durationPerBranch * combat.branchLv('poison', '毒棒', 'B');
         combat.poisonSticks = combat.poisonSticks || [];
         combat.poisonSticks.push({ x: px, y: py, ttl, atkT: 0, atkI: stickBalance.attackInterval, r: stickBalance.radius, dmg: combat.shotDmg('poison', false, true) * stickBalance.damage * (1 + run.relicNum('s_sr_poison_stick') / 100), targets: stickBalance.targets + combat.branchLv('poison', '毒棒', 'C'), seed: Math.random() * 100 });
+        StickVisual.begin(combat.poisonSticks[combat.poisonSticks.length - 1]);
         combat.fxRing(px, py, '#1e8449', 40, 0.5, 4);
         combat.fxParticle(px, py - 6, '#28b463', 6, 30, 0.5, 80, 4);
       }
     }
   }
-  // 毒·毒藤（v1.15）：周期 6s 从塔口射出藤蔓，缠住最靠城墙的敌人（A 目标 +1/级；B 时长 +1s/级），定身 + 持续叠毒；C 被缠死亡延伸
+  // 毒·毒藤（）：周期 6s 从塔口射出藤蔓，缠住最靠城墙的敌人（A 目标 +1/级；B 时长 +1s/级），定身 + 持续叠毒；C 被缠死亡延伸
   const vine = combat.lv('poison', '毒藤');
   if (vine > 0) {
     combat.timers.vine = (combat.timers.vine || 0) + dt;
@@ -71,7 +73,7 @@ function tickPoison(combat, dt) {
         const vr = 1 - (e.vineResist || 0);    // 藤蔓亲和（Lv7 垂藤浮卫）：缠绕/定身时长减免
         combat.damage(e, combat.shotDmg('poison', false, true) * vineBalance.damage, 'poison', undefined, '毒藤');
         e._vineT = Math.max(e._vineT || 0, dur * vr);
-        // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
+        // 毒藤攻击帧动画（）：藤蔓从塔口伸展生长到目标（0.55s），命中后持续缠绕由敌人 _vineT 驱动
         g.fx.push({ type: 'vine', x: mus.x, y: mus.y, tx: e.x, ty: e.y, t: 0, dur: 0.55, seed: Math.random() * 100 });
         combat.fxRing(e.x, e.y, '#1e8449', 26, dur, 3);
       });
@@ -86,6 +88,7 @@ function updatePoisonSticks(combat, dt) {
     const st = combat.poisonSticks[i];
     st.ttl -= dt;
     if (st.ttl <= 0) {
+      StickVisual.advance(st, 0);
       // SSR「毒巢」3★：毒棒消失后留下毒液地面。
       if (combat.game.run.relic3('s_poison_nest')) {
         combat.groundDots = combat.groundDots || [];
@@ -95,20 +98,23 @@ function updatePoisonSticks(combat, dt) {
       }
       combat.poisonSticks.splice(i, 1); continue;
     }
+    StickVisual.advance(st, dt);
     st.atkT += dt;
     if (st.atkT >= st.atkI) {
       st.atkT -= st.atkI;
       const cands = combat.enemies().filter((o) => o.hp > 0 && Math.hypot(o.x - st.x, o.y - st.y) <= st.r)
         .sort((a, b) => b.y - a.y);   // 最靠城墙优先
       const picks = cands.slice(0, st.targets);
+      // 仅实际攻击时挥击；一次多目标攻击也只触发一套动作。
+      if (picks.length) StickVisual.attack(st, picks[0]);
       picks.forEach((o) => {
-        combat.damage(o, st.dmg, 'poison', undefined, '毒棒');   // v1.17.50 标注
+        combat.damage(o, st.dmg, 'poison', undefined, '毒棒');   // 标注
         if (Math.random() < SKILL_NUM.poison['毒棒'].poisonChance) {
           combat.applyPoison(o, combat.shotDmg('poison', true), 'poison', 1);
         }
-        // v1.16.100 毒枝3★：毒棒攻击附带 0.5 秒减速
-        if (combat.game.run.relic3('poison_branch')) combat.applySlow(o, 0.3, 0.5);
-        // 毒棒攻击弹道（v1.16.1）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
+        // 毒枝3★：毒棒攻击附带 0.5 秒减速
+        if (combat.game.run.relic3('poison_branch')) combat.applySlow(o, 0.3, 0.5, 'poison');
+        // 毒棒攻击弹道（）：绿色毒刺从毒棒飞射目标（0.25s），命中溅射毒液
         g.fx.push({ type: 'thorn', x: st.x, y: st.y, tx: o.x, ty: o.y, t: 0, dur: 0.25, color: '#2e7d32' });
         combat.fxParticle(o.x, o.y, '#2e7d32', 4, 30, 0.3, 90, 4);
         combat.fxParticle(o.x, o.y, '#6fcf97', 2, 20, 0.25, 70, 3);
@@ -118,12 +124,12 @@ function updatePoisonSticks(combat, dt) {
 }
 
 function tryAttackDebuff(combat, o, dmg) {
-  // 中毒（v1.16.21）：基础 20%；学剧毒 +25% + A 每级 +15%
+  // 中毒（）：基础 20%；学剧毒 +25% + A 每级 +15%
   let prob = SKILL_NUM.poison['剧毒'].baseProbability;
   const toxic = combat.lv('poison', '剧毒');
   if (toxic > 0) prob += SKILL_NUM.poison['剧毒'].learnedProbability + SKILL_NUM.poison['剧毒'].probabilityPerBranch * combat.branchLv('poison', '剧毒', 'A');
-  prob += combat.relicVal('poison_fang') / 100;   // v1.16.114 毒牙1★/2★
-  // v1.16.100 毒牙3★：中毒概率触顶（≥80%）时，多余判定转为 +1 层毒
+  prob += combat.relicVal('poison_fang') / 100;   // 毒牙1★/2★
+  // 毒牙3★：中毒概率触顶（≥80%）时，多余判定转为 +1 层毒
   if (combat.game.run.relic3('poison_fang') && prob >= 0.8) {
     if (Math.random() < 0.8) {
       combat.applyPoison(o, dmg, 'poison', 1);
@@ -157,7 +163,7 @@ function tickEnemyStatus(combat, e, dt) {
         const rP = SKILL_NUM.poison['瘟疫'].radius + SKILL_NUM.poison['瘟疫'].radiusPerBranch * combat.branchLv('poison', '瘟疫', 'B');
         const near = combat.enemies().filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= rP);
         if (near.length) {
-          // v1.16.100 速疫3★：瘟疫传染无人数上限（按范围判定，范围内全部判定）
+          // 速疫3★：瘟疫传染无人数上限（按范围判定，范围内全部判定）
           const picks = combat.game.run.relic3('poison_quick') ? near : [near[Math.floor(Math.random() * near.length)]];
           picks.forEach((pick) => {
             combat.applyPoison(pick, combat.shotDmg('poison', true), 'poison', 1);
@@ -167,7 +173,7 @@ function tickEnemyStatus(combat, e, dt) {
       }
     }
   }
-  // 毒·毒藤缠绕（v1.15）：定身期间每秒叠毒
+  // 毒·毒藤缠绕（）：定身期间每秒叠毒
   if (e._vineT > 0) {
     e._vineT -= dt;
     e._vineAcc = (e._vineAcc || 0) + dt;
@@ -177,14 +183,14 @@ function tickEnemyStatus(combat, e, dt) {
       combat.fxParticle(e.x, e.y - 10, '#7dcea0', 3, 24, 0.4, 80, 4);
     }
   }
-  // 毒·瘴气（v1.16.21 重做；v1.16.47 毒雾区域渲染）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——
+  // 毒·瘴气（重做；毒雾区域渲染）：城墙上方 50px 处毒瘴条带（半高 20×(1+0.2A)）——
   //   每 2s 叠毒 1 层 + 命中率下降标记；B 中毒 dot 伤 +20~40%；C 瘴内中毒敌攻击降低
   const miasmaBalance = SKILL_NUM.poison['瘴气'];
   const miasma = combat.lv('poison', '瘴气');
   if (miasma > 0) {
     const wallY = (combat.game.ly && combat.game.ly.wallY) ? combat.game.ly.wallY : 967;
     const half = miasmaBalance.halfHeight * (1 + miasmaBalance.heightPerBranch * combat.branchLv('poison', '瘴气', 'A'));
-    // v1.16.47：毒雾驻场 fx（城墙上方翻滚毒雾条带；全帧只推入一次，失活时在 else 分支移除）
+    // ：毒雾驻场 fx（城墙上方翻滚毒雾条带；全帧只推入一次，失活时在 else 分支移除）
     if (!combat.game.fx.some((f) => f.kind === 'miasma')) {
       combat.game.fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - miasmaBalance.wallOffset, w: 750, half, t: 0, dur: 1e9 });
     }
@@ -194,15 +200,15 @@ function tickEnemyStatus(combat, e, dt) {
       e._miaT = (e._miaT || 0) + dt;
       if (e._miaT >= miasmaBalance.tickInterval) {
         e._miaT -= miasmaBalance.tickInterval;
-        // v1.16.42 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
+        // 瘴气 B 浓瘴档位式：中毒 DoT 伤害 +20%/+30%/+40%（B0=1 / B1=1.2 / B2=1.3 / B3=1.4）
         const bLv = combat.branchLv('poison', '瘴气', 'B');
         combat.applyPoison(e, combat.shotDmg('poison', true) * (bLv > 0 ? SKILL_NUM.poison['瘴气'].dotMult[bLv] : 1), 'poison', miasmaBalance.stacksPerTick);
-        // v1.16.100 瘴毒3★：瘴气每叠 4 层毒引发一次小毒爆（30% 攻击伤害）
+        // 瘴毒3★：瘴气每叠 4 层毒引发一次小毒爆（30% 攻击伤害）
         if (combat.game.run.relic3('poison_miasma')) {
           e._miaLayers = (e._miaLayers || 0) + 1;
           if (e._miaLayers >= 4) {
             e._miaLayers = 0;
-            combat.explode(e.x, e.y, 60, combat.shotDmg('poison', true) * 0.3, 'poison', undefined, undefined, undefined, '瘴气');   // v1.17.50 瘴毒3★归瘴气
+            combat.explode(e.x, e.y, 60, combat.shotDmg('poison', true) * 0.3, 'poison', undefined, undefined, undefined, '瘴气');   // 瘴毒3★归瘴气
           }
         }
       }
@@ -213,7 +219,7 @@ function tickEnemyStatus(combat, e, dt) {
   } else {
     e._miasma = false;
     e._miasmaAtkMult = 1;
-    // v1.16.47：瘴气未激活/失效时移除毒雾驻场 fx
+    // ：瘴气未激活/失效时移除毒雾驻场 fx
     combat.game.fx = combat.game.fx.filter((f) => !(f.kind === 'miasma'));
   }
 }

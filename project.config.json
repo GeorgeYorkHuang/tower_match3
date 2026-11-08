@@ -50,60 +50,68 @@
   "packOptions": {
     "ignore": [
       {
-        "type": "folder",
-        "value": "tools"
+        "value": "tools",
+        "type": "folder"
+      },
+      {
+        "value": "art",
+        "type": "folder"
+      },
+      {
+        "value": "docs",
+        "type": "folder"
+      },
+      {
+        "value": ".workbuddy",
+        "type": "folder"
+      },
+      {
+        "value": ".creative-design",
+        "type": "folder"
+      },
+      {
+        "value": "_doc_draft",
+        "type": "folder"
+      },
+      {
+        "value": "doc-fetch-resources",
+        "type": "folder"
+      },
+      {
+        "value": "draft_944b5e9f_folder",
+        "type": "folder"
+      },
+      {
+        "value": "README.md",
+        "type": "file"
+      },
+      {
+        "value": "消消防线-动画与特效规格.md",
+        "type": "file"
+      },
+      {
+        "value": "fetch_stderr.txt",
+        "type": "file"
+      },
+      {
+        "value": "fetch_stdout.txt",
+        "type": "file"
+      },
+      {
+        "value": "^_test_.*\\.cjs$",
+        "type": "regexp"
+      },
+      {
+        "value": "^assets/.*\\.bak_.*$",
+        "type": "regexp"
       },
       {
         "type": "folder",
-        "value": "art"
+        "value": "assets_bk"
       },
       {
         "type": "folder",
-        "value": "docs"
-      },
-      {
-        "type": "folder",
-        "value": ".workbuddy"
-      },
-      {
-        "type": "folder",
-        "value": ".creative-design"
-      },
-      {
-        "type": "folder",
-        "value": "_doc_draft"
-      },
-      {
-        "type": "folder",
-        "value": "doc-fetch-resources"
-      },
-      {
-        "type": "folder",
-        "value": "draft_944b5e9f_folder"
-      },
-      {
-        "type": "file",
-        "value": "README.md"
-      },
-      {
-        "type": "file",
-        "value": "消消防线-动画与特效规格.md"
-      },
-      {
-        "type": "file",
-        "value": "fetch_stderr.txt"
-      },
-      {
-        "type": "file",
-        "value": "fetch_stdout.txt"
-      },
-      {
-        "type": "regexp",
-        "value": "^_test_.*\\.cjs$"
-      },
-      {
-        "type": "regexp",
-        "value": "^assets/.*\\.bak_.*$"
+        "value": "assets/images/relics"
       }
     ],
     "include": []

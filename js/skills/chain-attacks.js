@@ -15,7 +15,7 @@
  *   const ChainAttacks = require('../skills/chain-attacks.js');
  *   const plan = ChainAttacks.plan({
  *     steps: ret.resolved.stepList,              // 直接传 stepList
- *     startGroup: this.gsState.chainstorm ? 2 : undefined,   // 不传则用现行阈值 4
+ *     startGroup: this.gsState.chainstorm ? 2 : undefined,   // 不传则用现行阈值 3
  *     towerOfColor: (color) => CONFIG.COLORS[color] && CONFIG.COLORS[color].tower,
  *     activeTowers: this.slotOrder,               // 已出战塔；不传视为全部出战
  *     layout: { cols: L.cols, cell: L.size, originY: this.boardY },
@@ -33,7 +33,7 @@ const CONFIG = require('../config.js');
 const TOWER_KEYS = ['fire', 'ice', 'poison', 'electric', 'cannon', 'boomerang'];
 
 /** 现行阈值（CONFIG.MATCH_SKILL.chainStart 的默认值），不夹带改门槛 */
-const DEFAULT_START_GROUP = (CONFIG.MATCH_SKILL && CONFIG.MATCH_SKILL.chainStart) || 4;
+const DEFAULT_START_GROUP = (CONFIG.MATCH_SKILL && CONFIG.MATCH_SKILL.chainStart) || 3;
 
 const DEFAULT_LAYOUT = (() => {
   const L = CONFIG.LAYOUT.boardCell;
@@ -66,7 +66,7 @@ function noop() {}
  * 主入口：把消除快照转成弹道计划。
  * @param {Object} input
  * @param {Array}  input.steps          stepList 形态：[{ clearedDetails:[{r,c,color}], matches?:[{cells,rainbow}] }]
- * @param {number} [input.startGroup]   第几组起算连消（默认 4）
+ * @param {number} [input.startGroup]   第几组起算连消（默认 3）
  * @param {Function} [input.towerOfColor] color → 塔 key
  * @param {Array}  [input.activeTowers] 已出战塔 key 列表（null=全部出战）
  * @param {Object} [input.layout]       { cols, cell, originX, originY }

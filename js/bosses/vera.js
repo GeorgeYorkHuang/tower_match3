@@ -42,8 +42,8 @@ function afterDamage(g, e) {
     q.phase++; e.phase = q.phase; e._bossStun = B.phaseStun;
     q.phaseVisual = { at: q.elapsed, phase: q.phase };
     g.wave.plan.push(...entries(B.adds[q.phase - 1])); g.wave.planDoneAt = null;
-    if (q.phase === 2) q.nextWardAt = q.elapsed + B.wardPeriod;
-    if (q.phase === 3) { q.nextRiftAt = q.elapsed + B.riftPeriod; e.speed *= B.phaseSpeedMultiplier; }
+    if (q.phase === 2) q.nextWardAt = q.elapsed + B.wardFirstDelay;
+    if (q.phase === 3) { q.nextRiftAt = q.elapsed + B.riftFirstDelay; e.speed *= B.phaseSpeedMultiplier; }
     g.fx.push({ type: 'floatText', text: '薇拉 · ' + B.phaseNames[q.phase - 1], x: e.x, y: e.y - 65, t: 0, dur: 2, size: 26, color: '#ffcf7a' });
   }
 }
@@ -78,7 +78,7 @@ function tick(g, dt) {
     }
     if (q.nextRiftAt <= next + EPS) {
       q.riftVisual = { at: next, x: e.x, y: e.y };
-      const damage = (g.run.lineMaxHp || CONFIG.LINE.hp) * B.riftWallRatio;
+      const damage = g.run.adReviveProtection > 0 ? 0 : (g.run.lineMaxHp || CONFIG.LINE.hp) * B.riftWallRatio;
       const before = Math.max(0, g.run.lineHp);
       g.run.lineHp = Math.max(0, before - damage); q.wallDamage += before - g.run.lineHp;
       q.nextRiftAt += B.riftPeriod;

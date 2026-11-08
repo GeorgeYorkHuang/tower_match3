@@ -3,11 +3,13 @@ const CONFIG = require('../../config.js');
 
 // Preserve modal priority and consume each event once. Player state belongs to game.
 function dispatchTouch(game, p, version) {
-  // v1.16.73 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
+  if (require('../tutorial.js').tap(game,p)) return true;
+  if (require('../flows/ad-actions.js').tap(game,p)) return true;
+  // 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
   if (game.relicDetail) {
     const h = game.relicDetailHits;
     if ((h.close && h.close.hit(p.x, p.y)) || (h.bg && h.bg.hit(p.x, p.y))) {
-      const from = game.relicDetail.from || 'fighting';   // v1.16.113 关闭后回到来源状态（testfield/fighting）
+      const from = game.relicDetail.from || 'fighting';   // 关闭后回到来源状态（testfield/fighting）
       game.relicDetail = null; game.state = from; return true;
     }
     if (h.next && h.next.hit(p.x, p.y)) {
@@ -50,7 +52,7 @@ function dispatchTouch(game, p, version) {
   if (game.funcLayer) {
     const h = game.funcLayerHits;
     if (game.funcLayer.type === 'setting' && h.sound && h.sound.hit(p.x, p.y)) {
-      // v1.16.107 声音开关：持久化 + 即时应用；v1.16.135 同步 funcLayer.soundOn，否则弹层按钮文案不刷新
+      // 声音开关：持久化 + 即时应用；同步 funcLayer.soundOn，否则弹层按钮文案不刷新
       game.meta.soundOn = !game.meta.soundOn;
       game.funcLayer.soundOn = game.meta.soundOn;
       game.save.save();
@@ -59,7 +61,7 @@ function dispatchTouch(game, p, version) {
       return true;
     }
     if (game.funcLayer.type === 'setting' && h.confirm && h.confirm.hit(p.x, p.y)) {
-      // v1.16.107 重新开始（不清档）：返回主界面重开本局，塔/金币/解锁进度全部保留
+      // 重新开始（不清档）：返回主界面重开本局，塔/金币/解锁进度全部保留
       game.funcLayer = null;
       game.goMenu();
       game.toast('已重新开始 · 存档保留', '#7ef0a3');
@@ -74,7 +76,7 @@ function dispatchTouch(game, p, version) {
     if (h.bg && h.bg.hit(p.x, p.y)) { game.funcLayer = null; return true; }
     return true; // 面板内点击不处理其它
   }
-  // v1.17.50 伤害统计弹层（优先级高于商店/加速/战场）
+  // 伤害统计弹层（优先级高于商店/加速/战场）
   if (game.dmgStat) {
     const dh = game.dmgStatHits || {};
     if (dh.close && dh.close.hit(p.x, p.y)) { game.dmgStat = null; return true; }
@@ -99,17 +101,17 @@ function dispatchTouch(game, p, version) {
     }
     return true; // Modal blank space must not reach battle controls.
   }
-  // 加速按钮（v1.16.30 移到城墙上方 · 移动区右下角，独立命中区）
+  // 加速按钮（移到城墙上方 · 移动区右下角，独立命中区）
   if (game.renderer.speedHit && game.renderer.speedHit.hit(p.x, p.y)) {
     game.cycleRunSpeed();
     return true;
   }
-  // v1.17.50 伤害统计按钮（行动区左下角）
+  // 伤害统计按钮（行动区左下角）
   if (game.renderer.dmgStatHit && game.renderer.dmgStatHit.hit(p.x, p.y)) {
     game.dmgStat = true;
     return true;
   }
-  // 底部功能键区：打开对应弹层（v1.16.89 商店并入功能条：点击弹出商店面板）
+  // 底部功能键区：打开对应弹层（商店并入功能条：点击弹出商店面板）
   if (game.funcHits.length) {
     for (const f of game.funcHits) {
       if (f.hit(p.x, p.y)) {
@@ -120,11 +122,11 @@ function dispatchTouch(game, p, version) {
     }
   }
   if (game.state === 'fighting') {
-    // v1.16.74 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
+    // 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
     if (game._chestBusy) return true;
-    // v1.16.89 局内商店：入口移至底部功能条，此处仅处理面板内点击（关闭钮 / 商品格）
+    // 局内商店：入口移至底部功能条，此处仅处理面板内点击（关闭钮 / 商品格）
     if (game.shopOpen === undefined) game.shopOpen = false;
-    // v1.16.73 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
+    // 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
     const rb = game.renderer.relicBarHit;
     if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
       game.relicDetail = { page: 0 };
@@ -147,7 +149,7 @@ function dispatchTouch(game, p, version) {
       return true;
     }
   }
-  // v1.14 测试战场触摸分发：技能面板弹层优先，其次控制条/塔槽/返回/倍速
+  // 测试战场触摸分发：技能面板弹层优先，其次控制条/塔槽/返回/倍速
   if (game.state === 'testfield') {
     if (game.onTestFieldTap(p)) return true;
   }
@@ -169,9 +171,10 @@ function dispatchTouch(game, p, version) {
       if (game.pickHits[i] && game.pickHits[i].hit(p.x, p.y)) {
         const res = game.run.applyChoice(group.tower, group.candidates[i]);
         if (res.ok) {
+          require('../tutorial.js').chosen(game);
           const cd = group.candidates[i];
           const nm = cd.name;
-          // v1.14 提示优化：分支卡 toast 显示分支名 + 等级变化（如「爆燃·灼烧爆裂 Lv0→1」）
+          // 提示优化：分支卡 toast 显示分支名 + 等级变化（如「爆燃·灼烧爆裂 Lv0→1」）
           const cdCfg = (CONFIG.EFFECT_POOLS[cd.fromTower || group.tower] || []).find((q) => q.name === nm) || {};
           const actTxt = cd.type === 'branch'
             ? `${nm}·${game.renderer.branchName(cdCfg, cd.branch)} Lv${cd.branchLv}→${cd.branchLv + 1}`
@@ -198,9 +201,9 @@ function dispatchTouch(game, p, version) {
     return true;
   }
   if (game.state === 'gameover') {
-    // v1.17.21 点击任意处跳过演出：首点置 skip（goT 直达 99999），本次点击吞掉，按钮从第二次点击开始生效
+    // 点击任意处跳过演出：首点置 skip（goT 直达 99999），本次点击吞掉，按钮从第二次点击开始生效
     if (!game.gameoverSkip) { game.gameoverSkip = true; return true; }
-    // v1.16.135 兼容两种注册形态：hit 可以是函数（v1.17 汇总分支）或 {hit:fn} 对象（兜底分支）。
+    // 兼容两种注册形态：hit 可以是函数（汇总分支）或 {hit:fn} 对象（兜底分支）。
     //   此前汇总分支 toMenu=hit 函数，这里却调用 .toMenu.hit() → TypeError → 「返回主界面」点击无响应
     const rb = game.restartBtn || {};
     const h1 = typeof rb.hit === 'function' ? rb.hit : rb.hit && rb.hit.hit;
@@ -210,7 +213,7 @@ function dispatchTouch(game, p, version) {
     if (h2 && h2(p.x, p.y)) { game.goMenu(); return true; }
     return true;
   }
-  // v1.16.76 撤离决策层（战斗暂停）
+  // 撤离决策层（战斗暂停）
   if (game.state === 'evacuation') {
     const H = game.evacHits || {};
     if (H.evacGo && H.evacGo.hit(p.x, p.y)) { game.finishRun(true); return true; }

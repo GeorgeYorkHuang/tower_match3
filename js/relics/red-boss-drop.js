@@ -1,0 +1,4 @@
+'use strict';
+const RED=require('../config/red-relics.js');
+function grant(game,enemy,random=Math.random){const field=game.menuStage,wave=enemy.waveNo||game.run.wave,pool=RED.cards(field);if(!['ancient','lava','frost'].includes(field)||!enemy.isBoss||wave!==RED.finalBossWave||game.state==='testfield'||!pool.length)return null;const key=field+':'+wave,paid=game.run._sanctumBossDrops||{};if(paid[key])return null;const card=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))],n=RED.fragments[0]+Math.min(RED.fragments[1]-RED.fragments[0],Math.floor(random()*(RED.fragments[1]-RED.fragments[0]+1)));game.run._sanctumBossDrops={...paid,[key]:true};game.runShardDetail=game.runShardDetail||{};game.runShardDetail[card.id]=(game.runShardDetail[card.id]||0)+n;game.runShardGained=(game.runShardGained||0)+n;return{id:card.id,n};}
+module.exports={grant};

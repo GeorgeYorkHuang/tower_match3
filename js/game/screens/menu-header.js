@@ -7,6 +7,7 @@ function createMenuHeader({ drawImg, IMG_SRC, fmtK }) {
     const menuX = 30, coinX = 102, diamondX = 290;
     ctx.fillStyle = 'rgba(13,20,31,0.94)';
     ctx.fillRect(0, 0, 750, 186);
+    drawImg(ctx, 'assets/images/interface/home/menu-header-ai-v3.png', 0, 0, 750, 186);
     ctx.fillStyle = 'rgba(124,168,255,0.26)';
     ctx.fillRect(0, 185, 750, 1);
     fillRoundRect(ctx, menuX, mcy, mch, mch, 12, '#263447');

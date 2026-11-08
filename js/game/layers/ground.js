@@ -1,10 +1,13 @@
 'use strict';
+const PoisonStickFx = require('../fx/poison-stick.js');
+const ToxicPoolFx = require('../fx/toxic-pool.js');
 // 仅绘制地面持续区和召唤物，不修改实体/DoT或伤害计时。
-function createGroundLayer({ drawImg }) {
+function createGroundLayer({ drawImg, loadImg }) {
+  const approved = require('../fx/approved-fire.js').create(drawImg);
   function groundFx(ctx, combat) {
     if (!combat) return;
     const tNow = Date.now();
-    // v1.16.6 回旋镖·风痕：镖路径残留的旋转镖影（紫色渐淡圈），C 卷痕减速时带减速蓝光
+    // 回旋镖·风痕：镖路径残留的旋转镖影（紫色渐淡圈），C 卷痕减速时带减速蓝光
     if (combat.windTrails && combat.windTrails.length) {
       combat.windTrails.forEach((w) => {
         if (w.ttl <= 0) return;
@@ -35,34 +38,26 @@ function createGroundLayer({ drawImg }) {
         ctx.globalAlpha = 1;
       });
     }
-    // 燃烧地面：6 帧贴图循环 + 上升余烬。贴图可见宽度约占画布 92.6%，按 gd.r 精确映射为 2R。
-    // 炮台燃烧地面（cannonBurn）与火系余烬/焦土（key:'fire'）共用；帧图火焰中心约在 (0.5, 0.594)，底边已逐帧对齐。
+    // 火系余烬/焦土与炮塔灼地统一使用新版燃烧地面。
     const drawBurnPatch = (x, y, R, fade, seed) => {
-      const S = R * 2.16;
-      const phase = (tNow / 115 + seed * 0.037) % 6;
-      const fi = Math.floor(phase) % 6;
+      const now = combat.game && typeof combat.game.animClock === 'number' ? combat.game.animClock / 1000 : 0;
+      if (approved.ground(ctx, x, y, R, now, seed, fade)) return true;
+      // 新图集未就绪时保留范围与少量火苗，不请求旧版图片。
       ctx.save();
-      ctx.globalAlpha = fade;
-      const ok = drawImg(ctx, `assets/images/towers/fx/burnground/burnground${fi + 1}.png`, x - 0.5 * S, y - 0.594 * S, S, S);
-      // 余烬按固定相位循环上升并淡出，seed 只负责错开不同燃烧区域的节奏。
-      for (let k = 0; k < 6; k++) {
-        const q = ((tNow / 920 + k / 6 + seed * 0.019) % 1 + 1) % 1;
-        const angle = seed * 1.7 + k * 2.399963;
-        const spread = R * (0.12 + 0.58 * q);
-        const ex = x + Math.cos(angle) * spread;
-        const ey = y + R * 0.12 - q * (R * 0.9);
-        const emberFade = Math.sin(Math.PI * q) * fade;
-        const emberR = 1.2 + 1.8 * (1 - q);
-        ctx.globalAlpha = 0.78 * emberFade;
-        ctx.fillStyle = k % 3 === 0 ? '#fff1a6' : '#ff9b3d';
-        ctx.beginPath(); ctx.arc(ex, ey, emberR, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.22 * emberFade;
-        ctx.beginPath(); ctx.arc(ex, ey, emberR * 2.8, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha *= fade;
+      ctx.fillStyle = 'rgba(120,45,12,0.22)';
+      ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffad42';
+      for (let i = 0; i < 9; i++) {
+        const a = seed + i * 2.399963, d = R * Math.sqrt((i + 0.5) / 9) * 0.85;
+        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+        const height = 7 + 4 * Math.sin(now * 7 + i);
+        ctx.beginPath(); ctx.moveTo(px - 3, py); ctx.lineTo(px, py - height); ctx.lineTo(px + 3, py); ctx.closePath(); ctx.fill();
       }
       ctx.restore();
-      return ok;
+      return true;
     };
-    // 毒池（v1.16.1 深绿毒液池）/ 毒沼（v1.16.42 60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
+    // 毒池（深绿毒液池）/ 毒沼（60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
     if (combat.groundDots && combat.groundDots.length) {
       combat.groundDots.forEach((gd) => {
         if (gd.kind === 'cannonBurn' && gd.ttl > 0) {
@@ -89,18 +84,22 @@ function createGroundLayer({ drawImg }) {
           ctx.globalAlpha = 1;
           return;
         }
-        // v1.17.43 火系地面余烬/焦土（炮火支援C焦土、火柱余烬、火系击杀爆炸）：此前无视觉，补上共用帧动画
+        // 火系地面余烬/焦土（炮火支援C焦土、火柱余烬、火系击杀爆炸）：此前无视觉，补上共用帧动画
         if (gd.key === 'fire' && gd.ttl > 0) {
           drawBurnPatch(gd.x, gd.y, gd.r || 60, Math.min(1, gd.ttl / 0.5), gd.seed || 0);
           return;
         }
         if (gd.key !== 'poison' || gd.ttl <= 0) return;
+        if (gd.skill === '毒池' && !gd.swamp) {
+          ToxicPoolFx.draw(ctx, gd, drawImg, loadImg);
+          return;
+        }
         const seed = gd.seed || 0;
         const fade = Math.min(1, gd.ttl / 1.2); // 接近结束淡出
         const R = gd.r || 130;
         const breathe = 1 + 0.05 * Math.sin(tNow / 320 + seed);
         if (gd.swamp) {
-          // v1.16.42 毒沼：小范围（60px）暗褐绿泥沼——泥浆底色 + 内圈 + 冒泡，与毒池（亮绿毒液池）区分
+          // 毒沼：小范围（60px）暗褐绿泥沼——泥浆底色 + 内圈 + 冒泡，与毒池（亮绿毒液池）区分
           ctx.fillStyle = '#4d3a1e'; ctx.globalAlpha = 0.5 * fade;
           ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.7 * breathe, 0, 0, Math.PI * 2); ctx.fill();
           ctx.fillStyle = '#6b5325'; ctx.globalAlpha = 0.4 * fade;
@@ -119,16 +118,13 @@ function createGroundLayer({ drawImg }) {
           ctx.globalAlpha = 1;
           return;
         }
-        // v1.17.42 毒池：6 帧毒液池贴图循环（240ms/帧 ≈ 1.44s 一轮），带呼吸缩放与结束淡出
+        // 毒池：6 帧毒液池贴图循环（240ms/帧 ≈ 1.44s 一轮），带呼吸缩放与结束淡出
         const fi = Math.floor(((tNow / 240 + seed * 0.037) % 1) * 6) % 6;
         const S = R * 2.1 * breathe; // 贴图主体约占框宽 95%，映射后可见直径 ≈ 2R
         ctx.globalAlpha = fade;
-        if (drawImg(ctx, `assets/images/towers/fx/poisonpool/poisonpool${fi + 1}.png`, gd.x - S / 2, gd.y - S / 2, S, S)) {
-          ctx.globalAlpha = 1;
-          return;
-        }
+        // Removed legacy poison-pool sheets: retain the existing procedural fallback.
         ctx.globalAlpha = 1;
-        // 贴图未加载回退：程序化深绿液池（原 v1.16.1 绘制）
+        // 贴图未加载回退：程序化深绿液池（原 绘制）
         // 外圈深绿液池
         ctx.fillStyle = '#145a32'; ctx.globalAlpha = 0.45 * fade;
         ctx.beginPath(); ctx.ellipse(gd.x, gd.y, R * breathe, R * 0.62 * breathe, 0, 0, Math.PI * 2); ctx.fill();
@@ -160,51 +156,9 @@ function createGroundLayer({ drawImg }) {
         ctx.globalAlpha = 1;
       });
     }
-    // 毒棒：帧动画贴图（v1.16.10）——4 帧：1 破土 / 2 成型 / 3 蓄力膨胀 / 4 喷发攻击
-    // 常态循环 1→2→3（0.9s 周期）；每次攻击（atkT 归零）后 0.32s 内显示第 4 帧喷发
-    if (combat.poisonSticks && combat.poisonSticks.length) {
-      combat.poisonSticks.forEach((st) => {
-        if (st.ttl <= 0) return;
-        const seed = st.seed || 0;
-        const fade = Math.min(1, st.ttl / 1.5);
-        const x = st.x, y = st.y;
-        // 根部毒圈（微光 + 呼吸，保留增强落地感）
-        const pulse = 1 + 0.08 * Math.sin(tNow / 280 + seed);
-        ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.2 * fade * pulse;
-        ctx.beginPath(); ctx.arc(x, y, 12 * pulse, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#58d68d'; ctx.lineWidth = 1.4; ctx.globalAlpha = (0.28 + 0.18 * Math.sin(tNow / 300 + seed)) * fade;
-        ctx.beginPath(); ctx.arc(x, y, 15 * pulse, 0, Math.PI * 2); ctx.stroke();
-        ctx.globalAlpha = 1;
-        // 帧选择：攻击后 0.32s 内第 4 帧（喷发），否则 1-3 帧循环
-        const atk = st.atkT <= 0.32;
-        let frameIdx;
-        if (atk) {
-          frameIdx = 3;
-        } else {
-          const ph = (tNow / 900 + seed * 0.037) % 1;
-          frameIdx = Math.floor(ph * 3);
-        }
-        const fw = 30, fh = 36;
-        if (!drawImg(ctx, `assets/images/towers/fx/poisonstick/poisonstick${frameIdx + 1}.png`, x - fw / 2, y - 8, fw, fh)) {
-          // 贴图未加载回退：简化几何（木柄 + 毒囊）
-          const pulse2 = 1 + 0.08 * Math.sin(tNow / 280 + seed);
-          ctx.save();
-          ctx.translate(x, y - 4); ctx.rotate(-0.18);
-          ctx.fillStyle = '#6d4c41'; ctx.globalAlpha = 0.95 * fade;
-          ctx.fillRect(-3, -22, 6, 24);
-          const sacR = 6.5 * pulse2;
-          ctx.fillStyle = '#1e8449'; ctx.globalAlpha = 0.95 * fade;
-          ctx.beginPath(); ctx.arc(0, -26, sacR, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        }
-        // 攻击瞬间绿色毒雾爆点（贴图第 4 帧叠加，增强命中感）
-        if (atk) {
-          ctx.globalAlpha = (0.7 - st.atkT * 2.2) * fade;
-          ctx.fillStyle = '#2e7d32';
-          ctx.beginPath(); ctx.arc(x, y - 16, 6 + st.atkT * 26, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      });
+    // 毒棒：常驻呼吸，实际攻击时挥击；动画进度由召唤物战斗时钟推进。
+    if (combat.poisonSticks) {
+      combat.poisonSticks.forEach(st => PoisonStickFx.draw(ctx, st, drawImg, loadImg));
     }
   }
   return { groundFx };

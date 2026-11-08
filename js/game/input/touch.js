@@ -1,5 +1,9 @@
+const ShopScroll = require('./shop-scroll.js');
+const TalentGestures = require('./talent-gestures.js');
 const RelicScroll = require('./relic-scroll.js');
 const PanelScroll = require('./panel-scroll.js');
+const MailButtons = require('./mail-buttons.js');
+const MailRail = require('./mail-rail.js');
 'use strict';
 // One gesture lifetime shared by wx and canvas channels; caller injects the main canvas.
 function bindTouch(game, c) {
@@ -18,28 +22,33 @@ function bindTouch(game, c) {
     const onStart = (e) => {
       const p = touchPoint(e);
       if (!p) return;
+      if(MailRail.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
+      if(MailButtons.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
+      if(TalentGestures.begin(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
       if (game.state === 'gameover' && game.gameoverSkip && p.y >= 552 && p.y <= 926) {
         game._lootDrag = { y: p.y, start: p.y, scroll: game._lootScroll || 0, moved: false };
         game._touchStart = { x: p.x, y: p.y }; return;
       }
       if (game.state === 'fighting') { game._boardIdleTime = 0; game.boardHint = null; }
+      ShopScroll.stop(game);
+      if (game.state === 'menu' && game.menuTab === 'shop' && !game.menuPanel && p.y >= 288 && p.y < 1492) { ShopScroll.begin(game, p); return; }
       RelicScroll.stop(game);
       PanelScroll.stop(game);
       // Menu input must never be gated by the board gesture lock.
       if (game.state === 'menu' && !(game.menuTab === 'relic' && !game.menuPanel)) {
-        // v1.17.45 全局技能面板：视口内触摸 → 进入滚动拖拽（点击延迟到 touchend 补发，拖动不触发卡点）
+        // 全局技能面板：视口内触摸 → 进入滚动拖拽（点击延迟到 touchend 补发，拖动不触发卡点）
         if (PanelScroll.begin(game, p)) return;
         game.dispatchTouch(p);
         return;
       }
       if (e.touches && e.touches.length > 1) return;
       gestureUsed = false;
-      // v1.16.82 圣遗物页滑动浏览：延迟点击判定到 touchend（拖动不触发卡点）
+      // 圣遗物页滑动浏览：延迟点击判定到 touchend（拖动不触发卡点）
       if (game.state === 'menu' && game.menuTab === 'relic' && !game.menuPanel) {
         RelicScroll.begin(game, p);
         return;
       }
-      // 状态/弹层/按钮命中分发（模块化 v1.13.11：dispatchTouch 独立方法）
+      // 状态/弹层/按钮命中分发（模块化 ：dispatchTouch 独立方法）
       if (game.dispatchTouch(p)) return;
       // 棋盘点击/滑动准备
       startCell = game.cellAt(p);
@@ -50,6 +59,9 @@ function bindTouch(game, c) {
       game._touchStart = { x: p.x, y: p.y };
     };
     const onMove = (e) => {
+      if(MailRail.move(game,touchPoint(e)))return;
+      if(MailButtons.move(game,touchPoint(e)))return;
+      if(TalentGestures.move(game,e))return;
       const p = touchPoint(e);
       if (game._lootDrag && p) {
         const d = game._lootDrag, count = Object.keys((game.runSummary && game.runSummary.shardDetail) || {}).filter(id => game.runSummary.shardDetail[id] > 0).length;
@@ -57,12 +69,13 @@ function bindTouch(game, c) {
         if (Math.abs(p.y - d.start) > 6) d.moved = true;
         game._lootScroll = Math.max(0, Math.min(max, d.scroll + d.start - p.y)); d.y = p.y; return;
       }
-      // v1.16.82 圣遗物页拖动滚动
+      if (game._shopDrag && p) { ShopScroll.move(game, p); return; }
+      // 圣遗物页拖动滚动
       if (game._relicDrag && p) {
         RelicScroll.move(game, p);
         return;
       }
-      // v1.17.45 全局技能面板拖动滚动
+      // 全局技能面板拖动滚动
       if (game._panelDrag && p) {
         PanelScroll.move(game, p);
         return;
@@ -91,17 +104,21 @@ function bindTouch(game, c) {
       lastCell = cell;
     };
     const onEnd = (e) => {
+      if(MailRail.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
+      if(MailButtons.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
+      if(TalentGestures.end(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if (game._lootDrag) { const d = game._lootDrag; game._lootDrag = null; game._touchStart = null; if (d.moved) return; game.dispatchTouch(touchPoint(e) || { x: 0, y: 0 }); return; }
+      if (game._shopDrag) { const d = ShopScroll.end(game); if (d && !d.moved && game.state === 'menu') game.dispatchTouch(d.p); return; }
       // Always release on end: adapters may include the ending touch in touches.
       gestureUsed = false;
-      // v1.16.82 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
+      // 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
       if (game._relicDrag) {
         const d = RelicScroll.end(game);
         game._touchStart = null; moved = false; startCell = null; lastCell = null; game.selected = null;
         if (!d.moved && game.state === 'menu') game.dispatchTouch(d.p);
         return;
       }
-      // v1.17.45 全局技能面板：未拖动 → 补发点击；已拖动 → 吞掉
+      // 全局技能面板：未拖动 → 补发点击；已拖动 → 吞掉
       if (game._panelDrag) {
         const d = PanelScroll.end(game);
         game._touchStart = null; moved = false; startCell = null; lastCell = null; game.selected = null;
@@ -132,10 +149,14 @@ function bindTouch(game, c) {
       game._touchStart = null;
     };
     const onCancel = () => {
+      MailRail.cancel(game);
+      MailButtons.cancel(game);
+      TalentGestures.cancel(game);
       game._lootDrag = null;
       gestureUsed = false;
       startCell = null; lastCell = null;
       moved = false;
+      ShopScroll.cancel(game);
       RelicScroll.cancel(game);
       PanelScroll.cancel(game);
       game._touchStart = null;

@@ -16,8 +16,8 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         ctx.restore();return;
       }
       const s = 84;
-      const opening = c.animT != null;   // v1.16.72：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
-      // v1.16.74 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
+      const opening = c.animT != null;   // ：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
+      // 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
       let fx = c.x, fy = c.y, scale = 1;
       if (opening && c.stage === 'fly') {
         const p = Math.min(1, c.flyT / 0.7);
@@ -52,7 +52,7 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath(); ctx.ellipse(c.x, c.y + s / 2 + 4, s / 2 * 0.85, 6, 0, 0, Math.PI * 2); ctx.fill();
       }
-      // 五帧动画（v1.16.75）：关闭 → 微开 → 半开 → 快开 → 全开，0.4s 播完；飞行阶段恒用全开帧
+      // 五帧动画（）：关闭 → 微开 → 半开 → 快开 → 全开，0.4s 播完；飞行阶段恒用全开帧
       const p = opening ? Math.min(1, c.animT / 0.4) : 0;
       const src = (opening && c.stage === 'fly') ? IMG_SRC.chestOpen
         : (p < 0.2 ? IMG_SRC.chestClosed : (p < 0.4 ? IMG_SRC.chestQuarter : (p < 0.6 ? IMG_SRC.chestHalf : (p < 0.8 ? IMG_SRC.chestFast : IMG_SRC.chestOpen))));
@@ -69,7 +69,7 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         ctx.fillStyle = '#ffd34d';
         ctx.beginPath(); ctx.arc(fx, fy + 2, 3, 0, Math.PI * 2); ctx.fill();
       }
-      // v1.16.74 飞行金光：轨迹粒子 + 到达中心时的光爆
+      // 飞行金光：轨迹粒子 + 到达中心时的光爆
       if (opening && c.stage === 'fly') {
         const p = Math.min(1, c.flyT / 0.7);
         for (let k = 0; k < 8; k++) {

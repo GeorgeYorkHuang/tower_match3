@@ -9,7 +9,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     const F = CONFIG.FIELDS[stage] || CONFIG.FIELDS.ancient;
     const isTest = stage === 'test';
     const tint = F.tint;
-    // v1.17.48 战场面板背景整体移除：只留图标 + 战场名；图标放大 30%（260→338）
+    // 战场面板背景整体移除：只留图标 + 战场名；图标放大 30%（260→338）
     const iw = 338, ix = 375 - iw / 2, iy = 480;
     const nameY = iy + iw + 42;
 
@@ -24,7 +24,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     const requirement = s.testProfile ? '' : (stage === 'abyss' ? (!s.normalFieldCleared ? '通关任一普通战场解锁' : '') : (stage === 'lava' || stage === 'frost') && (s.ancientBestWave || 0) < 40 ? '圣坛花园达到40波解锁' : '');
     const locked = !!requirement;
 
-    // v1.16.78 战场图标：无背景直出（v1.17.48 放大 30% → 338px；锁定态整体压暗）
+    // 战场图标：无背景直出（放大 30% → 338px；锁定态整体压暗）
     ctx.globalAlpha = locked ? 0.4 : 1;
     const badge = drawImg(ctx, isTest ? 'assets/images/interface/home/icon_stage_test.png' : `assets/images/interface/home/icon_stage_${stage}.png`, ix, iy, iw, iw);
     ctx.globalAlpha = 1;
@@ -32,7 +32,7 @@ function createHomeScreen({ drawImg, skillRow }) {
       ctx.beginPath(); ctx.arc(375, iy + iw / 2, iw / 2, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill();
       text(ctx, isTest ? '🧪' : '🏰', 375, iy + iw / 2 + 12, 130, '#ffffff', 'center');
     }
-    // 战场名（v1.17.47：54px 金色渐变 + 立体投影，与页面主标题「圣坛裂痕」同款工艺）
+    // 战场名（：54px 金色渐变 + 立体投影，与页面主标题「圣坛裂痕」同款工艺）
     ctx.font = 'bold 54px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillText(F.name, 375 + 3, nameY + 4);
@@ -40,7 +40,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     ng.addColorStop(0, '#fff3c4'); ng.addColorStop(0.45, '#f7c948'); ng.addColorStop(1, '#d99e16');
     ctx.fillStyle = ng;
     ctx.fillText(F.name, 375, nameY);
-    // v1.16.78 锁定态：未解锁战场显示 🔒 徽标 + 解锁条件（v1.17.48 无面板版：徽标悬浮图标上方）
+    // 锁定态：未解锁战场显示 🔒 徽标 + 解锁条件（无面板版：徽标悬浮图标上方）
     if (locked) {
       fillRoundRect(ctx, 375 - 250, iy + 8, 500, 44, 22, 'rgba(0,0,0,0.65)');
       strokeRoundRect(ctx, 375 - 250, iy + 8, 500, 44, 22, '#f0b45c', 1.5);
@@ -51,9 +51,9 @@ function createHomeScreen({ drawImg, skillRow }) {
       fillRoundRect(ctx,lx-3,ly+1,6,18,3,'#4b3e29');ctx.restore();
     }
 
-    // ◀ ▶ 战场切换箭头（v1.17.48 移到战场图标两侧、保持 36px 间距；垂直对齐图标中心）
+    // ◀ ▶ 战场切换箭头（移到战场图标两侧、保持 36px 间距；垂直对齐图标中心）
     const arrow = (ax, dir) => {
-      const isPrev = dir === '‹';   // v1.16.127 修正：左侧朝左=上一个，右侧朝右=下一个
+      const isPrev = dir === '‹';   // 修正：左侧朝左=上一个，右侧朝右=下一个
       const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (isPrev ? 0 : 2.1));
       // 呼吸光晕
       ctx.globalAlpha = glow;
@@ -93,7 +93,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     arrow(aLx, '‹');
     arrow(aRx, '›');
     // Capsule entry button and skill rows share their left/right edges.
-    // v1.17.48 按钮 440→374（再缩短 15%）；配色固定金色，不随战场切换变色
+    // 按钮 440→374（再缩短 15%）；配色固定金色，不随战场切换变色
     const ey = 950, eh = 80, entryW = 374, entryX = (750 - entryW) / 2;
     push('enter', null, entryX, ey, entryW, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
@@ -102,9 +102,9 @@ function createHomeScreen({ drawImg, skillRow }) {
     strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
     fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.22)');
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
-    // v1.17.47 技能配置行：单行双分区，随版面整体下移 150（1130→1280）
+    // 技能配置行：单行双分区，随版面整体下移 150（1130→1280）
     skillRow(ctx, s, push, 55, 1280, 640, 170);
-    // v1.16.44 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
+    // 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）
   }
   return { menuBattle };
 }

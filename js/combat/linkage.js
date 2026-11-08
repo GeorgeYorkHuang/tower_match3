@@ -69,8 +69,8 @@ function bonusStrike(combat, key, shape) {
   const g = combat.game;
   const t = combat.tower(key);
   if (!t || t.level === 0) return;
-  // v1.16.77 能量：三消额外攻击同样耗 0.5 能量；能量耗尽不取消，伤害走弱化态（shotDmg 内 ×0.5）
-  // v1.16.96 弹药箱3★：能量不足时从备用能量库借用
+  // 能量：三消额外攻击同样耗 0.5 能量；能量耗尽不取消，伤害走弱化态（shotDmg 内 ×0.5）
+  // 弹药箱3★：能量不足时从备用能量库借用
   g.run.spendAttackEnergy(t);
   const tgt = combat.pickTarget(key);
   if (!tgt) return;

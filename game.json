@@ -63,6 +63,14 @@
       {
         "type": "regexp",
         "value": "^assets/.*\\.bak_.*$"
+      },
+      {
+        "type": "folder",
+        "value": "assets_bk"
+      },
+      {
+        "type": "folder",
+        "value": "assets/images/relics"
       }
     ]
   }

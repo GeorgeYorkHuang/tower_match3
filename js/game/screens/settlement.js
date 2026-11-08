@@ -11,7 +11,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
   /** easeOutBack：入场回弹（与旧 eob 一致） */
   _goEob(p) { p = Math.max(0, Math.min(1, p)); return 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2); }
 
-  /** 矢量小旗（撤离点/里程碑标记）：旗杆 + 三角旗面，锚点 = 旗杆底 (x, yBase)；v1.17.22 还会有 _drawMedal/_drawShardGem */
+  /** 矢量小旗（撤离点/里程碑标记）：旗杆 + 三角旗面，锚点 = 旗杆底 (x, yBase)；还会有 _drawMedal/_drawShardGem */
   _drawFlag(ctx, x, yBase, h, color, alpha) {
     ctx.save();
     if (alpha != null) ctx.globalAlpha *= alpha;
@@ -72,7 +72,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       text(ctx, su.victory ? '终局胜利' : win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
       ctx.restore();
     }
-    // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（v1.17.22），旧摘要回退 wave
+    // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（），旧摘要回退 wave
     const mp = this._goPh(T, TL.meta, 200);
     if (mp > 0) {
       ctx.globalAlpha = mp;
@@ -88,7 +88,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const TR = CONFIG.GO.TRAIL, TL = CONFIG.GO.TL;
     const base = this._goPh(T, TL.trail, 200);
     if (base <= 0) return;
-    const wave = (su.cleared != null) ? su.cleared : su.wave;   // v1.17.22 轨迹/终点按全歼波数（通关数口径）
+    const wave = (su.cleared != null) ? su.cleared : su.wave;   // 轨迹/终点按全歼波数（通关数口径）
     const waveMax = su.stage === 'abyss' ? 90 : 60;
     const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / waveMax));
     ctx.globalAlpha = base;
@@ -104,7 +104,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     }
     // 里程碑节点（10/20/30/40/50，位置与撤离点重合）：m≤wave 实心紫+旗，否则空心灰
     CONFIG.MILESTONES.forEach((m, i) => {
-      const np = this._goPh(T, TL.node0 + i * TL.nodeGap, 240);   // v1.17.48 淡入 180→240，配 nodeGap 120 让旗子逐个「走过去」
+      const np = this._goPh(T, TL.node0 + i * TL.nodeGap, 240);   // 淡入 180→240，配 nodeGap 120 让旗子逐个「走过去」
       if (np <= 0) return;
       const nx = fx(m), hitM = m <= wave;
       ctx.globalAlpha = base * np;
@@ -135,7 +135,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     ctx.globalAlpha = 1;
   }
 
-  /** v1.17.22 通用图标：贴图优先，缺图回退紫底圆 + 名首字（项目 v1.16.135 起无 emoji） */
+  /** 通用图标：贴图优先，缺图回退紫底圆 + 名首字（项目 起无 emoji） */
   _goIcon(ctx, id, x, y, size) {
     const src = id ? relicIconSrc(id) : null;
     if (src && drawImg(ctx, src, x, y, size, size)) return;
@@ -148,6 +148,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
   /** 战利品区（528–934）：标题 + 圣遗物大卡（220×340，最多 3 张居中，超出折叠） */
   _goLoot(ctx, su, T) {
     const TL = CONFIG.GO.TL;
+    if (su.relicDust > 0) text(ctx, '???? +'+su.relicDust, 690, 552, 20, '#dfbdff', 'right');
     const tp = this._goPh(T, TL.lootTitle, 200);
     if (tp > 0) {
       ctx.globalAlpha = tp;
@@ -241,9 +242,9 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     ctx.globalAlpha = 1;
   }
 
-  /** 结算页（v1.17.21 全屏三段式）：舞台 → 头部 → 深度轨迹 → 战利品 → 按钮 */
+  /** 结算页（全屏三段式）：舞台 → 头部 → 深度轨迹 → 战利品 → 按钮 */
   gameOver(ctx, s, restart) {
-    const su = s.summary;   // v1.16.76 局末结算摘要（撤离点系统）
+    const su = s.summary;   // 局末结算摘要（撤离点系统）
     if (su) {
       const win = !!su.evacuated;
       const T = Math.max(0, s.goT || 0);   // main.js：gameoverSkip 时传 99999 直达演出终点
@@ -263,9 +264,9 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     text(ctx, '防线失守', x + w / 2, y + 70, 44, '#ff6b6b', 'center');
     text(ctx, `坚守到第 ${s.wave} 波`, x + w / 2, y + 140, 26, '#dfe6ee', 'center');
     text(ctx, `银币 ${fmtNum(s.gold)} · 协同 ${s.synDoneCount}/2`, x + w / 2, y + 190, 22, '#9fb2c3', 'center');
-    // v1.16.45 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
+    // 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
     // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
-    // v1.16.135 与汇总分支统一：hit/toMenu 都注册为命中函数（main.js 兼容两种形态）
+    // 与汇总分支统一：hit/toMenu 都注册为命中函数（main.js 兼容两种形态）
     restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
     restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
   }

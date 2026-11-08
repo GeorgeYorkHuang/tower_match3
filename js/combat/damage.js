@@ -7,14 +7,14 @@ const SKILL_NUM = require('../config/tower-skills.js');
 const GS_BALANCE = require('../config/global-balance.js');
 const EnergyState = require('../config/energy-state.js');
 
-// v1.17.50 伤害统计：技能名 → 归属塔（炮火支援焦土等跨塔产物按技能名归源塔）
+// 伤害统计：技能名 → 归属塔（炮火支援焦土等跨塔产物按技能名归源塔）
 const SKILL_TOWER = {};
 for (const tkey of Object.keys(CONFIG.EFFECT_POOLS || {})) {
   const pool = CONFIG.EFFECT_POOLS[tkey] || [];
   for (const p of pool) if (p && p.name) SKILL_TOWER[p.name] = tkey;
 }
 
-/** v1.17.50 伤害统计归集：按实际扣血（healthLoss+shieldLoss，与飘字同口径）计入本局桶 */
+/** 伤害统计归集：按实际扣血（healthLoss+shieldLoss，与飘字同口径）计入本局桶 */
 function recordDmgStat(combat, e, hpBefore, shieldBefore, srcKey, kind, skill) {
   const run = combat.game && combat.game.run;
   if (!run || typeof run.dmgStatOf !== 'function') return;
@@ -39,13 +39,13 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
   const store = combat.game.run.storeBuff ? combat.game.run.storeBuff() : { atk: 0 };
   if (store.damageMultiplier != null) dmg *= store.damageMultiplier;
   else if (store.atk > 0) dmg *= (1 + 0.2 * store.atk);
-  // v1.16.78 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
-  // v1.16.96 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
+  // 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
+  // 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
   const run = combat.game.run;
+  const talentBonus=require('../talents/runtime.js').bonus(run,key);
+  dmg=(dmg+talentBonus.attack)*(1+talentBonus.damage)*((isTowerSkill===undefined?isSkill:isTowerSkill)?1+talentBonus.skill:1);
   const rl = combat.relicVal('cm_power') + combat.relicTowerDmg(key)
-    + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0)
-    + (run._seedBonus || 0)                       // v1.17.43 UR 未凋之种1★/2★：本波击杀召唤物累计全塔伤害
-    + 2 * (run._meltCore || 0);                   // v1.17.43 UR 熔心炉3★：每层熔芯 +2% 全塔伤害（上限 20 层）
+    + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0);
   if (rl > 0) dmg *= (1 + rl / 100);
   if (isSkill && run.chargeSkillBoost > 0) dmg *= (1 + run.chargeSkillBoost / 100);
   const overload = run.electricOverload ? run.electricOverload() : { level: 0, A: 0, C: 0 };
@@ -54,10 +54,10 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
     // 基础技能增伤15%；A分支额外增加15/25/35个百分点。
     dmg *= 1 + overloadBalance.skillDamageBase + overloadBalance.skillDamagePerBranch[overload.A];
   }
-  // v1.17.43 超压1★/2★（原「过载」重做）：全塔技能伤害 +10%/+18%（与电磁过载同口径，仅技能吃）
+  // 超压1★/2★（原「过载」重做）：全塔技能伤害 +10%/+18%（与电磁过载同口径，仅技能吃）
   const supV = combat.relicVal('elec_overload');
   if (supV > 0 && (isTowerSkill === undefined ? isSkill : isTowerSkill)) dmg *= (1 + supV / 100);
-  // v1.16.96 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3
+  // 战术转移3★：洗牌后 2 秒内全塔伤害 ×1.3
   if (run._shuffleBuffTtl > 0) dmg *= 1.3;
   // 能量状态同时影响普攻与周期技能伤害。
   const t = combat.tower(key);
@@ -78,52 +78,29 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
 function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
   if (e.hp <= 0) return;
   let v = dmg;
-  // v1.17.50 kind 归一化：statuses 传 {kind:'dot',sourceKey} 或字符串 'dot'，此处统一为字符串
+  // kind 归一化：statuses 传 {kind:'dot',sourceKey} 或字符串 'dot'，此处统一为字符串
   if (kind && typeof kind === 'object') {
     srcKey = kind.sourceKey || srcKey;
     kind = kind.kind || 'hit';
   }
-  // v1.16.11 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
-  // v1.17.43 UR 穿透合成：碎渣重锤（无视 15%/20%，3★ 35%）/ 裂坛玫瑰3★（目标带护盾或减伤时无视全部护甲）
+  // 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
+  v=require('../talents/runtime.js').beforeDamage(combat,e,v,srcKey,kind,skill);
   let armorIgnore = 0;
-  const hammerN = combat.relicVal('ur_slag_hammer');
-  if (combat.game.run.relic3('ur_slag_hammer')) armorIgnore = 0.35;
-  else if (hammerN > 0) armorIgnore = hammerN / 100;
-  const guarded = Math.max(0, Number(e.shield) || 0) > 0 || e.armor > 0;
-  if (combat.game.run.relic3('ur_altar_rose') && guarded) armorIgnore = 1;
   if (srcKey === 'boomerang' && kind !== 'dot' && combat.game.run.relic3('boo_tip')) armorIgnore = Math.max(armorIgnore, combat.game.run.relicValue('boo_tip', 'armorIgnore') / 100);
   if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor * (1 - Math.min(1, armorIgnore))));
-  // v1.17.43 碎渣重锤3★：对护甲 ≥40% 的目标额外 +15% 伤害
-  if (combat.game.run.relic3('ur_slag_hammer') && e.armor >= 0.4) v *= 1.15;
-  // v1.17.43 裂坛玫瑰1★/2★：对处于护盾/减伤状态的目标，伤害 +25%/+40%
-  const roseN = combat.relicVal('ur_altar_rose');
-  if (roseN > 0 && guarded) v *= (1 + roseN / 100);
-  // v1.17.43 霜风之眼3★：被减速/冰冻/麻痹的敌人受到伤害 +12%（Boss 额外 +6%）
-  if (combat.game.run.relic3('ur_frost_eye') && ((e.slow && e.slow.ttl > 0) || e.frozen > 0 || e.paralyzed > 0)) {
-    v *= 1.12 * (e.isBoss ? 1.06 : 1);
-  }
-  // v1.17.43 风灯1★/2★：敌人移速每高于基准 10%，受到伤害 +3%/+4%（上限 +15%/+20%，上限数值取文案末位）
-  const lanternCap = combat.relicVal('ur_wind_lantern');
-  if (lanternCap > 0 && e.speedBase) {
-    const overRatio = e.speed / e.speedBase - 1;
-    if (overRatio > 0) {
-      const rate = lanternCap >= 20 ? 4 : 3;
-      v *= (1 + Math.min(lanternCap, rate * Math.floor(overRatio / 0.1)) / 100);
-    }
-  }
   // 腐蚀增伤
   if (e.corrode) v *= e.corrode.mult;
-  // （寒霜 C 原「易伤」已改「深寒：减速幅度」，v1.16.21 移除易伤乘区）
-  // 火·灼烧 C 真火（v1.16.42 档位式）：每层灼烧使目标受到的伤害 +10%/+20%/+30%（全来源，按层数）
+  // （寒霜 C 原「易伤」已改「深寒：减速幅度」，移除易伤乘区）
+  // 火·灼烧 C 真火（档位式）：每层灼烧使目标受到的伤害 +10%/+20%/+30%（全来源，按层数）
   const trueLv = combat.branchLv('fire', '灼烧', 'C');
   if (trueLv > 0) {
     const bd = e.dots.find((d) => d.type === 'burn');
     if (bd) v *= (1 + SKILL_NUM.fire['灼烧'].trueFire[trueLv] * bd.stack);
   }
-  // （回旋镖·猎手标记 A 深镖：技能已于 2026-11-01 删除；原猎心1★/2★ 判定随之下线，v1.17.43 改名涡心改挂风眼涡旋）
-  // v1.17.43 裂空3★：流血的敌人受到飞镖伤害 +12%
+  // （回旋镖·猎手标记 A 深镖：技能已于 2026-11-01 删除；原猎心1★/2★ 判定随之下线，改名涡心改挂风眼涡旋）
+  // 裂空3★：流血的敌人受到飞镖伤害 +12%
   if (srcKey === 'boomerang' && combat.game.run.relic3('boo_mark') && combat.hasDot(e, 'bleed')) v *= 1.12;
-  // v1.16.96 火塔 3★ 火伤乘区（srcKey==='fire'）：
+  // 火塔 3★ 火伤乘区（srcKey==='fire'）：
   //   熔心3★：火柱命中标记目标，目标受到火伤 +15%/层（5s，叠2层）
   //   炼狱3★：场上每存在 1 个灼烧敌人，全塔火伤 +3%（上限 +45%）
   //   火墙增烈3★：火墙内敌人每停留 1 秒，受到的伤害递增 10%（上限 +50%，全来源）
@@ -134,16 +111,16 @@ function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
   if (srcKey === 'electric' && e.paralyzed > 0 && combat.game.run.relic3('s_sr_elec_para')) {
     v *= 1 + combat.game.run.relicValue('s_sr_elec_para', 'paralyzedDamage') / 100;
   }
-  // v1.16.98 凝霜3★：冰缓敌人受暴击率 +10%（无全局暴击判定，以受击 ×1.1 实现暴击期望）
+  // 凝霜3★：冰缓敌人受暴击率 +10%（无全局暴击判定，以受击 ×1.1 实现暴击期望）
   if (combat.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
-  // v1.16.99 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%
+  // 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%
   if (e._fragile && combat.game.run.relic3('ice_forever')) v *= 1.2;
-  // v1.16.101 闪电链增强3★：连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）
+  // 闪电链增强3★：连锁每跳一次，该敌人受到的后续伤害 +5%（持续 3 秒）
   if (combat.game.run.relic3('elec_boost') && e._elecBoost && e._elecBoost.ttl > 0) v *= (1 + 0.05 * e._elecBoost.n);
   if (srcKey === 'boomerang' && kind !== 'dot' && combat.game.run.relicRun('boo_tip') > 0) v *= 1 + combat.game.run.relicNum('boo_tip') / 100;
-  // v1.16.103 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
+  // 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
   if (srcKey === 'cannon' && combat.game.run._warAtk > 0) v *= (1 + combat.game.run._warAtk / 100);
-  // v1.16.100 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
+  // 万毒3★：敌人身上的中毒层数转化为「毒易伤」，每层受伤 +1%
   if (combat.game.run.relic3('poison_all') && e.dots) {
     const pd = e.dots.find((d) => d.type === 'poison');
     if (pd && pd.stack > 0) v *= (1 + 0.01 * pd.stack);
@@ -164,7 +141,7 @@ function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0, skill
   const phase = Bosses.transition(combat.game, e, v);
   const hpBefore = e.hp;
   e.hp -= phase ? phase.damage : v;
-  recordDamage(combat, e, hpBefore, srcKey, kind, shieldBefore);
+  recordDamage(combat, e, hpBefore, srcKey, kind, shieldBefore, skill);
   recordDmgStat(combat, e, hpBefore, shieldBefore, srcKey, kind, skill);
   e.lastDmgKey = srcKey || e.lastDmgKey;
   if (phase) {
@@ -175,7 +152,7 @@ function applyResolvedDamage(combat, e, v, srcKey, kind, shieldBefore = 0, skill
   Bosses.afterDamage(combat.game, e);
   if (e.hp <= 0 && !e._dying) {
     e._dying = true;
-    // v1.17.23 fix：总击杀此前恒 0——kills 只在 reset 初始化、从不自增；按伤害来源（塔/DoT 元素）计数
+    // fix：总击杀此前恒 0——kills 只在 reset 初始化、从不自增；按伤害来源（塔/DoT 元素）计数
     if (srcKey) combat.kills[srcKey] = (combat.kills[srcKey] || 0) + 1;
     combat.onKill(e);
   }
@@ -189,13 +166,13 @@ function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude, skill) {
     r *= 1 + (g.run.relicNum('s_sr_can_splash') + g.run.relicValue('s_sr_can_powder', 'radius')) / 100;
     if (knock > 0) knock *= 1 + g.run.relicNum('s_sr_can_knock') / 100;
   }
-  // 协同（v1.16.20 修正）：重炮×大火球（SYNERGIES[1]）达成 → 爆炸类伤害 +50%（原引用 [0]/[2] 错位已修正）
+  // 协同（修正）：重炮×大火球（SYNERGIES[1]）达成 → 爆炸类伤害 +50%（原引用 [0]/[2] 错位已修正）
   let mult = 1;
   if (g.run.effects.synergyDone && g.run.effects.synergyDone[1]) mult *= 1.5;
   const entryY = combat.ly().areaY + combat.ly().entryH;
   combat.enemies().forEach((o) => {
     if (o.hp <= 0) return;
-    if (exclude && o === exclude) return;   // 溅射不重复结算施爆点主目标（v1.16.12）
+    if (exclude && o === exclude) return;   // 溅射不重复结算施爆点主目标（）
     const d = Math.hypot(o.x - x, o.y - y);
     if (d > r) return;
     combat.damage(o, dmg * mult * (1 + damageBonus / 100), key, undefined, skill);
@@ -215,19 +192,19 @@ function explode(combat, x, y, r, dmg, key, knock, slowAfter, exclude, skill) {
           combat.fxRing(collided.x, collided.y, '#f5c27b', 24, 0.24, 2.5);
         }
       }
-      // v1.16.103 震地3★：击退的敌人撞墙时受到 20% 伤害（击退落点结算）
+      // 震地3★：击退的敌人撞墙时受到 20% 伤害（击退落点结算）
       if (g.run.relic3('can_quake')) combat.damage(o, dmg * 0.2, key);
-      // v1.16.103 震烈3★：击退打断敌人攻击动作（对远程怪质变——击退瞬间强减速 0.3 秒）
+      // 震烈3★：击退打断敌人攻击动作（对远程怪质变——击退瞬间强减速 0.3 秒）
       if (g.run.relic3('can_knock')) combat.applySlow(o, 1, 0.3);
       if (slowAfter > 0) combat.applySlow(o, 0.3, slowAfter);   // 震击 C：仅减速实际被击退的敌人
     }
-    // v1.16.114 燃烧弹1★/2★：炮弹爆炸 N% 概率点燃敌人；3★ 100% 引燃
+    // 燃烧弹1★/2★：炮弹爆炸 N% 概率点燃敌人；3★ 100% 引燃
     if (key === 'cannon') {
       const incN = combat.relicVal('can_incend');
       if ((incN > 0 && Math.random() < incN / 100) || g.run.relic3('can_incend')) combat.applyBurn(o, dmg);
     }
   });
-  // v1.16.103 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
+  // 军火之王3★：每次爆炸为全塔 +1% 攻击（本局内叠加，上限 +30%）
   if (key === 'cannon' && g.run.relic3('can_war')) g.run._warAtk = Math.min(g.run.relicValue('can_war', 'attackCap'), (g.run._warAtk || 0) + g.run.relicValue('can_war', 'attackPerExplosion'));
   // 爆炸视觉：按塔类型着色的爆炸 + 冲击环
   const COLOR = { fire: '#ff7043', poison: '#7ee2a8', cannon: '#d89e63', ice: '#7fd4ff', electric: '#f4d03f', boomerang: '#c39bd3' };

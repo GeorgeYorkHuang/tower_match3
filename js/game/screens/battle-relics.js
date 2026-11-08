@@ -9,7 +9,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
   function relicPickLayer(ctx, pick, onPick, elapsed, gold) {
     if (!pick || !pick.candidates) return;
     const box = PickLayout.geometry('relic', pick), { x, y, w, h } = box;
-    // v1.16.74 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
+    // 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
     const pe = Math.min(1, (elapsed || 0) / 500);
     const es = 1 + 2.70158 * Math.pow(pe - 1, 3) + 1.70158 * Math.pow(pe - 1, 2);
     const sc = pe >= 1 ? 1 : Math.min(1, Math.max(0.2, es));
@@ -63,7 +63,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     ctx.restore();
     text(ctx, '圣物显现', 375, y + 76, 38, '#ffd34d', 'center');
     text(ctx, '获得圣遗物本局生效 · 塔圣遗物仅对应塔在场时出现', 375, y + 112, 18, '#c9b27a', 'center');
-    // 3 个候选卡片（v1.16.73 纵向扩容：bh 240→300）
+    // 3 个候选卡片（纵向扩容：bh 240→300）
     const bw = 188, bh = 300, gap = 16;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
     const cy = y + 138;
@@ -138,7 +138,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     ctx.restore();
   }
 
-  /** v1.16.73 本局圣遗物详情弹层（点击顶部状态栏圣遗物行打开）：分页列表，每页 8 行，▲▼ 翻页 */
+  /** 本局圣遗物详情弹层（点击顶部状态栏圣遗物行打开）：分页列表，每页 8 行，▲▼ 翻页 */
   function relicDetailLayer(ctx, relics, page, onPick) {
     const w = 640, h = 760;
     const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
@@ -168,7 +168,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
       const rSrc = relicIconSrc(r.id);
       if (!(rSrc && drawImg(ctx, rSrc, x + 61, ry + 17, 30, 30))) text(ctx, r.icon, x + 76, ry + 34, 22, '#ffffff', 'center');
       text(ctx, r.name, x + 110, ry + 26, 20, '#ffffff', 'left');
-      if (r.star3) {   // v1.16.113 ★3 质变徽章
+      if (r.star3) {   // ★3 质变徽章
         fillRoundRect(ctx, x + w - 90, ry + 8, 42, 24, 12, '#ffb347');
         text(ctx, '★3', x + w - 69, ry + 26, 14, '#5c3800', 'center');
       }

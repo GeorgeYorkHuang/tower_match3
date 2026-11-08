@@ -1,6 +1,6 @@
 'use strict';
 
-// 2026-11-03 定案卡表：R 纯数值 / SR 技能增强 / SSR 机制 / UR 战场专属。
+// 2026-11-03 定案卡表：R 纯数值 / SR 技能增强 / SSR 机制 / UR 圣庭天赋。
 const towerCards = {};
 const common = [];
 const ur = [];
@@ -77,20 +77,7 @@ SSR('boomerang','boo_tip','镖尖','🔺','飞镖伤害 +15%','飞镖伤害 +20%
 SSR('cannon','s_can_splash','溅射·重压','💥','炮火支援 +1 发；双管齐射率 +15%','炮火支援 +2 发；双管齐射率 +25%','炮弹落点留燃烧地面 3 秒（每秒 60% 攻击）',[1,2,2],{doubleChance:[0,0,15,25],groundDuration:[0,0,0,3],groundDps:[0,0,0,60]});
 SSR('cannon','can_war','军火之王','👑','爆炸伤害 +20%','爆炸伤害 +30%','每次爆炸全塔攻击 +1%（本局叠加，上限 +30%）',[20,30,30],{attackPerExplosion:[0,0,0,1],attackCap:[0,0,0,30]});
 
-// UR：战场专属，保留现有文本与行为。
-for (const d of [
-  ['ur_altar_rose','裂坛玫瑰','🌹','对护盾/减伤目标伤害 +25%','对护盾/减伤目标伤害 +40%','对护盾/减伤目标无视护甲','ancient',[25,40,40]],
-  ['ur_altar_seed','未凋之种','🌱','击杀召唤物全塔伤 +2%（本波，上限 +20%）','击杀召唤物全塔伤 +3%（本波，上限 +30%）','召唤物死亡留种，3 秒后绽放藤蔓','ancient',[2,3,3]],
-  ['ur_forge_heart','熔心炉','⚒️','能量上限 +15%','能量上限 +25%','能量上限 +35%；溢出转熔芯（每层全塔伤 +2%，上限 20 层）','lava',[15,25,35]],
-  ['ur_slag_hammer','碎渣重锤','🔨','伤害无视护甲 15%','伤害无视护甲 20%','无视护甲 35%；对护甲≥40%额外 +15% 伤害','lava',[15,20,35]],
-  ['ur_frost_eye','霜风之眼','👁️','控制时长 +20%','控制时长 +30%','被减速/冰冻敌人受伤 +12%，Boss 额外 +6%','frost',[20,30,30]],
-  ['ur_wind_lantern','风灯','🏮','敌人速度每高于基准 10%，受伤 +3%（上限 15%）','每 10%速度差受伤 +4%（上限 20%）','高速敌人死亡爆炸（60%，90px）','frost',[3,4,4]],
-]) {
-  const [id,name,icon,desc,star2,star3,field,nums] = d;
-  ur.push({id,name,icon,desc,star2,star3,field});
-  rarity[id] = 'ur'; values[id] = {primary:[0,...nums]};
-}
-
+// Legacy six field UR relics retired; talent UR cards register through config.js.
 const relTower = Object.fromEntries(Object.entries(towerCards).map(([k, list]) => [k, list]));
 const migration = {
   fire_seed:'s_fire_burn', fire_ember:'s_fire_burn', fire_chain:'s_fire_burn',

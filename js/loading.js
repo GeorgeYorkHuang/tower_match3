@@ -1,5 +1,5 @@
 /**
- * loading.js —— 启动加载页 + 分包加载（v1.16.128）
+ * loading.js —— 启动加载页 + 分包加载（）
  * 流程：进入游戏即显示加载页（标题+进度条+百分比）→ wx.loadSubpackage('assets') 加载素材分包
  * → 加载完成(100%)后才 require 游戏主体（main.js 顶层副作用会 new GameMain 并启动渲染循环）；
  * 失败时显示"点击重试"，重新发起分包加载。
@@ -19,7 +19,7 @@ const H = cvs ? cvs.height : 1334;
 
 let curProgress = 0;
 let loadingFailed = false;
-let fakeTimer = null;   // v5.6 兜底进度定时器：不依赖 onProgressUpdate，任何环境都有可见进度条
+let fakeTimer = null;   // 兜底进度定时器：不依赖 onProgressUpdate，任何环境都有可见进度条
 let loadedOk = false;   // 分包加载成功标记（超时保护用）
 const FAKE_STEP = 4;    // 每 100ms +4 → 0→90 约 2.3s
 const FAKE_INTERVAL = 100;
@@ -120,14 +120,14 @@ function loadAssets() {
   loadedOk = false;
   curProgress = 0;
   draw();
-  startFakeProgress();   // v5.6 兜底进度：进度条立即动起来
+  startFakeProgress();   // 兜底进度：进度条立即动起来
   const cb = {
     name: 'assets',
     success: () => {
       loadedOk = true;
       stopFakeProgress();
       curProgress = 100; draw();
-      // v5.6 最短展示：本地秒加载时也让加载页停留 ~0.35s，避免"0% 直接进游戏"的突兀感
+      // 最短展示：本地秒加载时也让加载页停留 ~0.35s，避免"0% 直接进游戏"的突兀感
       setTimeout(startGame, 350);
     },
     fail: (err) => {
@@ -138,7 +138,7 @@ function loadAssets() {
       draw();
     },
     onProgressUpdate: (res) => {
-      // v1.17.9c 非负钳制：个别环境 progress 可能返回负值/非数，避免加载页显示负数
+      // .9c 非负钳制：个别环境 progress 可能返回负值/非数，避免加载页显示负数
       if (res && typeof res.progress === 'number') { curProgress = Math.max(curProgress, Math.min(90, Math.max(0, res.progress))); draw(); }
     },
   };
@@ -156,7 +156,7 @@ function loadAssets() {
   if (task && typeof task.onProgressUpdate === 'function') {
     try { task.onProgressUpdate(cb.onProgressUpdate); } catch (e) {}
   }
-  // v5.6 超时保护：15s 分包未加载完成 → 显示重试（真机下载慢/失败不再无限卡加载页）
+  // 超时保护：15s 分包未加载完成 → 显示重试（真机下载慢/失败不再无限卡加载页）
   setTimeout(() => {
     if (!loadedOk && !loadingFailed) {
       console.error('[圣坛裂痕] 分包加载超时（15s）');

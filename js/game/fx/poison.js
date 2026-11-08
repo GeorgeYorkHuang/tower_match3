@@ -1,7 +1,7 @@
 'use strict';
 // 只读战斗表现，不缓存敌人、技能或弹道实例。
 function fxVine(ctx, f) {
-      // 毒藤攻击帧动画（v1.16.1）：藤蔓从塔口伸展生长到目标（dur 0.55s）——主藤弯曲生长 + 叶片 + 末端毒花苞绽放
+      // 毒藤攻击帧动画（）：藤蔓从塔口伸展生长到目标（dur 0.55s）——主藤弯曲生长 + 叶片 + 末端毒花苞绽放
       const p = Math.min(1, f.t / f.dur);
       const seed = f.seed || 0;
       const wobDir = (seed % 2 ? 1 : -1);
@@ -49,7 +49,7 @@ function fxVine(ctx, f) {
   }
 
 function fxThorn(ctx, f) {
-      // 毒棒攻击弹道（v1.16.1）：绿色毒刺飞射目标 + 尾随毒粒 + 命中溅射
+      // 毒棒攻击弹道（）：绿色毒刺飞射目标 + 尾随毒粒 + 命中溅射
       const p = Math.min(1, f.t / f.dur);
       const x = f.x + (f.tx - f.x) * p;
       const y = f.y + (f.ty - f.y) * p;

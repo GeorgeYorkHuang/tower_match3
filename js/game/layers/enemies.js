@@ -1,4 +1,6 @@
 'use strict';
+const ApprovedDebuffs = require('../fx/approved-debuffs.js');
+const HitFeedback = require('../fx/hit-feedback.js');
 const CONFIG = require('../../config.js');
 const Presentation = require('../../config/combat-presentation.js');
 const enemySize = require('../../enemy-size.js');
@@ -8,20 +10,20 @@ const { fillRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
 // 怪物表现读取原Renderer的animNow；状态/血量/时钟仍由原战斗实例持有。
 function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
-/* v1.17.50 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
+/* 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
   altar_vera: { src: IMG_SRC.boss_altar_vera, ...ENEMY_VISUAL.bossAnimations.altar_vera },
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
   altar_galvin_twin: { src: IMG_SRC.boss_altar_galvin_twin, ...ENEMY_VISUAL.bossAnimations.altar_galvin_twin },
   altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
-  // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：1024×128 横向 8 帧钟摆（bossArtKey 标记，无 bossId）
+  // 每 5 波小 Boss「圣坛蔓钟」：1024×128 横向 8 帧钟摆（bossArtKey 标记，无 bossId）
   miniboss_bell: { src: IMG_SRC.miniboss_bell, frames: 8, frameMs: 260 },
 };
-/* v1.17.50 代际小怪图集上限：C 卡（Lv9-11）+ v1.17.51 D 卡（Lv12-14）后最高到 Lv14；
+/* 代际小怪图集上限：C 卡（Lv9-11）+ D 卡（Lv12-14）后最高到 Lv14；
  * 超界代（Lv15 起，61+ 波递推怪）按类型回退到最近一代已有形象，避免画成老代 */
 const ENEMY_ART_MAX_LV = 14;
 const ENEMY_ART_FALLBACK = { normal: 13, runner: 14, tank: 12, elite: 14 };
-/* v1.17.51 D 卡 8 帧图集的帧数与帧时长：等周期换算（与 5 帧旧代周期一致：重坦 1.5s / 普通 1.2s / 快速 0.8s） */
+/* D 卡 8 帧图集的帧数与帧时长：等周期换算（与 5 帧旧代周期一致：重坦 1.5s / 普通 1.2s / 快速 0.8s） */
 const ENEMY_ART_FRAMES = { 4: 6, 5: 6, 6: 6, 7: 6, 8: 6, 10: 6, 11: 6, 12: 12, 13: 6, 14: 6 };   // Lv4-8/10/11/13/14 无腿悬浮·飞行怪 6 帧；Lv12 v3 滚石形态：单帧程序化旋转 12 帧（30°/帧）
 const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120, 12: 130, 13: 150, 14: 100 };
   function preloadBoss(id) {
@@ -48,7 +50,14 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         const t = Date.now(), seed = (e.id || 0) * 0.73;
         x += Math.sin(t / 22 + seed) * size * 0.01875 + Math.sin(t / 11 + seed * 1.7) * size * 0.00625;
       }
-      this.drawEnemyBody(ctx, e, x, y, size, isElite);
+      const hit = HitFeedback.strength(e);
+      const kick = Math.sin((1 - hit) * Math.PI * 3) * hit * (e.isBoss ? 3 : 6);
+      this.drawEnemyBody(ctx, e, x, y - kick, size, isElite);
+      if (hit > 0) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= HitFeedback.brightness(e);
+        this.drawEnemyBody(ctx, e, x, y - kick, size, isElite);
+        ctx.restore();
+      }
       this.drawEnemyDebuffs(ctx, e, x, y, size);
       this.drawEnemyBar(ctx, e, x, y, size);
       this.drawEnemyDebuffIcons(ctx, e, x, y, size);
@@ -87,13 +96,13 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   }
 
   function drawEnemyBody(ctx, e, x, y, size, isElite) {
-    // v1.16.123 敌人本体：优先按代际等级播放帧循环动画（lv1-14 sprite sheet；Lv12-14 为 8 帧，其余 5 帧），
-    // v1.17.51 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
+    // 敌人本体：优先按代际等级播放帧循环动画（lv1-14 sprite sheet；Lv12-14 为 8 帧，其余 5 帧），
+    // 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
     const genLv = e.genLv || 1;
     const imgLv = (genLv >= 1 && genLv <= ENEMY_ART_MAX_LV) ? genLv : (ENEMY_ART_FALLBACK[e.type] || 13);
-    // v1.17.46 fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
-    // v1.17.52 每 5 波小 Boss 无 bossId，用 bossArtKey（miniboss_bell）命中专属表
+    // fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
+    // 每 5 波小 Boss 无 bossId，用 bossArtKey（miniboss_bell）命中专属表
     const bossArt = (e.isBoss && (e.bossArtKey || e.bossId) && BOSS_ART[e.bossArtKey || e.bossId]) || null;
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
     const summonArt = (!e.isBoss && e.isSummon) ? { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 } : null;
@@ -127,7 +136,7 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   function drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
-    // v1.17 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
+    // 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
       // frames：专属 Boss 表传入的帧数（6或8）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
@@ -141,8 +150,8 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         f = 0;
         while (t >= DURS[f]) { t -= DURS[f]; f++; }
       } else {
-        const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（v1.16.126 原值×2）
-        // v1.17.51 D 卡 8 帧按等周期换算（12:190 / 13:150 / 14:100），其余按类型表
+        const FRAME_DUR = { runner: 160, normal: 240, tank: 300, elite: 200, boss: 260 }; // ms/帧（原值×2）
+        // D 卡 8 帧按等周期换算（12:190 / 13:150 / 14:100），其余按类型表
         const dur = (atlas && atlas.frameMs) || ENEMY_ART_DUR[imgLv]
           || (e.isBoss ? FRAME_DUR.boss : (FRAME_DUR[isElite ? CONFIG.ENEMY.levelOf(imgLv).type : e.type] || FRAME_DUR.normal));
         const phase = ((e.id || 0) * 53) % 1000; // 每怪独立相位（毫秒偏移），错开切帧节奏
@@ -158,10 +167,12 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         const inset = atlas.inset || 0;
         const ix = Math.round(sw * inset), iy = Math.round(sh * inset);
         ctx.drawImage(img, sx + ix, sy + iy, sw - ix * 2, sh - iy * 2, x, y, size, size);
+        ApprovedDebuffs.draw(ctx,img,{x:sx+ix,y:sy+iy,w:sw-ix*2,h:sh-iy*2},e,x,y,size,now);
         return true;
       }
       const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
+      ApprovedDebuffs.draw(ctx,img,{x:fw*f,y:0,w:fw,h:fh},e,x,y,size,now);
       return true;
     } catch (err) {
       return false; // 动画帧绘制异常：回退旧图，不中断渲染
@@ -169,6 +180,12 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   }
 
   function drawEnemyDebuffs(ctx, e, x, y, size) {
+    if (ApprovedDebuffs.ready(e)) {
+      // Approved overlays are already drawn against this exact sprite frame.
+      this.drawDebuffSlow(ctx,e,x,y,size);
+      this.drawDebuffMark(ctx,e,x,y,size);
+      return;
+    }
     // 受击状态特效：冻结 / 减速 / 麻痹 / DoT / 流血 / 毒藤
     this.drawDebuffFrozen(ctx, e, x, y, size);
     drawDebuffIceSlow(ctx, e, x, y, size);
@@ -240,15 +257,15 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     const genericSlowT = e._genericSlowT || ((e.slow && e.slow.ttl > 0 && !(e._iceSlowT > 0)) ? e.slow.ttl : 0);
     if (genericSlowT > 0) {
       const cx = x + size / 2, cy = y + size / 2;
-      const tNow = Date.now();
+      const tNow = typeof this.animNow === 'number' ? this.animNow : Date.now();
       const baseAlpha = ctx.globalAlpha;
       const groundY = y + size * 0.91;
       ctx.save();
       for (let k = 0; k < 3; k++) {
         const phase = ((tNow / 680 + k / 3) % 1 + 1) % 1;
         ctx.strokeStyle = k % 2 ? '#d4f4ff' : '#a9e8f4';
-        ctx.lineWidth = Math.max(1.2, size * 0.035);
-        ctx.globalAlpha = baseAlpha * 0.75 * (1 - phase);
+        ctx.lineWidth = Math.max(1.8, size * 0.05);
+        ctx.globalAlpha = baseAlpha * 0.95 * (1 - phase);
         ctx.beginPath(); ctx.ellipse(cx, groundY, size * (0.12 + phase * 0.48), size * (0.045 + phase * 0.10), 0, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.restore();
@@ -273,7 +290,7 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   }
 
   function drawDebuffMark(ctx, e, x, y, size) {
-    // 敌人标记（原 v1.16.42 猎手标记；技能已删除，保留渲染分支以便未来复用标记机制）
+    // 敌人标记（原 猎手标记；技能已删除，保留渲染分支以便未来复用标记机制）
     // 红色半透明瞄准环 + 十字准线 + 中心点，随层数扩大脉冲
     if ((e._mark || 0) > 0) {
       const cx = x + size / 2, cy = y + size / 2 - size * 0.5 - 4;
@@ -298,9 +315,9 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     if (e.dots && e.dots.length) {
       e.dots.forEach((d) => {
         if (d.type === 'burn') {
-          // v1.13.7 灼烧效果：4 帧火焰贴图循环燃烧（120ms/帧，透明 PNG）+ 火焰描边 + 少量火苗
-          // v1.13.21 图标缩小并下移到底部（怪物脚下）
-          // v1.16.21 点燃图标下边界与怪物下边界对齐（图片底边贴齐 y+size）
+          // 灼烧效果：4 帧火焰贴图循环燃烧（120ms/帧，透明 PNG）+ 火焰描边 + 少量火苗
+          // 图标缩小并下移到底部（怪物脚下）
+          // 点燃图标下边界与怪物下边界对齐（图片底边贴齐 y+size）
           const fireI = d.stack || 1;
           const cx = x + size / 2, cy = y + size / 2;
           const fw = size * (0.48 + 0.035 * Math.min(2, fireI)), fh = size * (0.48 + 0.035 * Math.min(2, fireI));
@@ -321,9 +338,9 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
             }
             ctx.globalAlpha = 1;
           }
-          // v1.17.9c 不再绘制灼烧火焰描边框（debuff 不高亮模型边框），仅保留火焰贴图/回退火苗特效
+          // .9c 不再绘制灼烧火焰描边框（debuff 不高亮模型边框），仅保留火焰贴图/回退火苗特效
         } else if (d.type === 'poison') {
-          // v1.16.2 中毒层数标识：敌人身上按叠层层数画毒泡（最多 5 个，层数越高泡越大越亮）+ 头顶层数数字
+          // 中毒层数标识：敌人身上按叠层层数画毒泡（最多 5 个，层数越高泡越大越亮）+ 头顶层数数字
           const stack = d.stack || 1;
           const cx = x + size / 2, cy = y + size / 2;
           const tNow = Date.now();

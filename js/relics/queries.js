@@ -6,7 +6,7 @@ module.exports = {
     for (const k in this.RELIC_RUN.tower) {
       if (this.RELIC_RUN.tower[k].some((d) => d.id === id)) return T[k];
     }
-    // v1.17.47 红色战场专属：统一红金
+    // 红色战场专属：统一红金
     if ((this.RELIC_RUN.ur || []).some((d) => d.id === id)) return '#ff5a3c';
     return '#f7c948';
   },
@@ -68,7 +68,7 @@ module.exports = {
     const revised = this.RELIC_REWORK && this.RELIC_REWORK.RELIC_VALUES[id];
     if (revised && revised.primary) return revised.primary[Math.max(0, Math.min(3, star || 0))] || 0;
     const d = this.relicRunDef(id);
-    if (!d) return 0;
+    if (!d || d.talent) return 0;
     const txt = (star >= 2 && d.star2) ? d.star2 : d.desc;
     let v = 0;
     const re = /([0-9]+(?:\.[0-9]+)?)/g; let mm;
@@ -88,7 +88,7 @@ module.exports = {
     for (const k in cats) {
       if (cats[k].find((x) => x.id === id)) return k;
     }
-    return null;
+    const red=(this.RELIC_RUN.ur||[]).find(c=>c.id===id);return red?red.tower||null:null;
   },
 
 };

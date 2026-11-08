@@ -6,13 +6,15 @@ const CANNONBALL_PROJECTILE = 'assets/images/towers/fx/projectiles/cannonball_ro
 const SMALL_BOOMERANG_PROJECTILE = 'assets/images/towers/fx/boomerang/boomerang_storm_bounce_purple.png';
 const PIXEL_PROJECTILES = {"fire":{"src":"assets/images/towers/fx/fireball/fireball-sheet.png","w":136,"h":56,"ox":112,"oy":28,"cols":4,"n":36}};
 const LINE_PROJECTILES = {
-  fire: 'assets/images/towers/fx/projectiles/fire_projectile.png',
   ice: 'assets/images/towers/fx/projectiles/ice_projectile.png',
-  poison: 'assets/images/towers/fx/projectiles/poison_projectile.png',
 };
 // 只读弹道事件与实时projectile/ref；移动、碰撞、追踪和命中结算仍归Combat。
 // ly由每次调用传入，避免缓存过期布局或游戏实例。
 function createProjectileFx({ drawImg, loadImg }) {
+  const tintAtlas = require('./tinted-atlas.js').createTintedAtlas(loadImg);
+  const approvedIce = require('./approved-ice.js').create(drawImg,tintAtlas);
+  const approvedElectric = require('./approved-electric.js').create(drawImg);
+  const towerColors = require('../../config/combat-presentation.js').TOWER_TINT;
   if (loadImg) loadImg('assets/images/towers/fx/poison-cloud/poison-cloud-sheet.png');
   if (loadImg) loadImg('assets/images/towers/fx/snowflake-burst/snowflake-burst-sheet.png');
   if (loadImg) loadImg('assets/images/towers/fx/spawn-portal/spawn-portal-sheet.png');
@@ -22,10 +24,10 @@ function createProjectileFx({ drawImg, loadImg }) {
   if (loadImg) loadImg('assets/images/towers/fx/plasma-shot/plasma-shot-sheet.png');
   // One decoded atlas prevents first-play frame-by-frame loading flicker.
   if (loadImg) loadImg('assets/images/towers/fx/ice-crystal/ice-crystal-sheet.png');
-  /* ---------- v1.17.48 电塔连锁电弧：pixelfx chain-lightning 序列帧（普攻已回退，仅连锁跳使用） ---------- */
+  /* ---------- 电塔连锁电弧：pixelfx chain-lightning 序列帧（普攻已回退，仅连锁跳使用） ---------- */
   // 素材：assets/images/towers/fx/chainlight/anim_chain_lightning_01..05.png（428×200，×2 导出，PNG8+tRNS）
   // 帧内容实测（union 裁剪框内非透明 bbox）：弧从左侧(起手端)长到右侧(弧尖)，最宽的第 4 帧弧尖到 x=405/428。
-  // 几何（方案 C，v1.17.47）：**不做超采样拉伸**。
+  // 几何（方案 C，）：**不做超采样拉伸**。
   //   · 弧长 ≤ 405（= 428 × 0.946，素材 1:1 能覆盖的最大长度）→ 完整 1:1 覆盖，弧尖精确落在目标。
   //   · 弧长 > 405 → 精灵按 1:1 尺寸**锚定在目标端**（命中端永远 1:1，不放大、不压扁），
   //     塔口→精灵尾端的剩余距离用程序化细芯线补齐（复用三段 trace，透明度按距离衰减）。
@@ -96,10 +98,11 @@ function createProjectileFx({ drawImg, loadImg }) {
   }
 
   function fxShot(ctx, f, ly) {
+    if (approvedElectric.shot(ctx,f)) return;
     if (f.kind === 'spawnportal') {
       const frame = Math.min(57, Math.floor(Math.max(0, f.t) * 57 / (f.dur || 1)));
       ctx.save();
-      drawImg(ctx, 'assets/images/towers/fx/spawn-portal/spawn-portal-sheet.png', f.x - 104, f.y - 122, 208, 150,
+      tintAtlas(ctx, 'assets/images/towers/fx/spawn-portal/spawn-portal-sheet.png', towerColors[f.towerKey] || '#cfd8e3', f.x - 104, f.y - 122, 208, 150,
         { x: (frame % 7) * 208, y: Math.floor(frame / 7) * 150, w: 208, h: 150 });
       ctx.restore();
       return;
@@ -109,6 +112,15 @@ function createProjectileFx({ drawImg, loadImg }) {
       const shot=f.projectile;
       const pos=shot ? {x:shot.x,y:shot.y} : {x:f.x,y:f.y};
       const angle=shot && shot.angle!==undefined ? shot.angle : Math.PI/2;
+      if (f.key === 'boomerang') {
+        const elapsed = shot ? shot.t : f.t;
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(angle + elapsed * Math.PI * 2 * CHAIN_STYLE.boomerangRotationsPerSecond);
+        drawImg(ctx, BOOMERANG_PROJECTILE, -20, -20, 40, 40);
+        ctx.restore();
+        return;
+      }
       // 复用各塔原有弹体绘制，只替换实时位置与朝向。
       const dx=Math.cos(angle)*30,dy=Math.sin(angle)*30;
       return fxShot(ctx,{...f,chainFlight:null,projectile:null,target:null,_flightPos:pos,_flightTime:shot ? shot.t : f.t,
@@ -117,12 +129,12 @@ function createProjectileFx({ drawImg, loadImg }) {
 
       // 塔攻击弹道：line=直线弹（火球/冰锥/毒液，按塔 key 区分形状）、bolt=闪电折线（电）、
       // arc=二次 Bézier 抛物线回旋镖、mortar=抛物线炮弹+落地爆炸（炮塔）；dur 控制弹速（越大越慢）
-      // v1.5：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
+      // ：直线/闪电弹道末端实时跟随目标移动（目标存活时），不再停留在创建时位置
       let endX = f.tx, endY = f.ty;
       if ((f.kind === 'line' || f.kind === 'bolt') && !f.aim && f.target && f.target.hp > 0) {
         endX = f.target.x; endY = f.target.y;
       }
-      // v1.13.3：多重火球等放大弹体（scale）
+      // ：多重火球等放大弹体（scale）
       const sc = f.scale || 1;
       const p = Math.min(1, f.t / f.dur);
       const x = f._flightPos ? f._flightPos.x : f.x + (endX - f.x) * p;
@@ -179,7 +191,7 @@ function createProjectileFx({ drawImg, loadImg }) {
         ctx.restore();
         ctx.globalAlpha = 1;
       } else if (f.kind === 'bolt') {
-        // v1.16.49 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
+        // 电塔普攻重做：发射细长条闪电——前端电球领跑，塔口→前端之间一条细长蜿蜒闪电条
         // （分段密、抖动小、线细，三层共用同一份路径贴合绘制 → 细长利落）；命中瞬间前端抵达目标爆发电花
         const seg = 10, jit = 8;
         const pts = [];
@@ -217,17 +229,17 @@ function createProjectileFx({ drawImg, loadImg }) {
         const arcPos = (ff, pp) => BoomerangTrajectory.position({ sx: ff.x, sy: ff.y, tx: ff.tx, ty: ff.ty, cx: ff.cx, cy: ff.cy, rcx: ff.rcx, rcy: ff.rcy }, pp);
         const pos = f._flightPos || arcPos(f, p);
         const bx = pos.x, by = pos.y;
-        // v1.12.4 完全去掉弧线轨迹（不画任何路线/拖尾，只保留镖头旋转飞行）
+        // 完全去掉弧线轨迹（不画任何路线/拖尾，只保留镖头旋转飞行）
         // 镖头朝向：瞬时速度方向（数值差分）
         const step = 0.015;
         const pa = arcPos(f, Math.min(1, p + step));
         const pb = arcPos(f, Math.max(0, p - step));
         const ang = Math.atan2(pa.y - pb.y, pa.x - pb.x);
-        // 镖体自旋（v1.12.4：转速加倍，全程转 8 圈）
+        // 镖体自旋（：转速加倍，全程转 8 圈）
         const spin = f._flightTime !== undefined
           ? f._flightTime * Math.PI * 2 * CHAIN_STYLE.boomerangRotationsPerSecond
           : p * Math.PI * 16;
-        // 巨镖（v1.10）：体积放大 1 + 0.30/级
+        // 巨镖（）：体积放大 1 + 0.30/级
         const lg = f.large || 0;
         const sc = 1 + 0.30 * lg;
         // 使用从四款方案图中提取的右下紫色风刃原图；旋转、大小与轨迹仍由弹道控制。
@@ -237,7 +249,7 @@ function createProjectileFx({ drawImg, loadImg }) {
         ctx.scale(sc, sc);
         drawImg(ctx, BOOMERANG_PROJECTILE, -20, -20, 40, 40);
         ctx.restore();
-        // v1.16.35 折返段强化外辉：飞回阶段（p>=0.5）镖身金白外辉，仅学「折返增伤」技能时显示（不再无条件亮）；镖阵（ring）紫金光晕
+        // 折返段强化外辉：飞回阶段（p>=0.5）镖身金白外辉，仅学「折返增伤」技能时显示（不再无条件亮）；镖阵（ring）紫金光晕
         if ((f.fold && p >= 0.5) || f.ring) {
           const glowCol = f.ring ? '#c39bd3' : '#ffe08a';
           ctx.globalAlpha = (f.ring ? 0.55 : 0.35 + 0.3 * Math.sin(p * 18));
@@ -246,9 +258,9 @@ function createProjectileFx({ drawImg, loadImg }) {
           ctx.globalAlpha = 1;
         }
       } else if (f.kind === 'zigzag') {
-        // v1.13.19 锯齿电弧（塔口→目标）：多段折线 + 每帧轻微抖动 + 白芯
-        // v1.16.47：glow 模式先画宽幅光晕（极光电击主弧更醒目）
-        // v1.17.46 电塔主弧/连锁电弧：f.arc==='chainlight' 时优先 pixelfx 序列帧；
+        // 锯齿电弧（塔口→目标）：多段折线 + 每帧轻微抖动 + 白芯
+        // ：glow 模式先画宽幅光晕（极光电击主弧更醒目）
+        // 电塔主弧/连锁电弧：f.arc==='chainlight' 时优先 pixelfx 序列帧；
         //          图片未加载（首次请求中）或加载失败时 drawChainArc 返回 false → 走下方原程序化锯齿（回退写法与毒池/燃烧地面一致）。
         //          极光电击等其他 zigzag 不带 f.arc，永远走程序化路径，不受影响。
         const p = f.path;
@@ -274,7 +286,7 @@ function createProjectileFx({ drawImg, loadImg }) {
           ctx.globalAlpha = 1;
         }
       } else if (f.kind === 'storm') {
-        // v1.13.20 雷暴演出：0.22s 预兆收缩金圈 → 主闪（锯齿主枝+2 分叉+白芯）→ 落点闪光；delay 用于分批错开
+        // 雷暴演出：0.22s 预兆收缩金圈 → 主闪（锯齿主枝+2 分叉+白芯）→ 落点闪光；delay 用于分批错开
         const tt = f.t - (f.delay || 0);
         if (tt < 0) return;
         const sx = f.x, sy = f.y;
@@ -307,39 +319,13 @@ function createProjectileFx({ drawImg, loadImg }) {
           ctx.globalAlpha = 1;
         }
       } else if (f.kind === 'frostorb') {
-        // v1.13.23 冬珠（冰霜之球）：半透明冰球 + 呼吸光环 + 旋转冰晶点（持续 5s 驻场）
-        const fp = Math.min(1, f.t / f.dur);
-        const breathe = 1 + 0.08 * Math.sin(f.t / 0.3);
-        ctx.fillStyle = '#7fd4ff'; ctx.globalAlpha = 0.16;
-        ctx.beginPath(); ctx.arc(f.x, f.y, (f.r || 110) * 0.55 * breathe, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-        // PixelFX Ice crystal: 3s loop, driven by the effect clock (pause/speed compatible).
-        const crystalFrame = Math.floor(Math.max(0, f.t) * 12) % 36;
-        const crystalSrc = 'assets/images/towers/fx/ice-crystal/ice-crystal-sheet.png';
-        // Native crystal centre is (48,58); align it with the skill centre.
-        if (!drawImg(ctx, crystalSrc, f.x - 48, f.y - 58, 96, 100, { x: (crystalFrame % 7) * 96, y: Math.floor(crystalFrame / 7) * 100, w: 96, h: 100 })) {
-          ctx.fillStyle = '#b8e6ff'; ctx.globalAlpha = 0.5;
-          ctx.beginPath(); ctx.arc(f.x, f.y, 13 * breathe, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.arc(f.x - 2.5, f.y - 2.5, 5, 0, Math.PI * 2); ctx.fill();
-        }
-        // 外圈呼吸光环
-        ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.45 * (1 - fp * 0.4);
-        ctx.beginPath(); ctx.arc(f.x, f.y, (f.r || 110) * 0.72 * breathe, 0, Math.PI * 2); ctx.stroke();
-        // 旋转冰晶点（3 颗）
-        for (let k = 0; k < 3; k++) {
-          const a = f.t / 0.7 + k * 2.09;
-          ctx.fillStyle = '#d6f0ff'; ctx.globalAlpha = 0.8;
-          ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * 22 * breathe, f.y + Math.sin(a) * 22 * breathe, 3, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
+        approvedIce.orb(ctx,f);
       } else if (f.kind === 'icewall') {
-        // v1.13.25 冰墙（城墙冰霜护盾）；v1.16.47 重做：渐变冰层 + 锐利冰刺 + 寒光呼吸 + 冰晶纹理 + 底部冰雾
+        // 冰墙（城墙冰霜护盾）；重做：渐变冰层 + 锐利冰刺 + 寒光呼吸 + 冰晶纹理 + 底部冰雾
         const fp = Math.min(1, f.t / f.dur);
         const breathe = 1 + 0.06 * Math.sin(Date.now() / 260);
         const wy = (f.y || ly.wallY);
-        const r = f.r || 700;   // v1.16.53 默认铺满整座城墙（25~725）
+        const r = f.r || 700;   // 默认铺满整座城墙（25~725）
         const x0 = f.x - r / 2, x1 = f.x + r / 2;
         // 外发光呼吸描边（寒光）
         ctx.strokeStyle = '#7fd4ff'; ctx.lineWidth = 3; ctx.globalAlpha = 0.35 + 0.2 * Math.sin(Date.now() / 260);
@@ -403,44 +389,17 @@ function createProjectileFx({ drawImg, loadImg }) {
         const wy = f.y !== undefined ? f.y : ly.wallY - 50;
         const width = f.w || 750, half = f.half || 20;
         const left = (f.x == null ? 375 : f.x) - width / 2;
-        // Overlap three clouds rather than stretching a single cloud across the field.
-        const tileW = width / 2.5, tileH = half * 3;
+        const frame = Math.floor(Math.max(0, f.t) * 12) % 48;
         ctx.save();
-        ctx.beginPath(); ctx.rect(left, wy - half, width, half * 2); ctx.clip();
-        for (let i = 0; i < 3; i++) {
-          const frame = (Math.floor(Math.max(0, f.t) * 12) + i * 16) % 48;
-          const cx = left + width * (i + 0.5) / 3;
-          const drawn = drawImg(ctx, 'assets/images/towers/fx/poison-cloud/poison-cloud-sheet.png',
-            cx - tileW / 2, wy - tileH * 0.55, tileW, tileH,
-            { x: (frame % 5) * 256, y: Math.floor(frame / 5) * 100, w: 256, h: 100 });
-          if (!drawn) {
-            ctx.fillStyle = 'rgba(126,180,60,0.25)';
-            ctx.fillRect(cx - tileW / 2, wy - half, tileW, half * 2);
-          }
-        }
+        const drawn = drawImg(ctx, 'assets/images/towers/fx/poison-cloud/poison-cloud-sheet.png',
+          left, wy - half, width, half * 2,
+          { x: (frame % 5) * 256, y: Math.floor(frame / 5) * 100, w: 256, h: 100 });
+        if (!drawn) { ctx.fillStyle = 'rgba(126,180,60,0.25)'; ctx.fillRect(left, wy - half, width, half * 2); }
         ctx.restore();
       } else if (f.kind === 'icebloom') {
-        // Fit the full Snowflake burst into the existing ice-flower presentation window.
-        const progress = Math.max(0, Math.min(1, f.t / f.dur));
-        const frame = Math.min(48, Math.floor(progress * 48));
-        const scale = (f.r || 100) * 1.9 / 140;
-        ctx.save();
-        const drawn = drawImg(ctx, 'assets/images/towers/fx/snowflake-burst/snowflake-burst-sheet.png',
-          f.x - 70 * scale, f.y - 58 * scale, 140 * scale, 120 * scale,
-          { x: (frame % 7) * 140, y: Math.floor(frame / 7) * 120, w: 140, h: 120 });
-        if (!drawn) {
-          ctx.strokeStyle = '#a6ecff'; ctx.lineWidth = 2.5;
-          ctx.globalAlpha = 1 - progress;
-          for (let k = 0; k < 6; k++) {
-            const angle = k * Math.PI / 3;
-            const radius = (f.r || 100) * progress;
-            ctx.beginPath(); ctx.moveTo(f.x, f.y);
-            ctx.lineTo(f.x + Math.cos(angle) * radius, f.y + Math.sin(angle) * radius); ctx.stroke();
-          }
-        }
-        ctx.restore();
+        approvedIce.flower(ctx,f);
       } else if (f.kind === 'orb') {
-        // v1.13.18 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
+        // 游走电球（活电扩散）：引用 combat.shots 实时位置，金色电球 + 辉光 + 运动方向电光拖尾
         const o = f.ref || f;
         if (o.ballLightning) {
           // 球形闪电：逐渐淡出的电离路径 + 带旋转电弧的高亮雷球，移动和攻击时都保持清晰可见。
@@ -526,7 +485,7 @@ function createProjectileFx({ drawImg, loadImg }) {
           ctx.beginPath(); ctx.arc(f.x, f.y, 10 + kf * 22, 0, Math.PI * 2); ctx.fill();
           ctx.globalAlpha = 1;
         }
-        // 炮弹弹体（v1.16.21 美化：沿飞行方向的长胶囊炮弹 + 膛线自旋纹 + 弹头引信亮点 + 尾部曳光）
+        // 炮弹弹体（美化：沿飞行方向的长胶囊炮弹 + 膛线自旋纹 + 弹头引信亮点 + 尾部曳光）
         const rot = Math.atan2(my - f.y, mx - f.x) + f.t * 4.5;
         ctx.save();
         ctx.translate(mx, my);
@@ -637,7 +596,7 @@ function createProjectileFx({ drawImg, loadImg }) {
           ctx.closePath(); ctx.fill();
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.arc(2.25 * sc, 0, 5.6 * sc, 0, Math.PI * 2); ctx.fill();
-          // v1.13.27 冰晶尾迹：沿飞行反向散布细小冰晶点，渐淡收敛（区别于火球长火焰尾）
+          // 冰晶尾迹：沿飞行反向散布细小冰晶点，渐淡收敛（区别于火球长火焰尾）
           for (let i = 0; i < 4; i++) {
             const tp = (i + 1) / 5;
             ctx.globalAlpha = (1 - p) * 0.35 * (1 - i / 5);
@@ -648,7 +607,7 @@ function createProjectileFx({ drawImg, loadImg }) {
           }
           ctx.globalAlpha = 1;
         } else if (f.key === 'fire') {
-          // v1.13.16 火球弹道美化：多层焰体（辉光/橙焰/亮心）+ 沿飞行反向火焰尾（三段椭圆渐变+摆动）+ 尾迹火星 + 前部焰舌
+          // 火球弹道美化：多层焰体（辉光/橙焰/亮心）+ 沿飞行反向火焰尾（三段椭圆渐变+摆动）+ 尾迹火星 + 前部焰舌
           // 尾部长度随飞行推进收敛（出发时尾长，接近目标时收短）
           const trailLen = (34 + (1 - p) * 30) * sc;
           // 火焰尾：三段椭圆渐变沿 -x 叠放（外→内：深橙/橙/亮黄），摆动 + 淡出

@@ -13,18 +13,19 @@ module.exports = {
     this._boardChestId = 0;
     this._chestBusy = false;
     // 全新对局构筑：塔等级/技能/棋盘重置（金币保留在 meta），默认出战火塔（可随时更换）
-    this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // v5.2 三消技能配置槽
-    this.run.metaRef = this.meta;   // v1.17 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
-    this.run.fxTarget = this.fx;    // v1.17 圣遗物生效触发飘字承接
-    this.run.combatRef = this.combat;   // v5.2 连消技：连锁攻击子弹 / 连锁技能周期技
+    this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // 三消技能配置槽
+    this.run.metaRef = this.meta;
+    require('../../talents/testing.js').initializeBattle(this.run,this.meta);   // 测试战场圣遗物按图鉴星级显示（relicFx 星级来源）
+    this.run.fxTarget = this.fx;    // 圣遗物生效触发飘字承接
+    this.run.combatRef = this.combat;   // 连消技：连锁攻击子弹 / 连锁技能周期技
     this.run.boardX = this.renderer.ly.boardX; this.run.boardCell = this.renderer.ly.cell;
-    this.run.boardY = this.renderer.ly.boardY;  // v5.2 combo 弹字 / 连锁子弹落点
+    this.run.boardY = this.renderer.ly.boardY;  // combo 弹字 / 连锁子弹落点
     this.save.apply(this.saveData);
     this.run.resetRunBuild();
     // 测试战场默认注入全部局内圣遗物，并以 3★ 状态运行；只写入本局 Run，不修改账号存档。
     const testRelics = [];
     Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => testRelics.push(...list));
-    testRelics.push(...CONFIG.RELIC_RUN.common, ...(CONFIG.RELIC_RUN.ur || []));
+    testRelics.push(...CONFIG.RELIC_RUN.common, ...(CONFIG.RELIC_RUN.ur || []).filter(d=>!d.talent));
     this.run._testStar3Mode = true;
     this.run._testStar3 = {};
     this.runRelics = testRelics.map((d) => d.id);
@@ -39,12 +40,12 @@ module.exports = {
     this.pickIndex = 0;
     this.pickCell = null;
     this.combat.reset();
-    this.runShardDetail = {};    // v1.17 测试战场重置碎片明细
-    this.runShardGained = 0;     // v1.17.20 同步重置掉落总数（测试战场不参与结算，避免残留计数）
-    // 单塔出战：默认火塔（v1.14.1 由 6 塔同场改为 1 塔，可经塔位切换钮更换）
+    this.runShardDetail = {};    // 测试战场重置碎片明细
+    this.runShardGained = 0;     // 同步重置掉落总数（测试战场不参与结算，避免残留计数）
+    // 单塔出战：默认火塔（由 6 塔同场改为 1 塔，可经塔位切换钮更换）
     this.run.slotOrder = ['fire'];
     this.run.slotOrder.forEach((k) => { const t = this.run.effects.tower(k); if (t) t.unlock(); });
-    // v1.16.4 单塔生效：测试战场只有出战塔参与战斗/协同，切塔即旧塔取消生效
+    // 单塔生效：测试战场只有出战塔参与战斗/协同，切塔即旧塔取消生效
     this.run.effects.setActiveKeys(['fire']);
     // 城墙：测试战场不扣血（恒满）
     this.run.lineHp = CONFIG.LINE.hp;
@@ -86,11 +87,11 @@ module.exports = {
       slots.push({
         key, name: CONFIG.COLORS[t.color].name,
         icon: TOWER_ICON[key] || '?', unlocked: true,
-        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(key), // v1.16.17 塔位徽章显示塔自身等级（选择次数+1）；v1.16.77 能量口径
+        level: t.level, energy: t.energy, energyMax: this.run.armoryEnergyMax(key), // 塔位徽章显示塔自身等级（选择次数+1）；能量口径
         skills,
       });
     });
-    // 6 塔切换简表（v1.14.1）
+    // 6 塔切换简表（）
     const allTowers = Object.keys(this.run.effects.towers).map((key) => {
       const t = run.effects.tower(key);
       return { key, name: CONFIG.COLORS[t.color].name, icon: TOWER_ICON[key] || '?' };
@@ -102,10 +103,12 @@ module.exports = {
       towers: slots,
       allTowers,
       enemyCount: this.enemies.length,
+      talentGold: (run.talentState&&run.talentState.gold||[]).length,
+      talentReady: Object.values(run.talentState&&run.talentState.ready||{}).filter(Boolean).length,
       speed: this.testSpeed,
       panel: this.testPanel,
       synergies: run.effects.synergyStatus(),
-      battleRelics: this.battleRelics || [],   // v1.16.113 测试战场圣遗物行
+      battleRelics: this.battleRelics || [],   // 测试战场圣遗物行
     };
   },
 
@@ -116,13 +119,13 @@ module.exports = {
     if (!ef) return;
     if (br === 'clear') {
       ef.branches.A = 0; ef.branches.B = 0; ef.branches.C = 0;
-      ef.act = false; // v1.16.5 清除同时取消激活标记
+      ef.act = false; // 清除同时取消激活标记
       const i = t.activeNames.indexOf(name);
       if (i >= 0) t.activeNames.splice(i, 1);
       t.picked.delete(name);
     } else if (['A', 'B', 'C'].includes(br)) {
       ef.branches[br] = (ef.branches[br] + 1) % 4; // 0→1→2→3→0
-      ef.act = (ef.branches.A + ef.branches.B + ef.branches.C) > 0; // v1.16.5 分支全归零 → 取消激活
+      ef.act = (ef.branches.A + ef.branches.B + ef.branches.C) > 0; // 分支全归零 → 取消激活
       if (ef.level > 0) {
         if (!t.activeNames.includes(name)) t.activeNames.push(name);
         t.picked.add(name);
@@ -155,10 +158,10 @@ module.exports = {
     const ly = this.renderer.ly;
     const entryY = ly.areaY + ly.entryH;
     const wallY = ly.wallY;
-    const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // v1.14.2 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
+    const baseSpeed = ((wallY - entryY) / WAVE_DUR) * 3; // 测试战场怪速 ×3：13s 到墙，避免入口盲区等待过久
     // 测试血量（基础塔 dps 20-40，普通怪 500 约 15 秒内可清，便于观察技能特效）
     const HP = { normal: 500, runner: 350, tank: 1500, elite: 4000, boss: 12000 };
-    // v1.16.123 测试怪按类型对应代际等级（动画表：普→lv1 / 快→lv2 / 重→lv3 / 精英→lv4 / Boss→lv6）
+    // 测试怪按类型对应代际等级（动画表：普→lv1 / 快→lv2 / 重→lv3 / 精英→lv4 / Boss→lv6）
     const TEST_LV = { normal: 1, runner: 2, tank: 3, elite: 4, boss: 6 };
     for (let i = 0; i < count; i++) {
       const isBoss = type === 'boss';
@@ -187,9 +190,9 @@ module.exports = {
     if (!this.pendingRelicPicks.length) { this.toast('暂无可用圣遗物池', '#9fb2c3'); return; }
     this._relicReturnState = 'testfield'; // 选择完成后回到测试战场
     this.relicPick = this.pendingRelicPicks.shift();
-    this._lastPickStar3 = !!this.relicPick.star3; // v1.16.104 记录本次三选一是否为 3★ 模式
+    this._lastPickStar3 = !!this.relicPick.star3; // 记录本次三选一是否为 3★ 模式
     this.relicPickHits = [];
-    this.relicPick.t = 0; // v1.16.74 弹出动画
+    this.relicPick.t = 0; // 弹出动画
     this.state = 'relicpick';
   },
 
@@ -198,7 +201,7 @@ module.exports = {
       const bounds = (this.testHits || []).find(it => it.id === 'panel_bounds');
       if (bounds && !bounds.hit(p.x, p.y)) { this.testPanel = null; return true; }
     }
-    // v1.16.113 测试战场：点击圣遗物行 → 查看本局圣遗物详情（叠加弹层，战斗不暂停）
+    // 测试战场：点击圣遗物行 → 查看本局圣遗物详情（叠加弹层，战斗不暂停）
     if (!this.testPanel) {
       const rb = this.renderer.relicBarHit;
       if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
@@ -220,9 +223,10 @@ module.exports = {
         case 'tf_spawn_t': this.spawnTestEnemies('tank', 5); return true;
         case 'tf_spawn_e': this.spawnTestEnemies('elite', 2); return true;
         case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
+        case 'tf_talentCharge': {const n=require('../../talents/testing.js').prime(this.run);this.toast(n?'已充能 '+n+' 项红卡金色效果':'当前无金色效果，请装配三星红卡',n?'#f0d57c':'#a9b6a5');return true;}
         case 'tf_clear': this.clearTestEnemies(); return true;
-        case 'tf_addRelic': this.testAddRelic(); return true; // v1.16.73 测试战场添加圣遗物
-        case 'tf_addRelic3': this.testAddRelic('star3'); return true; // v1.16.104 测试战场添加 3★ 圣遗物
+        case 'tf_addRelic': this.testAddRelic(); return true; // 测试战场添加圣遗物
+        case 'tf_addRelic3': this.testAddRelic('star3'); return true; // 测试战场添加 3★ 圣遗物
         case 'tf_slot': this.testPanel = { key: it.data }; return true;
         case 'tf_switch': this.switchTestTower(it.data); return true;
         case 'panel_close': this.testPanel = null; return true;
@@ -254,13 +258,13 @@ module.exports = {
         break;
       }
       case 'dbg_star3': {
-        // v1.16.105 调试：全部圣遗物直接升 3★（解锁 + 星级拉满），便于 IDE 端完整验证 3★ 养成/图鉴/战斗链路
+        // 调试：全部圣遗物直接升 3★（解锁 + 星级拉满），便于 IDE 端完整验证 3★ 养成/图鉴/战斗链路
         Object.values(CONFIG.RELIC_RUN.tower).forEach((list) => list.forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; }));
         CONFIG.RELIC_RUN.common.concat(CONFIG.RELIC_RUN.ur || []).forEach((d) => { m.runCodex[d.id] = 1; m.relicStars[d.id] = 3; });
         this.toast('全部圣遗物已升至 3★', '#ffb347');
         break;
       }
-      case 'dbg_stone': m.starStones += 5; this.toast('星辉石 +5', '#a86bff'); break;
+      case 'dbg_diamond': m.diamond += 5; this.toast('钻石 +5', '#a86bff'); break;
       case 'dbg_chest': {
         if (m.grantDeepChest(CONFIG.DEPTH_CHEST.tiers[4])) this.toast('已发放星辉宝箱（12h）', '#a86bff');
         else this.toast('深度宝箱槽位已满', '#ff6b6b');
