@@ -157,7 +157,7 @@ class Meta {
       r -= def.drop;
       if (r <= 0) return def.id;
     }
-    return list[list.length - 1].id;
+    return list.length ? list[list.length - 1].id : null;
   }
 
   /* ---------- 每日碎片精选（0 点刷新，碎片奖励） ---------- */
@@ -199,6 +199,7 @@ class Meta {
   _randomRelicReward() {
     // 随机一张圣物卡（按掉率权重，优先低拥有数）
     const id = this.randomRelicId();
+    if(!id){const card=CONFIG.randomShardCardId('r');if(card){this.addShard(card,1);const d=CONFIG.relicRunDef(card);return {id:card,name:(d?d.name:card)+'碎片 ×1',icon:'🧩'};}return {id:null,name:'暂无可领取圣遗物',icon:'📿'};}
     this.addRelic(id);
     const def = this.relicDef(id);
     return { id, name: def ? def.name : id, icon: def ? def.icon : '📿' };

@@ -67,7 +67,7 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
     dmg *= 1 + overloadBalance.resonanceDamage[overload.C];
   }
   // 炮·军火库 C 过剩：能量 ≥ 上限 80% 时普攻伤害 +10%/+20%/+30%（仅普攻，与能量状态乘区叠加）
-  if (!isSkill && key === 'cannon') {
+  if (!(isTowerSkill === undefined ? isSkill : isTowerSkill) && key === 'cannon') {
     const armC = combat.branchLv('cannon', '军火库', 'C');
     if (armC > 0 && t && t.energy >= run.armoryEnergyMax(key) * (SKILL_NUM.cannon['军火库'].overThreshold || 0.8)) {
       dmg *= (1 + SKILL_NUM.cannon['军火库'].overPerBranch * armC);

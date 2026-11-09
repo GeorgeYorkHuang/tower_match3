@@ -143,7 +143,14 @@ function createCodexScreen(deps) {
     const sk = (CONFIG.EFFECT_POOLS[towerKey] || [])[p.idx];
     if (!sk) return;
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
-    const W2 = 700, H2 = 1360, px = 25, py = Math.round((LOGIC_H - H2) / 2);
+    const branchCopy = require('../../branch-description.js');
+    const baseCopy = wrapText(ctx, sk.pick || sk.desc || '暂无描述', 600, 34);
+    const branchRows = ['A','B','C'].map(bk => ({bk,
+      lines: wrapText(ctx, branchCopy.current(sk,bk,0), 612, 32),
+      levels: branchCopy.upgrades(sk,bk)}));
+    const baseEnd = 420 + (baseCopy.length - 1) * 42 + 26;
+    const heights = branchRows.map(row => 100 + Math.max(1,row.lines.length)*38 + 18 + row.levels.length*36 + 18);
+    const W2 = 700, H2 = baseEnd + 30 + heights.reduce((a,b)=>a+b,0) + 32 + 30, px = 25, py = Math.round((LOGIC_H - H2) / 2);
     const panelScale = (2 / 3) * 1.1;
     const offsetX = 375 * (1 - panelScale);
     const offsetY = LOGIC_H / 2 * (1 - panelScale);
@@ -175,8 +182,8 @@ function createCodexScreen(deps) {
     ctx.beginPath(); ctx.arc(px + W2 - 50, py + 34, 20, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.fill();
     text(ctx, '✕', px + W2 - 50, py + 35, 24, '#ffffff', 'center');
-    // 大图标（195px 居中 + 塔色氛围光）
-    const icy = py + 80, icx = 375, ISZ = 195, IHD = ISZ / 2;
+    // 技能图标放大50%，下方标题与说明按同一顶部节奏排列。
+    const icy = py + 58, icx = 375, ISZ = 225, IHD = ISZ / 2;
     const glow = ctx.createRadialGradient(icx, icy + IHD, 10, icx, icy + IHD, ISZ);
     glow.addColorStop(0, hexA(cCol, 0.30)); glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.beginPath(); ctx.arc(icx, icy + IHD, ISZ, 0, Math.PI * 2);
@@ -184,27 +191,29 @@ function createCodexScreen(deps) {
     if (!drawImg(ctx, skillIconSrc(towerKey, sk.name), icx - IHD, icy, ISZ, ISZ)) {
       fillRoundRect(ctx, icx - IHD, icy, ISZ, ISZ, 36, hexA(cCol, 0.18));
       strokeRoundRect(ctx, icx - IHD, icy, ISZ, ISZ, 36, cCol, 2);
-      text(ctx, sk.icon || '?', icx, icy + 104, 82, '#ffffff', 'center');
+      text(ctx, sk.icon || '?', icx, icy + IHD, 100, '#ffffff', 'center');
     }
     text(ctx, fit(sk.name, W2 - 80, 48), 375, py + 312, 48, '#ffffff', 'center');
     // 类型 + 能耗胶囊（居中）
     const en = CONFIG.SKILL_ENERGY[sk.name];
     const enTxt = en === undefined ? 0 : en;
-    const mw = 320, mh = 48, mx = 375 - mw / 2, my = py + 348;
+    const mw = 320, mh = 48, mx = 375 - mw / 2, my = py + 342;
     fillRoundRect(ctx, mx, my, mw, mh, mh / 2, '#0b0f16');
     strokeRoundRect(ctx, mx, my, mw, mh, mh / 2, hexA(cCol, 0.65), 1.2);
-    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 22, lighten(cCol, 1.25), 'center');
+    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 28, lighten(cCol, 1.25), 'center');
     // 基础效果（居中排版，最多 2 行）
-    const baseLines = wrapText(ctx, sk.pick || sk.desc || '暂无描述', 600, 28).slice(0, 2);
+    const baseLines = baseCopy;
     baseLines.forEach((ln, li) => {
-      text(ctx, ln, 375, py + 428 + li * 38, 28, '#c9d6e4', 'center');
+      text(ctx, ln, 375, py + 420 + li * 42, 34, '#c9d6e4', 'center');
     });
-    fillRoundRect(ctx, px + 30, py + 514, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
+    fillRoundRect(ctx, px + 30, py + baseEnd, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
     // 三张分支卡：字母徽章列 + 分支名 + 概述 + 金色 Lv 前缀逐级行
-    const cx0 = px + 22, cw = W2 - 44, chh = 210;
+    const cx0 = px + 22, cw = W2 - 44;
+    let branchY = py + baseEnd + 24;
     [['A', 'a', 'ap'], ['B', 'b', 'bp'], ['C', 'c', 'cp']].forEach(([bk, ak, pk], bi) => {
       const overview = sk[ak] || '';
-      const cy0 = py + 582 + bi * 233;
+      const cy0 = branchY, chh = heights[bi];
+      branchY += chh + 16;
       if (!overview) {
         fillRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.03)');
         strokeRoundRect(ctx, cx0, cy0, cw, chh, 16, 'rgba(255,255,255,0.10)', 1);
@@ -219,17 +228,18 @@ function createCodexScreen(deps) {
 
       fillRoundRect(ctx, cx0 + 22, cy0 + 18, 60, 60, 16, cCol);
       text(ctx, bk, cx0 + 54, cy0 + 48, 32, '#0d1117', 'center');
-      text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 36, 30, '#ffffff', 'left');
+      text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 36, 34, '#ffffff', 'left');
       // 概述最多 2 行（28px）
-      wrapText(ctx, bDesc || '', cw - 130, 25).slice(0, 2).forEach((ln, li) => {
-        text(ctx, ln, cx0 + 104, cy0 + 73 + li * 29, 25, '#c9d6e4', 'left');
+      branchRows[bi].lines.forEach((ln, li) => {
+        text(ctx, ln, cx0 + 22, cy0 + 100 + li * 38, 32, '#c9d6e4', 'left');
       });
-      fillRoundRect(ctx, cx0 + 22, cy0 + 121, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
+      const upgradesY = cy0 + 100 + Math.max(1,branchRows[bi].lines.length)*38 + 18;
+      fillRoundRect(ctx, cx0 + 22, upgradesY - 20, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
       lvls.forEach((t, li) => {
-        const ry2 = cy0 + 143 + li * 25;
-        text(ctx, `Lv${li + 1}→Lv${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
-        const ln = fit(t, cw - 220, 22);
-        text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');
+        const ry2 = upgradesY + li * 36;
+        text(ctx, `Lv${li + 1}→Lv${li + 2}`, cx0 + 22, ry2, 30, '#f7c948', 'left');
+        const ln = fit(t, cw - 180, 30);
+        text(ctx, ln, cx0 + 170, ry2, 28, '#9fb2c3', 'left');
       });
     });
     ctx.restore();

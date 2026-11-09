@@ -1,5 +1,5 @@
 /**
- * 伤害数字表现模块（v1 · W 交付）
+ * 伤害数字表现模块：怪物中心起跳、右上悬停、右下掉落与淡出。
  *
  * 职责单一：接收"纯数据事件"，做格式化 / 合并 / 错位 / 生命周期，输出可绘制条目。
  * 不持有 Run / Combat，不读棋盘，不扣血、不发奖、不改 enemy 任何字段。
@@ -7,8 +7,8 @@
  * 接线契约（由 owner 在伤害入口调用）：
  *   const dn = DamageNumbers.create();                       // 每局一个实例
  *   // damage.js 扣血后、死亡递归回调前：
- *   dn.push({ enemyId: e.id, x: e.x, y: e.y - size*0.6, sourceKey: srcKey, amount: dealt, kind: 'hit' });
- *   // 每帧（战斗推进，暂停时不推进）：
+ *   dn.push({ enemyId: e.id, x: e.x, y: e.y, sourceKey: srcKey, amount: dealt, kind: 'hit' });
+ *   // 每帧传实际秒数（不乘战斗倍速，暂停时不推进）：
  *   dn.step(dt);
  *   // 渲染层（敌人层之后）：
  *   dn.drawTo(ctx, { text });        // helpers.text = ui.js 的 text(ctx,str,x,y,size,color,align)
@@ -71,7 +71,8 @@ function create(opts) {
     stats.pushed++;
     const kind = ev.kind || 'hit';
     const isCritical = !!(ev.isCritical || ev.crit || kind === 'crit');
-    const life = ev.life || (kind === 'dot' ? conf.life.dot : (ev.big || isCritical ? conf.life.big : conf.life.base));
+    const life = Math.max(conf.motion.riseDuration + conf.motion.holdDuration + 0.01,
+      ev.life || (kind === 'dot' ? conf.life.dot : (ev.big || isCritical ? conf.life.big : conf.life.base)));
     const color = ev.color || colorOf(ev.sourceKey);
 
     // 1) 合并：同敌人 + 同来源 + 可合并类型 + 在窗口内
@@ -103,7 +104,7 @@ function create(opts) {
     const item = {
       id,
       enemyId: ev.enemyId,
-      x: ev.x + jitter(id) * conf.drift,
+      x: ev.x,
       y: ev.y,
       baseY: ev.y,
       sourceKey: ev.sourceKey,
@@ -138,26 +139,36 @@ function create(opts) {
   /** 当前可绘制条目（快照，调用方只读） */
   function visible() {
     return items.map((it) => {
-      const p = Math.max(0, Math.min(1, it.age / it.life));
       const fin = conf.fadeIn > 0 ? Math.min(1, it.age / conf.fadeIn) : 1;
-      // 后 25% 生命周期淡出
       const m = conf.motion;
-      // Constant horizontal velocity and vertical acceleration form one parabola.
       const variation = 1 + jitter(it.id + 97) * 0.12;
       const t = it.age;
-      const dx = m.horizontalSpeed * variation * t;
-      const dy = -m.launchSpeed * variation * t + 0.5 * m.gravity * t * t;
-      const fadeOut = p <= m.fadeStart ? 1 : (1 - p) / (1 - m.fadeStart);
+      const peakX = m.riseX * variation, peakY = m.riseY + it.offsetY;
+      let dx, dy, alpha;
+      if (t < m.riseDuration) {
+        const u = t / m.riseDuration;
+        dx = peakX * u;
+        dy = -peakY * (2 * u - u * u);
+        alpha = fin;
+      } else if (t <= m.riseDuration + m.holdDuration) {
+        dx = peakX; dy = -peakY; alpha = 1;
+      } else {
+        const u = Math.max(0, Math.min(1, (t - m.riseDuration - m.holdDuration) /
+          (it.life - m.riseDuration - m.holdDuration)));
+        dx = peakX + m.fallX * variation * u;
+        dy = -peakY + m.fallY * u * u;
+        alpha = 1 - u;
+      }
       const pop = 0.86 + 0.14 * fin;
       return {
         id: it.id,
         enemyId: it.enemyId,
         text: it.text,
         x: it.x + dx,
-        y: it.baseY + dy - it.offsetY,
+        y: it.baseY + dy,
         size: it.size * pop * (it.amount > 500 ? 2 : it.amount > 100 ? 1.5 : 1),
         color: it.color,
-        alpha: Math.max(0, Math.min(1, fin * fadeOut)),
+        alpha: Math.max(0, Math.min(1, alpha)),
         kind: it.kind,
         isCritical: it.isCritical,
       };
@@ -170,8 +181,16 @@ function create(opts) {
     if (typeof text !== 'function') return 0;
     const list = visible();
     for (const v of list) {
+      ctx.save();
       ctx.globalAlpha = v.alpha;
+      if (conf.outline && typeof ctx.strokeText === 'function') {
+        ctx.font = `bold ${v.size}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = conf.outline.color; ctx.lineWidth = conf.outline.width;
+        ctx.strokeText(v.text, v.x, v.y);
+      }
       text(ctx, v.text, v.x, v.y, v.size, v.color, 'center');
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
     return list.length;

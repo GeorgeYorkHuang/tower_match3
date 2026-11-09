@@ -6,12 +6,7 @@ const TurretVisual = require('../turret-visual.js');
 
 function hitCannon(combat, e, dmg, impactPosition) {
   const g = combat.game;
-  // 军火库 C 双倍火力：普攻 10%/20%/30% 概率造成双倍伤害（仅主目标）
-  const armC = combat.branchLv('cannon', '军火库', 'C');
-  if (armC > 0 && Math.random() < 0.10 * armC) {
-    dmg *= 2;
-    combat.fxFlash(e.x, e.y, '#ffb347', 0.25);
-  }
+  // 军火库C的高能量普攻增伤已在shotDmg结算，不再额外判定双倍伤害。
   // 火药3★：每次命中积攒 1 层「火药热度」，累计 25 层后下一发炮弹为过热弹（200% 伤害，爆炸半径 +30%），随后清零
   let overheat = false;
   const powT = combat.tower('cannon');
@@ -250,7 +245,7 @@ function tickCannon(combat, dt) {
       }
     }
   }
-  // 炮·炮台：基础每12秒部署2门，持续8秒；A增台，B延长持续并缩短部署间隔，C缩短攻击间隔。
+  // 炮·炮台：每12秒部署2门，基础持续6秒；B每级延长1秒，不再同时缩短部署间隔。
   const turret = combat.lv('cannon', '炮台');
   if (turret > 0) {
     combat.timers.turret = (combat.timers.turret || 0) + dt;
@@ -384,7 +379,7 @@ function updateTurrets(combat, dt) {
         const turretDmg = g.run.relic3('can_turret') ? tu.dmg * (1 + 0.1 * (combat.turrets.length - 1)) : tu.dmg;
         combat.damage(tgt, turretDmg, 'cannon', undefined, '炮台');   // 标注
         const splashDmg = turretDmg * SKILL_NUM.cannon['炮台'].splashDamage / SKILL_NUM.cannon['炮台'].damage;
-        combat.explode(tgt.x, tgt.y, tu.r, splashDmg, 'cannon', 0, false, undefined, '炮台');   // 爆炸独立按攻击力百分比结算
+        combat.explode(tgt.x, tgt.y, tu.r, splashDmg, 'cannon', 0, false, tgt, '炮台');   // 直伤目标不重复承受溅射；周围目标按40%结算
         combat.fxBeam(tu.x, tu.y, tgt.x, tgt.y, '#d89e63', 0.25, 3);
         // 炮口闪光、火星与后坐已在新图集中，不再重复叠加旧开火效果。
       }

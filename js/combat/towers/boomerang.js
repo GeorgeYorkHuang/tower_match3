@@ -6,6 +6,7 @@ const CONFIG = require('../../config.js');
 const SKILL_NUM = require('../../config/tower-skills.js');
 const COMBAT_BALANCE = require('../../config/combat-common.js');
 const BoomerangTrajectory = require('../boomerang-trajectory.js');
+const WindTrails = require('../wind-trails.js');
 
 function hitBoomerang(combat, e, dmg) {
   // （猎手标记已于 2026-11-01 删除：普攻叠标记与其三条分支一并下线）
@@ -76,21 +77,8 @@ function sweepDamage(combat, s) {
     }
   }
   s._lastSweepPos = { x: bx, y: by };
-  // 风痕（）：镖路径每秒留下风痕伤害区（A 久痕 +0.5s/级；B 劲风 +30%/级；C 卷痕减速 15%）
-  // 修正：空间间隔采样（相邻留痕 ≥32px，r=34 伤害区仍连续全覆盖）+ 上限 120→240，
-  //            避免多镖/疾飞高频投掷下活跃点数迅速打满 120 导致风痕整体断供
   if (s.windLv > 0) {
-    const wA = combat.branchLv('boomerang', '风痕', 'A');
-    const wB = combat.branchLv('boomerang', '风痕', 'B');
-    const wC = combat.branchLv('boomerang', '风痕', 'C');
-    combat.windTrails = combat.windTrails || [];
-    const spaced = !s._wLast || Math.hypot(bx - s._wLast.x, by - s._wLast.y) >= SKILL_NUM.boomerang['风痕'].sampleDistance;
-    if (spaced && combat.windTrails.length < SKILL_NUM.boomerang['风痕'].maxTrails) {
-      const ttl = SKILL_NUM.boomerang['风痕'].duration + SKILL_NUM.boomerang['风痕'].durationPerBranch * wA;
-      const dps = combat.shotDmg('boomerang', true) * SKILL_NUM.boomerang['风痕'].damage * (1 + SKILL_NUM.boomerang['风痕'].damagePerBranch * wB);
-      combat.windTrails.push({ x: bx, y: by, r: SKILL_NUM.boomerang['风痕'].radius, ttl, dps, slow: SKILL_NUM.boomerang['风痕'].slow[wC] });   // C 卷痕档位式 10%/20%/30%
-      s._wLast = { x: bx, y: by };
-    }
+    WindTrails.stage(combat, s, p);
     if (Math.random() < 0.5) combat.fxParticle(bx, by, '#c39bd3', 1, 14, 0.5, 50, 3);
   }
 }
@@ -375,40 +363,7 @@ function updateStorms(combat, dt) {
 }
 
 function updateWindTrails(combat, dt) {
-  if (!combat.windTrails || !combat.windTrails.length) return;
-  // 本次更新内卡牌装配不变；不要在每个风痕、每只怪物命中时反复查询。
-  const expireBurst = combat.game.run.relic3('boo_trail');
-  const stackedDamage = combat.game.run.relic3('boo_wind');
-  for (let i = combat.windTrails.length - 1; i >= 0; i--) {
-    const w = combat.windTrails[i];
-    w.ttl -= dt;
-    if (w.ttl <= 0) {
-      // 长痕3★：风痕消失时对圈内敌人造成一次 60% 伤害（替代原依赖猎手标记的叠标记）
-      if (expireBurst) {
-        combat.explode(w.x, w.y, w.r, combat.shotDmg('boomerang', true) * 0.6, 'boomerang', undefined, undefined, undefined, '风痕');
-      }
-      combat.windTrails.splice(i, 1); continue;
-    }
-    combat.enemies().forEach((o) => {
-      const dx = o.x - w.x, dy = o.y - w.y;
-      if (o.hp <= 0 || dx * dx + dy * dy > w.r * w.r) return;
-      // 风刃3★：风痕叠加时伤害取最高值 +30%/层（上限 3 层）
-      let mult = 1;
-      if (stackedDamage) {
-        // 最多三层：找到另两个覆盖区即可，不分配数组，也不继续数无效的额外层。
-        let layers = 1;
-        for (const other of combat.windTrails) {
-          if (other === w) continue;
-          const ox = o.x - other.x, oy = o.y - other.y;
-          if (ox * ox + oy * oy <= other.r * other.r && ++layers >= 3) break;
-        }
-        mult = 1 + 0.3 * layers;
-      }
-      combat.damage(o, w.dps * dt * mult, 'boomerang', { kind: 'dot' }, '风痕');
-      // （长痕3★：依赖猎手标记的叠标记已于 2026-11-01 随技能一并移除）
-      if (w.slow) combat.applySlow(o, w.slow, 0.2);
-    });
-  }
+  return WindTrails.advance(combat, dt);
 }
 
 function stepBounce(combat, s, dt) {

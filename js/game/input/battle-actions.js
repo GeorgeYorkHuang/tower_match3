@@ -8,12 +8,14 @@ function dispatchTouch(game, p, version) {
   // 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
   if (game.relicDetail) {
     const h = game.relicDetailHits;
+    if(h.tip){h.selected=null;h.tip=null;return true;}
+    const icon=(h.items||[]).find(it=>it.hit(p.x,p.y));if(icon){h.selected=icon.id;return true;}
     if ((h.close && h.close.hit(p.x, p.y)) || (h.bg && h.bg.hit(p.x, p.y))) {
       const from = game.relicDetail.from || 'fighting';   // 关闭后回到来源状态（testfield/fighting）
       game.relicDetail = null; game.state = from; return true;
     }
     if (h.next && h.next.hit(p.x, p.y)) {
-      const pages = Math.ceil(game.battleRelics.length / 8);
+      const pages = Math.ceil(new Set(game.battleRelics.map(r=>r.id)).size / 20);
       game.relicDetail.page = Math.min((game.relicDetail.page || 0) + 1, Math.max(pages - 1, 0));
       return true;
     }

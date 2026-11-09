@@ -1,6 +1,8 @@
+/** 局内圣遗物三选一与详情：品质卡框、依次弹出和一次性揭示特效，奖励由流程层处理。 */
 'use strict';
 const CONFIG = require('../../config.js');
 const PickLayout = require('./pick-layout.js');
+const RelicPickFx = require('../fx/relic-pick.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 // 仅负责局内圣遗物三选一/详情绘制；奖励、重掷、暂停与关闭归原游戏逻辑。
@@ -8,7 +10,8 @@ const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
   function relicPickLayer(ctx, pick, onPick, elapsed, gold) {
     if (!pick || !pick.candidates) return;
-    const box = PickLayout.geometry('relic', pick), { x, y, w, h } = box;
+    const baseBox = PickLayout.geometry('relic', pick);
+    const box = {...baseBox,y:baseBox.y-150,h:baseBox.h+150}, {x,y,w,h}=box;
     // 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
     const pe = Math.min(1, (elapsed || 0) / 500);
     const es = 1 + 2.70158 * Math.pow(pe - 1, 3) + 1.70158 * Math.pow(pe - 1, 2);
@@ -26,16 +29,6 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     PickLayout.backdrop(ctx, box);
     // Only the panel animates; its bounded scale can never cover the exposed tower strip.
     ctx.translate(375, y + h / 2); ctx.scale(sc, sc); ctx.translate(-375, -y - h / 2);
-    // 背景星光粒子（确定性伪随机闪烁）
-    const now = Date.now();
-    for (let i = 0; i < 26; i++) {
-      const sx = x + (i * 97.3) % w, sy = y + ((i * 61.7) % h);
-      const tw = 0.4 + 0.6 * Math.abs(Math.sin(now / 700 + i * 1.37));
-      ctx.fillStyle = i % 3 ? '#ffd34d' : '#fff6d8';
-      ctx.globalAlpha = 0.35 * tw;
-      ctx.beginPath(); ctx.arc(sx, sy, i % 4 === 0 ? 2.2 : 1.4, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.globalAlpha = al;
     // 主窗口：暗金渐变底 + 双层金描边
     const bg = ctx.createLinearGradient(0, y, 0, y + h);
     bg.addColorStop(0, '#2a2112'); bg.addColorStop(0.5, '#241b0e'); bg.addColorStop(1, '#1d1a10');
@@ -61,20 +54,30 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.5;
     ctx.strokeRect(-12, -12, 24, 24);
     ctx.restore();
-    text(ctx, '圣物显现', 375, y + 76, 38, '#ffd34d', 'center');
-    text(ctx, '获得圣遗物本局生效 · 塔圣遗物仅对应塔在场时出现', 375, y + 112, 18, '#c9b27a', 'center');
+    text(ctx, pick.opening ? '历练启程' : pick.rarity === 'ssr' ? '金色圣物显现' : '圣物显现', 375, y + 76, 38, '#ffd34d', 'center');
+    text(ctx, pick.opening ? '开局额外选择1件圣遗物 · 本局生效' : pick.rarity === 'ssr' ? '金色SSR专属候选 · 重掷仍为金色' : '获得圣遗物本局生效 · 塔圣遗物仅对应塔在场时出现', 375, y + 112, 18, '#c9b27a', 'center');
     // 3 个候选卡片（纵向扩容：bh 240→300）
-    const bw = 188, bh = 300, gap = 16;
+    const bw = 188, bh = 450, gap = 16;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
     const cy = y + 138;
     pick.candidates.forEach((c, i) => {
+      const age = (elapsed || 0) - 220 - i * 200;
+      onPick[i] = {hit:()=>false};
+      if(age<=0)return;
+      const progress=Math.min(1,age/360), u=progress-1;
+      const pop=1+2.70158*u*u*u+1.70158*u*u;
       const cx = startX + i * (bw + gap);
+      const rarity = CONFIG.relicRarity(c.id);
+      const quality = RelicPickFx.style(rarity);
+      ctx.save();ctx.globalAlpha*=Math.min(1,progress*2);
+      ctx.translate(cx+bw/2,cy+bh/2);ctx.scale(Math.max(.2,pop),Math.max(.2,pop));ctx.translate(-cx-bw/2,-cy-bh/2);
       const tint = c.tint ? (TOWER_TINT[c.tint] || '#f7c948') : '#f7c948';
-      // 卡片：暗金底 + 金色描边 + 外侧柔光
+      // 卡底、双层边框和选择按钮统一跟随蓝/紫/金品质，塔色仅作图标底部柔光。
       const cg = ctx.createLinearGradient(0, cy, 0, cy + bh);
-      cg.addColorStop(0, '#2b2313'); cg.addColorStop(1, '#211b0e');
+      cg.addColorStop(0, quality.top); cg.addColorStop(1, quality.bottom);
       fillRoundRect(ctx, cx, cy, bw, bh, 16, cg);
-      strokeRoundRect(ctx, cx, cy, bw, bh, 16, 'rgba(255,211,77,0.85)', 1.8);
+      RelicPickFx.reveal(ctx, { x: cx, y: cy, w: bw, h: bh }, age, rarity);
+      RelicPickFx.frame(ctx, { x: cx, y: cy, w: bw, h: bh }, rarity);
       const glow = ctx.createRadialGradient(cx + bw / 2, cy + 76, 20, cx + bw / 2, cy + 76, 130);
       glow.addColorStop(0, tint + '38'); glow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = glow;
@@ -86,13 +89,14 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
       ctx.fillStyle = tint + '2e'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(icx, icy, dia / 2, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = tint; ctx.lineWidth = 3;
+      ctx.strokeStyle = quality.edge; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(icx, icy, dia / 2 + 5, 0, Math.PI * 2); ctx.stroke();
       const cSrc = relicIconSrc(c.id);
       if (!(cSrc && drawImg(ctx, cSrc, icx - dia / 2, icy - dia / 2, dia, dia))) {
         text(ctx, c.icon, icx, icy + 4, 48, '#ffffff', 'center');
       }
-      text(ctx, c.name, cx + bw / 2, cy + 158, 25, '#ffe9a8', 'center');
+      text(ctx, quality.label, cx + bw - 13, cy + 20, 15, quality.light, 'right');
+      text(ctx, c.name, cx + bw / 2, cy + 158, 25, quality.light, 'center');
       // 效果描述（按宽度换行，最多 3 行，防出框）
       const d = c.desc || '';
       const maxW = bw - 20;
@@ -108,14 +112,15 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
       lines.forEach((ln, li) => {
         text(ctx, ln, cx + bw / 2, cy + 190 + li * 22, 16, '#c9b27a', 'center');
       });
-      // 选择按钮：金色渐变
+      // 选择按钮与卡框保持同一品质配色。
       const btnX = cx + 24, btnY = cy + bh - 62, btnW = bw - 48, btnH = 46;
       const btnG = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
-      btnG.addColorStop(0, '#3d2f14'); btnG.addColorStop(1, '#2a1f0c');
+      btnG.addColorStop(0, quality.buttonTop); btnG.addColorStop(1, quality.buttonBottom);
       fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, btnG);
-      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, '#ffd34d', 1.5);
-      text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, '#ffd34d', 'center');
-      onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
+      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, quality.edge, 1.5);
+      text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, quality.light, 'center');
+      onPick[i] = { hit: (px, py) => (elapsed||0)>=1000 && px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
+      ctx.restore();
     });
     // 本局共享重掷计数，500银币起、每次+500，无窗口次数上限。
     const cost = pick.rerollCost || CONFIG.PICK_REROLL.first;
@@ -132,7 +137,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     } else {
       text(ctx, `银币不足（需 ${cost}）`, 375, ry + rh / 2 + 2, 20, '#9a8a6a', 'center');
     }
-    onPick.reroll = { hit: (px, py) => px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
+    onPick.reroll = { hit: (px, py) => (elapsed||0)>=1000 && px >= rx && px <= rx + rw && py >= ry && py <= ry + rh };
     // 底部提示
     text(ctx, '✦ 选择后立即生效 · 本局结束失效 ✦', 375, y + h - 24, 17, '#8a7a4a', 'center');
     ctx.restore();
@@ -155,41 +160,30 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     onPick.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + h };
     onPick.close = { hit: (px, py) => Math.abs(px - (x + w - 50)) < 30 && Math.abs(py - (y + 44)) < 30 };
     if (!relics.length) return;
-    // 分页列表（每页 8 行）
-    const per = 8, pages = Math.ceil(relics.length / per);
-    const pg = Math.min(Math.max(page || 0, 0), pages - 1);
-    const list = relics.slice(pg * per, pg * per + per);
-    let ry = y + 130;
-    list.forEach((r) => {
-      fillRoundRect(ctx, x + 40, ry, w - 80, 64, 12, '#20262f');
-      ctx.beginPath(); ctx.arc(x + 76, ry + 32, 18, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
-      const rSrc = relicIconSrc(r.id);
-      if (!(rSrc && drawImg(ctx, rSrc, x + 61, ry + 17, 30, 30))) text(ctx, r.icon, x + 76, ry + 34, 22, '#ffffff', 'center');
-      text(ctx, r.name, x + 110, ry + 26, 20, '#ffffff', 'left');
-      if (r.star3) {   // ★3 质变徽章
-        fillRoundRect(ctx, x + w - 90, ry + 8, 42, 24, 12, '#ffb347');
-        text(ctx, '★3', x + w - 69, ry + 26, 14, '#5c3800', 'center');
-      }
-      const dd = String(r.desc || '');
-      const brief = dd.length > 22 ? dd.slice(0, 22) + '…' : dd;
-      text(ctx, brief, x + 110, ry + 52, 15, '#9fb2c3', 'left');
-      ry += 74;
+    const groups=Object.values(relics.reduce((m,r)=>{if(!m[r.id])m[r.id]={...r,count:0};m[r.id].count++;return m;},{}));
+    const per=20,pages=Math.max(1,Math.ceil(groups.length/per)),pg=Math.min(Math.max(page||0,0),pages-1);
+    onPick.tip=null;onPick.items=[];
+    groups.slice(pg*per,pg*per+per).forEach((r,i)=>{
+      const xx=x+46+(i%5)*112,yy=y+140+Math.floor(i/5)*126;
+      fillRoundRect(ctx,xx,yy,100,110,12,'#26352e');
+      const src=relicIconSrc(r.id);if(!(src&&drawImg(ctx,src,xx+10,yy+4,80,80)))text(ctx,r.icon,xx+50,yy+45,40,'#fff','center');
+      text(ctx,'×'+r.count,xx+50,yy+94,22,'#ffe5a0','center');
+      onPick.items.push({id:r.id,hit:(px,py)=>px>=xx&&px<=xx+100&&py>=yy&&py<=yy+110});
     });
-    // 翻页：▲ ▼ + 页码
-    const by = y + 130 + per * 74 + 8;
-    fillRoundRect(ctx, x + 40, by, 120, 46, 12, '#2c3542');
-    strokeRoundRect(ctx, x + 40, by, 120, 46, 12, '#7ca8ff', 1.2);
-    text(ctx, '▲ 上一页', x + 100, by + 30, 18, pages > 1 ? '#9fb2c3' : '#5a6c80', 'center');
-    text(ctx, `${pg + 1} / ${pages}`, 375, by + 30, 20, '#f7c948', 'center');
-    fillRoundRect(ctx, x + w - 160, by, 120, 46, 12, '#2c3542');
-    strokeRoundRect(ctx, x + w - 160, by, 120, 46, 12, '#7ca8ff', 1.2);
-    text(ctx, '下一页 ▼', x + w - 100, by + 30, 18, pages > 1 ? '#9fb2c3' : '#5a6c80', 'center');
-    onPick.prev = { hit: (px, py) => px >= x + 40 && px <= x + 160 && py >= by && py <= by + 46 };
-    onPick.next = { hit: (px, py) => px >= x + w - 160 && px <= x + w - 40 && py >= by && py <= by + 46 };
-  }
+    text(ctx,(pg+1)+' / '+pages,375,y+h-50,22,'#f7c948','center');
+    text(ctx,'上一页',x+100,y+h-50,22,'#b7c9db','center');text(ctx,'下一页',x+w-100,y+h-50,22,'#b7c9db','center');
+    onPick.prev={hit:(px,py)=>px>x+40&&px<x+160&&py>y+h-80&&py<y+h-20};
+    onPick.next={hit:(px,py)=>px>x+w-160&&px<x+w-40&&py>y+h-80&&py<y+h-20};
+    if(onPick.selected){const r=groups.find(r=>r.id===onPick.selected);if(r){
+      fillRoundRect(ctx,x+50,y+240,w-100,300,18,'#12231f');strokeRoundRect(ctx,x+50,y+240,w-100,300,18,'#d5bc74',2);
+      text(ctx,r.name+' ×'+r.count,375,y+282,28,'#ffe3a0','center');
+      const words=String(r.desc||'').match(/.{1,18}/g)||[];words.forEach((line,i)=>text(ctx,line,375,y+330+i*32,24,'#dae3d8','center'));
+      text(ctx,'点击关闭详情',375,y+510,18,'#a3b69c','center');
+      onPick.tip={hit:()=>true};
+    }}
 
+
+  }
   return { relicPickLayer, relicDetailLayer };
 }
 module.exports = { createBattleRelics };

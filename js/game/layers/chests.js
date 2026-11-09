@@ -8,11 +8,13 @@ function createChestLayer({ drawImg, IMG_SRC }) {
     const now = Date.now();
     list.forEach((c) => {
       if(c.stage==='board'||c.hidden)return;
+      const gold = c.rarity === 'ssr';
       if(c.stage==='toBoard'){
         const p=Math.min(1,c.flightT/UI.flight),ease=1-Math.pow(1-p,3),size=UI.startSize+((c.cellSize||56)*UI.cellRatio-UI.startSize)*ease;
         const x=c.fromX+(c.x-c.fromX)*ease,y=c.fromY+(c.y-c.fromY)*ease-Math.sin(p*Math.PI)*85;
         ctx.save();ctx.shadowColor='#f8d680';ctx.shadowBlur=12;
-        if(!drawImg(ctx,IMG_SRC.chestClosed,x-size/2,y-size/2,size,size))text(ctx,'箱',x,y,30,'#f8d680','center');
+        if(!drawImg(ctx,gold?IMG_SRC.chestGold:IMG_SRC.chestClosed,x-size/2,y-size/2,size,size))text(ctx,'箱',x,y,30,'#f8d680','center');
+        if(gold)text(ctx,'SSR',x,y+size/2+10,15,'#ffe88a','center');
         ctx.restore();return;
       }
       const s = 84;
@@ -55,8 +57,9 @@ function createChestLayer({ drawImg, IMG_SRC }) {
       // 五帧动画（）：关闭 → 微开 → 半开 → 快开 → 全开，0.4s 播完；飞行阶段恒用全开帧
       const p = opening ? Math.min(1, c.animT / 0.4) : 0;
       const src = (opening && c.stage === 'fly') ? IMG_SRC.chestOpen
-        : (p < 0.2 ? IMG_SRC.chestClosed : (p < 0.4 ? IMG_SRC.chestQuarter : (p < 0.6 ? IMG_SRC.chestHalf : (p < 0.8 ? IMG_SRC.chestFast : IMG_SRC.chestOpen))));
+        : (p < 0.2 ? (gold?IMG_SRC.chestGold:IMG_SRC.chestClosed) : (p < 0.4 ? IMG_SRC.chestQuarter : (p < 0.6 ? IMG_SRC.chestHalf : (p < 0.8 ? IMG_SRC.chestFast : IMG_SRC.chestOpen))));
       const ss = s * scale;
+      if(gold)text(ctx,'金色SSR',fx,fy-ss/2-12,18,'#ffe88a','center');
       if (!drawImg(ctx, src, fx - ss / 2, fy - ss / 2, ss, ss)) {
         // 回退：金色渐变箱体（图片未加载时）
         fillRoundRect(ctx, fx - ss / 2, fy - ss / 2 + 10, ss, ss - 10, 8, 'rgba(0,0,0,0.35)');

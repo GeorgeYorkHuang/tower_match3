@@ -203,7 +203,7 @@ module.exports = {
   },
   "s_sr_cm_exp": {
     "icon": "assets/images/relics-garden-v1/icons/s_sr_cm_exp.png",
-    "frame": "assets/images/relics-garden-v1/frames/purple.png"
+    "frame": "assets/images/relics-garden-v1/frames/gold.png"
   },
   "s_sr_cm_triple": {
     "icon": "assets/images/relics-garden-v1/icons/s_sr_cm_triple.png",

@@ -16,6 +16,6 @@ function recordDamage(combat, enemy, hpBefore, sourceKey, kind = 'hit', shieldBe
   const shieldLoss = Math.max(0, shieldBefore - Math.max(0, Number(enemy.shield) || 0));
   const amount = healthLoss + shieldLoss;
   if (!(amount > 0) || !Number.isFinite(amount)) return;
-  numbers.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y - 40, sourceKey, amount, kind, isCritical });
+  numbers.push({ enemyId: enemy.id, x: enemy.x, y: enemy.y, sourceKey, amount, kind, isCritical });
 }
 module.exports = { recordDamage };

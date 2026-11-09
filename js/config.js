@@ -88,8 +88,8 @@ module.exports = {
   MILESTONES: [10, 20, 30, 40, 50],   // 深度里程碑首达波次（一次性）
 
   KILL_DROP: {
-    miniBossChestChance: 0.55,        // 每5波小Boss战斗宝箱掉率55%
-    majorBossChestChance: 1,          // 每20波大Boss战斗宝箱掉率100%
+    miniBossChestChance: 0.55,        // 深渊旧规则；普通三地图由battle-relic-drops.js固定节点发放
+    majorBossChestChance: 1,          // 深渊旧规则；普通三地图W20/40固定全金
     eliteShardChance: 0.10,           // 精英10%概率掉1片
     miniBossShardChance: 0.25,        // 每5波小Boss25%概率掉碎片
     miniBossShardMin: 2,

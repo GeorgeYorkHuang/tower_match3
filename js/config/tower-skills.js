@@ -27,7 +27,7 @@ module.exports = {
     '冰穿刺': { baseTargets:1, minProjection:20, laneHalf:60, coneLength:60, coneWidthRatio:1, pierceDmg: [0, 0.3, 0.6, 0.9],     // B 透射：穿透后伤害
                 cone: [0, 0.3, 0.4, 0.5] },        // C 冰霜透射：身后扇形伤害（laneHalf=横向走廊半宽，新增）
     '多重冰锥': { count:3, damage:0.55, damagePerBranch:0.15, hitRadius:45, swarmDamage:0.10, swarmHitRadius:30, fanStep:0.08, swarm: [0, 10, 14, 18] },        // C 增殖：超小型冰锥数
-    '碎冰':   { count:3, baseDamage:0.45, spawnOffset:55, hitRadius:45, freezeDuration:2, halfAngle:Math.PI/6, dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
+    '碎冰':   { count:3, baseDamage:0.65, spawnOffset:55, hitRadius:45, freezeDuration:2, halfAngle:Math.PI/6, dmg: [0, 0.15, 0.30, 0.45],        // B 碎劲：碎冰伤害
                 frz: [0, 0.05, 0.10, 0.15] },      // C 冻结：命中冻结概率
     '冰花':   { period:8, baseCount:1, baseDamage:3.0, baseRadius:100, n: [0, 1, 2, 3],                   // C 繁花：冰花数量
                 dmg: [0, 0.2, 0.4, 0.6],           // B 霜力：冰花伤害
@@ -41,7 +41,7 @@ module.exports = {
   },
   poison: {
     '毒池': { period:5, radius:130, radiusPerBranch:0.2, damage:0.20, damagePerBranch:0.4, damageInterval:0.25, duration:4, durationPerBranch:2, stacksPerSecond:1 },
-    '毒棒': { period:4, minPeriod:1.5, periodReduction:0.5, count:2, duration:10, durationPerBranch:2, attackInterval:1, radius:200, damage:1.0, poisonChance:0.50, targets:1 },
+    '毒棒': { period:6, minPeriod:6, periodReduction:0, count:2, duration:8, durationPerBranch:1, attackInterval:1, radius:200, damage:1.0, poisonChance:0.50, targets:1 },
     '毒藤': { period:6, targets:1, duration:3, damage:0.80 },
     '剧毒':   { baseProbability:0.20, learnedProbability:0.25, probabilityPerBranch:0.15, baseDuration:5, durationPerBranch:2, baseDamage:0.10, freq: [0, 0.1, 0.2, 0.3] },        // C 频发：每跳间隔缩减
     '毒性强化': { stackCap:5, stacksPerBranch:2, damage:[0.15,0.18,0.21,0.24], ttlAdd: [0, 2, 4, 6] },          // B 延毒：中毒时长
@@ -76,7 +76,7 @@ module.exports = {
     '风暴镖': { hitCooldown:0.3, hitRadius:14, period:12, damage:0.30, damagePerBranch:0.2, speedPerBranch:0.25, duration:3, rings:[{r:40,base:2.6},{r:80,base:-2.0},{r:120,base:2.4}], ringCounts:[4,6,8] },
     '弹力镖': { period:8, count:2, damage:1.20, damagePerBranch:0.25, bounces:10, bouncesPerBranch:5, duration:8, speed:400, hitRadius:30, spreadStep:0.5 },
     '接镖':   { speedPerBranch:0.20, catchCd: 0.5, catchRegain: 0.30 },  // 基础：未学接镖时接镖后冷却 / B 回能概率（）
-    '风痕':   { sampleDistance:32, maxTrails:240, duration:1.5, durationPerBranch:0.5, damage:0.10, damagePerBranch:0.3, radius:34, slow: [0, 0.10, 0.20, 0.30] },     // C 卷痕：风痕内减速
+    '风痕':   { sampleDistance:32, pathSegments:128, maxTrails:240, damageInterval:0.2, duration:1.5, durationPerBranch:0.5, damage:0.10, damagePerBranch:0.3, radius:34, slow: [0, 0.10, 0.20, 0.30] },     // C 卷痕：风痕内减速
     '风眼涡旋': { period:10, radius:120, radiusPerBranch:0.20, duration:2.5, pull:30, pullPerBranch:0.50, slow:0.20, slowDuration:0.4, endDamage:0.80, endDamagePerBranch:0.40 },   // 2026-11-01 新增：A 扩涡半径 / B 强涡牵引 / C 爆涡收尾伤害（减速固定 20%）
   },
   cannon: {
@@ -84,7 +84,7 @@ module.exports = {
     '震击': { probability:0.40, probabilityPerBranch:0.20, knockback:60, knockbackPerBranch:0.4, slowDuration:0.5, slowDurationPerBranch:0.5 },
     '双管齐射': { thirdShotChance:[0, 0.40, 0.60, 0.80], thirdShotDamage:0.60, energyReturnChance:[0, 0.30, 0.45, 0.60], energyReturn:1 },
     '炮火支援': { period:12, count:3, damage:1.20, damagePerBranch:0.4, radius:80 },
-    '炮台': { count:2, duration:8, durationPerBranch:2, attackInterval:1, attackIntervalPerBranch:-0.1, minAttackInterval:0.7, damage:0.80, splashDamage:0.40, radius:100, period:12, minPeriod:9, periodReductionPerBranch:1 },
+    '炮台': { count:2, duration:6, durationPerBranch:1, attackInterval:1, attackIntervalPerBranch:-0.1, minAttackInterval:0.7, damage:0.80, splashDamage:0.40, radius:100, period:12, minPeriod:12, periodReductionPerBranch:0 },
     '碎裂弹': { period:8, damage:0.70, radius:80, fragmentCount:3, fragmentAngles:[0, 45, 90], fragmentDistance:120, fragmentSpeed:400,
                 bounceDistance:50, bounceRadius:40, bounceDamage:[0, 0.40, 0.60, 0.80],
                 dotDuration:2, dotHits:[0, 4, 5, 6], dotDamage:0.17, dotSlow:0.20,

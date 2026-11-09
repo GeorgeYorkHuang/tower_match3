@@ -203,7 +203,8 @@ class GameMain {
     this.state = 'fighting';
     require('../talents/runtime.js').initialize(this.run,this.meta);
     this.wave.start();
-    require('./tutorial.js').begin(this);
+    // 三星历练奖励优先于战斗推进与新手引导，仅在正式进入新对局时发放。
+    if (!require('../relics/opening-pick.js').queue(this)) require('./tutorial.js').begin(this);
     this.toast('进入战斗 · 消灭全部怪物', '#7ef0a3');
     // 战斗 BGM（真机需在用户手势后播放）
     this.sfx.startBgm();
@@ -305,21 +306,22 @@ class GameMain {
       return;
     }
     if (this.state === 'fighting') {
-      // 战斗内圣物宝箱（精英掉落）三选一：有队列先弹层，暂停战斗推进
+      // 战斗宝箱与开局奖励：有队列先弹层，暂停战斗推进。
       if (require('./tutorial.js').tick(this)) return;
       if (this.pendingRelicPicks.length) {
         this.shopOpen = false;
         this.relicPick = this.pendingRelicPicks.shift();
         // Queued picks may predate the previous selection; validate at presentation time.
         if (!this.relicPick.star3 && this.relicPick.candidates.some(c =>
-          (this.run.runRelic[c.id] || 0) > 0 || (this.runRelics || []).includes(c.id))) {
-          this.relicPick.candidates = this._rollRelicCandidates(false) || [];
+          (this.relicPick.rarity === 'ssr' && CONFIG.relicRarity(c.id) !== 'ssr') ||
+          (CONFIG.relicRarity(c.id) !== 'r' && ((this.run.runRelic[c.id] || 0) > 0 || (this.runRelics || []).includes(c.id))))) {
+          this.relicPick.candidates = this._rollRelicCandidates(false, this.relicPick) || [];
         }
-        if (!this.relicPick.candidates.length) { this.relicPick = null; this._chestBusy = false; return; }
+        if (!this.relicPick.candidates.length) { require('../relics/battle-drops.js').emptyGold(this, this.relicPick.rarity); this.relicPick = null; this._chestBusy = false; return; }
         this.relicPickHits = [];
         this.relicPick.t = 0; // 三选一窗口弹出动画（缩放渐入）
         this.state = 'relicpick';
-        this.toast('圣物宝箱 · 三选一', '#f7c948');
+        this.toast(this.relicPick.opening ? '击杀·历练 · 开局三选一' : this.relicPick.rarity === 'ssr' ? '金色宝箱 · SSR三选一' : '圣物宝箱 · 三选一', '#f7c948');
         return;
       }
       // 即时三选一：每获得 1 次选择机会（塔升级/得塔）立即弹出，不再攒到波末统一结算
@@ -329,7 +331,7 @@ class GameMain {
       }
       // 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
-      this.dmgNumbers.step(bdt);
+      this.dmgNumbers.step(dt); // 阅读时间不随战斗倍速缩短，悬停始终为实际0.5秒。
       if(!this.run.bossLock)this.waveTime += bdt;
       BoardChests.tick(this, bdt);
       // 陆续投放本波敌人（非一次性同屏）
@@ -365,7 +367,7 @@ class GameMain {
         const t = this.run.effects.tower(k);
         if (t) t.energy = this.run.armoryEnergyMax(k);
       });
-      this.dmgNumbers.step(dt * this.testSpeed);
+      this.dmgNumbers.step(dt);
       this.waveTime += dt;
       this.stepEnemies(dt * this.testSpeed);
       this.syncTargetedCannonFx();
@@ -825,10 +827,10 @@ class GameMain {
 
   /** 战场宝箱点击 → 生成圣物三选一；候选池改为局内圣遗物（在场塔的塔池 + 通用池）；
    *   过滤已解锁 + 稀有度权重三选一（蓝50/紫38/金12，按设计文档 2.2） */
-  spawnRelicPick(mode) { return RelicAcquisition.spawnRelicPick.call(this, mode); }
+  spawnRelicPick(mode, options) { return RelicAcquisition.spawnRelicPick.call(this, mode, options); }
 
-  /** 抽 3 个候选（三选一 / 重掷共用）：star3 模式取已拥有池 star3 文案，普通模式取未解锁池按稀有度权重 */
-  _rollRelicCandidates(star3Mode) { return RelicAcquisition._rollRelicCandidates.call(this, star3Mode); }
+  /** 抽 3 个候选；开局奖励覆盖全部塔系，普通宝箱只取在场塔系，品质均按配置抽取。 */
+  _rollRelicCandidates(star3Mode, options) { return RelicAcquisition._rollRelicCandidates.call(this, star3Mode, options); }
 
   /** 三选一重掷：局内银币付费（200/400/800/1600 指数增长，每窗口上限 4 次），重新抽 3 个候选 */
   rerollRelicPick() { return RelicAcquisition.rerollRelicPick.call(this); }
@@ -936,7 +938,7 @@ class GameMain {
       if (this.state === 'relicpick') {
         // 修复：漏传动画时间导致测试战场三选一窗口 alpha=0 不可见、状态卡死——与普通战斗一致传 elapsed
         if (!this.relicPick.t) this.relicPick.t = Date.now();
-        this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: this.ly.wallY + 11, towerBottom: this.ly.wallY + 111 }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
+        this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run, 'relic'), towerTop: this.ly.wallY + 11, towerBottom: this.ly.wallY + 111 }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
       }
       if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
       else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
@@ -985,7 +987,7 @@ class GameMain {
     }
     if (this.state === 'relicpick') {
       if (!this.relicPick.t) this.relicPick.t = Date.now(); // 弹出动画首帧
-      this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run), towerTop: this.ly.slotY, towerBottom: this.ly.slotY + this.ly.slotSize }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold); // 修复：漏传银币导致重掷按钮恒显"银币不足"
+      this.renderer.relicPickLayer(ctx, { ...this.relicPick, rerollCost: PickReroll.cost(this.run, 'relic'), towerTop: this.ly.slotY, towerBottom: this.ly.slotY + this.ly.slotSize }, this.relicPickHits, Date.now() - this.relicPick.t, this.run.gold);
     }
     // 本局圣遗物详情弹层（战斗暂停）
     if (this.relicDetail) {

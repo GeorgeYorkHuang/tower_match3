@@ -61,14 +61,8 @@ module.exports = {
   RELIC: {
     // 圣物表：掉落权重 / 升级金币基础与成长 / 每级效果描述
     list: [
-      { id: 'gold',   name: '招财符',   icon: '💰', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `战斗结算金币 +${20 * lv}%` },
-      { id: 'exp',    name: '经验珠',   icon: '✨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `击杀经验 +${20 * lv}%` },
-      { id: 'speed',  name: '疾风戒',   icon: '💨', drop: 10, costBase: 200, costGrowth: 1.5, desc: (lv) => `全塔攻速 +${8 * lv}%` },
-      { id: 'wall',   name: '磐石印',   icon: '🛡️', drop: 8,  costBase: 250, costGrowth: 1.6, desc: (lv) => `城墙血量 +${10 * lv}%` },
-      { id: 'dmg',    name: '利刃符',   icon: '🗡️', drop: 8,  costBase: 250, costGrowth: 1.6, desc: (lv) => `全塔伤害 +${8 * lv}%` },
-      { id: 'chest',  name: '寻宝罗盘', icon: '🧭', drop: 5,  costBase: 300, costGrowth: 1.7, desc: (lv) => `精英圣物掉率 +${10 * lv}%` },
     ],
-    dropChance: 0.15,           // 击杀精英的战斗宝箱基础掉率15%（寻宝罗盘/保底规则仍生效）
+    dropChance: 0.15,           // 深渊精英宝箱旧规则；普通三地图已关闭精英局内宝箱
     chestOpenSec: 30,           // 宝箱开启等待时长（秒，便于真机验收，可配置调大）
   },
 

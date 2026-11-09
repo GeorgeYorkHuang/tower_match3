@@ -188,9 +188,11 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     if (color && color.s === 'chest') {
       if (color.arriving && color.replaced) return this.drawCell(ctx,x,y,cell,color.replaced,r,c,selected);
       const size=cell-4;
-      fillRoundRect(ctx,x,y,size,size,9,'#342b18');
-      strokeRoundRect(ctx,x+1,y+1,size-2,size-2,8,'#f5d17a',1.6);
-      if(!drawImg(ctx,IMG_SRC.chestClosed,x+3,y+3,size-6,size-6))text(ctx,'箱',x+size/2,y+size/2,26,'#f8da86','center');
+      const gold = color.rarity === 'ssr';
+      fillRoundRect(ctx,x,y,size,size,9,gold?'#674810':'#342b18');
+      strokeRoundRect(ctx,x+1,y+1,size-2,size-2,8,gold?'#ffe88a':'#f5d17a',gold?2.5:1.6);
+      if(!drawImg(ctx,gold?IMG_SRC.chestGold:IMG_SRC.chestClosed,x+3,y+3,size-6,size-6))text(ctx,'箱',x+size/2,y+size/2,26,'#f8da86','center');
+      if(gold)text(ctx,'SSR',x+size/2,y+size-8,12,'#fff0a0','center');
       return;
     }
     if (color && color.s === 'obstacle') {
@@ -213,18 +215,18 @@ function createBoardLayer({ drawImg, IMG_SRC, BOARD_IMG, COLOR_FILL, ChipSkin, s
     } else if (drawImg(ctx, ChipSkin.BASES[bc], x, y, size, size)) {
       const glyph = isObj ? ChipSkin.specialSrc(color) : ChipSkin.normalSrc(bc);
       if (glyph) {
-        // 子雷直接使用减去外围部件的图片，不再缩小一半或改画三角符号。
-        if (!drawImg(ctx, glyph, x, y, size, size) && isObj && color.s === 'split' && color.sub) {
-          subBlockGlyph(ctx, x, y, size);
+        // 所有特殊块都要有兜底，不能只处理子雷；图片加载中也必须能辨认功能。
+        if (!drawImg(ctx, glyph, x, y, size, size) && isObj) {
+          if (color.s === 'split' && color.sub) subBlockGlyph(ctx, x, y, size);
+          else this._specialBlockMark(ctx, x, y, size, color);
         }
       }
     } else if (base && drawImg(ctx, BOARD_IMG[base], x, y, size, size)) {
-      // 底板回退时优先保留新版子雷图标，图片未就绪才使用同系矢量兜底。
-      if (isObj && color.s === 'split' && color.sub
-        && !drawImg(ctx, ChipSkin.specialSrc(color), x, y, size, size)) {
-        subBlockGlyph(ctx, x, y, size);
+      // 旧底板也必须叠上特殊功能图案，不能显示成普通元素块。
+      if (isObj && !drawImg(ctx, ChipSkin.specialSrc(color), x, y, size, size)) {
+        if (color.s === 'split' && color.sub) subBlockGlyph(ctx, x, y, size);
+        else this._specialBlockMark(ctx, x, y, size, color);
       }
-      // 其它回退：旧整图自带符号，不再叠图案
     } else {
       fillRoundRect(ctx, x, y, size, size, 8, COLOR_FILL[base] || (isObj ? '#2c3440' : '#333'));
       ctx.fillStyle = 'rgba(0,0,0,0.18)';

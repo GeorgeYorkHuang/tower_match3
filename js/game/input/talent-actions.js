@@ -54,6 +54,8 @@ function handle(g, p) {
     isPanel = panel && String(panel.type).startsWith('talent');
   if (panel && !isPanel) return false;
   if (g.menuTab !== 'talent' && !isPanel) return false;
+  const access=require('../../talents/access.js');
+  if(!access.unlocked(g.meta)){g.menuPanel=null;g.menuTab='battle';g.toast(access.message,'#f7c948');return true;}
   const items = g.menuHits || [];
   if (isPanel) {
     const bounds = items.find((h) => h.key === 'panelBounds');

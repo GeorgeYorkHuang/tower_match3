@@ -10,7 +10,7 @@
  * 特殊块结构：{ c: 来源色, s: 形状, sub?: true }；rainbow 的 c 为 null，只绘制六色图案，不绘制底板。
  * 子雷：s === 'split' && sub === true；与父雷共用核心造型，仅去掉外围四个小球。
  *
- * 纯查表，不做运行时染色；图未就绪由 render.js 的 drawImg 返回 false 后回退旧整图。
+ * 特殊图案可按来源色生成缓存；离屏像素读写不可用时直接绘制原图，绝不返回空白成功结果。
  */
 'use strict';
 
@@ -70,6 +70,7 @@ function normalSrc(color) {
 function specialSrc(piece) {
   const shape = shapeOf(piece);
   if (!shape) return null;
+  if(shape!=='rainbow' && piece.c && BASES[piece.c])return 'chip-tint:'+piece.c+':'+shape;
   return (shape === 'rainbow' ? DIR : SPECIAL_DIR) + 'glyph_' + shape + '.png';
 }
 
@@ -95,3 +96,60 @@ module.exports = {
   configure, preload, assets,
   shapeOf, baseColorOf, normalSrc, specialSrc,
 };
+
+// 缓存最多六色×六种四消图案；失败后关闭像素着色，避免真机每帧重复读回/抛错。
+const tintCache = {};
+let tintUnavailable = false;
+const tintRGB = {red:[255,90,75],blue:[80,170,255],green:[80,230,130],yellow:[255,220,65],purple:[190,110,255],orange:[238,157,80]};
+
+function tintCanvas(width, height) {
+  if (typeof wx !== 'undefined') {
+    if (wx.createOffscreenCanvas) return wx.createOffscreenCanvas({ type: '2d', width, height });
+  }
+  return typeof document !== 'undefined' ? document.createElement('canvas') : null;
+}
+
+function drawTint(ctx, src, x, y, w, h) {
+  const [, color, shape] = src.split(':'), key = color + ':' + shape;
+  if (!tintRGB[color] || !SHAPES.includes(shape) || shape === 'rainbow') return false;
+  const img = _loadImage && _loadImage(SPECIAL_DIR + 'glyph_' + shape + '.png');
+  // 图片尚未加载属于暂态，不能永久关闭着色或缓存空白。
+  if (!img || !(img.width > 0 && img.height > 0)) return false;
+  let canvas = tintCache[key];
+  if (!canvas && !tintUnavailable) {
+    try {
+      canvas = tintCanvas(img.width, img.height);
+      if (!canvas) throw new Error('No offscreen canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const c = canvas.getContext('2d');
+      if (!c || !c.getImageData || !c.putImageData) throw new Error('No pixel readback');
+      c.drawImage(img, 0, 0);
+      const data = c.getImageData(0, 0, canvas.width, canvas.height);
+      const d = data && data.data, rgb = tintRGB[color];
+      if (!d || d.length !== canvas.width * canvas.height * 4) throw new Error('Invalid pixel buffer');
+      let visible = false;
+      for (let i = 0; i < d.length; i += 4) {
+        if (!d[i + 3]) continue;
+        visible = true;
+        const value = Math.max(d[i], d[i + 1], d[i + 2]) / 255;
+        const white = Math.max(0, (Math.min(d[i], d[i + 1], d[i + 2]) / 255 - 0.65) / 0.35) * 0.65;
+        for (let k = 0; k < 3; k++) d[i + k] = Math.round((rgb[k] * (1 - white) + 255 * white) * value);
+      }
+      // 部分绘制环境读回全透明且不抛错：不得把空画布当作已着色图标缓存。
+      if (!visible) throw new Error('Empty pixel readback');
+      c.putImageData(data, 0, 0);
+      tintCache[key] = canvas;
+    } catch (e) {
+      tintUnavailable = true;
+      canvas = null;
+    }
+  }
+  if (canvas) {
+    try { ctx.drawImage(canvas, x, y, w, h); return true; }
+    catch (e) { delete tintCache[key]; tintUnavailable = true; }
+  }
+  // 着色不可用时保留功能图案，来源色仍由底板表达。
+  ctx.drawImage(img, x, y, w, h);
+  return true;
+}
+module.exports.drawTint = drawTint;

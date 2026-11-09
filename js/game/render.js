@@ -168,6 +168,7 @@ const TIER_COLOR = { wood: '#a4713d', bronze: '#d89e63', silver: '#c9d6e4', gold
 function loadImg(src) { return imageCache.load(src); }
 /** 已加载则绘制并返回 true；否则返回 false（调用方回退） */
 function drawImg(ctx, src, x, y, w, h, crop) {
+  if(typeof src==='string'&&src.startsWith('chip-tint:'))return ChipSkin.drawTint(ctx,src,x,y,w,h);
   if (crop && crop.empty) { loadImg(src); return true; } // 空帧跳过绘制，并提前加载后续可见帧。
   // 蓝、紫、金圣遗物共用分层入口，各界面保持相同图标比例。
   if (!crop && RelicArt.handles(src)) return RelicArt.draw(ctx, src, x, y, w, h, loadImg);

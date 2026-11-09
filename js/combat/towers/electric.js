@@ -130,9 +130,9 @@ function hitElectric(combat, e, dmg, projectile = null) {
       if (combat.game.run.relic3('elec_boost')) {
         next._elecBoost = { n: (next._elecBoost ? next._elecBoost.n : 0) + 1, ttl: 3 };
       }
-      // C 回能：每次连锁命中缩短电塔攻击间隔（3%/级）
+      // C回能：命中额外目标后推进下一次普攻，缩短等待时间、提高实际攻速。
       if (chainC > 0 && combat.atkTimers.electric !== undefined) {
-        combat.atkTimers.electric = Math.max(0, combat.atkTimers.electric - combat.interval('electric') * SKILL_NUM.electric['连锁'].cooldownRefundPerBranch * chainC);
+        combat.atkTimers.electric = Math.max(0, combat.atkTimers.electric) + combat.interval('electric') * SKILL_NUM.electric['连锁'].cooldownRefundPerBranch * chainC;
       }
       hitSet.push(next);
       cur = next;

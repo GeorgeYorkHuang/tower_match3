@@ -44,7 +44,7 @@ function applyBurn(combat, e, dmg, src) {
   ttl = Math.max(ttl, SKILL_NUM.fire['点燃'].minDuration);
   ttl=TalentRuntime.statusDuration(combat.game.run,'fire',ttl);
   if (!dot) {
-    e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI, skill: '灼烧' });
+    e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: tickI, src, tickI, skill: '灼烧' });
     dot = e.dots[e.dots.length - 1];
   } else {
     dot.stack = Math.min(maxStack, dot.stack + 1);
@@ -184,7 +184,6 @@ function tickBaseStatus(combat, e, dt) {
   require('./boss-control.js').tick(e,dt);
   TalentRuntime.tick(combat,e,dt);
   if(e.hp<=0)return;
-  const boost = combat.dotBoost();
   if (e._fireWallBurnT > 0) e._fireWallBurnT = Math.max(0, e._fireWallBurnT - dt);
   if (e._seedGroundT > 0) e._seedGroundT = Math.max(0, e._seedGroundT - dt);
   // 闪电链增强3★：连锁增伤窗口递减
@@ -245,24 +244,21 @@ function tickBaseStatus(combat, e, dt) {
   if (e.dots.length) {
     for (let i = e.dots.length - 1; i >= 0; i--) {
       const d = e.dots[i];
+      const burning = d.type === 'burn';
+      const activeDt = burning ? Math.min(dt, Math.max(0, d.ttl)) : dt;
       d.ttl -= dt;
-      if (d.ttl <= 0) {
-        // 火·点燃 C 余烬：灼烧结束瞬间「余烬爆发」= 期间总灼烧伤害的 30% 立即结算
-        if (d.type === 'burn' && combat.branchLv('fire', '点燃', 'C') > 0 && d.totalDealt > 0) {
-          combat.damage(e, d.totalDealt * 0.30, 'fire');
-          combat.fxFlash(e.x, e.y, '#ff7043', 0.3);
-          combat.fxRing(e.x, e.y, '#ff7043', 36, 0.3, 3);
-        }
-        e.dots.splice(i, 1); continue;
-      }
-      d.tickT -= dt;
-      if (d.tickT <= 0) {
+      if (!burning && d.ttl <= 0) { e.dots.splice(i, 1); continue; }
+      d.tickT -= activeDt;
+      // 灼烧每0.5秒结算10%，首跳不提前；补齐到期边界与倍速跨过的有效跳数。
+      while (d.tickT <= (burning ? 1e-8 : 0) && (!burning || (activeDt > 0 && e.hp > 0))) {
         // 毒塔：中毒跳频 = 剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（freq=1/间隔，基础 1Hz/1s）；burn 等旧 DoT 保持 2Hz
         const tickI = d.freq ? 1 / d.freq : 0.5;
         d.tickT += tickI;
-        // 毒（层数×每层 dps）走 stackDps；灼烧等旧 DoT 走 dps×全局强化
+        // 新中毒创建时已计算毒性强化；灼烧直接按自身DPS结算，不能再乘毒系倍率。
         const poisonLayers = d.stack == null ? 1 : d.stack;
-        const dealt = d.stackDps ? poisonLayers * d.stackDps * tickI : d.dps * boost.dmg * tickI;
+        const damagePerSecond = d.stackDps != null ? poisonLayers * d.stackDps
+          : d.type === 'poison' ? d.dps * combat.dotBoost().dmg : d.dps;
+        const dealt = damagePerSecond * tickI;
         // 毒爆连锁3★：传染链每跳一环，毒伤 +10%（链式增伤）
         let dealtV = dealt;
         if (d.type === 'poison' && combat.game.run.relicRun('s_poison_curse') > 0) {
@@ -299,6 +295,16 @@ function tickBaseStatus(combat, e, dt) {
             combat.fxParticle(e.x + (Math.random() * 16 - 8), e.y - 8, '#7ee2a8', 3, 24, 0.5, 70, 4);
           }
         }
+        if (!burning) break; // 中毒沿用原来的逐帧单跳节奏。
+      }
+      if (burning && d.ttl <= 1e-8) {
+        // 火·点燃 C 余烬：灼烧结束瞬间「余烬爆发」= 期间总灼烧伤害的 30% 立即结算
+        if (d.type === 'burn' && combat.branchLv('fire', '点燃', 'C') > 0 && d.totalDealt > 0) {
+          combat.damage(e, d.totalDealt * 0.30, 'fire');
+          combat.fxFlash(e.x, e.y, '#ff7043', 0.3);
+          combat.fxRing(e.x, e.y, '#ff7043', 36, 0.3, 3);
+        }
+        e.dots.splice(i, 1);
       }
     }
   }

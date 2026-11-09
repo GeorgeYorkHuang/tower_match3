@@ -117,6 +117,10 @@ function onMenuTap(game, p) {
       switch (it.key) {
         case 'accountOpen': game.menuPanel = { type: 'accountMenu' }; return;
         case 'tab':
+          if(it.data==='talent'){
+            const access=require('../../talents/access.js');
+            if(!access.unlocked(game.meta)){game.toast(access.message,'#f7c948');return;}
+          }
           game.menuTab = it.data;
           game.menuPanel = null;
           return;

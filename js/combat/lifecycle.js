@@ -28,7 +28,9 @@ function reset(combat) {
   combat.mines = [];           // 炮·地雷阵（）
   combat.turrets = [];         // 炮·炮台（）
   combat.storms = [];          // 回旋镖·风暴镖（）
-  combat.windTrails = [];      // 回旋镖·风痕（）
+  combat.windTrails = [];      // 回旋镖·风痕
+  combat.pendingWindTrails = []; // 本帧待生成的等距落点
+  combat.windClock = 0;        // 战斗时钟，暂停不推进，重开不继承
   combat.vortexes = [];        // 回旋镖·风眼涡旋（2026-11-01）
   // 同步清理战斗实体 fx（弹道/风暴镖/炮台/地雷/地面持续区），避免切塔/清场/重开后幽灵残留
   const g = combat.game;

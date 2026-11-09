@@ -119,7 +119,7 @@ function experience(run, e, bonus) {
   if (run.relicNum('s_sr_cm_exp') > 0) run.relicFx('s_sr_cm_exp', `击杀经验 +${run.relicNum('s_sr_cm_exp')}%`, e.x, e.y);
 }
 function eliteChestChance(run, bonus) {
-  return Math.min(1, CONFIG.RELIC.dropChance * (1 + 0.10 * bonus.chest) * (1 + run.relicNum('s_sr_cm_bounty') / 100));
+  return Math.min(1, CONFIG.RELIC.dropChance * (1 + 0.10 * bonus.chest));
 }
 
 module.exports = { fireDeath, fireExplosionSpread, poisonEssence, poisonTrail, iceDeath, electricDeath, boomerangDeath, cannonDeath, poisonInheritanceBase, experience, eliteChestChance };

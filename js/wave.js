@@ -29,6 +29,7 @@ class WaveDirector {
     if (!keepEnemies) g.enemies = [];   // 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
+    require('./game/flows/board-chests.js').grantFirstReward(g);
     // 本波参考时长 ≈ 投放时长(数量/平均每批 × 平均间隔1.5s) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
     const avgBatch = (1 + Math.max(1, Math.ceil(g.run.wave / 5))) / 2;
     this.waveDur = Math.max(4, Math.round((this.plan.length / avgBatch) * 1.5) + 3);

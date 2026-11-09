@@ -28,8 +28,8 @@ const { EffectManager } = require('./effects.js');
 
 /* 消除经验：塔经验按消除方块计算 = 每块基础经验 × 块数 × 形状倍率（直4/L5/直5 更高） */
 function expOfShape(shape, size) {
-  const mult = CONFIG.EXP.shape[shape] || 1.0;
-  return Math.floor((CONFIG.EXP.perCell * size) * mult);
+  const mult = size>=5 || ['5','L5','6+'].includes(shape) ? 1.5 : size===4 || shape==='4' ? 1.2 : 1;
+  return CONFIG.EXP.perCell * size * mult;
 }
 
 /** 可复现随机（mulberry32） */
@@ -140,7 +140,7 @@ class Run {
     if (this.relicRun(id) <= 0) return 0;
     const star = this._testStar3 && this._testStar3[id] ? 3
       : Math.max(this._talentCenterId===id?1:0,(this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1);
-    return CONFIG.relicNum(id, star);
+    return CONFIG.relicNum(id, star) * (CONFIG.relicRarity(id)==='r'?this.relicRun(id):1);
   }
 
   /** 新卡表显式数值字段读取；旧卡继续通过 relicNum 的兼容读取。 */
@@ -148,7 +148,7 @@ class Run {
     if (this.relicRun(id) <= 0 || typeof CONFIG.relicValue !== 'function') return 0;
     const star = this._testStar3 && this._testStar3[id] ? 3
       : Math.max(this._talentCenterId===id?1:0,(this.metaRef && this.metaRef.starOf) ? this.metaRef.starOf(id) : 1);
-    return CONFIG.relicValue(id, effect, star);
+    return CONFIG.relicValue(id, effect, star) * (CONFIG.relicRarity(id)==='r'?this.relicRun(id):1);
   }
 
   /** 3★ 质变行为生效判定：STAR3_ENABLED 开启 + 拥有 + 星级≥3；模拟层无 metaRef 按 false（不生效）
@@ -309,7 +309,7 @@ class Run {
   applyMatch(color, shape, size, energyCells = size) {
     TalentRuntime.gain(this,color,energyCells);
     const energyBonus = this.relicNum('cm_ammobox');
-    const exp = expOfShape(shape, size);
+    const exp = energyCells===0 ? 0 : expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
     // 连锁反应：三消触发4连概率 +N%（本次按直4 结算；模拟层按 1★ 数值）
     ({ shape, size } = MatchRelics.beforeMatch(this, shape, size));
@@ -372,13 +372,19 @@ class Run {
   _blastReward(st) {
     let gain = 0;
     const seen = new Set();
+    let exp=0;
+    const perCell=new Map();
+    for(const m of st.matches||[]){const mult=m.size>=5?1.5:m.size===4?1.2:1;for(const pos of m.cells||[]){const key=pos[0]+','+pos[1];perCell.set(key,Math.max(perCell.get(key)||1,mult));}}
+    const blastMult=(st.matches||[]).reduce((n,m)=>Math.max(n,m.size>=5?1.5:m.size===4?1.2:1),1);
     for (const cell of st.clearedDetails || []) {
       const id = cell.r + ',' + cell.c;
       if (seen.has(id)) continue; seen.add(id);
       if (!cell.color) continue;
       const t = this.effects.tower(CONFIG.COLORS[cell.color] && CONFIG.COLORS[cell.color].tower);
       if (!t) continue;
-      const amount = this._energyGain('3', 1);
+      const mult=perCell.get(id)||blastMult;
+      exp+=CONFIG.EXP.perCell*mult;
+      const amount = this._energyGain('3', 1)*mult;
       if (t.level > 0) {
         const before = t.energy;
         t.energy = Math.min(before + amount, this.armoryEnergyMax(t.key));
@@ -390,6 +396,7 @@ class Run {
         if (which) this._chargeAmmo(which,amount * (1 + this.relicNum('cm_charge') / 100));
       }
     }
+    if(exp>0)this.gainExp(this._relicExp(exp,'3',seen.size));
     return gain;
   }
 
@@ -444,7 +451,7 @@ class Run {
 
   /** 塔色消除供能（能量口径）：3消 +6 / 4消 +12 / 5消（L5/直5）+20 / 5消以上(x块) 20+6(x-5)；军火库 A +25%/级 */
   _energyGain(shape, size) {
-    let base = Math.max(0, size) * CONFIG.GLOBAL_SKILL.energyPerBlock;
+    let base = Math.max(0, size) * CONFIG.GLOBAL_SKILL.energyPerBlock * (size>=5 || ['5','L5','6+'].includes(shape)?1.5:size===4 || shape==='4'?1.2:1);
     const a = this.armory();
     if (a && a.lv > 0) base *= (1 + TOWER_SKILLS.cannon['军火库'].fillPerBranch * a.a);
     return base;

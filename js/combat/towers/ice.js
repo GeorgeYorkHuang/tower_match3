@@ -151,7 +151,9 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
     const len = Math.hypot(e.x - msx, e.y - msy) || 1;
     const dx = (e.x - msx) / len, dy = (e.y - msy) / len;   // 弹道方向（继续向前 = 敌人身后）
     const n = SKILL_NUM.ice['碎冰'].count + combat.branchLv('ice', '碎冰', 'A');
-    const dmg = combat.shotDmg('ice', false, true) * SKILL_NUM.ice['碎冰'].baseDamage * (1 + SKILL_NUM.ice['碎冰'].dmg[combat.branchLv('ice', '碎冰', 'B')]);
+    // 继承本次冰锥的伤害：小冰锥、多重与穿透的倍率已包含在dmg中，不能重新取完整塔攻击。
+    // 基础65%；B碎劲在此基础上增加15%/30%/45%，原冰锥的增伤只计算一次。
+    const shardDamage = dmg * SKILL_NUM.ice['碎冰'].baseDamage * (1 + SKILL_NUM.ice['碎冰'].dmg[combat.branchLv('ice', '碎冰', 'B')]);
     const frzP = SKILL_NUM.ice['碎冰'].frz[combat.branchLv('ice', '碎冰', 'C')];
     const sx = e.x + dx * SKILL_NUM.ice['碎冰'].spawnOffset, sy = e.y + dy * SKILL_NUM.ice['碎冰'].spawnOffset;   // 越过主目标，避免立即重复命中
     const R = combat.range('ice');
@@ -191,7 +193,7 @@ function hitIce(combat, e, dmg, projectile = null, options = {}) {
       const tx = sx + Math.cos(a) * R;
       const ty = sy + Math.sin(a) * R;
       const shardDur = Math.hypot(tx - sx, ty - sy) / speed;
-      combat.addProjectile({ key: 'ice', scatter: true, dmg, t: 0, dur: shardDur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur: shardDur, key: 'ice', aim: true, scale: 0.85, tx, ty });
+      combat.addProjectile({ key: 'ice', scatter: true, dmg: shardDamage, t: 0, dur: shardDur, sx, sy, tx, ty, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur: shardDur, key: 'ice', aim: true, scale: 0.85, tx, ty });
     }
   }
   // 冰穿刺（重做，原「冰锥穿透」未实装补全）：弹道可穿透敌人（基础 1 名）

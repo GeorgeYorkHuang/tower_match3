@@ -3,6 +3,7 @@ const PickReroll = require('../../economy/pick-reroll.js');
 const CONFIG = require('../../config.js');
 const RelicKill = require('../../relics/kill-hooks.js');
 const GS_BALANCE = require('../../config/global-balance.js');
+const BattleDrops = require('../../relics/battle-drops.js');
 
 module.exports = {
   onKillReward(e) {
@@ -13,8 +14,8 @@ module.exports = {
     RelicKill.experience(this.run, e, b);
     // ：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（设计：波末逐次结算）
-    // 精英怪：概率掉落战场宝箱（寻宝罗盘加成；赏金猎人 +N%）；赏金猎人3★ 连续3波无宝箱必掉
-    if (e.type === 'elite') {
+    // 普通三地图改为固定节点；深渊暂沿用原精英掉落，银币/经验/碎片不受影响。
+    if (!BattleDrops.scheduled(this) && e.type === 'elite') {
       const chance = RelicKill.eliteChestChance(this.run, b);
       if (Math.random() < chance) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
@@ -22,16 +23,18 @@ module.exports = {
         this.toast('精英宝箱 · 消除棋盘相邻方块领取', '#f7c948');
       }
     }
-    // Boss：掉落战场宝箱（棋盘相邻消除领取）+ 主界面宝箱计数（每 5 波）
-    if (e.isBoss) {
+    // 同一波Boss只发一份宝箱和碎片；银币、经验仍逐个敌人结算。
+    const bossReward = BattleDrops.claimBoss(this, e);
+    if (bossReward) {
       const red=require('../../relics/red-boss-drop.js').grant(this,e);
       if(red)this.toast('圣庭红卡碎片 +'+red.n+'（局末结算）','#ff8e80');
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = waveNo > 0 && waveNo % 20 === 0;
-      const bountyMult = 1 + this.run.relicNum('s_sr_cm_bounty') / 100;
-      const chestChance = Math.min(1, (majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance) * bountyMult);
-      const fieldChestDropped = !e.isFinalBoss && Math.random() < chestChance;
-      if (fieldChestDropped) {
+      // 普通三地图W20/40保底全金，W55之后不发局内宝箱；深渊保留原Boss概率。
+      const fieldChestDropped = !BattleDrops.scheduled(this) && !e.isFinalBoss &&
+        Math.random() < (majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance);
+      if (BattleDrops.scheduled(this)) BattleDrops.grantBossChest(this, e);
+      else if (fieldChestDropped) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: majorBoss ? 'majorBoss' : 'miniBoss' });
         this.run._waveChestDropped = true;
         this.toast(majorBoss ? '大Boss宝箱 · 消除棋盘相邻方块领取' : '小Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
@@ -48,10 +51,10 @@ module.exports = {
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = !!e.isBoss && waveNo > 0 && waveNo % 20 === 0;
       if (e.type === 'elite' && Math.random() < KD.eliteShardChance) n = 1;
-      if (e.isBoss && majorBoss) {
+      if (bossReward && majorBoss) {
         n = KD.majorBossShardBase;
         if (Math.random() < KD.majorBossShardBonusChance) n += KD.majorBossShardBonusMin + Math.floor(Math.random() * (KD.majorBossShardBonusMax - KD.majorBossShardBonusMin + 1));
-      } else if (e.isBoss && Math.random() < KD.miniBossShardChance) {
+      } else if (bossReward && Math.random() < KD.miniBossShardChance) {
         n = KD.miniBossShardMin + Math.floor(Math.random() * (KD.miniBossShardMax - KD.miniBossShardMin + 1));
       }
       if (n > 0) {
@@ -82,26 +85,27 @@ module.exports = {
     return n + CONFIG.RELIC_RUN.common.length + (CONFIG.RELIC_RUN.ur || []).length;
   },
 
-  spawnRelicPick(mode) {
+  spawnRelicPick(mode, options = {}) {
     const star3Mode = mode === 'star3';
-    const cands = this._rollRelicCandidates(star3Mode);
+    const rarity = options.rarity === 'ssr' ? 'ssr' : undefined;
+    const cands = this._rollRelicCandidates(star3Mode, { rarity });
     if (star3Mode && (!cands || !cands.length)) {
       this.toast('尚未拥有任何圣遗物，先解锁 1 个再来测试 3★', '#9fb2c3'); this._chestBusy = false; return;
     }
     if (!star3Mode && (!cands || !cands.length)) {
-      this.toast('当前没有可用圣遗物候选', '#9fb2c3');
+      if (!BattleDrops.emptyGold(this, rarity)) this.toast('当前没有可用圣遗物候选', '#9fb2c3');
       this._chestBusy = false;
       return;
     }
-    this.pendingRelicPicks.push({ candidates: cands, ...(star3Mode ? { star3: true } : {}) });
+    this.pendingRelicPicks.push({ candidates: cands, ...(star3Mode ? { star3: true } : {}), ...(rarity ? { rarity } : {}) });
     this._chestBusy = false; // 动画完成解锁战斗输入
   },
 
-  _rollRelicCandidates(star3Mode) {
+  _rollRelicCandidates(star3Mode, options = {}) {
     const RR = CONFIG.RELIC_RUN;
     const star3 = !!star3Mode;
     // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
-    const ownedKeys = this.run.slotOrder || [];
+    const ownedKeys = options.opening ? Object.keys(RR.tower) : (this.run.slotOrder || []);
     const meta = this.meta;
     // 宝箱负责本局圣遗物构筑；已解锁与未解锁圣遗物均可进入候选池。碎片只由Boss击杀线发放。
     let pool = [];
@@ -125,7 +129,14 @@ module.exports = {
     RR.common.forEach((d) => { pool.push({ def: d, tint: 'common' }); });
     const selected = new Set(this.runRelics || []);
     Object.entries(this.run.runRelic || {}).forEach(([id, count]) => { if (count > 0) selected.add(id); });
-    pool = pool.filter(p => !selected.has(p.def.id));
+    pool = pool.filter(p => CONFIG.relicRarity(p.def.id)==='r' || !selected.has(p.def.id));
+    if (options.rarity === 'ssr') {
+      pool = pool.filter(p => CONFIG.relicRarity(p.def.id) === 'ssr');
+      // 在场塔与通用SSR用尽后，补未获得的其他塔系SSR；从不降级或复用已得金卡。
+      if (!pool.length) Object.entries(RR.tower).forEach(([key, cards]) => {
+        cards.forEach(def => { if (CONFIG.relicRarity(def.id) === 'ssr' && !selected.has(def.id)) pool.push({ def, tint: key }); });
+      });
+    }
     if (!pool.length) return null;
     // 稀有度权重：依次抽 3 个稀有度，每个稀有度随机抽 1 张（已用不重复；稀有度无剩余时从全池补）
     const W = CONFIG.RELIC_PICK_WEIGHT;
@@ -137,7 +148,7 @@ module.exports = {
     const cands = [];
     const used = new Set();
     for (let i = 0; i < 3; i++) {
-      const rar = pickRar();
+      const rar = options.rarity === 'ssr' ? 'ssr' : pickRar();
       let tier = pool.filter((p) => CONFIG.relicRarity(p.def.id) === rar && !used.has(p.def.id));
       if (!tier.length) tier = pool.filter((p) => !used.has(p.def.id));
       if (!tier.length) break;
@@ -150,11 +161,12 @@ module.exports = {
 
   rerollRelicPick() {
     if (!this.relicPick) return false;
-    const res = PickReroll.reroll(this.run, () => this._rollRelicCandidates(!!this.relicPick.star3));
+    const res = PickReroll.reroll(this.run, () => this._rollRelicCandidates(!!this.relicPick.star3, this.relicPick), 'relic');
     if (!res.ok) { this.toast(res.reason === 'gold' ? '银币不足（需' + res.cost + '）' : '暂无可用候选', '#ffb480'); return false; }
     const cost = res.cost;
     this.relicPick.rerolls = (this.relicPick.rerolls || 0) + 1;
     this.relicPick.candidates = res.result;
+    this.relicPick.t = Date.now();
     this.relicPickHits = []; // 命中区随候选刷新
     this.toast(`已重掷 · 消耗 ${cost} 🪙`, '#f7c948');
     return true;
@@ -163,11 +175,13 @@ module.exports = {
   relicPickChoice(i) {
     const c = this.relicPick && this.relicPick.candidates[i];
     if (!c) return;
+    const opening = !!this.relicPick.opening;
     const testingStar3 = this.relicPick.star3 || (this._relicReturnState === 'testfield' && this._lastPickStar3);
-    if (c.run && !testingStar3 && ((this.run.runRelic[c.id] || 0) > 0 || (this.runRelics || []).includes(c.id))) {
-      const candidates = this._rollRelicCandidates(false) || [];
+    if ((this.relicPick.rarity === 'ssr' && CONFIG.relicRarity(c.id) !== 'ssr') ||
+        (c.run && CONFIG.relicRarity(c.id)!=='r' && !testingStar3 && ((this.run.runRelic[c.id] || 0) > 0 || (this.runRelics || []).includes(c.id)))) {
+      const candidates = this._rollRelicCandidates(false, this.relicPick) || [];
       if (candidates.length) this.relicPick.candidates = candidates;
-      else { this.relicPick = null; this.state = this._relicReturnState || 'fighting'; this._relicReturnState = null; }
+      else { BattleDrops.emptyGold(this, this.relicPick.rarity); this.relicPick = null; this.state = this._relicReturnState || 'fighting'; this._relicReturnState = null; }
       this.relicPickHits = [];
       this.toast('该圣遗物本局已获得，已刷新候选', '#f7c948');
       return;
@@ -202,6 +216,7 @@ module.exports = {
     // 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
     this.state = this._relicReturnState || 'fighting';
     this._relicReturnState = null;
+    if (opening) require('../../relics/opening-pick.js').finish(this);
     if (this.pendingRelicPicks.length) return; // 还有宝箱：下帧继续弹
     if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades(); // 顺带处理升级待选
   }

@@ -44,16 +44,16 @@ module.exports = {
     // 不按测试号日志规则隐藏。
     sources: null,
     size: { base: 22, big: 28, dot: 16, crit: 30 },
-    life: { base: 0.6, dot: 0.55, big: 0.7 },
-    motion: { horizontalSpeed: 110, launchSpeed: 240, gravity: 1200, fadeStart: 0.45 },
-    rise: 46,                // 整个生命周期上飘的像素
-    drift: 10,               // 横向漂移上限（确定性哈希，不消耗逻辑 RNG）
+    life: { base: 1.10, dot: 1.10, big: 1.20 },
+    // 中心起跳0.24秒→固定悬停0.5秒→右下抛物线掉落；悬停不位移、不淡出。
+    motion: { riseDuration: 0.24, holdDuration: 0.5, riseX: 38, riseY: 40, fallX: 45, fallY: 60 },
     stack: { step: 22, max: 4 },        // 同一个敌人同时多条时的纵向错位
     merge: { window: 0.12, kinds: ['dot'], maxPerEnemy: 6 },   // 密集 DoT 合并（只减视觉，不减真实伤害）
     bigAt: 100,              // ≥ 该值放大字号
     format: { wanAt: 10000, wanDigits: 1, maxText: '9999万+' },
     maxActive: 60,           // 表现上限：超出丢最旧（仅表现，不影响伤害结算）
     fadeIn: 0.08,            // 出现淡入时长（秒）
+    outline: { color: 'rgba(6,12,20,0.9)', width: 3 }, // 深描边提高草地/特效上的辨识度。
   },
 };
 

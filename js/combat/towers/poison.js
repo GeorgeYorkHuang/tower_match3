@@ -33,7 +33,7 @@ function tickPoison(combat, dt) {
       combat.fxParticle(tgt.x, tgt.y, '#28b463', 8, 60, 0.6, 60, 5);
     }
   }
-  // 毒·毒棒：周期召唤 2 根毒棒（A 数量 +1/级；B 持续 +2s 且 CD -0.5s/级），每根每秒攻击，50% 概率附毒。
+  // 毒·毒棒：每6秒召唤2根，基础持续8秒；B每级延长1秒，不再缩短召唤间隔。
   const stick = combat.lv('poison', '毒棒');
   if (stick > 0) {
     combat.timers.stick = (combat.timers.stick || 0) + dt;
