@@ -44,9 +44,9 @@ module.exports = {
     // 不按测试号日志规则隐藏。
     sources: null,
     size: { base: 22, big: 28, dot: 16, crit: 30 },
-    life: { base: 1.10, dot: 1.10, big: 1.20 },
-    // 中心起跳0.24秒→固定悬停0.5秒→右下抛物线掉落；悬停不位移、不淡出。
-    motion: { riseDuration: 0.24, holdDuration: 0.5, riseX: 38, riseY: 40, fallX: 45, fallY: 60 },
+    life: { base: 0.60, dot: 0.60, big: 0.70 },
+    // 中心向右上起跳0.24秒，随后直接向右下抛物线掉落淡出，不悬停。
+    motion: { riseDuration: 0.24, holdDuration: 0, riseX: 38, riseY: 40, fallX: 45, fallY: 60 },
     stack: { step: 22, max: 4 },        // 同一个敌人同时多条时的纵向错位
     merge: { window: 0.12, kinds: ['dot'], maxPerEnemy: 6 },   // 密集 DoT 合并（只减视觉，不减真实伤害）
     bigAt: 100,              // ≥ 该值放大字号

@@ -331,7 +331,7 @@ class GameMain {
       }
       // 主战斗加速：战斗逻辑时间按倍速推进（UI/特效动画保持真实帧速）
       const bdt = dt * this.runSpeed;
-      this.dmgNumbers.step(dt); // 阅读时间不随战斗倍速缩短，悬停始终为实际0.5秒。
+      this.dmgNumbers.step(dt); // 数字动画按实际时间推进，不随战斗倍速缩短。
       if(!this.run.bossLock)this.waveTime += bdt;
       BoardChests.tick(this, bdt);
       // 陆续投放本波敌人（非一次性同屏）

@@ -81,10 +81,9 @@ try {
     const rising = n.visible()[0]; assert(rising.x > 300 && rising.y < 400);
     n.step(0.12);
     const peak = n.visible()[0]; assert.equal(peak.alpha, 1);
-    for (let i = 0; i < 5; i++) {
-      n.step(0.1); const held = n.visible()[0];
-      eps(held.x, peak.x); eps(held.y, peak.y); assert.equal(held.alpha, 1); assert.equal(held.color, peak.color);
-    }
+    n.step(0.001);
+    const afterPeak = n.visible()[0];
+    assert(afterPeak.x > peak.x && afterPeak.y > peak.y && afterPeak.alpha < 1, 'Must fall immediately without holding');
     n.step(0.1);
     const falling = n.visible()[0];
     assert(falling.x > peak.x && falling.y > peak.y && falling.alpha < 1);
@@ -92,13 +91,13 @@ try {
   }
   for (const fps of [30, 60, 120]) {
     const n = Numbers.create(); n.push({ enemyId: 2, x: 100, y: 200, amount: 20, sourceKey: 'fire' });
-    let peak;
+    let previous;
     for (let frame = 1; frame <= fps; frame++) {
       n.step(1 / fps); const v = n.visible()[0];
       const t = frame / fps;
-      if (t > 0.24 + 1e-6 && t < 0.74 - 1e-6) {
-        if (!peak) peak = v;
-        eps(v.x, peak.x); eps(v.y, peak.y); assert.equal(v.alpha, 1);
+      if (v && t > 0.24 + 1e-6) {
+        if (previous) assert(v.x > previous.x && v.y > previous.y && v.alpha < previous.alpha);
+        previous = v;
       }
     }
   }
@@ -110,7 +109,7 @@ try {
   stacked.push({ enemyId: 3, x: 50, y: 70, amount: 20 });
   stacked.push({ enemyId: 3, x: 50, y: 70, amount: 30 });
   assert(stacked.visible().every(v => v.x === 50 && v.y === 70), 'Stacking must not move the origin');
-  console.log('PASS: device canvas/readback/empty-buffer/draw failures preserve all special glyphs; tint cache and alpha; all-shape fallbacks; exact center origin; 0.5s opaque stationary hold; parabolic fall/fade at30/60/120Hz; no combat RNG or HP changes.');
+  console.log('PASS: device canvas/readback/empty-buffer/draw failures preserve all special glyphs; tint cache and alpha; all-shape fallbacks; exact center origin; immediate parabolic fall/fade without holding at30/60/120Hz; no combat RNG or HP changes.');
 } finally {
   if (savedWx === undefined) delete global.wx; else global.wx = savedWx;
   if (savedDocument === undefined) delete global.document; else global.document = savedDocument;

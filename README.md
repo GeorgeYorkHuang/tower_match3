@@ -2,7 +2,7 @@
 
 三消 × 塔防 × roguelike 小游戏。逻辑画布 750×1626 竖屏，CommonJS 模块。
 
-本次Git发布：**V1.18.8**。变更与验证见[发布记录](docs/releases/v1.18.8.md)，游戏版本统一读取`js/config/version.js`。
+本次Git发布：**V1.18.9**。变更与验证见[发布记录](docs/releases/v1.18.9.md)，游戏版本统一读取`js/config/version.js`。
 
 ## 设计文档
 
