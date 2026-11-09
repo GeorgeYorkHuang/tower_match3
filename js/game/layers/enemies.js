@@ -27,12 +27,14 @@ const ENEMY_ART_FALLBACK = { normal: 13, runner: 14, tank: 12, elite: 14 };
 const ENEMY_ART_FRAMES = { 4: 6, 5: 6, 6: 6, 7: 6, 8: 6, 10: 6, 11: 6, 12: 12, 13: 6, 14: 6 };   // Lv4-8/10/11/13/14 无腿悬浮·飞行怪 6 帧；Lv12 v3 滚石形态：单帧程序化旋转 12 帧（30°/帧）
 const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120, 12: 130, 13: 150, 14: 100 };
   function preloadBoss(id) {
+    if(id==='altar_rosea')loadImg('assets/images/monsters/bosses/altar_rosea/models-v2.png');
     const a = BOSS_ART[id];
     if (a && a.src) loadImg(a.src);
     if (id === 'altar_galvin' && IMG_SRC.boss_altar_galvin_twin) loadImg(IMG_SRC.boss_altar_galvin_twin);
   }
 
   function enemies(ctx, enemies, splitVisual) {
+    ApprovedDebuffs.beginFrame();
     const split = splitVisual && splitVisual.t < splitVisual.duration ? splitVisual : null;
     enemies.forEach((e) => {
       const isElite = e.type === 'elite';
@@ -55,7 +57,7 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
       this.drawEnemyBody(ctx, e, x, y - kick, size, isElite);
       if (hit > 0) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha *= HitFeedback.brightness(e);
-        this.drawEnemyBody(ctx, e, x, y - kick, size, isElite);
+        this.drawEnemyBody(ctx, e, x, y - kick, size, isElite, false);
         ctx.restore();
       }
       this.drawEnemyDebuffs(ctx, e, x, y, size);
@@ -95,7 +97,7 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     ctx.restore();
   }
 
-  function drawEnemyBody(ctx, e, x, y, size, isElite) {
+  function drawEnemyBody(ctx, e, x, y, size, isElite, overlays = true) {
     // 敌人本体：优先按代际等级播放帧循环动画（lv1-14 sprite sheet；Lv12-14 为 8 帧，其余 5 帧），
     // 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
@@ -115,31 +117,48 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     const fallbackColor = e.isBoss ? '#c0392b' : (isElite ? '#6e8566' : (e.type === 'runner' ? '#2e86c1' : (e.type === 'tank' ? '#8e6b3a' : '#7f8c8d')));
     const fallbackText = e.isBoss ? 'BOSS' : (isElite ? '精' : (e.type === 'runner' ? '快' : (e.type === 'tank' ? '盾' : '👾')));
     const elite = isElite && EliteFx.eligible(e);
-    if (elite) EliteFx.drawBase(ctx, e, x, y, size);
-    const drawn = animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames) : false;
+    if (elite && overlays) EliteFx.drawBase(ctx, e, x, y, size);
+    const rosea = e.bossId === 'altar_rosea' || (!e.isBoss && e.isSummon && e.waveNo === 20);
+    const model = rosea && loadImg('assets/images/monsters/bosses/altar_rosea/models-v2.png');
+    let roseaDrawn=false;
+    if(model && model.width){const n=e.isBoss?(e.phase>=2?1:0):2,sw=model.width/3,now=(this.animNow||0)/1000;
+      const h=size*(1+Math.sin(now*2.5)*.012),yy=y+size-h;
+      ctx.drawImage(model,n*sw,0,sw,model.height,x,yy,size,h);
+      if(overlays)ApprovedDebuffs.draw(ctx,model,{x:n*sw,y:0,w:sw,h:model.height},e,x,yy,size,(this.animNow||0));roseaDrawn=true;}
+    const drawn = roseaDrawn || (animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames, overlays) : false);
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
     }
-    if (elite) {
+    if (elite && overlays) {
       const band = drawn && EliteFx.sweep(e, x, y, size);
       if (band && band.alpha > 0) {
         ctx.save(); ctx.beginPath(); ctx.rect(band.x, band.y, band.w, band.h); ctx.clip();
         ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha *= band.alpha;
-        this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames);
+        this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames, false);
         ctx.restore();
       }
       EliteFx.drawBadge(ctx, e, x, y, size);
     }
   }
 
-  function drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) {
+  function drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames, overlays = true) {
     const img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     // 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
       // frames：专属 Boss 表传入的帧数（6或8）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
+      // Lv9 uses one floating body; same battle clock/transform for normal, elite, hit and debuff passes.
+      if (!frames && !e.isBoss && !e.isSummon && imgLv === 9) {
+        const t=now/1000 + ((e.id||0)*0.173), h=size*img.height/img.width;
+        const cx=x+size/2, cy=y+size*.75+Math.sin(t*2)*size*.025;
+        ctx.save();ctx.translate(cx,cy);ctx.rotate(Math.sin(t*1.4)*.018);
+        ctx.translate(-size/2,-size*.75);ctx.scale(1,h/size);
+        ctx.drawImage(img,0,0,img.width,img.height,0,0,size,size);
+        if(overlays)ApprovedDebuffs.draw(ctx,img,{x:0,y:0,w:img.width,h:img.height},e,0,0,size,now);
+        ctx.restore();return true;
+      }
       const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
       const atlas = e.isBoss && BOSS_ART[e.bossArtKey || e.bossId];
       let f;
@@ -167,12 +186,13 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         const inset = atlas.inset || 0;
         const ix = Math.round(sw * inset), iy = Math.round(sh * inset);
         ctx.drawImage(img, sx + ix, sy + iy, sw - ix * 2, sh - iy * 2, x, y, size, size);
-        ApprovedDebuffs.draw(ctx,img,{x:sx+ix,y:sy+iy,w:sw-ix*2,h:sh-iy*2},e,x,y,size,now);
+        if (overlays) ApprovedDebuffs.draw(ctx,img,{x:sx+ix,y:sy+iy,w:sw-ix*2,h:sh-iy*2},e,x,y,size,now);
         return true;
       }
       const fw = img.width / frameCount, fh = img.height;
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
-      ApprovedDebuffs.draw(ctx,img,{x:fw*f,y:0,w:fw,h:fh},e,x,y,size,now);
+      // 受击提亮和精英扫光只重绘本体，避免同一状态特效重复叠加。
+      if (overlays) ApprovedDebuffs.draw(ctx,img,{x:fw*f,y:0,w:fw,h:fh},e,x,y,size,now);
       return true;
     } catch (err) {
       return false; // 动画帧绘制异常：回退旧图，不中断渲染

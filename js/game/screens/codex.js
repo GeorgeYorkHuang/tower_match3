@@ -227,7 +227,7 @@ function createCodexScreen(deps) {
       fillRoundRect(ctx, cx0 + 22, cy0 + 121, cw - 44, 1, 0.5, 'rgba(255,255,255,0.10)');
       lvls.forEach((t, li) => {
         const ry2 = cy0 + 143 + li * 25;
-        text(ctx, `Lv${li + 2}→Lv${li + 3}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
+        text(ctx, `Lv${li + 1}→Lv${li + 2}`, cx0 + 104, ry2, 22, '#f7c948', 'left');
         const ln = fit(t, cw - 220, 22);
         text(ctx, ln, cx0 + 200, ry2, 22, '#9fb2c3', 'left');
       });

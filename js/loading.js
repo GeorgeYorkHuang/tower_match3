@@ -1,181 +1,81 @@
 /**
- * loading.js —— 启动加载页 + 分包加载（）
- * 流程：进入游戏即显示加载页（标题+进度条+百分比）→ wx.loadSubpackage('assets') 加载素材分包
- * → 加载完成(100%)后才 require 游戏主体（main.js 顶层副作用会 new GameMain 并启动渲染循环）；
- * 失败时显示"点击重试"，重新发起分包加载。
- * 主画布复用：先取并缓存主画布（canvas.js getMainCanvas），游戏主体 initCanvas 复用同一画布。
+ * 启动加载页：素材包显示平台真实百分比，游戏初始化等待首帧确认。
+ * 不使用假进度或固定15秒失败；慢加载继续等待，真实失败按阶段提示并允许重试。
+ * 主画布与游戏复用；启动失败重绘时恢复物理像素坐标，避免继承游戏缩放。
  */
+'use strict';
 const { getMainCanvas, ensureCanvasSize } = require('./game/canvas.js');
-
-const _c = getMainCanvas();
-ensureCanvasSize(_c);
-const cvs = _c || null;
+const Boot = require('./game/boot.js');
+const LoadingFlow = require('./game/loading-flow.js');
+const canvas = getMainCanvas();
+ensureCanvasSize(canvas);
 let ctx = null;
-if (cvs) {
-  try { ctx = cvs.getContext('2d'); } catch (e) { ctx = null; }
-}
-const W = cvs ? cvs.width : 750;
-const H = cvs ? cvs.height : 1334;
+try { ctx = canvas && canvas.getContext('2d'); } catch (error) { /* 主入口会输出环境诊断。 */ }
 
-let curProgress = 0;
-let loadingFailed = false;
-let fakeTimer = null;   // 兜底进度定时器：不依赖 onProgressUpdate，任何环境都有可见进度条
-let loadedOk = false;   // 分包加载成功标记（超时保护用）
-const FAKE_STEP = 4;    // 每 100ms +4 → 0→90 约 2.3s
-const FAKE_INTERVAL = 100;
-const LOAD_TIMEOUT = 15000;   // 15s 分包未完成 → 显示重试
-
-function rrect(x, y, w, h, r) {
-  const rr = Math.min(r, h / 2, w / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + w - rr, y);
-  ctx.arc(x + w - rr, y + rr, rr, -Math.PI / 2, 0);
-  ctx.lineTo(x + w, y + h - rr);
-  ctx.arc(x + w - rr, y + h - rr, rr, 0, Math.PI / 2);
-  ctx.lineTo(x + rr, y + h);
-  ctx.arc(x + rr, y + h - rr, rr, Math.PI / 2, Math.PI);
-  ctx.lineTo(x, y + rr);
-  ctx.arc(x + rr, y + rr, rr, Math.PI, Math.PI * 1.5);
-  ctx.closePath();
+function roundRect(x, y, w, h, radius) {
+  const r = Math.min(radius, h / 2, w / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.arc(x + w - r, y + r, r, -Math.PI / 2, 0); ctx.lineTo(x + w, y + h - r);
+  ctx.arc(x + w - r, y + h - r, r, 0, Math.PI / 2); ctx.lineTo(x + r, y + h);
+  ctx.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI); ctx.lineTo(x, y + r);
+  ctx.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5); ctx.closePath();
 }
 
-function draw() {
-  if (!ctx) return;
-  ctx.clearRect(0, 0, W, H);
-  // 深色底 + 火纹标题
-  ctx.fillStyle = '#14181d';
-  ctx.fillRect(0, 0, W, H);
-  const cx = W / 2;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ff7a2f';
-  ctx.font = `bold ${Math.round(W * 0.075)}px sans-serif`;
-  ctx.fillText('圣坛裂痕', cx, H * 0.34);
-  ctx.fillStyle = '#8fa3b5';
-  ctx.font = `${Math.round(W * 0.03)}px sans-serif`;
-  ctx.fillText('正在加载游戏素材…', cx, H * 0.42);
-
-  // 进度条胶囊（圆角）
-  const bw = W * 0.62;
-  const bh = Math.max(16, Math.round(H * 0.02));
-  const bx = cx - bw / 2;
-  const by = H * 0.52;
-  const r = bh / 2;
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  rrect(bx, by, bw, bh, r);
-  ctx.fill();
-  const ratio = Math.max(0, Math.min(1, curProgress / 100));
-  if (ratio > 0) {
-    const gw = bw * ratio;
-    const grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-    grad.addColorStop(0, '#ff8c3a');
-    grad.addColorStop(1, '#ffb03a');
-    ctx.fillStyle = grad;
-    rrect(bx, by, gw, bh, r);
-    ctx.fill();
-    // 高光
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    rrect(bx, by, gw, bh * 0.45, r);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = '#e6eef4';
-  ctx.font = `bold ${Math.round(W * 0.045)}px sans-serif`;
-  ctx.fillText(loadingFailed ? '加载失败' : `${Math.round(curProgress)}%`, cx, by + bh + H * 0.045);
-  if (loadingFailed) {
-    ctx.fillStyle = '#ffb03a';
-    ctx.font = `bold ${Math.round(W * 0.04)}px sans-serif`;
-    ctx.fillText('点击屏幕重试', cx, by + bh + H * 0.10);
-  }
-  if (typeof wx !== 'undefined' && wx.onCanvasTouchStart && !loadingFailed) {
-    // 基础库较新环境：小游戏默认监听 touchstart（wx.onTouchStart）
-  }
-}
-
-function startFakeProgress() {
-  stopFakeProgress();
-  fakeTimer = setInterval(() => {
-    if (loadedOk) return;   // 已加载成功：等待 success 收尾，不再推进
-    if (curProgress < 90) { curProgress += FAKE_STEP; draw(); }
-  }, FAKE_INTERVAL);
-}
-function stopFakeProgress() {
-  if (fakeTimer) { clearInterval(fakeTimer); fakeTimer = null; }
-}
-
-function startGame() {
+function draw(state) {
+  // 首帧已经显示游戏画面，加载页不再覆盖它。
+  if (!ctx || state.phase === 'ready') return;
+  const w = canvas.width || 750, h = canvas.height || 1334, cx = w / 2;
+  const failed = state.phase === 'failed', starting = state.phase === 'starting';
+  const known = !starting && state.percent !== null;
+  ctx.save();
   try {
-    require('./game/main.js');
-  } catch (err) {
-    console.error('[圣坛裂痕] 游戏主体启动失败：', err);
-    loadingFailed = true;
-    curProgress = 0;
-    draw();
-  }
-}
-
-function loadAssets() {
-  loadingFailed = false;
-  loadedOk = false;
-  curProgress = 0;
-  draw();
-  startFakeProgress();   // 兜底进度：进度条立即动起来
-  const cb = {
-    name: 'assets',
-    success: () => {
-      loadedOk = true;
-      stopFakeProgress();
-      curProgress = 100; draw();
-      // 最短展示：本地秒加载时也让加载页停留 ~0.35s，避免"0% 直接进游戏"的突兀感
-      setTimeout(startGame, 350);
-    },
-    fail: (err) => {
-      console.error('[圣坛裂痕] 分包 assets 加载失败：', err);
-      stopFakeProgress();
-      loadingFailed = true;
-      curProgress = 0;
-      draw();
-    },
-    onProgressUpdate: (res) => {
-      // .9c 非负钳制：个别环境 progress 可能返回负值/非数，避免加载页显示负数
-      if (res && typeof res.progress === 'number') { curProgress = Math.max(curProgress, Math.min(90, Math.max(0, res.progress))); draw(); }
-    },
-  };
-  let task = null;
-  try {
-    task = wx.loadSubpackage(cb);
-  } catch (e) {
-    // 基础库过旧不支持：标记失败让用户重试（或兼容降级）
-    console.error('[圣坛裂痕] wx.loadSubpackage 不可用：', e);
-    stopFakeProgress();
-    loadingFailed = true;
-    draw();
-    return;
-  }
-  if (task && typeof task.onProgressUpdate === 'function') {
-    try { task.onProgressUpdate(cb.onProgressUpdate); } catch (e) {}
-  }
-  // 超时保护：15s 分包未加载完成 → 显示重试（真机下载慢/失败不再无限卡加载页）
-  setTimeout(() => {
-    if (!loadedOk && !loadingFailed) {
-      console.error('[圣坛裂痕] 分包加载超时（15s）');
-      stopFakeProgress();
-      loadingFailed = true;
-      curProgress = 0;
-      draw();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#14181d'; ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff7a2f'; ctx.font = `bold ${Math.round(w * .075)}px sans-serif`;
+    ctx.fillText('圣坛裂痕', cx, h * .34);
+    ctx.fillStyle = '#b8c9d3'; ctx.font = `${Math.round(w * .032)}px sans-serif`;
+    const title = failed ? (state.failedStage === 'assets' ? '素材包加载失败' : '游戏启动失败')
+      : starting ? '正在启动游戏…' : state.percent === 100 ? '正在准备游戏素材…' : '正在加载游戏素材…';
+    ctx.fillText(title, cx, h * .42);
+    const bw = w * .62, bh = Math.max(16, Math.round(h * .02)), bx = cx - bw / 2, by = h * .52;
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
+    const gradient = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    gradient.addColorStop(0, '#ff8c3a'); gradient.addColorStop(1, '#ffca58'); ctx.fillStyle = gradient;
+    if (known && state.percent > 0) {
+      roundRect(bx, by, bw * state.percent / 100, bh, bh / 2); ctx.fill();
+    } else if (!failed) {
+      // 未收到百分比时用移动光带表达等待，不把动画伪装成下载进度。
+      const phase = (Date.now() % 1600) / 1600;
+      ctx.save(); roundRect(bx, by, bw, bh, bh / 2); ctx.clip();
+      ctx.fillRect(bx - bw * .25 + phase * bw * 1.25, by, bw * .25, bh); ctx.restore();
     }
-  }, LOAD_TIMEOUT);
+    ctx.fillStyle = '#e6eef4'; ctx.font = `bold ${Math.round(w * .045)}px sans-serif`;
+    ctx.fillText(failed ? '点击屏幕重试' : known ? `${Math.round(state.percent)}%` : starting ? '初始化中' : '等待素材包连接', cx, by + bh + h * .045);
+    ctx.fillStyle = '#b8c9d3'; ctx.font = `${Math.round(w * .028)}px sans-serif`;
+    if (!failed && state.retry) ctx.fillText('暂未收到新进度 · 点击屏幕重试', cx, by + bh + h * .10);
+    else if (!failed && state.slow) ctx.fillText('加载较慢，正在继续，请稍候', cx, by + bh + h * .10);
+    else if (failed) ctx.fillText(state.failedStage === 'assets' ? '请稍后重试' : '请重试；若仍失败，请查看启动错误日志', cx, by + bh + h * .10);
+  } finally { ctx.restore(); }
 }
 
-/* 失败重试：点击屏幕重新加载分包 */
-if (typeof wx !== 'undefined' && wx.onTouchStart) {
-  wx.onTouchStart(() => {
-    if (loadingFailed) loadAssets();
-  });
-} else if (typeof cvs !== 'undefined' && cvs && typeof cvs.addEventListener === 'function') {
-  cvs.addEventListener('touchstart', () => { if (loadingFailed) loadAssets(); });
-}
-
-// 立即开始
-loadAssets();
+const flow = LoadingFlow.create({
+  platform: typeof wx !== 'undefined' ? wx : null,
+  boot: Boot,
+  changed: draw,
+  loadGame() {
+    const previous = typeof GameGlobal !== 'undefined' ? GameGlobal.game : null;
+    const GameMain = require('./game/main.js');
+    if (typeof GameMain !== 'function') throw new Error('游戏主体未正确导出');
+    // 首次require自动创建实例；首帧失败重试复用实例，避免重复注册触摸与音频。
+    if (typeof GameGlobal === 'undefined') throw new Error('当前环境缺少游戏主域');
+    if (!GameGlobal.game) GameGlobal.game = new GameMain();
+    else if (GameGlobal.game === previous && previous._bootFailed) {
+      previous._bootFailed = false; previous.lastTs = 0;
+      requestAnimationFrame(previous.loop.bind(previous));
+    }
+  },
+});
+if (typeof wx !== 'undefined' && wx.onTouchStart) wx.onTouchStart(() => flow.retry());
+else if (canvas && typeof canvas.addEventListener === 'function') canvas.addEventListener('touchstart', () => flow.retry());
+flow.start();

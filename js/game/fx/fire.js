@@ -1,10 +1,11 @@
 'use strict';
 const { fillRoundRect } = require('../ui.js');
+const PillarFrames = require('./flame-pillar-packed.js');
 // 火系表现只读事件；资源/选帧仍复用原模块，伤害窗口和队列不归本模块。
 function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimSheet }) {
   const approved = require('./approved-fire.js').create(drawImg);
-  const combined = {"fire-ring":{"src":"assets/images/towers/fx/fire-ring/fire-ring-sheet.png","w":224,"h":128,"ox":112,"oy":92,"duration":3.9,"start":0.2,"cols":6,"n":60},"flame-pillar":{"src":"assets/images/towers/fx/flame-pillar/flame-pillar-sheet.png","w":184,"h":256,"ox":92,"oy":232,"duration":5,"start":0,"cols":11,"n":76}};
-  Object.values(combined).forEach((fx) => loadImg(fx.src));
+  const combined = {"flame-pillar":{"src":"assets/images/towers/fx/flame-pillar/flame-pillar-sheet.png","w":184,"h":256,"ox":92,"oy":232,"duration":5,"start":0,"cols":11,"n":76}};
+  // 按实际绘制需要加载火柱；地面火环由approved-fire负责，不预加载旧火环。
   function drawCombinedPillar(ctx, f, id) {
     const fx = combined[id], local = f.t - fx.start;
     if (local < 0 || local >= fx.duration) return;
@@ -12,7 +13,7 @@ function createFireFx({ loadImg, drawImg, IMG_SRC, drawFlameTongue, drawAnimShee
     const scale = 2 * (f.r || 120) / 120;
     ctx.save();
     drawImg(ctx, fx.src, f.x - fx.ox * scale, f.y - fx.oy * scale, fx.w * scale, fx.h * scale,
-      { x: (frame % fx.cols) * fx.w, y: Math.floor(frame / fx.cols) * fx.h, w: fx.w, h: fx.h });
+      PillarFrames[frame]);
     ctx.restore();
   }
   class FireFx {

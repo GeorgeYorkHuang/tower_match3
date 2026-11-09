@@ -1,3 +1,4 @@
+const Boot = require('./boot.js');
 const BoardChests = require('./flows/board-chests.js');
 const EliteFx = require('./fx/elite.js');
 const BattleShop = require('../economy/battle-shop.js');
@@ -247,9 +248,11 @@ class GameMain {
       this.update(dt);
       this.render();
       this.pixelCheck();
+      Boot.ready(this); // 首帧成功后才关闭加载流程。
       requestAnimationFrame(this.loop.bind(this));
     } catch (e) {
       console.error('[圣坛裂痕] 帧循环错误：', e && e.stack ? e.stack : e);
+      if (Boot.fail(e)) { this._bootFailed = true; return; } // 首帧失败暂停循环，等待重试。
       // 一次渲染/逻辑异常不应卡死整局：继续调度帧循环（保留最后画面，触摸仍可响应）
       requestAnimationFrame(this.loop.bind(this));
     }
@@ -395,18 +398,18 @@ class GameMain {
     }
     fx.sync({
       phase: b.phase, shieldLayers: b.shieldLayers || 0, x: b.x, y: b.y,
-      size: CONFIG.LAYOUT.enemy.boss, elapsed: (this.animClock || 0) / 1000,
+      size: require('../enemy-size.js')(b, CONFIG.LAYOUT.enemy), elapsed: (this.animClock || 0) / 1000,
     });
     fx.step(dt);
     this._bossFxOn = true;
     if (this._bossPhaseSeen === 1 && b.phase === 2) fx.triggerBurst();   // 藤壳炸裂 → 花瓣爆开
     this._bossPhaseSeen = b.phase;
-    // 召唤幼芽：按场上召唤数量增量补左右旋涡（左右交替）
-    const n = this.enemies.reduce((c, e) => c + (e.isSummon ? 1 : 0), 0);
-    if (n > (this._summonSeen || 0)) {
-      for (let i = this._summonSeen || 0; i < n; i++) fx.triggerSummon(i % 2 ? 'right' : 'left');
+    for(const child of this.enemies){
+      if(child.isSummon && child.waveNo===20 && !child._roseaFxSeen){
+        child._roseaFxSeen=true;
+        fx.triggerSummon('left',{x:child.x,y:child.y,size:require('../enemy-size.js')(child,CONFIG.LAYOUT.enemy)});
+      }
     }
-    this._summonSeen = n;
   }
 
   /** 敌人移动 + 塔真实攻击（A1：每塔独立攻击/技能行为，见 combat.js）+ 攻城攻击 + 打击特效 */
@@ -527,7 +530,8 @@ class GameMain {
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
     // 霜风峡谷风场被动：移速 ×1.10^风场层数
     const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
-    return (e.speed || 0) * slowEff * stasisMul * windMul * Bosses.moveScale(this);
+    const statusMult = slowEff * stasisMul;
+    return (e.speed || 0) * (e.isBoss ? Math.max(0.5,statusMult) : statusMult) * windMul * Bosses.moveScale(this);
   }
 
   predictEnemyPosition(e, seconds) {
@@ -903,6 +907,7 @@ class GameMain {
 
   /* ---------- 渲染 ---------- */
   render() {
+    this.renderer.beginImages(this.state === 'menu' ? 'menu:' + this.menuTab : 'battle:' + this.menuStage);
     const s = (this.scale > 0 && isFinite(this.scale)) ? this.scale : 1;
     ctx.setTransform(s, 0, 0, s, 0, 0);
     ctx.fillStyle = '#0d1117';

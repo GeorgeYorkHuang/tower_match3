@@ -376,22 +376,32 @@ function updateStorms(combat, dt) {
 
 function updateWindTrails(combat, dt) {
   if (!combat.windTrails || !combat.windTrails.length) return;
+  // 本次更新内卡牌装配不变；不要在每个风痕、每只怪物命中时反复查询。
+  const expireBurst = combat.game.run.relic3('boo_trail');
+  const stackedDamage = combat.game.run.relic3('boo_wind');
   for (let i = combat.windTrails.length - 1; i >= 0; i--) {
     const w = combat.windTrails[i];
     w.ttl -= dt;
     if (w.ttl <= 0) {
       // 长痕3★：风痕消失时对圈内敌人造成一次 60% 伤害（替代原依赖猎手标记的叠标记）
-      if (combat.game.run.relic3('boo_trail')) {
+      if (expireBurst) {
         combat.explode(w.x, w.y, w.r, combat.shotDmg('boomerang', true) * 0.6, 'boomerang', undefined, undefined, undefined, '风痕');
       }
       combat.windTrails.splice(i, 1); continue;
     }
     combat.enemies().forEach((o) => {
-      if (o.hp <= 0 || Math.hypot(o.x - w.x, o.y - w.y) > w.r) return;
+      const dx = o.x - w.x, dy = o.y - w.y;
+      if (o.hp <= 0 || dx * dx + dy * dy > w.r * w.r) return;
       // 风刃3★：风痕叠加时伤害取最高值 +30%/层（上限 3 层）
       let mult = 1;
-      if (combat.game.run.relic3('boo_wind')) {
-        const layers = Math.min(3, combat.windTrails.filter((w2) => w2 !== w && Math.hypot(o.x - w2.x, o.y - w2.y) <= w2.r).length + 1);
+      if (stackedDamage) {
+        // 最多三层：找到另两个覆盖区即可，不分配数组，也不继续数无效的额外层。
+        let layers = 1;
+        for (const other of combat.windTrails) {
+          if (other === w) continue;
+          const ox = o.x - other.x, oy = o.y - other.y;
+          if (ox * ox + oy * oy <= other.r * other.r && ++layers >= 3) break;
+        }
         mult = 1 + 0.3 * layers;
       }
       combat.damage(o, w.dps * dt * mult, 'boomerang', { kind: 'dot' }, '风痕');

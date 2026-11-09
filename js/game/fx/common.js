@@ -63,11 +63,12 @@ function createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf }) {
       }
   }
 
-  function fxParticleFx(ctx, f) {
+  function fxParticleFx(ctx, f, maxPoints) {
       // 技能特效粒子：随机方向小圆点 + 速度衰减 + 淡出（灼烧/毒泡/冰晶/电花/爆炸碎片）
       const p = Math.min(1, f.t / f.dur);
       const col = f.color || '#ffffff';
-      const n = f.n || 6, spread = f.spread || 40, speed = f.speed || 120, size = f.size || 5;
+      const n = Math.min(f.n || 6, maxPoints == null ? Infinity : Math.max(0, maxPoints));
+      const spread = f.spread || 40, speed = f.speed || 120, size = f.size || 5;
       ctx.globalAlpha = (1 - p) * 0.9;
       for (let i = 0; i < n; i++) {
         const seed = ((i * 9301 + f.x * 7 + f.y * 13) % 97) / 97; // 稳定伪随机方向

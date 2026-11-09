@@ -60,33 +60,16 @@ function createGroundLayer({ drawImg, loadImg }) {
     // 毒池（深绿毒液池）/ 毒沼（60px 暗褐绿泥沼，与毒池区分）——画在敌人下层
     if (combat.groundDots && combat.groundDots.length) {
       combat.groundDots.forEach((gd) => {
-        if (gd.kind === 'cannonBurn' && gd.ttl > 0) {
-          const seed = gd.seed || 0;
-          const fade = Math.min(1, gd.ttl / 0.45);
-          if (drawBurnPatch(gd.x, gd.y, gd.r || 80, fade, seed)) return;
-          // 贴图未加载回退：原程序化橙黄火圈
-          const R = gd.r || 80;
-          const pulse = 1 + 0.035 * Math.sin(tNow / 120 + seed);
-          ctx.globalAlpha = 0.18 * fade;
-          const glow = ctx.createRadialGradient(gd.x, gd.y, R * 0.18, gd.x, gd.y, R * pulse);
-          glow.addColorStop(0, '#ffd36a'); glow.addColorStop(0.58, '#f28c28'); glow.addColorStop(1, 'rgba(210,70,25,0)');
-          ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(gd.x, gd.y, R * pulse, 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 0.6 * fade; ctx.strokeStyle = '#ffad42'; ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.arc(gd.x, gd.y, R * (0.84 + 0.025 * Math.sin(tNow / 170 + seed)), 0, Math.PI * 2); ctx.stroke();
-          for (let k = 0; k < 8; k++) {
-            const a = tNow / 420 + seed + k * Math.PI / 4;
-            const rr = R * (0.56 + 0.08 * Math.sin(tNow / 190 + k));
-            const fx = gd.x + Math.cos(a) * rr, fy = gd.y + Math.sin(a) * rr;
-            ctx.globalAlpha = (0.3 + 0.25 * Math.sin(tNow / 160 + k * 1.9)) * fade;
-            ctx.fillStyle = k % 2 ? '#ffd36a' : '#ff6d2d';
-            ctx.beginPath(); ctx.arc(fx, fy, 3 + 1.5 * Math.sin(tNow / 130 + k), 0, Math.PI * 2); ctx.fill();
+        // 炮火支援SSR留地归炮塔伤害，key是cannon，也必须显示燃烧地面。
+        const burning = gd.key === 'fire' || gd.kind === 'cannonBurn'
+          || (gd.key === 'cannon' && gd.skill === '炮火支援');
+        if (burning && gd.ttl > 0) {
+          // 40/60/80/火柱扩展等半径均读取真实实体，禁止把共享图集的参考半径当实际范围。
+          const radius = Number(gd.r);
+          if (Number.isFinite(radius) && radius > 0) {
+            const fadeTime = gd.kind === 'cannonBurn' ? 0.45 : 0.5;
+            drawBurnPatch(gd.x, gd.y, radius, Math.min(1, gd.ttl / fadeTime), gd.seed || 0);
           }
-          ctx.globalAlpha = 1;
-          return;
-        }
-        // 火系地面余烬/焦土（炮火支援C焦土、火柱余烬、火系击杀爆炸）：此前无视觉，补上共用帧动画
-        if (gd.key === 'fire' && gd.ttl > 0) {
-          drawBurnPatch(gd.x, gd.y, gd.r || 60, Math.min(1, gd.ttl / 0.5), gd.seed || 0);
           return;
         }
         if (gd.key !== 'poison' || gd.ttl <= 0) return;

@@ -84,7 +84,7 @@ module.exports = {
     '震击': { probability:0.40, probabilityPerBranch:0.20, knockback:60, knockbackPerBranch:0.4, slowDuration:0.5, slowDurationPerBranch:0.5 },
     '双管齐射': { thirdShotChance:[0, 0.40, 0.60, 0.80], thirdShotDamage:0.60, energyReturnChance:[0, 0.30, 0.45, 0.60], energyReturn:1 },
     '炮火支援': { period:12, count:3, damage:1.20, damagePerBranch:0.4, radius:80 },
-    '炮台': { count:2, duration:8, durationPerBranch:2, attackInterval:1, attackIntervalPerBranch:-0.1, minAttackInterval:0.7, damage:1.20, splashDamage:0.60, radius:100, period:12, minPeriod:9, periodReductionPerBranch:1 },
+    '炮台': { count:2, duration:8, durationPerBranch:2, attackInterval:1, attackIntervalPerBranch:-0.1, minAttackInterval:0.7, damage:0.80, splashDamage:0.40, radius:100, period:12, minPeriod:9, periodReductionPerBranch:1 },
     '碎裂弹': { period:8, damage:0.70, radius:80, fragmentCount:3, fragmentAngles:[0, 45, 90], fragmentDistance:120, fragmentSpeed:400,
                 bounceDistance:50, bounceRadius:40, bounceDamage:[0, 0.40, 0.60, 0.80],
                 dotDuration:2, dotHits:[0, 4, 5, 6], dotDamage:0.17, dotSlow:0.20,

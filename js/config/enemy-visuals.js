@@ -2,8 +2,9 @@
 module.exports = {
   elite: require('./elite-effects.js'),
   // 图集整帧显示边长（含透明留白），普通代际单位与精英原型共用基准；召唤/Boss另算。
-  // 普通1/4/7：84/76/80；快速2/5/8：72/60/64；重坦3/6/9：96/104/108。
-  generationSizes: { 1: 84, 2: 72, 3: 96, 4: 76, 5: 60, 6: 104, 7: 80, 8: 64, 9: 108 },
+  // 同类型逐代递增：普通72→96，快速56→72，重坦末代96；超界代沿用末代。
+  generationSizes: { 1: 72, 2: 56, 3: 90, 4: 78, 5: 60, 6: 98, 7: 84, 8: 64, 9: 106, 10: 90, 11: 68, 12: 96, 13: 96, 14: 72 },
+  generationFallbackSizes: { normal: 96, runner: 72, tank: 96 },
   bossScale: 1.3,
   finalBossScale: 1.5,
   finalBossWave: 60,

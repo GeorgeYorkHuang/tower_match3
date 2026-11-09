@@ -59,7 +59,7 @@ class TowerBuild {
   expNeed() {
     // 塔级成长进度 = 已做选择（level-1）+ 待选（pending）；等级=选择次数+1
     const prog = (this.level - 1) + this.pending;
-    return CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, Math.max(0, prog));
+    return CONFIG.EXP.need(Math.max(0, prog));
   }
 
   /** 获得经验；升级产出 1 次选择机会（塔等级 = 该塔累计选择次数 + 1，经验不直接涨级）。未获得塔不吸收经验。

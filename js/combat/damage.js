@@ -1,3 +1,4 @@
+const TalentRuntime = require('../talents/runtime.js');
 const Bosses = require('../bosses/index.js');
 const { recordDamage } = require('../game/fx/combat-feedback.js');
 'use strict';
@@ -42,7 +43,7 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
   // 圣遗物星级乘区：力量符全塔伤害 +N% + 塔圣遗物伤害类（普攻与全部技能同源，统一生效）
   // 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
   const run = combat.game.run;
-  const talentBonus=require('../talents/runtime.js').bonus(run,key);
+  const talentBonus=TalentRuntime.bonus(run,key);
   dmg=(dmg+talentBonus.attack)*(1+talentBonus.damage)*((isTowerSkill===undefined?isSkill:isTowerSkill)?1+talentBonus.skill:1);
   const rl = combat.relicVal('cm_power') + combat.relicTowerDmg(key)
     + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0);
@@ -84,7 +85,7 @@ function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
     kind = kind.kind || 'hit';
   }
   // 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
-  v=require('../talents/runtime.js').beforeDamage(combat,e,v,srcKey,kind,skill);
+  v=TalentRuntime.beforeDamage(combat,e,v,srcKey,kind,skill);
   let armorIgnore = 0;
   if (srcKey === 'boomerang' && kind !== 'dot' && combat.game.run.relic3('boo_tip')) armorIgnore = Math.max(armorIgnore, combat.game.run.relicValue('boo_tip', 'armorIgnore') / 100);
   if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor * (1 - Math.min(1, armorIgnore))));

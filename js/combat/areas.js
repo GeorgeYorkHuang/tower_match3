@@ -72,12 +72,13 @@ function updateGroundDots(combat, dt) {
     const paraActive = paraTimers ? new Set() : null;
     combat.enemies().forEach((o) => {
       if (o.hp <= 0) return;
-      const dist = Math.hypot(o.x - gd.x, o.y - gd.y);
-      if (dist > gd.r) {
+      const dx = o.x - gd.x, dy = o.y - gd.y;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared > gd.r * gd.r) {
         if (gd._burnInside) gd._burnInside.delete(o);
         if (gd._seedInside) gd._seedInside.delete(o);
         // 腐沼3★：毒池边缘生成毒雾环，进出敌人各叠 1 层毒
-        if (gd.ring && dist <= gd.r * 1.1) {
+        if (gd.ring && distanceSquared <= gd.r * gd.r * 1.21) {
           ringActive.add(o);
           let ringT = (ringTimers.get(o) || 0) + activeDt;
           while (ringT >= 1) {

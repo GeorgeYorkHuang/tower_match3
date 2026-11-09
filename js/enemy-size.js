@@ -6,7 +6,7 @@ const BOSSES = require('./config/bosses.js');
 module.exports = function enemySize(enemy, sizes) {
   let size = enemy.isBoss ? sizes.boss : (sizes[enemy.type] || sizes.normal);
   if (!enemy.isBoss && !enemy.isSummon && ['normal', 'runner', 'tank'].includes(enemy.type)) {
-    size = VISUAL.generationSizes[enemy.genLv] || size;
+    size = VISUAL.generationSizes[enemy.genLv] || VISUAL.generationFallbackSizes[enemy.type] || size;
   }
   if (enemy.isBoss) {
     const def = BOSSES[enemy.bossId];
@@ -16,7 +16,7 @@ module.exports = function enemySize(enemy, sizes) {
   if (enemy.type === 'elite' && !enemy.isBoss && !enemy.isSummon) {
     const lv = Number.isFinite(enemy.genLv) && enemy.genLv >= 1 ? Math.floor(enemy.genLv) : 1;
     const baseType = MONSTERS.levelOf(lv).type;
-    size = Math.round((VISUAL.generationSizes[lv] || sizes[baseType] || sizes.normal) * VISUAL.elite.scale);
+    size = Math.round((VISUAL.generationSizes[lv] || VISUAL.generationFallbackSizes[baseType] || sizes[baseType] || sizes.normal) * VISUAL.elite.scale);
   }
   return size;
 };

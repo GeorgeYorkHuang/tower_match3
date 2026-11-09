@@ -144,6 +144,21 @@ function tryAttackDebuff(combat, o, dmg) {
   }
 }
 
+/** 驻场条带每个战斗更新只维护一次，怪物循环只处理各自状态。 */
+function syncMiasmaVisual(combat) {
+  const fx = combat.game.fx;
+  const index = fx.findIndex(f => f.kind === 'miasma');
+  if (!(combat.lv('poison', '瘴气') > 0)) {
+    if (index >= 0) combat.game.fx = fx.filter(f => f.kind !== 'miasma');
+    return;
+  }
+  const balance = SKILL_NUM.poison['瘴气'];
+  const wallY = combat.game.ly && combat.game.ly.wallY || 967;
+  const half = balance.halfHeight * (1 + balance.heightPerBranch * combat.branchLv('poison', '瘴气', 'A'));
+  if (index >= 0) { fx[index].y = wallY - balance.wallOffset; fx[index].half = half; }
+  else fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - balance.wallOffset, w: 750, half, t: 0, dur: 1e9 });
+}
+
 function tickEnemyStatus(combat, e, dt) {
   // 瘟疫传染：基础概率 50%；A 缩短判定间隔，B 扩大范围，C 每级增加 10 个百分点（50%→60%/70%/80%）。
   const plague = combat.lv('poison', '瘟疫');
@@ -190,10 +205,6 @@ function tickEnemyStatus(combat, e, dt) {
   if (miasma > 0) {
     const wallY = (combat.game.ly && combat.game.ly.wallY) ? combat.game.ly.wallY : 967;
     const half = miasmaBalance.halfHeight * (1 + miasmaBalance.heightPerBranch * combat.branchLv('poison', '瘴气', 'A'));
-    // ：毒雾驻场 fx（城墙上方翻滚毒雾条带；全帧只推入一次，失活时在 else 分支移除）
-    if (!combat.game.fx.some((f) => f.kind === 'miasma')) {
-      combat.game.fx.push({ type: 'shot', kind: 'miasma', x: 375, y: wallY - miasmaBalance.wallOffset, w: 750, half, t: 0, dur: 1e9 });
-    }
     const inM = Math.abs(e.y - (wallY - miasmaBalance.wallOffset)) <= half;
     e._miasma = inM;
     if (inM) {
@@ -219,9 +230,7 @@ function tickEnemyStatus(combat, e, dt) {
   } else {
     e._miasma = false;
     e._miasmaAtkMult = 1;
-    // ：瘴气未激活/失效时移除毒雾驻场 fx
-    combat.game.fx = combat.game.fx.filter((f) => !(f.kind === 'miasma'));
   }
 }
 
-module.exports = { hitPoison, tickPoison, updatePoisonSticks, tryAttackDebuff, tickEnemyStatus };
+module.exports = { hitPoison, tickPoison, updatePoisonSticks, tryAttackDebuff, tickEnemyStatus, syncMiasmaVisual };

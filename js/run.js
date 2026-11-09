@@ -1,3 +1,5 @@
+const RetiredRelics = new Set(require('./config/retired-relics.js'));
+const TalentRuntime = require('./talents/runtime.js');
 const BattleShop = require('./economy/battle-shop.js');
 const ChainAttacks = require('./skills/chain-attacks.js');
 const WaveRelics = require('./relics/wave-hooks.js');
@@ -129,7 +131,7 @@ class Run {
 
   /** 局内圣遗物拥有数（未获得返回 0） */
   relicRun(id) {
-    if(require('./config/retired-relics.js').includes(id))return 0;
+    if (RetiredRelics.has(id)) return 0;
     return this.runRelic[id] || 0;
   }
 
@@ -252,9 +254,9 @@ class Run {
 
   /* ---------- 波内：消除结算 ---------- */
 
-  /** 整体经验：升级需求 = base × growth^expLevel（L0 起：30 / 42 / 58.8 ...）；智慧典籍 -10%（按星级） */
+  /** 整体经验：三段需求曲线；智慧典籍减免沿用。 */
   expNeed() {
-    let need = CONFIG.EXP.base * Math.pow(CONFIG.EXP.growth, this.expLevel);
+    let need = CONFIG.EXP.need(this.expLevel);
     const n = this.relicNum('cm_tome');
     if (n > 0) need *= (1 - n / 100);
     return need;
@@ -305,7 +307,7 @@ class Run {
    * @returns {tower, gotTower, penalized, exp, shape, ammoGain, shuffleGain, refillGain}
    */
   applyMatch(color, shape, size, energyCells = size) {
-    require('./talents/runtime.js').gain(this,color,energyCells);
+    TalentRuntime.gain(this,color,energyCells);
     const energyBonus = this.relicNum('cm_ammobox');
     const exp = expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
@@ -325,7 +327,7 @@ class Run {
         // 激活塔能量 = 初始 40 + 本次激活消除形状供能（受能量上限约束）
         // 弹药箱：每次三消充能能量 +N（按 desc 星级数值）
         const colorEnergy = this.relicNum(`r_${t.key}_energy`);
-        const gain = CONFIG.GLOBAL_SKILL.startEnergy + this._energyGain(shape, energyCells)*(1+require('./talents/runtime.js').bonus(this,t.key).charge) + energyBonus + colorEnergy;
+        const gain = CONFIG.GLOBAL_SKILL.startEnergy + this._energyGain(shape, energyCells)*(1+TalentRuntime.bonus(this,t.key).charge) + energyBonus + colorEnergy;
         t.energy = Math.min(gain, this.armoryEnergyMax(t.key));
         ammoGain = t.energy;
         if (energyBonus > 0) this.relicFx('cm_ammobox', `能量 +${gain}`); // 生效提示
@@ -344,7 +346,7 @@ class Run {
       // 塔色：能量按形状供给 + 整体经验；能量满 → 溢出均分充能两个全局技能（能量口径）
       // 弹药箱：三消充能能量 +N（按星级数值）
       const colorEnergy = this.relicNum(`r_${t.key}_energy`);
-      const gain = this._energyGain(shape, energyCells)*(1+require('./talents/runtime.js').bonus(this,t.key).charge) + energyBonus + colorEnergy;
+      const gain = this._energyGain(shape, energyCells)*(1+TalentRuntime.bonus(this,t.key).charge) + energyBonus + colorEnergy;
       const before = t.energy;
       t.energy = Math.min(before + gain, this.armoryEnergyMax(t.key));
       ammoGain = t.energy - before;

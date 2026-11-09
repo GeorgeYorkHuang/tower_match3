@@ -1,8 +1,11 @@
 'use strict';
 const HitFeedback = require('../game/fx/hit-feedback.js');
+const PoisonTower = require('./towers/poison.js');
 // Per-frame order and reset semantics; caller owns every queue and enemy.
 
 function reset(combat) {
+  // 新局释放状态图、轮廓及待合成队列，不继承上一局的表现缓存。
+  require('../game/fx/approved-debuffs.js').clear();
   HitFeedback.clearPool(combat.game && combat.game.enemies);
   if (combat.game && combat.game.dmgNumbers) combat.game.dmgNumbers.clear();
   combat.shots = [];
@@ -14,6 +17,10 @@ function reset(combat) {
   combat.bCatch = {};          // 回旋镖接镖冷却计时
   combat._nextDmg = {};        // 回旋镖·接镖 C 续投：下镖伤害加成（）
   combat.groundDots = [];      // 火·火柱余烬 / 毒·毒池·毒沼：地面持续区域
+  // 火系延迟队列必须随重开/测试切塔释放，避免旧落点在新局继续结算。
+  combat.pillarWaves = [];
+  combat.fireWalls = [];
+  combat.rainWaves = [];
   combat.volcanoes = [];       // 火·火山圣遗物：4 秒喷发队列
   combat.frostOrbs = [];       // 冰·冬珠：持续冰霜之球
   combat.iceGrounds = [];      // 冰晶3★/冰雾3★：减速/降攻速地面
@@ -26,7 +33,7 @@ function reset(combat) {
   // 同步清理战斗实体 fx（弹道/风暴镖/炮台/地雷/地面持续区），避免切塔/清场/重开后幽灵残留
   const g = combat.game;
   if (g && g.fx) {
-    const entityFx = ['shot', 'cyclone', 'turret', 'mine', 'groundDot', 'frostOrb', 'poisonStick'];
+    const entityFx = ['shot', 'cyclone', 'turret', 'mine', 'groundDot', 'frostOrb', 'poisonStick', 'pillar', 'pillarBase', 'fireWall', 'rain', 'raindrop'];
     g.fx = g.fx.filter((f) => !entityFx.includes(f.type));
   }
 }
@@ -76,6 +83,8 @@ function update(combat, dt, initEnemyState) {
   }
   // 2. 延迟爆炸（炮引信/炮火支援落点）
   combat.updateDelayed(dt);
+  // 驻场瘴气只扫描一次全局特效，避免逐怪 O(怪物数×特效数) 过滤。
+  PoisonTower.syncMiasmaVisual(combat);
   // 3. 敌人状态推进（DoT / 控制 / 层数衰减）
   g.enemies.forEach((e) => combat.tickStatus(e, dt));
   // 3.5 地面持续区域（火·余烬 / 毒·毒池·毒沼）

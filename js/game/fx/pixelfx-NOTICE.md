@@ -9,3 +9,5 @@ https://github.com/rehan-remade/hollow-crown, Copyright (c) 2026 rehan-remade, M
 
 **Patch Pixel.** The font in `gallery/fonts` is Patch's own and is not covered by this repository's MIT license. See
 `gallery/fonts/NOTICE.md`.
+
+Ro sea v2 boss presentation additionally uses holy/divine-shield and nature/root-snare exported PNG atlases (30 fps, no actor); source D:/workspace/pixelfx, MIT. Original license retained in pixelfx-LICENSE.txt.

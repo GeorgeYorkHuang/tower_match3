@@ -13,6 +13,7 @@ function bindTouch(game, c) {
     let moved = false;    // 是否已发生滑动（点击 vs 滑动判定）
     // 触摸处理（wx 全局通道与 canvas 事件通道共用；坐标在 toLogic 内做自适应归一化）
     const touchPoint = (e) => {
+      if (game._bootFailed) return null; // 启动错误页的重试触摸不交给旧游戏界面。
       const t = e && ((e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]));
       if (!t) return null;
       const x = Number.isFinite(t.clientX) ? t.clientX : t.x;

@@ -1,3 +1,4 @@
+const TalentRuntime = require('../talents/runtime.js');
 const Bosses = require('../bosses/index.js');
 const Damage = require('./damage.js');
 const { recordDamage } = require('../game/fx/combat-feedback.js');
@@ -41,7 +42,7 @@ function applyBurn(combat, e, dmg, src) {
   let ttl = SKILL_NUM.fire['点燃'].duration + (bLv > 0 ? SKILL_NUM.fire['点燃'].heatTtl[bLv] : 0) + burnDuration;
   if (cLv > 0) ttl -= SKILL_NUM.fire['点燃'].emberTtlCut[cLv];
   ttl = Math.max(ttl, SKILL_NUM.fire['点燃'].minDuration);
-  ttl=require('../talents/runtime.js').statusDuration(combat.game.run,'fire',ttl);
+  ttl=TalentRuntime.statusDuration(combat.game.run,'fire',ttl);
   if (!dot) {
     e.dots.push({ type: 'burn', dps, ttl, stack: 1, maxStack, tickT: 0, src, tickI, skill: '灼烧' });
     dot = e.dots[e.dots.length - 1];
@@ -71,7 +72,7 @@ function applyPoison(combat, e, dmg, src, layers) {
   const poisonRelicBonus = combat.game.run.relicNum('s_sr_poison_dot');
   const perStackDps = dmg * boost.dmg * (1 + poisonRelicBonus / 100);
   let ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * combat.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
-  ttl=require('../talents/runtime.js').statusDuration(combat.game.run,'poison',ttl);
+  ttl=TalentRuntime.statusDuration(combat.game.run,'poison',ttl);
   const cap = SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * combat.branchLv('poison', '毒性强化', 'C');
   const add = Math.max(1, layers || 1);
   const freq = 1 / (1 - SKILL_NUM.poison['剧毒'].freq[combat.branchLv('poison', '剧毒', 'C')]);
@@ -108,7 +109,7 @@ function poisonStack(combat, e) {
 
 function applyBleed(combat, e, dmg) {
   e.bleedT = SKILL_NUM.boomerang['放血'].duration + SKILL_NUM.boomerang['放血'].durationPerBranch * combat.branchLv('boomerang', '放血', 'B');          // 流血持续 4s（B +1s/级）
-  e.bleedT=require('../talents/runtime.js').statusDuration(combat.game.run,'boomerang',e.bleedT);
+  e.bleedT=TalentRuntime.statusDuration(combat.game.run,'boomerang',e.bleedT);
   const cLv = combat.branchLv('boomerang', '放血', 'C');
   const bleedDmg = dmg * (1 + combat.game.run.relicNum('s_sr_boo_bleed') / 100)
     * (SKILL_NUM.boomerang['放血'].damage + SKILL_NUM.boomerang['放血'].damagePerBranch * cLv);
@@ -123,7 +124,7 @@ function applyBleed(combat, e, dmg) {
 
 function applySlow(combat, e, mult, ttl, source) {
   const run = combat.game.run;
-  const talent=require('../talents/runtime.js');ttl=talent.statusDuration(run,source,ttl);mult=talent.slowStrength(run,source,mult);
+  const talent=TalentRuntime;ttl=talent.statusDuration(run,source,ttl);mult=talent.slowStrength(run,source,mult);
   if (source === 'ice') mult = Math.min(0.9, mult + (run.relicNum('s_sr_ice_chill') + run.relicNum('s_ice_chill')) / 100);
   // 冰川1★/2★：所有减速效果的幅度提升 15%/20%
   mult *= (1 + combat.relicVal('ice_glacier') / 100);
@@ -163,7 +164,7 @@ function refreshSlow(e) {
 }
 
 function freezeE(combat, e, dur) {
-  dur=require('../talents/runtime.js').statusDuration(combat.game.run,'ice',dur);
+  dur=TalentRuntime.statusDuration(combat.game.run,'ice',dur);
   if (e.immuneFreeze) return;
   const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.game.run.relicValue('s_sr_ice_freeze', 'primary'));
   const prev = e.frozen || 0;
@@ -180,7 +181,8 @@ function freezeE(combat, e, dur) {
 function hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
 
 function tickBaseStatus(combat, e, dt) {
-  require('../talents/runtime.js').tick(combat,e,dt);
+  require('./boss-control.js').tick(e,dt);
+  TalentRuntime.tick(combat,e,dt);
   if(e.hp<=0)return;
   const boost = combat.dotBoost();
   if (e._fireWallBurnT > 0) e._fireWallBurnT = Math.max(0, e._fireWallBurnT - dt);

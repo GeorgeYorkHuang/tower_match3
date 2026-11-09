@@ -1,3 +1,7 @@
+const AtlasFrame = require('./atlas-frame.js');
+const ImageCache = require('./image-cache.js');
+const ParticleBudget = require('./fx/particle-budget.js');
+const PERFORMANCE = require('../config/performance.js');
 const RelicArt = require('./relic-art.js');
 const GARDEN_SKINS = require('../config/ui-skins.js');
 const { createChestRewards } = require('./screens/chest-rewards.js');
@@ -32,7 +36,7 @@ const AccountMenuScreen = require('./screens/account-menu.js');
 const { createSkillLoadout } = require('./screens/skill-loadout.js');
 const { skillIcon, skillFrame } = require('./icons/skills.js');
 const { specialBlockMark, subBlockGlyph, COLOR_FILL } = require('./icons/special-blocks.js');
-const ChipSkin = require('./icons/chip-skin.js');          // 底板 × 图案两层查表（替换 方案）
+const ChipSkin = require('./icons/chip-skin.js');          // v1.17.44 底板 × 图案两层查表（替换 v1.17.35 方案）
 /**
  * render.js —— 主界面渲染（设计稿 750×1626 逻辑坐标，定版 v7：iPhone 15 比例）
  * 分区：状态条 72 / 行动区 700×970（入口带 68、城墙 24）/ 塔位区 122 / 棋盘区 462
@@ -52,7 +56,7 @@ function lighten(hex, f) {
   return `rgb(${r},${g},${b})`;
 }
 
-/* 火焰舌（火柱/火雨帧动画）：底部宽、顶部带摆动的锥形火焰 */
+/* 火焰舌（v1.13.6 火柱/火雨帧动画）：底部宽、顶部带摆动的锥形火焰 */
 function drawFlameTongue(ctx, x, y, w, h, sway, color, alpha) {
   ctx.globalAlpha = alpha;
   ctx.fillStyle = color;
@@ -93,33 +97,33 @@ const IMG_SRC = {
   boomerang: 'assets/images/towers/icons/boomerang.png', cannon: 'assets/images/towers/icons/cannon.png',
   enemy: 'assets/images/monsters/enemies/normal.png', boss: 'assets/images/monsters/enemies/boss.png',
   runner: 'assets/images/monsters/enemies/runner.png', tank: 'assets/images/monsters/enemies/tank.png',
-  // 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；改主包直连，量化 512×102）
+  // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；v1.16.124 改主包直连，量化 512×102）
   lv1: 'assets/images/monsters/enemies/lv1.png', lv2: 'assets/images/monsters/enemies/lv2.png',
   lv3: 'assets/images/monsters/enemies/lv3.png', lv4: 'assets/images/monsters/enemies/lv4.png',
   lv5: 'assets/images/monsters/enemies/lv5.png', lv6: 'assets/images/monsters/enemies/lv6.png',
   lv7: 'assets/images/monsters/enemies/lv7.png', lv8: 'assets/images/monsters/enemies/lv8.png',
-  // C 卡新增 Lv9-11 代（重碑禁卫/花冠近卫/裂蕊飞奔者），同为 640×128 五帧横向
+  // v1.17.50 C 卡新增 Lv9-11 代（重碑禁卫/花冠近卫/裂蕊飞奔者），同为 640×128 五帧横向
   lv9: 'assets/images/monsters/enemies/lv9.png', lv10: 'assets/images/monsters/enemies/lv10.png',
   lv11: 'assets/images/monsters/enemies/lv11.png',
-  // D 卡新增 Lv12-14 终局代（盘根巨卫/圣庭执戟者/凋风掠影），1024×128 八帧横向
+  // v1.17.51 D 卡新增 Lv12-14 终局代（盘根巨卫/圣庭执戟者/凋风掠影），1024×128 八帧横向
   lv12: 'assets/images/monsters/enemies/lv12.png', lv13: 'assets/images/monsters/enemies/lv13.png',
   lv14: 'assets/images/monsters/enemies/lv14.png',
-  // 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
+  // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
   boss_altar_galvin_twin: 'assets/images/monsters/bosses/altar_galvin/twin-float-v1.png',
   boss_altar_vera: 'assets/images/monsters/bosses/altar_vera/hover-v1.png',
   boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
-  miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
+  miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
   coin: 'assets/images/resources/coin.png', bullet: null,
-  silver: 'assets/images/resources/silver.png',   // 局内临时货币：银币（与局外金币区分）
+  silver: 'assets/images/resources/silver.png',   // v1.17 局内临时货币：银币（与局外金币区分）
   battleSupply: 'assets/images/interface/battle/battle_supply.png', // 局内商店「战地补给」AI图标
-  chestWood: 'assets/images/resources/chest_wood.png',     // 深度宝箱档位图标：木质
+  chestWood: 'assets/images/resources/chest_wood.png',     // v1.17 深度宝箱档位图标：木质
   chestBronze: 'assets/images/resources/chest_bronze.png', // 青铜
   chestSilver: 'assets/images/resources/chest_silver.png', // 白银
   chestGold: 'assets/images/resources/chest_gold.png',     // 黄金
   chestStar: 'assets/images/resources/chest_star.png',     // 星辉
-  chestClosed: 'assets/images/resources/chest_closed.png', // 战场宝箱五帧动画：关闭帧（掉落显示）
+  chestClosed: 'assets/images/resources/chest_closed.png', // v1.16.75 战场宝箱五帧动画：关闭帧（掉落显示）
   chestQuarter: 'assets/images/resources/chest_quarter.png', // 微开帧（帧2，25°箱盖微掀透金光）
   chestHalf: 'assets/images/resources/chest_half.png',      // 半开帧（帧3）
   chestFast: 'assets/images/resources/chest_fast.png',      // 快开帧（帧4，75% 大张金光迸发）
@@ -128,9 +132,9 @@ const IMG_SRC = {
   wall: 'assets/images/interface/battle/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
   towerRow: 'assets/images/interface/battle/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
   boardBg: 'assets/images/interface/battle/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
-  // 火墙技能 4 帧动画（512×160 黑底，加法混合 lighter；12fps 循环）
-  // 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
-  // 地面火环（下层通道，画在怪物之下）
+  // v1.17.17 火墙技能帧动画
+  // v1.17.25 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
+  // v1.17.36 地面火环（下层通道，画在怪物之下）
 };
 /* 三消方块图片（颜色 → 棋盘素材）；加载失败/未完成时回退色块+底部暗条 */
 const BOARD_IMG = {
@@ -138,10 +142,17 @@ const BOARD_IMG = {
   green: 'assets/images/interface/board/poison.png', yellow: 'assets/images/interface/board/electric.png',
   purple: 'assets/images/interface/board/boomerang.png', orange: 'assets/images/interface/board/cannon.png',
 };
-const imgCache = {};
-// 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
+const imageCache = ImageCache.create({
+  ...PERFORMANCE.imageCache,
+  createImage() {
+    if (typeof wx !== 'undefined' && wx.createImage) return wx.createImage();
+    if (typeof Image !== 'undefined') return new Image();
+    return null;
+  },
+});
+// v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
 const MENU_TABS = [
-  ['relic', '💎', '圣物'], ['talent', '⬡', '天赋'], ['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['codex', '📖', '塔图鉴'],  // 主页标签换房屋图标
+  ['relic', '💎', '圣物'], ['talent', '⬡', '天赋'], ['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['codex', '📖', '塔图鉴'],  // v5.3c 主页标签换房屋图标
 ];
 const MENU_TAB_THEME = {
   talent: { main:'#b86764', dark:'#653a40', top:'rgba(111,62,78,0.16)' },
@@ -154,30 +165,13 @@ const TOWER_HEX = { red: '#ff6b6b', blue: '#5dade2', green: '#58d68d', yellow: '
 const TOWERS_COLOR = (k) => (CONFIG.TOWERS[k] || {}).color;
 // 深度宝箱档位色
 const TIER_COLOR = { wood: '#a4713d', bronze: '#d89e63', silver: '#c9d6e4', gold: '#f7c948', star: '#a86bff' };
-function loadImg(src) {
-  if (src in imgCache) return imgCache[src];
-  if (typeof wx !== 'undefined' && wx.createImage) {
-    const img = wx.createImage();
-    img.onload = () => { imgCache[src] = img; };
-    img.onerror = () => { imgCache[src] = null; };
-    img.src = src;
-    imgCache[src] = img;
-  } else if (typeof Image !== 'undefined') {
-    const img = new Image();
-    img.onload = () => { imgCache[src] = img; };
-    img.onerror = () => { imgCache[src] = null; };
-    img.src = src;
-    imgCache[src] = img;
-  } else {
-    imgCache[src] = null;
-  }
-  return imgCache[src];
-}
+function loadImg(src) { return imageCache.load(src); }
 /** 已加载则绘制并返回 true；否则返回 false（调用方回退） */
 function drawImg(ctx, src, x, y, w, h, crop) {
+  if (crop && crop.empty) { loadImg(src); return true; } // 空帧跳过绘制，并提前加载后续可见帧。
   // 蓝、紫、金圣遗物共用分层入口，各界面保持相同图标比例。
   if (!crop && RelicArt.handles(src)) return RelicArt.draw(ctx, src, x, y, w, h, loadImg);
-  // Legacy relic image callers use the verified HD counterpart.
+  // 旧调用路径继续使用已打包的高清图标。
   if (typeof src === 'string' && src.startsWith('assets/images/relics/')) src = src.replace('assets/images/relics/','assets/images/relics_hd/');
   const skin = GARDEN_SKINS[src];
   const img = loadImg(skin ? skin.src : src);
@@ -206,13 +200,14 @@ function drawImg(ctx, src, x, y, w, h, crop) {
       const sx = Math.round(col * img.width / 2), sy = Math.round(row * img.height / 2);
       crop = { x:sx, y:sy, w:Math.round((col+1)*img.width/2)-sx, h:Math.round((row+1)*img.height/2)-sy };
     }
+    if (crop && crop.packed) return AtlasFrame.draw(ctx, img, x, y, w, h, crop);
     if (crop) ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, x, y, w, h);
     else ctx.drawImage(img, x, y, w, h);
     return true;
   }
   return false;
 }
-/* 离屏画布（特殊方块染色合成用）：主画布已被 canvas.js 缓存，此处拿到的是离屏画布 */
+/* v1.17.35 离屏画布（特殊方块染色合成用）：主画布已被 canvas.js 缓存，此处拿到的是离屏画布 */
 function createOffscreen() {
   if (typeof wx !== 'undefined' && wx.createCanvas) {
     try { return wx.createCanvas(); } catch (e) { return null; }
@@ -222,9 +217,9 @@ function createOffscreen() {
   }
   return null;
 }
-ChipSkin.configure({ loadImage: loadImg });   // 两层方块皮肤
+ChipSkin.configure({ loadImage: loadImg });   // v1.17.44 两层方块皮肤
 
-/* 技能图标：assets/images/towers/skills/<塔>/<文件名>.png 为 384x384 RGBA 单张成品
+/* v1.17.50 技能图标：assets/images/towers/skills/<塔>/<文件名>.png 为 384x384 RGBA 单张成品
    （AI 六边形底板 + 主体符号已烘焙进同一张图）；缺失时回退 emoji。
    材质包体积暂不优化，留待最后统一处理。 */
 const SKILL_ICON = {
@@ -240,14 +235,14 @@ function skillIconSrc(towerKey, skillName) {
   return f ? `assets/images/towers/skills/${towerKey}/${f}.png` : null;
 }
 
-/** hex → rgba（图鉴卡片塔色渲染用） */
+/** v1.16.80 hex → rgba（图鉴卡片塔色渲染用） */
 function hexA(hex, a) {
   const h = (hex || '#8ea3b8').replace('#', '');
   const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-/* 技能帧动画（精灵表横向条带，assets/images/towers/fx/anims/<set>_<variant>.png） */
+/* v1.16.74 技能帧动画（精灵表横向条带，assets/images/towers/fx/anims/<set>_<variant>.png） */
 const ANIM_SHEETS = {
   explosion: { orange: ['assets/images/towers/fx/anims/anim_explosion_orange.png', 10], blue: ['assets/images/towers/fx/anims/anim_explosion_blue.png', 10], green: ['assets/images/towers/fx/anims/anim_explosion_green.png', 10] },
   fallstrike: { orange: ['assets/images/towers/fx/anims/anim_fallstrike_orange.png', 8], blue: ['assets/images/towers/fx/anims/anim_fallstrike_blue.png', 8] },
@@ -278,7 +273,7 @@ function drawAnimSheet(ctx, set, variant, x, y, size, p) {
   return true;
 }
 
-/* 局内圣遗物图标：起用 2x 高清图 assets/images/relics_hd/<塔系>/<id>.png（160x160 RGBA），
+/* 局内圣遗物图标：v1.17.49 起用 2x 高清图 assets/images/relics_hd/<塔系>/<id>.png（160x160 RGBA），
    缺失时回退 emoji；drawImg 对该目录做「物理像素不得超过源图」保护，杜绝放大插值发虚。 */
 const LEGACY_RELIC_ICON_FALLBACK = {
   r_fire_cap: 'fire_wall',
@@ -307,16 +302,16 @@ function relicIconSrc(id) {
   return oldId ? legacyRelicIconPath(oldId) : null;
 }
 
-const STATUS_H = 140;                       // 状态条区高（扩展至 y140：顶部安全区更充裕，避开灵动岛与右上小程序胶囊）
+const STATUS_H = 140;                       // 状态条区高（v1.16.72 扩展至 y140：顶部安全区更充裕，避开灵动岛与右上小程序胶囊）
 const AREA_X = L.actionArea.x;              // 25
 const AREA_Y = STATUS_H;                    // 140（行动区整体下移，顶部留给金币/波次/协同）
 const AREA_W = L.actionArea.w;              // 700
-const AREA_H = L.actionArea.h - 68 - L.wall.h;  // 827（城墙并入塔位区：行动区高度减城墙 75，塔位区整体上移，下方空间让给棋盘）
+const AREA_H = L.actionArea.h - 68 - L.wall.h;  // 827（v1.17.11 城墙并入塔位区：行动区高度减城墙 75，塔位区整体上移，下方空间让给棋盘）
 const ENTRY_H = L.entryBand.h;              // 68
 const WALL_H = L.wall.h;                    // 75（城墙视觉已并入塔位区，此值仅作行动区压缩口径保留）
 const WALL_BAR_H = 10;                      // 城墙血条区高度（10px，含血量数字）
 const WALL_BAR_OFF = 5;                     // 血条区离城墙底部偏移
-const WALL_Y = AREA_Y + AREA_H;             // 967 防线 y = 塔位区顶（城墙已并入塔位区，怪物到达此线即攻城）
+const WALL_Y = AREA_Y + AREA_H;             // 967 防线 y = 塔位区顶（v1.17.11 城墙已并入塔位区，怪物到达此线即攻城）
 const TOWER_ROW_Y = WALL_Y;                 // 塔位区顶 y（967，塔位区即城墙）
 const BOARD_Y = TOWER_ROW_Y + L.towerRow.h; // 棋盘区顶 y（1089）
 
@@ -333,7 +328,7 @@ function layout() {
     slotSize: L.towerSlot.size,
     slotGap: L.towerSlot.gap,
     slotCount: L.towerSlot.count,
-    slotY: TOWER_ROW_Y + 5,                        // 塔槽上移（972），塔位区底部 14px 留给防线血条
+    slotY: TOWER_ROW_Y + 5,                        // v1.17.11 塔槽上移（972），塔位区底部 14px 留给防线血条
   };
 }
 
@@ -344,12 +339,12 @@ function txtW(str, size) {
   return w;
 }
 
-// 地面层特效：这些 f.type 走 fxGround，绘制在敌人之下
+// v1.17.36 地面层特效：这些 f.type 走 fxGround，绘制在敌人之下
 const GROUND_FX = {
   pillarBase: true,
 };
 
-// 区C · 技能特效 handler 分发表：f.type → Renderer 方法（重构，拆自原 fx()）
+// 区C · 技能特效 handler 分发表：f.type → Renderer 方法（v1.16.43 重构，拆自原 fx()）
 const FX_HANDLERS = {
   shot: 'fxShot',
   hitwall: 'fxHitwall',
@@ -375,15 +370,15 @@ const FX_HANDLERS = {
   beam: 'fxBeamFx',
   beamp: 'fxBeamp',
   match: 'fxMatch',
-  floatText: 'fxFloatText',   // 3★ 触发确认飘字
-  specialSpawn: 'fxSpecialSpawn',   // 特殊块生成彩环
-  specialBlast: 'fxSpecialBlast',   // 特殊块引爆分型特效
-  screenFlash: 'fxScreenFlash',     // 特殊块引爆全屏爆闪（支持 color/alpha）
-  rainbowSpawn: 'fxRainbowSpawn',   // 五消·彩虹生成七色光柱
-  scanSweep: 'fxScanSweep',         // 五消·自动扫描金色光幕
-  recolorWave: 'fxRecolorWave',     // 五消·染色涟漪
-  seedStar: 'fxSeedStar',           // 五消·随机播种星光
-  rainParticle: 'fxRainParticle'    // 五消·彩虹全消粒子雨
+  floatText: 'fxFloatText',   // v1.16.113 3★ 触发确认飘字
+  specialSpawn: 'fxSpecialSpawn',   // v1.17.29 特殊块生成彩环
+  specialBlast: 'fxSpecialBlast',   // v1.17.29 特殊块引爆分型特效
+  screenFlash: 'fxScreenFlash',     // v5.6 特殊块引爆全屏爆闪（支持 color/alpha）
+  rainbowSpawn: 'fxRainbowSpawn',   // v5.6.8 五消·彩虹生成七色光柱
+  scanSweep: 'fxScanSweep',         // v5.6.8 五消·自动扫描金色光幕
+  recolorWave: 'fxRecolorWave',     // v5.6.8 五消·染色涟漪
+  seedStar: 'fxSeedStar',           // v5.6.8 五消·随机播种星光
+  rainParticle: 'fxRainParticle'    // v5.6.8 五消·彩虹全消粒子雨
 };
 
 class Renderer {
@@ -392,9 +387,13 @@ class Renderer {
     this._getSkillLoadout();
   }
 
+  /** 菜单分页与战场切换时维护图片引用缓存。 */
+  beginImages(scope) { imageCache.beginFrame(scope); }
+  imageCacheStats() { return imageCache.stats(); }
+
   /* ============ 区A · UI 界面渲染（状态条/按钮/弹层/菜单/棋盘） ============ */
 
-  /** 状态条：银币（局内临时货币）+ 波次/倒计时 + 协同 + 本局圣遗物行（状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
+  /** 状态条：银币（局内临时货币）+ 波次/倒计时 + 协同 + 本局圣遗物行（v1.16.73 状态栏增加圣遗物图标行，前10个，点击查看本局详情） */
   _getBattleHud() {
     if (!this._battleHud) this._battleHud = createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_Y, AREA_W, ENTRY_H });
     return this._battleHud;
@@ -414,17 +413,17 @@ class Renderer {
 
   wall(ctx, hp, maxHp, barY, shield) { return this._getBattleScene().wall.call(this, ctx, hp, maxHp, barY, shield); }
 
-  /** 底部功能键区（三消棋盘下方）：设置 / 帮助（移除加速键；移除塔图鉴弹层与商店占位弹层，图鉴移入主界面 codex 页签） */
+  /** 底部功能键区（三消棋盘下方）：设置 / 帮助（v1.16.30 移除加速键；v1.16.77 移除塔图鉴弹层与商店占位弹层，图鉴移入主界面 codex 页签） */
   funcBar(ctx, s) { return this._getBattleScene().funcBar.call(this, ctx, s); }
 
-  /** 局内商店：按钮移入底部功能条，此处仅渲染弹出面板（战斗不暂停） */
+  /** v1.16.89 局内商店：按钮移入底部功能条，此处仅渲染弹出面板（战斗不暂停） */
   battleShop(ctx, s) {
     if (!this._battleShopScreen) this._battleShopScreen = createBattleShop({ drawImg, IMG_SRC, fmtNum });
     const rects = this._battleShopScreen.battleShop(ctx, s);
     if (rects) Object.assign(this, rects);
   }
 
-  /** 分支名称：优先取 config 分支文案「名称：效果」冒号前；无名称（非火塔）取效果短语首词；兜底字母代号（） */
+  /** 分支名称：优先取 config 分支文案「名称：效果」冒号前；无名称（非火塔）取效果短语首词；兜底字母代号（v1.14） */
   branchName(cfg, br) {
     if (!cfg) return br;
     const s = cfg[br.toLowerCase()] || '';
@@ -437,7 +436,7 @@ class Renderer {
     return n;
   }
 
-  /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（；技能横向卡片 200×300 + 分支名称徽章 + LvMAX；美化+卡可点击进二级详情） */
+  /** 塔详情弹层：点击塔位图标 → 查看攻击 / 攻击间隔 / 技能等级（v1.8；v1.14 技能横向卡片 200×300 + 分支名称徽章 + LvMAX；v1.16.11 美化+卡可点击进二级详情） */
   _getTowerDetails() {
     if (!this._towerDetails) this._towerDetails = createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW });
     return this._towerDetails;
@@ -478,7 +477,7 @@ class Renderer {
   towerRow(ctx, s, count, showGlobal) { return this._getBattleScene().towerRow.call(this, ctx, s, count, showGlobal); }
 
   /** 全局技能充能条绘制：未充能无背景色（仅淡描边）；充能 ≥1 格激活后，背景替换为技能主题色；
-   *  图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；返回命中矩形 {key,x,y,w,h}（与塔槽同尺寸同 y） */
+   *  图标/名称 + 横向 3 段充能（每段 = 1 次释放）+ N/3 次数；返回命中矩形 {key,x,y,w,h}（v1.17.10 与塔槽同尺寸同 y） */
   _globalBtn(ctx, key, icon, name, bx, by, bw, bh, filled, tint) { return this._getBattleScene()._globalBtn.call(this, ctx, key, icon, name, bx, by, bw, bh, filled, tint); }
 
   _speedBadge(ctx,x,y,w,h,speed) { return this._getBattleScene()._speedBadge.call(this, ctx,x,y,w,h,speed); }
@@ -491,7 +490,7 @@ class Renderer {
 
   board(ctx, grid, selected, anim, shake, theme, hint, chestHoles) { return this._getBoardLayer().board.call(this, ctx, grid, selected, anim, shake, theme, hint, chestHoles); }
 
-  /** 单格绘制（两层：无符号玻璃底板 → 图案；
+  /** 单格绘制（v1.17.44 两层：无符号玻璃底板 → 图案；
    *  普通块用原色图案、特殊块用随来源色染好的图案；底板未就绪回退旧整图，再回退色块+矢量徽记） */
   drawCell(ctx, x, y, cell, color, r, c, selected) { return this._getBoardLayer().drawCell.call(this, ctx, x, y, cell, color, r, c, selected); }
 
@@ -505,7 +504,7 @@ class Renderer {
 
   /* ============ 区B · 敌人层（本体 / debuff 特效 / 血条） ============ */
 
-  /** 专属 Boss 贴图预热（进波时调用，避免出场首帧回退旧图） */
+  /** v1.17.46 专属 Boss 贴图预热（进波时调用，避免出场首帧回退旧图） */
   _getEnemyLayer() {
     if (!this._enemyLayer) this._enemyLayer = createEnemyLayer({ loadImg, drawImg, IMG_SRC });
     return this._enemyLayer;
@@ -513,14 +512,14 @@ class Renderer {
 
   preloadBoss(id) { return this._getEnemyLayer().preloadBoss.call(this, id); }
 
-  /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（重构拆分子方法） */
+  /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（v1.16.43 重构拆分子方法） */
   enemies(ctx, enemies, splitVisual) { return this._getEnemyLayer().enemies.call(this, ctx, enemies, splitVisual); }
 
   drawEnemyBody(ctx, e, x, y, size, isElite) { return this._getEnemyLayer().drawEnemyBody.call(this, ctx, e, x, y, size, isElite); }
 
   /** 按动画表裁剪绘制当前帧（兼容横向与多行图集）；图未就绪/绘制异常返回 false
-   *  lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
-   *  其余等级为等时长（Lv12-14 八帧按等周期 190/150/100ms，其它 5 帧按类型表）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
+   *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
+   *  其余等级为等时长（v1.17.51 Lv12-14 八帧按等周期 190/150/100ms，其它 5 帧按类型表）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
   drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) { return this._getEnemyLayer().drawEnemyAnim.call(this, ctx, src, e, x, y, size, isElite, imgLv, frames); }
 
   drawEnemyDebuffs(ctx, e, x, y, size) { return this._getEnemyLayer().drawEnemyDebuffs.call(this, ctx, e, x, y, size); }
@@ -543,12 +542,12 @@ class Renderer {
 
   drawEnemyBar(ctx, e, x, y, size) { return this._getEnemyLayer().drawEnemyBar.call(this, ctx, e, x, y, size); }
 
-  /** 怪物 debuff 图标：血条上方横向排布（半透明圆底 + 专属 emoji + 边框色 + 剩余秒数小字），每个 debuff 一个小图标 */
+  /** v1.16.60 怪物 debuff 图标：血条上方横向排布（半透明圆底 + 专属 emoji + 边框色 + 剩余秒数小字），每个 debuff 一个小图标 */
   drawEnemyDebuffIcons(ctx, e, x, y, size) { return this._getEnemyLayer().drawEnemyDebuffIcons.call(this, ctx, e, x, y, size); }
 
   /* ============ 区C · 技能特效层（地面持续效果 / 弹道与技能 fx） ============ */
 
-  /** 战场宝箱：怪物掉落实体，点击后播放三帧开箱动画（关→半开→全开）→ 开启后弹出圣物三选一；金色宝箱图片 + 呼吸光晕 + 点击提示 */
+  /** v1.16.72 战场宝箱：怪物掉落实体，点击后播放三帧开箱动画（关→半开→全开）→ 开启后弹出圣物三选一；金色宝箱图片 + 呼吸光晕 + 点击提示 */
   _getChestLayer() {
     if (!this._chestLayer) this._chestLayer = createChestLayer({ drawImg, IMG_SRC });
     return this._chestLayer;
@@ -556,7 +555,7 @@ class Renderer {
 
   fieldChests(ctx, list) { return this._getChestLayer().fieldChests.call(this, ctx, list); }
 
-  /** 地面持续效果（）：毒池毒液池（深绿帧动画冒泡）+ 毒棒召唤物（帧动画图标）——画在敌人下层 */
+  /** 地面持续效果（v1.16.1）：毒池毒液池（深绿帧动画冒泡）+ 毒棒召唤物（帧动画图标）——画在敌人下层 */
   _getGroundLayer() {
     if (!this._groundLayer) this._groundLayer = createGroundLayer({ drawImg, loadImg });
     return this._groundLayer;
@@ -568,18 +567,24 @@ class Renderer {
    *  分节目录：shot（塔攻击弹道，kind=line/bolt/arc/zigzag/storm/frostorb/icewall/icebloom/orb/bounce/mortar…）
    *  / hitwall / bullet / strikeShell / strike / boom / flash / vine / thorn / mine / turret / cyclone /
    *  pillar / fireWall / rain / raindrop / particle / ring / beam / beamp / match（三消飞光） */
-  /** 打击特效（区C）：统一 dispatch——22 种 f.type 各由独立 handler 渲染（重构）
-   *  ：GROUND_FX 内的类型（地面层）不在此处绘制，改由 fxGround 在怪物之前绘制 */
+  /** 打击特效（区C）：统一 dispatch——22 种 f.type 各由独立 handler 渲染（v1.16.43 重构）
+   *  v1.17.36：GROUND_FX 内的类型（地面层）不在此处绘制，改由 fxGround 在怪物之前绘制 */
   fx(ctx, fxList) {
-    fxList.forEach((f) => {
-      if (f.t < 0) return; // ：延迟帧动画（火雨连续波次 stagger）未到时跳过渲染
+    const particles = ParticleBudget.select(fxList, PERFORMANCE.particlePointsPerFrame);
+    fxList.forEach((f, index) => {
+      if (f.t < 0) return; // v1.13.8：延迟帧动画（火雨连续波次 stagger）未到时跳过渲染
       if (GROUND_FX[f.type]) return;
+      if (f.type === 'particle') {
+        if (index < particles.first) return;
+        this.fxParticleFx(ctx, f, index === particles.first ? particles.count : undefined);
+        return;
+      }
       const h = FX_HANDLERS[f.type];
       if (h) this[h](ctx, f);
     });
   }
 
-  /** 地面层特效通道：在敌人绘制之前调用，保证地面效果压在怪物脚下 */
+  /** v1.17.36 地面层特效通道：在敌人绘制之前调用，保证地面效果压在怪物脚下 */
   fxGround(ctx, fxList) {
     fxList.forEach((f) => {
       if (f.t < 0) return;
@@ -589,7 +594,7 @@ class Renderer {
     });
   }
 
-  /** 文字飘字（3★ 触发确认）：上漂 + 渐隐 */
+  /** v1.16.113 文字飘字（3★ 触发确认）：上漂 + 渐隐 */
   _getCommonFx() {
     if (!this._commonFx) this._commonFx = createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf });
     return this._commonFx;
@@ -640,7 +645,7 @@ class Renderer {
   }
 
   fxPillar(ctx, f) { return this._getFireFx().fxPillar(ctx, f); }
-  /** 火柱地面火环（下层）：由 fxGround 在敌人之前调用 */
+  /** v1.17.36 火柱地面火环（下层）：由 fxGround 在敌人之前调用 */
   fxPillarBase(ctx, f) { return this._getFireFx().fxPillarBase(ctx, f); }
 
   _fxPillarProc(ctx, cx, cy, R, seed, p) { return this._getFireFx()._fxPillarProc(ctx, cx, cy, R, seed, p); }
@@ -653,7 +658,7 @@ class Renderer {
 
   fxRaindrop(ctx, f) { return this._getFireFx().fxRaindrop(ctx, f); }
 
-  fxParticleFx(ctx, f) { return this._getCommonFx().fxParticleFx(ctx, f); }
+  fxParticleFx(ctx, f, maxPoints) { return this._getCommonFx().fxParticleFx(ctx, f, maxPoints); }
 
   fxRingFx(ctx, f) { return this._getCommonFx().fxRingFx(ctx, f); }
 
@@ -684,7 +689,7 @@ class Renderer {
 
   fxRainParticle(ctx, f) { return this._getMatchFx().fxRainParticle(ctx, f); }
 
-  /** 三选一弹层（波末/升级强化）v5：横向三卡；入场错峰上浮 + 徽章图标 + 渐变描边 + 呼吸光晕（美化） */
+  /** 三选一弹层（波末/升级强化）v5：横向三卡；入场错峰上浮 + 徽章图标 + 渐变描边 + 呼吸光晕（v1.16.7 美化） */
   _getUpgradePick() {
     if (!this._upgradePick) this._upgradePick = createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW });
     return this._upgradePick;
@@ -711,10 +716,10 @@ class Renderer {
       s.waveClear.pending > 0 ? '开始强化 →' : '下一波 →', { bg: '#27ae60', fontSize: 26 });
   }
 
-  /* ---------- 结算页（全屏三段式骨架）----------
+  /* ---------- v1.17.21 结算页（全屏三段式骨架）----------
    * 设计稿：docs/深窟远征-战斗结算重设计示意图.html；布局/时间轴常量：CONFIG.GO
    * 本批：舞台 + 绶带/标题/meta + 深度轨迹 + 按钮 + 点击跳过（goT=99999 直达终点）；
-   *       战利品区暂留旧图标阵列（换 3 大卡 + 账单 + 里程碑条） */
+   *       战利品区暂留旧图标阵列（v1.17.22 换 3 大卡 + 账单 + 里程碑条） */
 
   _getSettlementScreen() {
     if (!this._settlementScreen) this._settlementScreen = createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum });
@@ -752,7 +757,7 @@ class Renderer {
     });
   }
 
-  /** 底部功能弹层：设置 / 帮助（共用遮罩+面板+关闭；塔图鉴与商店弹层已移除） */
+  /** 底部功能弹层：设置 / 帮助（共用遮罩+面板+关闭；v1.16.77 塔图鉴与商店弹层已移除） */
   _getBattleOverlays() {
     if (!this._battleOverlays) this._battleOverlays = createBattleOverlays({ fmtNum, drawImg });
     return this._battleOverlays;
@@ -760,11 +765,11 @@ class Renderer {
 
   funcLayer(ctx, layer, s, hits) { return this._getBattleOverlays().funcLayer.call(this, ctx, layer, s, hits); }
 
-  /** 伤害统计弹层转发 */
+  /** v1.17.50 伤害统计弹层转发 */
   dmgStatLayer(ctx, g, hits) { return this._getBattleOverlays().dmgStatLayer.call(this, ctx, g, hits); }
 
-  /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（：无配置页） ================= */
-  /** 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
+  /* ================= 主界面：三页签（战斗主页 / 商店 / 圣物）+ 子面板（v1.4：无配置页） ================= */
+  /** v1.14 测试战场渲染层：状态条 + 战场（入口带/城墙/敌人/特效）+ 6 塔槽 + 刷怪控制 + 技能配置面板 */
   _getTestFieldScreen() {
     if (!this._testFieldScreen) this._testFieldScreen = createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph, STATUS_H, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y });
     return this._testFieldScreen;
@@ -782,7 +787,7 @@ class Renderer {
   menuLayer(ctx, s, hits) {
     const items = [];
     const push = (key, data, x, y, w, h) => items.push({ key, data, rect: { x, y, w, h }, hit: (px, py) => px >= x - 0.5 && px <= x + w + 0.5 && py >= y - 0.5 && py <= y + h + 0.5 });
-    // 分页主题背景：每页一张氛围底图（未加载时回退纯色底）
+    // v1.16.75 分页主题背景：每页一张氛围底图（未加载时回退纯色底）
     const theme = MENU_TAB_THEME[s.tab] || MENU_TAB_THEME.battle;
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -796,7 +801,7 @@ class Renderer {
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);
     this._menuHeader(ctx, s, push);
-    // .10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
+    // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
     // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
     if (s.tab === 'battle') drawArchedTitle(ctx, '圣坛裂痕', 375, 352, 98, 1200, false);
     // 内容区（battle / shop / relic / codex）
@@ -805,7 +810,7 @@ class Renderer {
     else if (s.tab === 'codex') this.menuCodex(ctx, s, push);
     else if (s.tab === 'talent') require('./screens/talent.js').draw(ctx,s,push,drawImg,relicIconSrc);
     else this.menuRelic(ctx, s, push);
-    // .10c 底部大分页标签（4 个全部显示，不隐藏）：激活页签与页面"融为一体"——
+    // v1.17.10c 底部大分页标签（4 个全部显示，不隐藏）：激活页签与页面"融为一体"——
     // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
     const tabY=1504, tabH=100, gap=8, widths=[132,132,166,132,132];
     fillRoundRect(ctx,12,1494,726,118,18,'#142d23');
@@ -832,17 +837,17 @@ class Renderer {
       if (['accountMenu', 'accountInfo', 'accountMail', 'testProfile'].includes(s.panel.type)) AccountMenuScreen.draw(ctx, s, push, this._menuPanelShell.bind(this), drawImg);
       else if (s.panel.type === 'fieldLocked') { this._menuPanelShell(ctx,s,push,'战场尚未解锁',320,true); text(ctx,s.panel.message,375,810,22,'#f0b45c','center'); }
       else if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
-      else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // 圣遗物详情（1/2/3★ + 升星）
-      else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // 圣遗物升星
-      else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // 调试工具（仅 DEBUG 构建）
-      else if (s.panel.type === 'codexSkill') this.codexSkillPanel(ctx, s, push); // 技能分支面板
-      else if (s.panel.type === 'chestOpen') this.menuChestOpen(ctx, s, push);   // .9d 开箱弹窗（收益一次弹出）
-      else if (s.panel.type === 'matchCfg') this.menuMatchCfg(ctx, s, push);     // 三消技能配置面板
-      else if (s.panel.type === 'globalCfg') this.menuGlobalCfg(ctx, s, push);   // 全局技能配置面板
-      else if (s.panel.type === 'stageDrops') this.menuStageDrops(ctx, s, push);  // 战场说明 + 专属掉落
+      else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // v1.16.78 圣遗物详情（1/2/3★ + 升星）
+      else if (s.panel.type === 'starUp') this.menuStarUp(ctx, s, push);       // v1.16.76 圣遗物升星
+      else if (s.panel.type === 'debug') this.debugPanel(ctx, s, push);        // v1.16.76 调试工具（仅 DEBUG 构建）
+      else if (s.panel.type === 'codexSkill') this.codexSkillPanel(ctx, s, push); // v1.16.78 技能分支面板
+      else if (s.panel.type === 'chestOpen') this.menuChestOpen(ctx, s, push);   // v1.17.9d 开箱弹窗（收益一次弹出）
+      else if (s.panel.type === 'matchCfg') this.menuMatchCfg(ctx, s, push);     // v5.3 三消技能配置面板
+      else if (s.panel.type === 'globalCfg') this.menuGlobalCfg(ctx, s, push);   // v5.3 全局技能配置面板
+      else if (s.panel.type === 'stageDrops') this.menuStageDrops(ctx, s, push);  // v1.17.48 战场说明 + 专属掉落
       else if (s.panel.type === 'shopDetail') this.menuShopDetail(ctx, s, push); // 局外商店商品详情 + 确认购买
     }
-    // 调试工具入口（仅 DEBUG 构建显示）
+    // v1.16.76 调试工具入口（仅 DEBUG 构建显示）
     if (s.debug) {
       push('debug', null, 668, 12, 64, 44);
       fillRoundRect(ctx, 668, 12, 64, 44, 10, 'rgba(90,108,128,0.25)');
@@ -853,7 +858,7 @@ class Renderer {
     return hits;
   }
 
-  /** 战斗主页：战场卡（战场合约参数化：远古/熔岩/霜风/深渊/测试 5 战场共用一套卡片） */
+  /** 战斗主页：战场卡（v1.16.76 战场合约参数化：远古/熔岩/霜风/深渊/测试 5 战场共用一套卡片） */
   _getHomeScreen() {
     if (!this._homeScreen) this._homeScreen = createHomeScreen({ drawImg, skillRow: this._menuSkillRow.bind(this) });
     return this._homeScreen;
@@ -862,7 +867,7 @@ class Renderer {
   menuBattle(ctx, s, push) { return this._getHomeScreen().menuBattle(ctx, s, push); }
 
   /** 配置页：6 塔页签 → 该塔 3 技能槽（点击配置）+ 技能卡列表（默认灰显 / 卡升级） */
-  /** 商店页 .9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
+  /** 商店页 v1.17.9d：商品以 图标 + 价格 为主，少文字描述（每日精选 / 钻石兑换 / 广告 / 充值） */
   /** 商店页：每日碎片精选与圣遗物宝箱 */
   _getMenuShopScreen() {
     if (!this._menuShopScreen) this._menuShopScreen = createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell: this._menuPanelShell.bind(this), wrapText: this.wrapText.bind(this) });
@@ -874,7 +879,7 @@ class Renderer {
   menuShopDetail(ctx, s, push) { return this._getMenuShopScreen().shopDetail(ctx, s, push); }
 
   /**
-   * .9d 开箱弹窗：宝箱开启后收益一次性弹出（参考结算页圣遗物碎片动画——图标逐个弹跳出场）。
+   * v1.17.9d 开箱弹窗：宝箱开启后收益一次性弹出（参考结算页圣遗物碎片动画——图标逐个弹跳出场）。
    * s.panel = { type:'chestOpen', mode:'deep'|'relic', gain?, reward?, tier? }
    */
   menuChestOpen(ctx, s, push) {
@@ -960,7 +965,7 @@ class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  /* 圣遗物图鉴网格（主页与图鉴面板共用） */
+  /* v1.16.78 圣遗物图鉴网格（主页与图鉴面板共用） */
   _getRelicScreen() {
     if (!this._relicScreen) this._relicScreen = createRelicScreen({
       drawImg, relicIconSrc, IMG_SRC, TIER_COLOR, fmtNum,
@@ -972,7 +977,7 @@ class Renderer {
 
   _relicRunList() { return this._getRelicScreen()._relicRunList(); }
 
-  /** 战场卡信息层：战场说明 + 专属掉落（战场图标点击入口） */
+  /** v1.17.48 战场卡信息层：战场说明 + 专属掉落（战场图标点击入口） */
   _getStageDropsScreen() {
     if (!this._stageDropsScreen) this._stageDropsScreen = createStageDropsScreen({
       drawImg, relicIconSrc, wrapText: this.wrapText.bind(this),
@@ -983,17 +988,17 @@ class Renderer {
   menuStageDrops(ctx, s, push) { return this._getStageDropsScreen().draw(ctx, s, push, this._menuPanelShell.bind(this)); }
 
   _relicUnlocked(s, id) { return this._getRelicScreen()._relicUnlocked(s, id); }
-  /** 可解锁态：未解锁但碎片已够阈值（蓝2/紫4/金8），由玩家在详情面板手动解锁 */
+  /** v1.17.20 可解锁态：未解锁但碎片已够阈值（蓝2/紫4/金8），由玩家在详情面板手动解锁 */
   _relicUnlockable(s, id) { return this._getRelicScreen()._relicUnlockable(s, id); }
   _relicRarColor(rar) { return this._getRelicScreen()._relicRarColor(rar); }
 
-  /** 胶囊进度条：深色内凹槽 + 渐变填充（顶部内高光）+ 文字居中在胶囊内（图鉴卡片通用） */
+  /** v1.16.110 胶囊进度条：深色内凹槽 + 渐变填充（顶部内高光）+ 文字居中在胶囊内（图鉴卡片通用） */
   _capsuleBar(ctx, x, y, w, h, ratio, label, colTop, colBot) { return this._getRelicScreen()._capsuleBar(ctx, x, y, w, h, ratio, label, colTop, colBot); }
 
   /** 圣遗物图鉴网格：未解锁=黑底+稀有度色边+问号占位；已解锁=图标+名+星级；点卡查看 1/2/3★ */
   _menuRelicGrid(ctx, s, push, pageKey, showChest) { return this._getRelicScreen()._menuRelicGrid(ctx, s, push, pageKey, showChest); }
 
-  /** 圣遗物主页（）：全部圣遗物单页滚动浏览（无分页）；卡片高 210（+40%）上1/3 图标居中留白 + 名字居中行 + 描述 */
+  /** 圣遗物主页（v1.16.82）：全部圣遗物单页滚动浏览（无分页）；卡片高 210（+40%）上1/3 图标居中留白 + 名字居中行 + 描述 */
   menuRelic(ctx, s, push) {
     this._relicMaxScroll = this._getRelicScreen().menuRelic(ctx, s, push);
   }
@@ -1001,8 +1006,8 @@ class Renderer {
   /** 圣物图鉴面板：同主页网格（未解锁占位卡 / 已解锁可点详情） */
   menuRelicDex(ctx, s, push) { return this._getRelicScreen().menuRelicDex(ctx, s, push); }
 
-  /** 主页技能配置行：左标签胶囊 + 3 槽位展示（三消=四连/高连/连消技能名；全局=槽位技能/空槽），整行可点击打开配置面板 */
-  /** 主页技能卡片行：左标签胶囊 + 3 张技能卡（图标 + 技能名 + 状态），点击卡片打开配置面板 */
+  /** v5.3 主页技能配置行：左标签胶囊 + 3 槽位展示（三消=四连/高连/连消技能名；全局=槽位技能/空槽），整行可点击打开配置面板 */
+  /** v5.3c 主页技能卡片行：左标签胶囊 + 3 张技能卡（图标 + 技能名 + 状态），点击卡片打开配置面板 */
   // 技能槽与配置页共用图标，四消图片未就绪时回退矢量绘制。
   _skillIcon(ctx, id, x, y, size, color) {
     // 技能卡与棋盘使用同一张四消图标，避免配置页和战斗内符号不一致。
@@ -1028,17 +1033,17 @@ class Renderer {
     return this._getSkillLoadout().skillCards(ctx, s, push, label, cfg, x, y, w, h, isMatch, cardDX);
   }
 
-  /** 主页技能配置行：单行双分区（左全局 / 右三消），每区 2 卡，卡上无槽位文字 */
+  /** v1.17.46 主页技能配置行：单行双分区（左全局 / 右三消），每区 2 卡，卡上无槽位文字 */
   _menuSkillRow(ctx, s, push, x, y, w, ch) {
     return this._getSkillLoadout().skillRow(ctx, s, push, x, y, w, ch);
   }
 
-  /** 技能是否已解锁（未购买过时按默认解锁集判定） */
+  /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */
   _skillOwned(s, slot, id) {
     return this._getSkillLoadout().skillOwned(s, slot, id);
   }
 
-  /** 三消技能配置面板：三行（四连 5 / 高连 4 / 连消 2），已解锁点选配置，未解锁点卡购买 */
+  /** v5.3c 三消技能配置面板：三行（四连 5 / 高连 4 / 连消 2），已解锁点选配置，未解锁点卡购买 */
   _skillChoiceCards(ctx, s, push, title, slot, items, current, tint) {
     return this._getSkillLoadout().skillChoiceCards(ctx, s, push, title, slot, items, current, tint);
   }
@@ -1048,18 +1053,18 @@ class Renderer {
   }
 
   menuGlobalCfg(ctx, s, push) {
-    // 全局面板滚动：视口/最大滚动量回存 renderer，供 input/panel-scroll.js 使用
+    // v1.17.45 全局面板滚动：视口/最大滚动量回存 renderer，供 input/panel-scroll.js 使用
     const ret = this._getSkillLoadout().menuGlobalCfg(ctx, s, push);
     if (ret && ret.viewport) { this._globalCfgViewport = ret.viewport; this._globalCfgMaxScroll = ret.maxScroll; }
     return ret;
   }
 
-  /** 圣遗物详情面板（大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
-  /** 圣遗物详情卡重做：左上稀有度徽章 → 大图标(200px) → 胶囊进度条(与图标同宽,内显进度) → 名称
+  /** 圣遗物详情面板（v1.16.91 大字号重排）：垂直居中 · 头部图标/名称居中 + 1★/2★/3★ 三栏效果（当前等级金框）+ 碎片进度 + 底部居中升星按钮 */
+  /** v1.17.1 圣遗物详情卡重做：左上稀有度徽章 → 大图标(200px) → 胶囊进度条(与图标同宽,内显进度) → 名称
    *   → 3★/2★/1★ 三行（星标圆=★★★/★★/★，当前星级高亮）→ 小号升级按钮(🪙 金币) */
   menuRelicInfo(ctx, s, push) { return this._getRelicScreen().menuRelicInfo(ctx, s, push); }
 
-  /** 塔图鉴页（重设计）：贴合式塔标签（active 与详情面板粘连）+ 技能卡片（美术图标、大字号、点卡看分支） */
+  /** 塔图鉴页（v1.16.78 重设计）：贴合式塔标签（active 与详情面板粘连）+ 技能卡片（美术图标、大字号、点卡看分支） */
   _getCodexScreen() {
     if (!this._codexScreen) this._codexScreen = createCodexScreen({
       drawImg, skillIconSrc, drawTowerGlyph, IMG_SRC, TOWER_HEX, MENU_TAB_THEME, lighten, hexA,
@@ -1077,13 +1082,13 @@ class Renderer {
     return this._getCodexScreen().codexSkillPanel(ctx, s, push);
   }
 
-  /** 撤离决策层：每 10 波暂停，撤离拿深度池 100% / 继续深入阵亡保底 30% */
+  /** v1.16.76 撤离决策层：每 10 波暂停，撤离拿深度池 100% / 继续深入阵亡保底 30% */
   evacuationLayer(ctx, g, hits) { return this._getBattleOverlays().evacuationLayer(ctx, g, hits); }
 
-  /** 圣遗物升星面板：1★ 解锁 → 2★ 效果升级 → 3★ 质变（碎片+金币[+钻石]） */
+  /** v1.16.76 圣遗物升星面板：1★ 解锁 → 2★ 效果升级 → 3★ 质变（碎片+金币[+钻石]） */
   menuStarUp(ctx, s, push) { return this._getRelicScreen().menuStarUp(ctx, s, push); }
 
-  /** 调试工具面板（仅 CONFIG.DEBUG_ACCOUNT=true 时入口可见） */
+  /** v1.16.76 调试工具面板（仅 CONFIG.DEBUG_ACCOUNT=true 时入口可见） */
   debugPanel(ctx, s, push) {
     this._menuPanelShell(ctx, s, push, '🛠 测试工具', 680);
     const acts = [
@@ -1125,7 +1130,7 @@ class Renderer {
   }
 
   /** 战斗内圣物宝箱三选一弹层（精英掉落 · 暂停战斗）：3 个候选卡片，点选获取 */
-  /** 圣物三选一：华丽金色主题 + 弹出动画（scale 0.62→1 渐入，300ms） */
+  /** v1.16.74 圣物三选一：华丽金色主题 + 弹出动画（scale 0.62→1 渐入，300ms） */
   _getBattleRelics() {
     if (!this._battleRelics) this._battleRelics = createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc });
     return this._battleRelics;
@@ -1135,7 +1140,7 @@ class Renderer {
 
   relicDetailLayer(ctx, relics, page, onPick) { return this._getBattleRelics().relicDetailLayer(ctx, relics, page, onPick); }
 
-  /** 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁三角+BOSS */
+  /** v1.16.73 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁三角+BOSS */
   battleHints(ctx, waveHint, bossHint) {
     const now = Date.now();
     // 进入下一波：战斗区正中透明文字（无面板背景）
@@ -1171,19 +1176,19 @@ class Renderer {
 }
 
 function fmtNum(n) {
-  if (!isFinite(n)) return '0';                    // 防御：非数字（NaN/undefined/Infinity）一律显示 0
+  if (!isFinite(n)) return '0';                    // v1.16.128 防御：非数字（NaN/undefined/Infinity）一律显示 0
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'm';
   if (n >= 1e4) return (n / 1e4).toFixed(1) + 'w';
   return String(Math.floor(n));
 }
 
-/** .9d 完整数字：3 位一逗号、不缩写（主界面货币展示用） */
+/** v1.17.9d 完整数字：3 位一逗号、不缩写（主界面货币展示用） */
 function fmtFull(n) {
   if (!isFinite(n)) return '0';
   return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-/** 主界面货币（固定胶囊宽口径）：≤999,999 完整千分位；≥1,000,000 显示 1,000k（k 占预留尾位） */
+/** v1.17.10 主界面货币（固定胶囊宽口径）：≤999,999 完整千分位；≥1,000,000 显示 1,000k（k 占预留尾位） */
 function fmtK(n) {
   if (!isFinite(n)) return '0';
   const v = Math.floor(n);
@@ -1192,9 +1197,9 @@ function fmtK(n) {
 }
 
 /**
- * .9d 主界面游戏名：金色渐变 + 轻微弧线（可选手动立体）。
+ * v1.17.9d 主界面游戏名：金色渐变 + 轻微弧线（可选手动立体）。
  * 沿大半径圆弧排布（两端下沉、逐字沿切线旋转）；stereo=true 时三层偏移（深底→中底→金色渐变主层）+ 顶部高光；
- * stereo=false（）为单层金色渐变，无立体阴影，仅保留弧线排版。
+ * stereo=false（v1.17.10）为单层金色渐变，无立体阴影，仅保留弧线排版。
  * @param {number} size 字号（字宽≈size）
  * @param {number} archR 弧半径（越大越平缓；如 1200 → 端部下沉 ~7px、端字旋转 ~6°）
  * @param {boolean} [stereo=true] 是否带立体效果

@@ -144,6 +144,7 @@ class WaveDirector {
       vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
     };
     const en = initEnemyState(e);
+    require('./combat/boss-control.js').attach(en);
     en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零
     const ga = this.game;
     ga._waveAlive = ga._waveAlive || {};

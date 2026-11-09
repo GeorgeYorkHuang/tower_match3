@@ -1,3 +1,4 @@
+const TalentRuntime = require('./talents/runtime.js');
 const Bosses = require('./bosses/index.js');
 const ChainFlight = require('./chain-flight.js');
 const GlobalCast = require('./combat/global-cast.js');
@@ -116,7 +117,7 @@ class CombatSystem {
   interval(key) {
     const cfg = CONFIG.TOWERS[key];
     let iv = cfg.atkInterval;
-    iv /= 1+require('./talents/runtime.js').bonus(this.game.run,key).speed;
+    iv /= 1+TalentRuntime.bonus(this.game.run,key).speed;
     // 冰·低温全塔：全塔 +10%/级，冰塔额外 +15%/级
     const chill = Math.max(this.lv('ice', '低温全塔'), 0);
     if (chill > 0) iv /= (1 + 0.10 * chill + (key === 'ice' ? 0.15 * chill : 0));

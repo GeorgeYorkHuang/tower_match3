@@ -1,0 +1,161 @@
+{
+  "date": "2026-11-09",
+  "summary": {
+    "before": 98430464,
+    "after": 50519040,
+    "oldDisk": 1653735,
+    "newDisk": 1623934,
+    "frames": 517,
+    "empty": 22,
+    "duplicates": 4
+  },
+  "atlases": [
+    {
+      "id": "meteor",
+      "src": "assets/images/towers/fx/fire-approved/meteor.png",
+      "meta": "js/game/fx/approved-fire-frames.js",
+      "frames": 101,
+      "empty": 5,
+      "duplicates": 0,
+      "unique": 96,
+      "oldSize": [
+        2720,
+        2552
+      ],
+      "newSize": [
+        1280,
+        2028
+      ],
+      "beforeBytes": 27765760,
+      "afterBytes": 10383360,
+      "diskBefore": 238753,
+      "diskAfter": 209359
+    },
+    {
+      "id": "lightning-strike",
+      "src": "assets/images/towers/fx/electric-approved/lightning-strike.png",
+      "meta": "js/game/fx/approved-electric-frames.js",
+      "frames": 61,
+      "empty": 1,
+      "duplicates": 0,
+      "unique": 60,
+      "oldSize": [
+        2160,
+        1848
+      ],
+      "newSize": [
+        1152,
+        1608
+      ],
+      "beforeBytes": 15966720,
+      "afterBytes": 7409664,
+      "diskBefore": 113572,
+      "diskAfter": 104954
+    },
+    {
+      "id": "poison-cloud",
+      "src": "assets/images/towers/fx/electric-approved/poison-cloud.png",
+      "meta": "js/game/fx/approved-electric-frames.js",
+      "frames": 80,
+      "empty": 0,
+      "duplicates": 0,
+      "unique": 80,
+      "oldSize": [
+        1536,
+        1400
+      ],
+      "newSize": [
+        896,
+        1800
+      ],
+      "beforeBytes": 8601600,
+      "afterBytes": 6451200,
+      "diskBefore": 160035,
+      "diskAfter": 169322
+    },
+    {
+      "id": "flame-pillar",
+      "src": "assets/images/towers/fx/flame-pillar/flame-pillar-sheet.png",
+      "meta": "js/game/fx/flame-pillar-packed.js",
+      "frames": 76,
+      "empty": 10,
+      "duplicates": 0,
+      "unique": 66,
+      "oldSize": [
+        2024,
+        1792
+      ],
+      "newSize": [
+        1024,
+        1577
+      ],
+      "beforeBytes": 14508032,
+      "afterBytes": 6459392,
+      "diskBefore": 168058,
+      "diskAfter": 168013
+    },
+    {
+      "id": "toxic-pool",
+      "src": "assets/images/towers/fx/toxic-pool-v1/toxic-pool.png",
+      "meta": "js/game/fx/toxic-pool-frames.js",
+      "frames": 80,
+      "empty": 0,
+      "duplicates": 0,
+      "unique": 80,
+      "oldSize": [
+        1792,
+        1600
+      ],
+      "newSize": [
+        1536,
+        1132
+      ],
+      "beforeBytes": 11468800,
+      "afterBytes": 6955008,
+      "diskBefore": 169598,
+      "diskAfter": 174975
+    },
+    {
+      "id": "fire-ring",
+      "src": "assets/images/towers/fx/fire-approved/fire-ring.png",
+      "meta": "js/game/fx/approved-fire-frames.js",
+      "frames": 79,
+      "empty": 6,
+      "duplicates": 4,
+      "unique": 69,
+      "oldSize": [
+        1568,
+        1536
+      ],
+      "newSize": [
+        1920,
+        729
+      ],
+      "beforeBytes": 9633792,
+      "afterBytes": 5598720,
+      "diskBefore": 117794,
+      "diskAfter": 115087
+    },
+    {
+      "id": "ground-patch",
+      "src": "assets/images/towers/fx/fire-approved/ground-patch.png",
+      "meta": "js/game/fx/fire-ground-packed.js",
+      "frames": 40,
+      "empty": 0,
+      "duplicates": 0,
+      "unique": 40,
+      "oldSize": [
+        2048,
+        1280
+      ],
+      "newSize": [
+        1664,
+        1091
+      ],
+      "beforeBytes": 10485760,
+      "afterBytes": 7261696,
+      "diskBefore": 685925,
+      "diskAfter": 682224
+    }
+  ]
+}

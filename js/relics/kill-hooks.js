@@ -114,7 +114,7 @@ function poisonInheritanceBase(combat, e) {
 
 function experience(run, e, bonus) {
   const base = CONFIG.EXP.kill[e.type] || CONFIG.EXP.kill.normal;
-  const gained = Math.round(base * (1 + 0.20 * bonus.exp) * (1 + run.relicNum('s_sr_cm_exp') / 100));
+  const gained = Math.round(base * CONFIG.EXP.waveMultiplier(e.waveNo || run.wave) * (1 + 0.20 * bonus.exp) * (1 + run.relicNum('s_sr_cm_exp') / 100));
   run.gainExp(gained);
   if (run.relicNum('s_sr_cm_exp') > 0) run.relicFx('s_sr_cm_exp', `击杀经验 +${run.relicNum('s_sr_cm_exp')}%`, e.x, e.y);
 }
