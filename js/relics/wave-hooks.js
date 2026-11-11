@@ -22,6 +22,9 @@ function endWave(run) {
     run.gold += Math.round(run._waveGold * 0.3);
     run.relicFx('cm_vault', '无伤银币 +30%'); // 生效提示
   }
+  // 已破防只能走战败/广告复活，波末被动不能复活城墙；已赚取的银币照常结算。
+  // 否则回血会让 Run.endWave 清除 broken，活着的 Boss 也会被跳过。
+  if (run.lineHp <= 0) return;
   // 新通用卡：低血量时的磐石回复与每波自愈分别结算；低血量条件按波末原血量判定。
   const maxHp = run.lineMaxHp || CONFIG.LINE.hp;
   const lowHpHeal = run.relic3('s_sr_cm_wall') && run.lineHp < maxHp * 0.3

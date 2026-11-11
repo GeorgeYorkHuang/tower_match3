@@ -1,0 +1,3 @@
+﻿route,profile,seed,phase,seconds,hp,maxHp,remainingFraction,cards,levels,totalWaveDamage,note
+primary,wind_artillery,41,1,109.76666666666172,431017.80125458434,540000,0.7981811134344154,8,"{""fire"": 8, ""ice"": 8, ""boomerang"": 8, ""cannon"": 7}",226747.133674239,Wave damage includes adds and cannot be treated as direct Boss DPS.
+primary,wind_artillery,123,1,107.48333333332852,428012.90685338894,540000,0.7926164941729424,8,"{""fire"": 8, ""ice"": 8, ""boomerang"": 8, ""cannon"": 7}",278019.1674395362,Wave damage includes adds and cannot be treated as direct Boss DPS.

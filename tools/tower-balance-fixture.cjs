@@ -385,6 +385,7 @@ const growth = Object.entries(CONFIG.TOWERS).map(([key, t]) => ({
 }));
 
 module.exports = {
+  setClock(ms) { clock = ms; },
   setup,
   simulate,
   average,

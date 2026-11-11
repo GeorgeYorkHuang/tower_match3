@@ -312,7 +312,7 @@ function createUpgradePick({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW })
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       fillRoundRect(ctx, btnX + 6, btnY + 5, btnW - 12, 14, 7, ctx.fillStyle);
       text(ctx, btnTxt, btnX + btnW / 2, btnY + btnH / 2, 26, upgrading ? '#5c4a00' : '#ffffff', 'center');
-      onPick[i] = { hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
+      onPick[i] = { cardRect: {x:cx,y:topY,w:cardW,h:cardH}, hit: (px, py) => px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
     });
     if (reroll) {
       const rx = 230, ry = y + h - 86, rw = 300, rh = 50;

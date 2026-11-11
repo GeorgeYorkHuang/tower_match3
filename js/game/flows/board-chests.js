@@ -6,7 +6,10 @@ function cellCenter(g,r,c){return{x:g.ly.boardX+(c+.5)*g.ly.cell,y:g.ly.boardY+(
 /** 每局首次构筑宝箱由波次发放，不依赖W2不存在的精英/Boss击杀。 */
 function grantFirstReward(g) {
   if (g.menuStage === 'test' || g.state === 'testfield') return false;
-  if (g.run.wave !== UI.firstRewardWave || g.run._firstWaveChestGranted) return false;
+  const chapter=g.run.chapter;
+  if(chapter&&chapter.isPrologue&&!chapter.features.relics)return false;
+  const rewardWave=chapter&&chapter.isPrologue?chapter.features.relicStartWave:UI.firstRewardWave;
+  if (g.run.wave !== rewardWave || g.run._firstWaveChestGranted) return false;
   g.fieldChests.push({
     x: g.ly.areaX + g.ly.areaW / 2,
     y: g.ly.areaY + g.ly.entryH + 60,
@@ -44,6 +47,16 @@ function schedule(g,steps){
 }
 function reveal(g,entries){for(const p of entries||[]){const c=g.fieldChests.find(c=>c.id===p.id);if(c)c.hidden=false;}}
 function tick(g,dt){
+  const chapter=g.run.chapter;
+  if(chapter&&chapter.isPrologue&&(!chapter.features.relics||g.run.wave<chapter.features.relicStartWave)){
+    const ids=new Set(g.fieldChests.map(c=>c.id).filter(id=>id!=null));
+    let removed=false;
+    for(const row of g.run.board.grid)for(let c=0;c<row.length;c++)if(Piece.isChest(row[c])&&(ids.has(row[c].id)||!chapter.features.relics)){
+      row[c]=null;removed=true;
+    }
+    if(removed)g.run.board.gravity();
+    g.fieldChests=[];g._chestBusy=false;return;
+  }
   g.fieldChests=g.fieldChests.filter(c=>{
     if(!c.stage){c.stage='ground';c.groundT=0;}
     if(c.stage==='ground'){c.groundT+=dt;if(c.groundT>=UI.ground)c.stage='waiting';}

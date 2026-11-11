@@ -177,6 +177,11 @@ function collect({
   startLevel = 1,
   windowEnd = null,
   fixedLevel = false,
+  relics = false,
+  selectRelic = null,
+  afterSpawnEnemy = null,
+  configureGame = null,
+  stopAtFirstBreach = false,
 }) {
   simTime = 0;
   const combatRandom = rng(seed ^ 0xc0b47);
@@ -278,7 +283,8 @@ function collect({
   };
   if (fixedLevel) g.run.gainExp = () => 0; // 补充窗口固定同等投入，独立于完整成长回放。
   // 只保留真实击杀经验；本批排除圣物、掉落入盘、局外奖励与商店。
-  g.onKillReward = (e) => KillHooks.experience(g.run, e, g.meta.relicBonus());
+  const nativeRewards = g.onKillReward.bind(g);
+  g.onKillReward = relics ? nativeRewards : (e) => KillHooks.experience(g.run, e, g.meta.relicBonus());
   const nativeOnKill = g.combat.onKill.bind(g.combat);
   g.combat.onKill = (e) => {
     observe(e);
@@ -444,6 +450,21 @@ function collect({
       observe(g.enemies[g.enemies.length - 1]);
       return result;
     });
+  if (afterSpawnEnemy) {
+    // 原生spawnOne完成Boss专属配置之后才干预，避免随后被Boss.configure覆盖。
+    const spawn = g.wave.spawnOne.bind(g.wave);
+    g.wave.spawnOne = (...args) => {
+      const start = g.enemies.length, result = spawn(...args);
+      for (const enemy of g.enemies.slice(start)) {
+        const oldHp = enemy.maxHp;
+        afterSpawnEnemy(g, enemy);
+        // pushEnemy已登记出场生命；使统计与干预后的实际生命一致。
+        const delta = enemy.maxHp - oldHp;
+        if (delta) both(row => { row.spawnedHp += delta; });
+      }
+      return result;
+    };
+  }
   const oldBuild = g.wave.buildPlan.bind(g.wave);
   g.wave.buildPlan = () => {
     waveRandom = rng((seed + 100003 * g.run.wave) >>> 0);
@@ -457,7 +478,10 @@ function collect({
     current = empty();
     waveStartedAt = simTime;
     lastDamage = damageSnapshot(g.run);
-    return withRandom(waveRandom, () => oldStart(keep));
+    const result = withRandom(waveRandom, () => oldStart(keep));
+    // 新版W2奖励来自波次而非击杀；无圣遗物对照必须同时排除这条入口。
+    if (!relics) g.fieldChests = g.fieldChests.filter(c => c.kind !== 'firstWave');
+    return result;
   };
   function closeWave(reason) {
     waveRows.push({
@@ -470,6 +494,9 @@ function collect({
       remainingEnemies: g.enemies.filter((e) => e.hp > 0).length,
       levels: Object.fromEntries(g.run.slotOrder.map((k) => [k, g.run.effects.tower(k).level])),
       ...current,
+      // waveEnd发生在update内部，帧后的采样尚未结束；统一在输出时展开同一份计数，
+      // 避免seconds提前拷贝而towers继续累计，导致低能时长比波次总时长多一帧。
+      _counters: current,
       damage: diffDamage(damageSnapshot(g.run), lastDamage),
       boss: {
         locked: !!g.run.bossLock,
@@ -493,6 +520,11 @@ function collect({
   };
   const oldEnd = g.waveEnd.bind(g);
   g.waveEnd = () => {
+    // 审计用：波末回血不能把已经归零的城墙带入下一波，避免误记成构筑生存收益。
+    if (stopAtFirstBreach && g.run.lineHp <= 0) {
+      closeWave('first_breach');
+      terminal = 'wall_broken'; g.state = 'collected'; return;
+    }
     // 采样窗口最后一波必须清理残怪，不能把“投放后3秒可叠波”记成成功清场。
     if (windowEnd && g.run.wave >= windowEnd && !g.run.broken) {
       if (g.enemies.some((e) => e.hp > 0)) return;
@@ -519,12 +551,26 @@ function collect({
   g.run.broken = false;
   g.run.runRelic = {};
   g.wave.start(false);
+  const observer = configureGame ? configureGame(g) : null;
+  const relicChoices = [];
   let nextAction = 0,
     nextGlobal = 0,
     lastWave = g.run.wave;
   const dt = 1 / 60;
   for (let frame = 0; simTime < maxSeconds && !terminal && g.run.wave <= maxWave; frame++) {
     simTime = frame * dt;
+    if (relics && g.state === 'relicpick') {
+      // 默认第一项；专项可只根据当前候选和构筑选择，不改变候选生成/品质/开箱流程。
+      const candidates = g.relicPick && g.relicPick.candidates;
+      const index = candidates && selectRelic ? selectRelic(g, candidates) : 0;
+      if (candidates) assert(Number.isInteger(index) && index >= 0 && index < candidates.length, 'Invalid relic choice');
+      const chosen = candidates && candidates[index];
+      if (chosen) {
+        relicChoices.push({ at: simTime, wave: g.run.wave, id: chosen.id, rarity: CONFIG.relicRarity(chosen.id),
+          ...(selectRelic ? { selectedIndex: index, candidates: candidates.map(c => c.id), goldOnly: g.relicPick.rarity === 'ssr' } : {}) });
+        g.relicPickChoice(index);
+      }
+    }
     if (g.state === 'evacuation') {
       g.state = 'fighting';
       g.startNextWave();
@@ -562,7 +608,9 @@ function collect({
       }
     }
     const isBattle = g.state === 'fighting';
+    if (isBattle && observer && observer.beforeUpdate) observer.beforeUpdate(dt);
     g.update(dt);
+    if (isBattle && observer && observer.afterUpdate) observer.afterUpdate(dt);
     if (isBattle) {
       both((row) => {
         row.seconds += dt;
@@ -613,10 +661,12 @@ function collect({
     totals,
     damage: damageSnapshot(g.run),
     killsByTower: { ...g.combat.kills },
-    waves: waveRows,
+    waves: waveRows.map(({ _counters, ...row }) => ({ ...row, ..._counters })),
     peaks,
     upgrades: upgradeLog,
     moves,
+    ...(observer && observer.finish ? { observations: observer.finish() } : {}),
+    ...(relics ? { relicChoices, runRelics: { ...g.run.runRelic } } : {}),
   };
   return output;
 }

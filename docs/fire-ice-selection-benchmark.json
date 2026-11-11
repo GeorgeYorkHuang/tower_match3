@@ -1,0 +1,53 @@
+{
+  "environment": "v24.15.0",
+  "results": [
+    {
+      "key": "fire",
+      "enemies": 40,
+      "enabled": false,
+      "millisecondsPerSelection": 0.04033299999999997
+    },
+    {
+      "key": "fire",
+      "enemies": 40,
+      "enabled": true,
+      "millisecondsPerSelection": 0.06732399999999998
+    },
+    {
+      "key": "fire",
+      "enemies": 120,
+      "enabled": false,
+      "millisecondsPerSelection": 0.06226299999999995
+    },
+    {
+      "key": "fire",
+      "enemies": 120,
+      "enabled": true,
+      "millisecondsPerSelection": 0.11299599999999999
+    },
+    {
+      "key": "ice",
+      "enemies": 40,
+      "enabled": false,
+      "millisecondsPerSelection": 0.02032899999999998
+    },
+    {
+      "key": "ice",
+      "enemies": 40,
+      "enabled": true,
+      "millisecondsPerSelection": 0.052365999999999954
+    },
+    {
+      "key": "ice",
+      "enemies": 120,
+      "enabled": false,
+      "millisecondsPerSelection": 0.03601500000000001
+    },
+    {
+      "key": "ice",
+      "enemies": 120,
+      "enabled": true,
+      "millisecondsPerSelection": 0.05414100000000005
+    }
+  ]
+}

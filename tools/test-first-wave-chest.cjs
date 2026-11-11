@@ -21,7 +21,7 @@ function create(field, star = 0) {
 }
 
 try {
-  for (const field of Object.keys(CONFIG.FIELDS).filter(f => f !== 'test')) {
+  for (const field of ['ancient','lava','frost','abyss']) {
     const g = create(field);
     assert.equal(g.run.wave, 1);
     assert.equal(g.fieldChests.length, 0, 'No W1 chest without three-star experience relic');

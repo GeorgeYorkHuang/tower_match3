@@ -2,16 +2,20 @@
 // Ice attack/impact callbacks use the supplied Combat and current enemy instances.
 const CONFIG = require('../../config.js');
 const SKILL_NUM = require('../../config/tower-skills.js');
+const Targeting = require('../targeting.js');
+const Trajectory = require('../trajectory-aim.js');
+const TARGETING = require('../../config/targeting.js');
 
-function launchIcePiercingShot(combat, target, dmg, scale = 1.15, hitR = 45, angleOffset = 0) {
+function launchIcePiercingShot(combat, target, dmg, scale = 1.15, hitR = 45, angleOffset = 0, rangeSnapshot) {
   if (!target || combat.lv('ice', '冰穿刺') <= 0) return false;
   const bal = SKILL_NUM.ice['冰穿刺'];
   const mz = combat.towerMuzzle('ice');
   const sx = mz.x, sy = mz.y;
-  const dx = target.x - sx, dy = target.y - sy;
+  const range = rangeSnapshot == null ? combat.range('ice') : rangeSnapshot;
+  const aim=TARGETING.ice.trajectoryAim?Trajectory.intercept(combat,'ice',target,range):target;
+  const dx = aim.x - sx, dy = aim.y - sy;
   const baseAngle = Math.atan2(dy, dx) + angleOffset;
   const ux = Math.cos(baseAngle), uy = Math.sin(baseAngle);
-  const range = combat.range('ice');
   const dur = CONFIG.TOWERS.ice.shot.dur;
   const speed = range / dur;
   const branchA = combat.branchLv('ice', '冰穿刺', 'A');
@@ -26,13 +30,13 @@ function launchIcePiercingShot(combat, target, dmg, scale = 1.15, hitR = 45, ang
     if (isLast && hitIndex >= 3 && combat.game.run.relic3('ice_pierce')) combat.freezeE(enemy, 1);
   };
   combat.addProjectile(
-    { key: 'ice', scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, speed, pierceMaxHits: maxHits, onHit },
+    { key: 'ice', aimTarget:target, scatter: true, dmg, t: 0, dur, sx, sy, tx, ty, hitR, speed, pierceMaxHits: maxHits, onHit },
     { type: 'shot', kind: 'line', color: '#7fd4ff', x: sx, y: sy, t: 0, dur, key: 'ice', aim: true, scale, tx, ty }
   );
   return true;
 }
 
-function _iceMultiShot(combat, e, dmg) {
+function _iceMultiShot(combat, e, dmg, rangeSnapshot) {
   const balance = SKILL_NUM.ice['多重冰锥'];
   const mz = combat.towerMuzzle('ice');
   const msx = mz.x, msy = mz.y;
@@ -40,18 +44,20 @@ function _iceMultiShot(combat, e, dmg) {
   const bLv = combat.branchLv('ice', '多重冰锥', 'B');
   const cLv = combat.branchLv('ice', '多重冰锥', 'C');
   const dur = CONFIG.TOWERS.ice.shot.dur;
-  const R = combat.range('ice');                 // 射界半径（= 塔射程）
+  const R = rangeSnapshot == null ? combat.range('ice') : rangeSnapshot;
   if (cLv > 0) {
     // C 增殖：超小型冰锥各自索敌（循环锁定射程内敌人直飞），每枚 10% 伤害（A 数量叠加、B 伤害叠加），命中 20% 冰缓
     const n = SKILL_NUM.ice['多重冰锥'].swarm[cLv] + aLv + combat.relicVal('ice_blizzard');   // 暴雪1★/2★
     const perDmg = dmg * balance.swarmDamage * (1 + balance.damagePerBranch * bLv);
     const hitR = balance.swarmHitRadius;                             // 超小冰锥碰撞半径更小
     const strike = (o, d, shot) => combat.hitIce(o, d, shot);
-    const targets = combat.enemies().filter((o) => o.hp > 0 && combat.inTowerRange('ice', o.x, o.y));
+    // 小冰锥重新分配目标时也沿用本轮射程，避免扣费后把原有候选过滤掉。
+    const targets = Targeting.rankTargets(combat,'ice',{range:R});
     for (let i = 0; i < n; i++) {
       const tgt = targets.length ? targets[i % targets.length] : e;   // 各自索敌：循环分配射程内目标
-      if (!launchIcePiercingShot(combat, tgt, perDmg, 0.38, hitR)) {
-        combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: tgt.x, ty: tgt.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: tgt.x, ty: tgt.y });
+      if (!launchIcePiercingShot(combat, tgt, perDmg, 0.38, hitR, 0, R)) {
+        const aim=TARGETING.ice.trajectoryAim?Trajectory.intercept(combat,'ice',tgt,R,false):tgt;
+        combat.addProjectile({ key: 'ice', aimTarget:tgt, scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: aim.x, ty: aim.y, hitR, onHit: strike }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 0.38, tx: aim.x, ty: aim.y });
       }
     }
     // 增殖仅由每枚真实冰锥碰撞结算，不额外对主目标即时扣血。
@@ -69,25 +75,26 @@ function _iceMultiShot(combat, e, dmg) {
   };
   // 主目标只决定扇形朝向；中心弹与侧锥同帧发射、同速飞行、沿线碰撞。
   const maxOff = (n - 2) * balance.fanStep;
-  const aim0 = aimOf(e, 0);
+  const aimTarget=TARGETING.ice.trajectoryAim?Trajectory.intercept(combat,'ice',e,R):e;
+  const aim0 = aimOf(aimTarget, 0);
   const centerLen = Math.hypot(aim0.tx - msx, aim0.ty - msy) || 1;
   const centerTX = msx + (aim0.tx - msx) * R / centerLen;
   const centerTY = msy + (aim0.ty - msy) * R / centerLen;
-  if (!launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, 0)) {
+  if (!launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, 0, R)) {
     const strikeCenter = (o, d, shot) => strike(o, perDmg, shot);
-    combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: centerTX, ty: centerTY, hitR, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: centerTX, ty: centerTY });
+    combat.addProjectile({ key: 'ice', aimTarget:e, scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: centerTX, ty: centerTY, hitR, onHit: strikeCenter }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: centerTX, ty: centerTY });
   }
   // 两侧锥与中心锥使用同一碰撞、穿透和碎冰处理逻辑。
   for (let i = 0; i < n - 1; i++) {
     const off = n > 2 ? (-maxOff + i * (2 * maxOff / (n - 2))) : 0;
-    const ap = aimOf(e, off);
+    const ap = aimOf(aimTarget, off);
     const rayLen=Math.hypot(ap.tx-msx,ap.ty-msy)||1;
     ap.tx=msx+(ap.tx-msx)*R/rayLen; ap.ty=msy+(ap.ty-msy)*R/rayLen;
     if (combat.lv('ice', '冰穿刺') > 0) {
-      launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, off);
+      launchIcePiercingShot(combat, e, perDmg, 1.15, hitR, off, R);
     } else {
       const strikeSide = (o, d, shot) => strike(o, perDmg, shot);
-      combat.addProjectile({ key: 'ice', scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
+      combat.addProjectile({ key: 'ice', aimTarget:e, scatter: true, dmg: perDmg, t: 0, dur, sx: msx, sy: msy, tx: ap.tx, ty: ap.ty, hitR, onHit: strikeSide }, { type: 'shot', kind: 'line', color: '#7fd4ff', x: msx, y: msy, t: 0, dur, key: 'ice', aim: true, scale: 1.15, tx: ap.tx, ty: ap.ty });
     }
   }
 }
@@ -236,14 +243,14 @@ function tickIce(combat, dt) {
   const flower = combat.lv('ice', '冰花');
   if (flower > 0) {
     combat.timers.iceFlower = (combat.timers.iceFlower || 0) + dt;
-    if (combat.timers.iceFlower >= flowerBalance.period * combat._weakPeriod('ice') * relicCd) {
+    if (combat.timers.iceFlower >= flowerBalance.period * combat._weakPeriod('ice') * relicCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y))) {
       combat.timers.iceFlower = 0;
-      combat.castEnergy('ice', '冰花');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y));
+      const energyBefore = combat.castEnergy('ice', '冰花');
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y, energyBefore));
       if (alive.length) {
         const n = flowerBalance.baseCount + SKILL_NUM.ice['冰花'].n[combat.branchLv('ice', '冰花', 'C')] + combat.game.run.relicValue('s_sr_ice_boom', 'bloomAdd');
         const relicDmg = combat.game.run.relicNum('s_sr_ice_boom') + combat.game.run.relicNum('s_ice_bloom');
-        const dmg = combat.shotDmg('ice', false, true) * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')] + relicDmg / 100);
+        const dmg = combat.shotDmg('ice', false, true, energyBefore) * flowerBalance.baseDamage * (1 + SKILL_NUM.ice['冰花'].dmg[combat.branchLv('ice', '冰花', 'B')] + relicDmg / 100);
         const r = flowerBalance.baseRadius * (1 + SKILL_NUM.ice['冰花'].radius[combat.branchLv('ice', '冰花', 'A')]);
         const targets = alive.sort((a, b) => b.y - a.y).slice(0, n);   // 最近敌人（靠城墙侧优先）
         targets.forEach((tgt) => {
@@ -287,16 +294,16 @@ function tickIce(combat, dt) {
   const orbSkill = combat.lv('ice', '冬珠');
   if (orbSkill > 0) {
     combat.timers.frostOrb = (combat.timers.frostOrb || 0) + dt;
-    if (combat.timers.frostOrb >= orbBalance.period * combat._weakPeriod('ice') * relicCd) {
+    if (combat.timers.frostOrb >= orbBalance.period * combat._weakPeriod('ice') * relicCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y))) {
       combat.timers.frostOrb = 0;
-      combat.castEnergy('ice', '冬珠');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y));
+      const energyBefore = combat.castEnergy('ice', '冬珠');
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('ice', e.x, e.y, energyBefore));
       if (alive.length) {
         const r = orbBalance.baseRadius * (1 + SKILL_NUM.ice['冬珠'].radius[combat.branchLv('ice', '冬珠', 'B')]);
         const cLv = combat.branchLv('ice', '冬珠', 'C');
         const tickI = cLv > 0 ? SKILL_NUM.ice['冬珠'].tickI[cLv] : orbBalance.defaultTickInterval;
         const slowMult = SKILL_NUM.ice['冬珠'].slowMult[combat.branchLv('ice', '冬珠', 'A')];
-        const dmg = combat.shotDmg('ice', false, true) * orbBalance.damage;   // 平衡：冬珠每跳 0.55→0.44×普攻
+        const dmg = combat.shotDmg('ice', false, true, energyBefore) * orbBalance.damage;
         const spots = alive.sort((a, b) => b.y - a.y).slice(0, orbBalance.targetCount);   // 最近 1 个敌人位置落球（C 不再增加数量）
         combat.frostOrbs = combat.frostOrbs || [];
         spots.forEach((sp) => {

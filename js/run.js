@@ -6,6 +6,8 @@ const WaveRelics = require('./relics/wave-hooks.js');
 const MatchRelics = require('./relics/match-hooks.js');
 const GS_BALANCE = require('./config/global-balance.js');
 const TOWER_SKILLS = require('./config/tower-skills.js');
+const FieldBalance = require('./config/field-balance.js');
+const Prologue = require('./prologue.js');
 /**
  * run.js —— 对局（run）层：三消 → 经验 → 塔升级 → 波末三选一 → 战斗结算
  * =====================================================================
@@ -54,12 +56,14 @@ class Run {
     this.globalSlots = GlobalSkills.slots(opts.globalSkills);
     this.gsState = {};
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
+    this.chapter = Prologue.context(opts.field || 'ancient', this.difficulty);
+    this.towerSlots = this.chapter.towerSlots;
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, opts.matchSkills || {});  // 三消技能配置槽
-    this.board = new Board({ difficulty: this.difficulty, theme: opts.field || 'ancient', obstacles: ((CONFIG.FIELDS[opts.field] || {}).boardObstacles || []).map(p => p.slice()) });
+    this.board = new Board({ difficulty: this.difficulty, colors: this.chapter.colors, theme: opts.field || 'ancient', obstacles: ((CONFIG.FIELDS[opts.field] || {}).boardObstacles || []).map(p => p.slice()) });
     // 特殊方块挂钩：四连技 id / 高连技面板操作（board.resolve 播种段调用）
     this.board.hooks = {
-      onMatch4: () => this.matchSkills.match4,
-      onMatch5: () => this.matchSkills.match5,
+      onMatch4: () => this.chapter.features.match4 ? this.matchSkills.match4 : null,
+      onMatch5: () => this.chapter.features.match5 ? this.matchSkills.match5 : null,
       extraMatch4: () => { if (this.gsState.twins) { this.gsState.twins=false; return true; } return false; },
     };
     this.board.init();
@@ -86,11 +90,11 @@ class Run {
     this.fieldCfg = null;              // 战场被动配置（由主流程注入：风场/诅咒触发器）
     this.windStacks = 0;               // 霜风峡谷：风场增速层数（每 windEvery 波 +1，移速 ×1.10^n）
     this.curseStacks = 0;              // 深渊裂隙：诅咒层数（每 curseEvery 波 +1，怪物血量 ×1.15^n）
-    this._colors = Object.keys(CONFIG.COLOR_WEIGHT);
+    this._colors = this.chapter.colors;
     this._weights = this._weightsFor();
     this._directSeq = ['red', 'green'];
     this._directDone = 0;
-    this.slotOrder = [];      // 先消先得：塔获得顺序（前 TOWER_SLOTS 个占槽）
+    this.slotOrder = [];      // 先消先得：最多占用当局towerSlots个塔位。
     this.runRelic = {};       // 局内圣遗物（rougelike）本局生效计数 { id: count }
     this.metaRef = null;      // 星级查询引用（main 注入 meta；模拟层缺省按 1★）
     /* 3★ 质变行为局内状态 */
@@ -228,14 +232,17 @@ class Run {
       this.energyBank -= take;
       t.energy += take;
     }
+    // 借用完成、扣费之前的能量用于本次攻击，不能因本次扣费跨档而突然降伤。
+    const energyBefore = t.energy;
     if (t.energy >= need) t.energy -= need;
     else t.energy = 0;
+    return energyBefore;
   }
 
   /** 赏金猎人3★：连续3波不掉宝箱时，第4波必掉（调用方在掉落判定处消费） */
 
   _weightsFor() {
-    const keys = CONFIG.DIFFICULTY.activeColors[this.difficulty] || this._colors;
+    const keys = this._colors;
     const w = CONFIG.COLOR_WEIGHT;
     const total = keys.reduce((s, k) => s + (w[k] || 0), 0);
     return { keys, weights: keys.map((k) => (w[k] || 0) / total) };
@@ -256,7 +263,7 @@ class Run {
 
   /** 整体经验：三段需求曲线；智慧典籍减免沿用。 */
   expNeed() {
-    let need = CONFIG.EXP.need(this.expLevel);
+    let need = CONFIG.EXP.need(this.expLevel) * this.chapter.expNeedMultiplier;
     const n = this.relicNum('cm_tome');
     if (n > 0) need *= (1 - n / 100);
     return need;
@@ -273,13 +280,14 @@ class Run {
    * @returns 本次升级次数（>0 时调用方应触发升级三选一）
    */
   gainExp(v) {
-    if (!(v > 0)) return 0;
+    if (!(v > 0) || !this.chapter.features.skills) return 0;
     this.exp += v;
     let ups = 0;
-    // 全局等级代表已发出的升级选择数：4 座塔各有 12 次选择额度，共 48 级。
+    // 全局等级代表已发出的选择数；无分支章节每塔最多激活三个技能。
     // 若当前没有可接收升级的塔（已满级或待选已攒满），经验留在池中，不空耗等级。
-    const globalMaxLevel = CONFIG.TOWER_SLOTS * (CONFIG.EXP.towerMaxLevel - 1);
+    const globalMaxLevel = this.towerSlots * (this.chapter.features.branches ? CONFIG.EXP.towerMaxLevel - 1 : CONFIG.EFFECT.activeSlots);
     while (this.expLevel < globalMaxLevel && this.exp >= this.expNeed()) {
+      if (this.effects.pendingTotal() >= this.effects.choiceCapacity(this.slotOrder)) break;
       const t = this._nextPendingTower();
       if (!t) break;
       const need = this.expNeed();
@@ -307,6 +315,8 @@ class Run {
    * @returns {tower, gotTower, penalized, exp, shape, ammoGain, shuffleGain, refillGain}
    */
   applyMatch(color, shape, size, energyCells = size) {
+    // 外部模拟、道具回调同样遵守章颜色，不能绕过棋盘生成规则建出未开放塔。
+    if (!this._colors.includes(color)) return { tower: null, gotTower: false, penalized: false, exp: 0, shape, ammoGain: 0, shuffleGain: 0, refillGain: 0 };
     TalentRuntime.gain(this,color,energyCells);
     const energyBonus = this.relicNum('cm_ammobox');
     const exp = energyCells===0 ? 0 : expOfShape(shape, size);
@@ -321,9 +331,10 @@ class Run {
       this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO), shape, size));
     } else if (t.level === 0) {
       const owned = Object.keys(this.effects.towers).filter((k) => this.effects.tower(k).level > 0).length;
-      if (owned < CONFIG.TOWER_SLOTS) {
+      if (owned < this.towerSlots) {
         t.unlock(); require('./tower-activation.js').prepare(t); gotTower = true; target = t;
         if (!this.slotOrder.includes(t.key)) this.slotOrder.push(t.key);
+        this._globalMap = null;
         // 激活塔能量 = 初始 40 + 本次激活消除形状供能（受能量上限约束）
         // 弹药箱：每次三消充能能量 +N（按 desc 星级数值）
         const colorEnergy = this.relicNum(`r_${t.key}_energy`);
@@ -334,12 +345,10 @@ class Run {
       } else {
         // 塔位满：该色未被选中 → 对应全局技能按能量口径充能（剩余 2 色动态分配）+ 半量经验
         // 全局充能 +N%、弹药箱 +N（按星级数值）
-        const skill = this._globalSkillOf(color);
         const ammo = (this._energyGain(shape, energyCells) * (1 + this.relicNum('cm_charge') / 100) + energyBonus);
         if (this.relicNum('cm_charge') > 0) this.relicFx('cm_charge', `全局充能 +${this.relicNum('cm_charge')}%`); // 生效提示
         if (energyBonus > 0) this.relicFx('cm_ammobox', `充能 +${ammo}`); // 生效提示
-        if (skill === 'shuffle') shuffleGain = this._chargeAmmo('shuffle', ammo);
-        else if (skill === 'refill') refillGain = this._chargeAmmo('refill', ammo);
+        ({ shuffleGain, refillGain } = this._chargeUnusedColor(color, ammo));
         this.gainExp(this._relicExp(Math.floor(exp * CONFIG.PENALTY_RATIO), shape, size));
       }
     } else {
@@ -379,7 +388,7 @@ class Run {
     for (const cell of st.clearedDetails || []) {
       const id = cell.r + ',' + cell.c;
       if (seen.has(id)) continue; seen.add(id);
-      if (!cell.color) continue;
+      if (!cell.color || !this._colors.includes(cell.color)) continue;
       const t = this.effects.tower(CONFIG.COLORS[cell.color] && CONFIG.COLORS[cell.color].tower);
       if (!t) continue;
       const mult=perCell.get(id)||blastMult;
@@ -392,27 +401,39 @@ class Run {
         const over = Math.max(0, before + amount - this.armoryEnergyMax(t.key));
         if (over > 0) { this._chargeAmmo('shuffle',over/2); this._chargeAmmo('refill',over/2); }
       } else {
-        const which = this._globalSkillOf(cell.color);
-        if (which) this._chargeAmmo(which,amount * (1 + this.relicNum('cm_charge') / 100));
+        this._chargeUnusedColor(cell.color, amount * (1 + this.relicNum('cm_charge') / 100));
       }
     }
     if(exp>0)this.gainExp(this._relicExp(exp,'3',seen.size));
     return gain;
   }
 
-  /** 剩余 2 色的全局技能归属（本局随机分配，不固定颜色）；4 塔未满时返回 null */
+  /** 满塔位后才分配全局充能颜色；单剩余色同时供给两个槽。 */
   _globalSkillOf(color) {
+    if (this.slotOrder.length < this.towerSlots) return null;
     if (!this._globalMap) this._initGlobalMap();
     return this._globalMap ? this._globalMap[color] : null;
   }
 
-  /** 4 塔确定后：6 色中未选中 2 色 → 随机分配为「全局洗牌 / 弹药补给」充能色 */
+  _chargeUnusedColor(color, ammo) {
+    if(this.chapter.isPrologue&&!this.chapter.features.globalSkills){
+      const towers=this.slotOrder.map(k=>this.effects.tower(k)).filter(t=>t&&t.level>0);
+      if(towers.length&&ammo>0)for(const tower of towers)tower.energy=Math.min(this.armoryEnergyMax(tower.key),tower.energy+ammo/towers.length);
+      return {shuffleGain:0,refillGain:0};
+    }
+    const skill = this._globalSkillOf(color);
+    const shuffleGain = skill === 'shuffle' || skill === 'both' ? this._chargeAmmo('shuffle', skill === 'both' ? ammo / 2 : ammo) : 0;
+    const refillGain = skill === 'refill' || skill === 'both' ? this._chargeAmmo('refill', skill === 'both' ? ammo / 2 : ammo) : 0;
+    return { shuffleGain, refillGain };
+  }
+
+  /** 映射只从本章颜色池构建；正式六色仍将两个剩余色分别分配。 */
   _initGlobalMap() {
-    const remain = Object.keys(CONFIG.COLORS).filter((c) => {
+    const remain = this._colors.filter((c) => {
       const tk = CONFIG.COLORS[c].tower;
       return tk && !this.slotOrder.includes(tk);
     });
-    if (remain.length < 2) { this._globalMap = {}; return; }
+    if (remain.length < 2) { this._globalMap = remain.length ? { [remain[0]]: 'both' } : {}; return; }
     const rng = this.rng || Math.random;
     for (let i = remain.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
@@ -459,7 +480,7 @@ class Run {
 
   /** 全局技能累计充能（封顶 energyMaxGS=90；返回实际入账点） */
   _chargeAmmo(which, ammo) {
-    if (!ammo || ammo <= 0) return 0;
+    if (!this.chapter.features.globalSkills || !ammo || ammo <= 0) return 0;
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
     const before = this[key] || 0;
@@ -473,6 +494,7 @@ class Run {
 
   /** 消耗全局技能累计充能（释放 1 次 = chargePerUse 点；不足返回 false）；免费洗牌优先 */
   spendAmmo(which) {
+    if (!this.chapter.features.globalSkills) return false;
     const GS = CONFIG.GLOBAL_SKILL;
     const key = which === 'shuffle' ? 'shuffleAmmo' : 'refillAmmo';
     if ((this.globalSlots || ['shuffle','refill'])[which === 'shuffle' ? 0 : 1] === 'shuffle' && this.freeShuffle > 0) {
@@ -516,7 +538,7 @@ class Run {
       if (blastGain > 0) stepSettled.push({ tower: null, gotTower: false, penalized: false, shape: null, exp: 0, ammoGain: blastGain, shuffleGain: 0, refillGain: 0 });
       // 连消全格弹道：仅生成该步计划，真实发射由消除动画阶段驱动。
       chainShotsByStep[si] = [];
-      if (isChain && this.combatRef) {
+      if (isChain && this.chapter.features.chain && this.combatRef) {
         // Keep the previous inactive-tower charge fallback once per three-match group.
         this._chainBonus(st, si + 1);
         const L = CONFIG.LAYOUT.boardCell;
@@ -554,10 +576,11 @@ class Run {
 
   /** 升级发放目标：累计升级次数最少的已拥有塔（均衡轮转，跨波记忆；避免单塔长期不升级） */
   _nextPendingTower() {
+    const maxLevel = this.chapter.features.branches ? CONFIG.EXP.towerMaxLevel : 1 + CONFIG.EFFECT.activeSlots;
     const owned = Object.keys(this.effects.towers).filter((k) => {
       const tower = this.effects.tower(k);
       return tower.level > 0 &&
-        tower.level + tower.pending < CONFIG.EXP.towerMaxLevel &&
+        (!this.chapter.features.branches || tower.level + tower.pending < maxLevel) &&
         tower.pending < CONFIG.EFFECT.pendingCap;
     });
     if (!owned.length) return null;
@@ -620,7 +643,9 @@ class Run {
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
     const windMul = Math.pow(1.10, this.windStacks || 0);
     // 代际重构：本波总血量由等级表生成（与 wave.buildPlan 同口径）
-    const enemyHp = this.bossWaveNo===this.wave && this.bossWaveHp ? this.bossWaveHp : CONFIG.ENEMY.waveTotalHp(this.wave, curseMul);
+    const fieldHp = FieldBalance.enemyHpMultiplier(this.fieldCfg, this.wave);
+    const enemyHp = this.bossWaveNo===this.wave && this.bossWaveHp ? this.bossWaveHp
+      : this.chapterWaveNo===this.wave&&this.chapterWaveHp!=null?this.chapterWaveHp:CONFIG.ENEMY.waveTotalHp(this.wave, curseMul * fieldHp);
     const totalDps = this.effects.totalDps();
     const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);
@@ -650,6 +675,7 @@ class Run {
 
   /** run 间重置：特效构筑/待选/整体经验清空（金币由 session 保留——见 simulateSession） */
   resetRunBuild() {
+    delete this._tutorialChoiceType;
     this.eliteBursts = [];
     this.store = {}; this.storeTimers = {}; this.storeCooldowns = {}; this.pickRerolls = 0;
     this.gsState = {};

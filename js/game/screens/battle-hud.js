@@ -1,5 +1,6 @@
 'use strict';
 const { fillRoundRect, text, progressBar } = require('../ui.js');
+const Prologue = require('../../prologue.js');
 // 只绘制HUD；点击区域仍写入调用方Renderer，不持有Run/Meta。
 function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_Y, AREA_W, ENTRY_H }) {
   function status(ctx, s) {
@@ -22,15 +23,16 @@ function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_
     ctx.beginPath();ctx.arc(cx,cy,outer,0,Math.PI*2);ctx.strokeStyle='rgba(247,207,69,0.22)';ctx.lineWidth=4;ctx.stroke();
     if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp,false);ctx.strokeStyle='#f7cf45';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();}
     const wx=AREA_X+74,wy=AREA_Y+20,ww=AREA_W-74,wh=10;
-    const wave=Math.max(1,Math.min(60,Number(s.wave)||1));
-    progressBar(ctx,wx,wy,ww,wh,(wave-1)/59,'#e8c76b','rgba(255,255,255,0.12)');
-    for(let n=5;n<=60;n+=5){
-      const mx=wx+(n-1)/59*ww;
-      const major=n===20||n===40||n===60;
+    const chapter=Prologue.chapter(s.stage),maxWave=chapter?chapter.maxWave:60;
+    const wave=Math.max(1,Math.min(maxWave,Number(s.wave)||1));
+    progressBar(ctx,wx,wy,ww,wh,(wave-1)/(maxWave-1),'#e8c76b','rgba(255,255,255,0.12)');
+    for(let n=5;n<=maxWave;n+=5){
+      const mx=wx+(n-1)/(maxWave-1)*ww;
+      const major=n===maxWave||n===20||n===40;
       ctx.beginPath();ctx.arc(mx,wy+wh/2,major?5:2.5,0,Math.PI*2);ctx.fillStyle=n<=wave?(n===60?'#ff826f':'#f8dd8a'):'#66717e';ctx.fill();
-      if(major)text(ctx,n===60?'终极60':n+'波Boss',mx,AREA_Y+7,13,n===60?'#ffab95':'#e5d7aa',n===60?'right':'center');
+      if(major)text(ctx,n===maxWave?'终点'+maxWave:n+'波Boss',mx,AREA_Y+7,13,n===maxWave?'#ffab95':'#e5d7aa',n===maxWave?'right':'center');
     }
-    text(ctx,'第 '+(s.wave||1)+' / 60 波',wx,AREA_Y+7,14,'#e9dfc4','left');
+    text(ctx,'第 '+(s.wave||1)+' / '+maxWave+' 波',wx,AREA_Y+7,14,'#e9dfc4','left');
     // 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
     const rels = s.battleRelics || [];
     if (rels.length) {

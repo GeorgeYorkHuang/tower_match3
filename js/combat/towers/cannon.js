@@ -25,6 +25,17 @@ function hitCannon(combat, e, dmg, impactPosition) {
   }
   // 重爆3★：重炮爆炸中心 40 码内伤害 ×1.5（近距离惩罚强化——主目标即中心）
   if (g.run.relic3('can_heavy') && combat.lv('cannon', '重炮') > 0) dmg *= 1.5;
+  combat.damage(e, dmg, 'cannon');
+  cannonSplash(combat,dmg,impactPosition || {x:e.x,y:e.y},e,overheat);
+}
+
+// 命中与落空复用同一套原溅射数值；落空没有虚构的主目标直伤或命中返能。
+function missCannon(combat,dmg,impactPosition) {
+  if(combat.game.run.relic3('can_heavy') && combat.lv('cannon','重炮')>0)dmg*=1.5;
+  cannonSplash(combat,dmg,impactPosition,null,false);
+}
+function cannonSplash(combat,dmg,impactPosition,exclude,overheat) {
+  const g=combat.game;
   // 普攻基础溅射：75px 范围、20%伤害；每级「重炮」增加25px与20个百分点溅射伤害，A扩大范围，B额外增加15个百分点。
   const heavy = combat.lv('cannon', '重炮');
   let r = (SKILL_NUM.cannon['重炮'].radius + SKILL_NUM.cannon['重炮'].radiusPerLevel * heavy) * (1 + SKILL_NUM.cannon['重炮'].radiusPerBranch * combat.branchLv('cannon', '重炮', 'A'));
@@ -43,14 +54,13 @@ function hitCannon(combat, e, dmg, impactPosition) {
     const shockC = combat.branchLv('cannon', '震击', 'C');
     if (shockC > 0) slowAfter = SKILL_NUM.cannon['震击'].slowDuration + SKILL_NUM.cannon['震击'].slowDurationPerBranch * shockC;   // C1=1s / C2=1.5s / C3=2s；未点C不减速
   }
-  combat.damage(e, dmg, 'cannon');
   // 爆炸（AOE 溅射 + 震尘减速）——排除主目标（普攻主目标已吃满 100%）
-  const impactX = impactPosition ? impactPosition.x : e.x;
-  const impactY = impactPosition ? impactPosition.y : e.y;
-  combat.explode(impactX, impactY, r, splDmg, 'cannon', knock, slowAfter, e);
+  const impactX = impactPosition.x;
+  const impactY = impactPosition.y;
+  combat.explode(impactX, impactY, r, splDmg, 'cannon', knock, slowAfter, exclude);
   if (combat.branchLv('cannon', '重炮', 'C') > 0) {
     combat.enemies().forEach((o) => {
-      if (o.hp > 0 && o !== e && Math.hypot(o.x - e.x, o.y - e.y) <= r && Math.random() < 0.20 * combat.branchLv('cannon', '重炮', 'C')) combat.applySlow(o, 0.30, 1, 'cannon');
+      if (o.hp > 0 && o !== exclude && Math.hypot(o.x - impactX, o.y - impactY) <= r && Math.random() < 0.20 * combat.branchLv('cannon', '重炮', 'C')) combat.applySlow(o, 0.30, 1, 'cannon');
     });
   }
 }
@@ -132,8 +142,8 @@ function tickCannon(combat, dt) {
       const target = combat.pickTarget('cannon');
       if (target) {
         combat.timers.shatter = 0;
-        combat.castEnergy('cannon', '碎裂弹');
-        const attackDmg = combat.shotDmg('cannon', true);
+        const energyBefore = combat.castEnergy('cannon', '碎裂弹');
+        const attackDmg = combat.shotDmg('cannon', true, true, energyBefore);
         const branchA = combat.branchLv('cannon', '碎裂弹', 'A');
         const branchB = combat.branchLv('cannon', '碎裂弹', 'B');
         const branchC = combat.branchLv('cannon', '碎裂弹', 'C');
@@ -170,13 +180,13 @@ function tickCannon(combat, dt) {
   const support = combat.lv('cannon', '炮火支援');
   if (support > 0) {
     combat.timers.support = (combat.timers.support || 0) + dt;
-    if (combat.timers.support >= SKILL_NUM.cannon['炮火支援'].period * combat._weakPeriod('cannon') * relicCd) {
+    if (combat.timers.support >= SKILL_NUM.cannon['炮火支援'].period * combat._weakPeriod('cannon') * relicCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y))) {
       combat.timers.support = 0;
-      combat.castEnergy('cannon', '炮火支援');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y));
+      const energyBefore = combat.castEnergy('cannon', '炮火支援');
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y, energyBefore));
       if (alive.length) {
         const n = SKILL_NUM.cannon['炮火支援'].count + combat.branchLv('cannon', '炮火支援', 'A') + g.run.relicNum('s_can_splash');
-        const dmg = combat.shotDmg('cannon', false, true) * SKILL_NUM.cannon['炮火支援'].damage * (1 + SKILL_NUM.cannon['炮火支援'].damagePerBranch * combat.branchLv('cannon', '炮火支援', 'B'));
+        const dmg = combat.shotDmg('cannon', false, true, energyBefore) * SKILL_NUM.cannon['炮火支援'].damage * (1 + SKILL_NUM.cannon['炮火支援'].damagePerBranch * combat.branchLv('cannon', '炮火支援', 'B'));
         const warningR = SKILL_NUM.cannon['炮火支援'].radius * (1 + (g.run.relicNum('s_sr_can_splash') + g.run.relicValue('s_sr_can_powder', 'radius')) / 100);
         const mus = combat.towerMuzzle('cannon');
         for (let i = 0; i < n; i++) {
@@ -204,14 +214,14 @@ function tickCannon(combat, dt) {
     combat.timers.mine = (combat.timers.mine || 0) + dt;
     if (combat.timers.mine >= SKILL_NUM.cannon['地雷阵'].period * combat._weakPeriod('cannon') * relicCd) {
       combat.timers.mine = 0;
-      combat.castEnergy('cannon', '地雷阵');
+      const energyBefore = combat.castEnergy('cannon', '地雷阵');
       const n = SKILL_NUM.cannon['地雷阵'].count + SKILL_NUM.cannon['地雷阵'].countPerBranch * combat.branchLv('cannon', '地雷阵', 'A');
       // 塔口坐标（统一 towerMuzzle）
       const ly = combat.ly();
       const mz = combat.towerMuzzle('cannon');
       const fx0 = mz.x, fy0 = mz.y;
-      const range = combat.range('cannon');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y));
+      const range = combat.range('cannon', energyBefore);
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y, energyBefore));
       const topY = ly.areaY + ly.entryH + 10;
       const wallY = ly.wallY - 12;
       for (let i = 0; i < n; i++) {
@@ -233,7 +243,7 @@ function tickCannon(combat, dt) {
         combat.mines = combat.mines || [];
         const mine = {
           x: fx0, y: fy0, r: SKILL_NUM.cannon['地雷阵'].radius,
-          dmg: combat.shotDmg('cannon', false, true) * SKILL_NUM.cannon['地雷阵'].damage * (1 + SKILL_NUM.cannon['地雷阵'].damagePerBranch * combat.branchLv('cannon', '地雷阵', 'B')),
+          dmg: combat.shotDmg('cannon', false, true, energyBefore) * SKILL_NUM.cannon['地雷阵'].damage * (1 + SKILL_NUM.cannon['地雷阵'].damagePerBranch * combat.branchLv('cannon', '地雷阵', 'B')), energyBefore,
           armed: 0, ttl: SKILL_NUM.cannon['地雷阵'].duration, chain: combat.branchLv('cannon', '地雷阵', 'C'),
           fly: { sx: fx0, sy: fy0, tx, ty, t: 0 },
         };
@@ -250,11 +260,11 @@ function tickCannon(combat, dt) {
   if (turret > 0) {
     combat.timers.turret = (combat.timers.turret || 0) + dt;
     const cd = Math.max(SKILL_NUM.cannon['炮台'].minPeriod, SKILL_NUM.cannon['炮台'].period - SKILL_NUM.cannon['炮台'].periodReductionPerBranch * combat.branchLv('cannon', '炮台', 'B')) * combat._weakPeriod('cannon') * relicCd;
-    if (combat.timers.turret >= cd) {
+    if (combat.timers.turret >= cd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y))) {
       combat.timers.turret = 0;
-      combat.castEnergy('cannon', '炮台');
+      const energyBefore = combat.castEnergy('cannon', '炮台');
       const n = SKILL_NUM.cannon['炮台'].count + combat.branchLv('cannon', '炮台', 'A');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y));
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('cannon', e.x, e.y, energyBefore));
       if (!alive.length) return;   // 没有敌人时不部署炮台
       for (let i = 0; i < n; i++) {
         const near = alive[Math.floor(Math.random() * alive.length)];
@@ -263,7 +273,7 @@ function tickCannon(combat, dt) {
         const ttl = SKILL_NUM.cannon['炮台'].duration + SKILL_NUM.cannon['炮台'].durationPerBranch * combat.branchLv('cannon', '炮台', 'B');
         combat.turrets = combat.turrets || [];
         const atkI = Math.max(SKILL_NUM.cannon['炮台'].minAttackInterval, SKILL_NUM.cannon['炮台'].attackInterval + SKILL_NUM.cannon['炮台'].attackIntervalPerBranch * combat.branchLv('cannon', '炮台', 'C'));
-        const summon = { x: px, y: py, ttl, atkT: 0, atkI, dmg: combat.shotDmg('cannon', false, true) * SKILL_NUM.cannon['炮台'].damage, r: SKILL_NUM.cannon['炮台'].radius };
+        const summon = { x: px, y: py, ttl, atkT: 0, atkI, dmg: combat.shotDmg('cannon', false, true, energyBefore) * SKILL_NUM.cannon['炮台'].damage, r: SKILL_NUM.cannon['炮台'].radius };
         TurretVisual.begin(summon);
         combat.turrets.push(summon);
         // 直接绑定炮台对象，位置重叠时也不会串用其他炮台的开火标记。
@@ -333,7 +343,7 @@ function updateMines(combat, dt) {
     if (m.chain > 0) {
       // C 连爆 → 碎雷重做：爆炸后星状向四周 130px 内散射 5/6/7 片弹片，每片 30% 攻击伤害
       const nShard = SKILL_NUM.cannon['地雷阵'].shards[m.chain];
-      const shardDmg = combat.shotDmg('cannon', true) * SKILL_NUM.cannon['地雷阵'].shardDmg;
+      const shardDmg = combat.shotDmg('cannon', true, true, m.energyBefore) * SKILL_NUM.cannon['地雷阵'].shardDmg;
       const R2 = SKILL_NUM.cannon['地雷阵'].shardR;
       const SPEED = SKILL_NUM.cannon['地雷阵'].shardSpeed;
       for (let k = 0; k < nShard; k++) {
@@ -387,4 +397,4 @@ function updateTurrets(combat, dt) {
   }
 }
 
-module.exports = { hitCannon, tickCannon, updateMines, updateTurrets };
+module.exports = { hitCannon, missCannon, tickCannon, updateMines, updateTurrets };

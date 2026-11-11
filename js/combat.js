@@ -152,7 +152,7 @@ class CombatSystem {
   }
 
   /** 塔当前射程（射程/技能叠加） */
-  range(key) { return Targeting.range(this, key); }
+  range(key, energyBefore) { return Targeting.range(this, key, energyBefore); }
 
   /** 圣遗物当前星级数值（1★=desc / 2★=star2 文本最后数字）；未获得返回 0 */
   relicVal(id) {
@@ -187,9 +187,9 @@ class CombatSystem {
   }
 
   /** 单次攻击伤害：towerDps × 攻击间隔（保持总 DPS 口径）；isSkill=true 表示技能/DoT 上下文（全局充能3★ 技能伤加成只吃技能） */
-  shotDmg(key, isSkill, isTowerSkill) { return Damage.shotDmg(this, key, isSkill, isTowerSkill); }
+  shotDmg(key, isSkill, isTowerSkill, energyBefore) { return Damage.shotDmg(this, key, isSkill, isTowerSkill, energyBefore); }
 
-  /** 周期技弱化倍率：塔能量耗尽 → 周期 ×1.5（伤害弱化已由 shotDmg 统一 ×0.5） */
+  /** 周期技弱化倍率：零能量冷却×2，低能量×1.5，20–40能量线性恢复。 */
   _weakPeriod(key) { return Linkage._weakPeriod(this, key); }
 
   /* ---------- 三消连消技 ---------- */
@@ -206,7 +206,7 @@ class CombatSystem {
   spawnChainShots(ent) { return Linkage.spawnChainShots(this, ent); }
 
 
-  /** 周期技能施放扣能量：能量 >= 成本时扣除并全额施放；不足则弱化施放（不扣，伤害 ×0.5） */
+  /** 周期技能按配置收费，不足扣光仍施放；返回扣费前能量供本次伤害使用。 */
   castEnergy(key, name) { return Linkage.castEnergy(this, key, name); }
 
   /** 毒·毒性强化（）：选择后中毒 DoT 由 10% 提升为 15%（+50% 单跳）；A 每级 18%/21%/24%（档位式）；B 时长 +2/+4/+6s（档位式） */
@@ -252,13 +252,17 @@ class CombatSystem {
         if (s.onHit) s.onHit(hitE, s.dmg, s, true);
         return finishShot();
       }
-      return s.t < s.dur;
+      if(s.t>=s.dur) {
+        if(s.onExpire && !s._expireDone) { s._expireDone=true;s.onExpire(s); }
+        return finishShot();
+      }
+      return true;
     }
     if (s.t >= s.dur) {
       if (s.sweep) this.sweepDamage(s, dt);
       else if (s.onReach) s.onReach(s);
       else {
-        if (s.key === 'cannon' && s.target && this.game.predictEnemyPosition) {
+        if (s.key === 'cannon' && !s.fixedImpact && s.target && this.game.predictEnemyPosition) {
           s.impactPosition = this.game.predictEnemyPosition(s.target, dt);
         }
         this.resolveShot(s);
@@ -319,7 +323,7 @@ class CombatSystem {
   pickTarget(key) { return Targeting.pickTarget(this, key); }
 
   /** 额外目标：主目标 Y 轴往上 40px 截面范围（水平带 [main.y-40, main.y]）内的随机敌人；带内无其他敌人时回退主目标 */
-  pickAltTarget(key, main) { return Targeting.pickAltTarget(this, key, main); }
+  pickAltTarget(key, main, options) { return Targeting.pickAltTarget(this, key, main, options); }
 
   /** 单塔一次攻击：选目标 → 发弹道（表现层） + 登记命中回调 */
   attackOnce(key) { return Attacks.attackOnce(this, key); }
@@ -366,7 +370,7 @@ class CombatSystem {
    *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
    *   每枚命中走完整结算（灼烧/焰雨三连/大火球爆炸/多重火球 C 散射分裂）。
    *   解决原"普攻先命中再从目标处散射"的割裂感 */
-  _fireMultiShot(e, dmg, fromTriple) { return FireTower._fireMultiShot(this, e, dmg, fromTriple); }
+  _fireMultiShot(e, dmg, fromTriple, rangeSnapshot) { return FireTower._fireMultiShot(this, e, dmg, fromTriple, rangeSnapshot); }
 
   /** 火塔普攻命中伤害段（灼烧判定/大火球/多重火球）：单发普攻弹道命中路径执行；多重火球路径走 strike 回调 */
   _fireAttackHit(e, dmg) { return FireTower._fireAttackHit(this, e, dmg); }
@@ -392,7 +396,7 @@ class CombatSystem {
   /** 多重冰锥重做：一次普攻从塔口扇形飞出 n 枚冰锥——
    *   中心一枚锁定主目标（弹道末端跟随、命中才结算），其余以主目标方向为基准两侧扇形 scatter（沿途碰撞命中即止）；
    *   C 增殖分支保留：10/14/18 枚超小型冰锥各自索敌独立飞行 */
-  _iceMultiShot(e, dmg) { return IceTower._iceMultiShot(this, e, dmg); }
+  _iceMultiShot(e, dmg, rangeSnapshot) { return IceTower._iceMultiShot(this, e, dmg, rangeSnapshot); }
 
   hitIce(e, dmg, projectile, options) { return IceTower.hitIce(this, e, dmg, projectile, options); }
 
@@ -429,6 +433,7 @@ class CombatSystem {
 
   /* ============ 炮塔（重炮/震击/碎裂弹/双管齐射/炮火支援/地雷阵/炮台/军火库） ============ */
   hitCannon(e, dmg, impactPosition) { return CannonTower.hitCannon(this, e, dmg, impactPosition); }
+  missCannon(dmg, impactPosition) { return CannonTower.missCannon(this, dmg, impactPosition); }
 
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
   tickCannon(dt) { return CannonTower.tickCannon(this, dt); }
@@ -461,7 +466,7 @@ class CombatSystem {
   towerMuzzle(key) { return Targeting.towerMuzzle(this, key); }
 
   /** 技能现有范围判定：仅检查纵向距离（与普攻直线距离不同，本轮保留原行为） */
-  inTowerRange(key, x, y) { return Targeting.inTowerRange(this, key, x, y); }
+  inTowerRange(key, x, y, energyBefore) { return Targeting.inTowerRange(this, key, x, y, energyBefore); }
 
   hasDot(e, type) { return Statuses.hasDot(e, type); }
 

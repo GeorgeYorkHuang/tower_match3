@@ -14,12 +14,14 @@ module.exports = {
   },
 
   TOWERS: {
-    fire:      { color: 'red',    baseDps: 22.4,  perLv: 8,   range: 830, atkInterval: 1 / 0.64, attackCost: 35 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 35 伤害/发，0.64 发/秒（攻速 -20%）
-    ice:       { color: 'blue',   baseDps: 21.12, perLv: 6.4, range: 760, atkInterval: 1 / 0.88, attackCost: 24 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 24 伤害/发，0.88 发/秒（攻速 -20%）
-    poison:    { color: 'green',  baseDps: 23.04, perLv: 7.2, range: 800, atkInterval: 1 / 1.44, attackCost: 16 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 16 伤害/发，1.44 发/秒（攻速 -20%）
-    electric:  { color: 'yellow', baseDps: 24,    perLv: 7.2, range: 840, atkInterval: 1 / 0.8,  attackCost: 30 / 60, shot: { kind: 'bolt',  dur: 0.5  } }, // 30 伤害/发，0.8 发/秒（攻速 -20%）
-    boomerang: { color: 'purple', baseDps: 14.56, perLv: 7.2, range: 880, atkInterval: 1 / 0.56, attackCost: 26 / 60, shot: { kind: 'arc',   dur: 2.4  } }, // 26 伤害/发，0.56 发/秒（攻速 -20%）
-    cannon:    { color: 'orange', baseDps: 28.8,  perLv: 8,   range: 930, atkInterval: 1 / 0.48, attackCost: 60 / 60, shot: { kind: 'mortar', dur: 1.5  } }, // 60 伤害/发，0.48 发/秒（攻速 -20%）
+    // 用DPS存储：单发攻击=baseDps×atkInterval，每级单发成长=perLv×atkInterval。
+    // 本次直接调整基础单发攻击，保留每级单发成长；火塔加速后同步换算DPS。attackCost独立定价。
+    fire:      { color: 'red',    baseDps: 31.82,  perLv: 11.1, range: 830, atkInterval: 1 / 0.74, attackCost: 35 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 43 伤害/发，每级+15；0.74 发/秒
+    ice:       { color: 'blue',   baseDps: 27.104, perLv: 7.68, range: 760, atkInterval: 1 / 0.88, attackCost: 24 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 30.8 伤害/发，0.88 发/秒
+    poison:    { color: 'green',  baseDps: 29.088, perLv: 8.64, range: 800, atkInterval: 1 / 1.44, attackCost: 16 / 60, shot: { kind: 'line',  dur: 1.0  } }, // 20.2 伤害/发，1.44 发/秒
+    electric:  { color: 'yellow', baseDps: 30.4,   perLv: 8.64, range: 840, atkInterval: 1 / 0.8,  attackCost: 30 / 60, shot: { kind: 'bolt',  dur: 0.5  } }, // 38 伤害/发，0.8 发/秒
+    boomerang: { color: 'purple', baseDps: 19.152, perLv: 8.64, range: 880, atkInterval: 1 / 0.56, attackCost: 26 / 60, shot: { kind: 'arc',   dur: 2.4  } }, // 34.2 伤害/发，0.56 发/秒
+    cannon:    { color: 'orange', baseDps: 34.56,  perLv: 9.6,  range: 930, atkInterval: 1 / 0.48, attackCost: 60 / 60, shot: { kind: 'mortar', dur: 1.5  } }, // 72 伤害/发，0.48 发/秒
   },
 
 };

@@ -1,5 +1,13 @@
 'use strict';
 // Pure legacy migration operations; caller supplies an owned snapshot.
+// 旧格式可能已携带战场记录；逐级迁移只保留确实存在的字段，不推断通关或赠礼。
+function progressFields(data) {
+  const result = {};
+  for (const key of ['bestWave', 'ancientBestWave', 'normalFieldCleared', 'prologue']) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) result[key] = data[key];
+  }
+  return result;
+}
 function _renameBounceSkill(d) {
     Object.keys(d.skillCards || {}).forEach((tk) => {
       const sc = d.skillCards[tk];
@@ -37,6 +45,7 @@ function _migrateV1(d) {
       chests: 0,
       chestTimer: null,
       towerUnlocks: d.towerUnlocks || [],
+      ...progressFields(d),
     };
 }
 
@@ -68,6 +77,7 @@ function _migrateV2(d) {
       chestTimer: d.chestTimer || null,
       dailyPicks: null,
       towerUnlocks: d.towerUnlocks || [],
+      ...progressFields(d),
     };
 }
 module.exports = { _renameBounceSkill, _renameIceSkills, _migrateV1, _migrateV2 };

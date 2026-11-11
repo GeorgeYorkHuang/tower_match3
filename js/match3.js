@@ -28,7 +28,7 @@ class Match3Controller {
     g.swapped = true;
     g.selected = null;
     this._assemble(ret, oldGrid, r1, c1, r2, c2);
-    require('./game/tutorial.js').swapped(g);
+    require('./game/tutorial.js').swapped(g, ret);
     // 三消联动：圣物经验补差 + 塔额外攻击（多消不同特效）
     if (g.onMatchBonus) g.onMatchBonus(ret);
     return true;
@@ -163,7 +163,12 @@ class Match3Controller {
       if (shot.kind === 'charge') {
         // 未激活塔只表现原有充能回退，不生成伤害或再次入账。
         const which=g.run._globalSkillOf ? g.run._globalSkillOf(shot.color) : 'shuffle';
-        g.fx.push({type:'beamp',x0:shot.x,y0:shot.y,x1:which==='shuffle'?59:691,y1:g.ly.towerRowY+49.5,blockColor:shot.color,t:0,dur:MATCH_GLOW.duration});
+        if (!which || (g.run.chapter && !g.run.chapter.features.globalSkills)) continue;
+        const { slotCount, slotSize, slotGap, slotY } = g.ly;
+        const left = (750 - ((slotCount + 2) * slotSize + (slotCount + 1) * slotGap)) / 2 + slotSize / 2;
+        const right = left + (slotCount + 1) * (slotSize + slotGap);
+        const destinations = which === 'both' ? [left, right] : [which === 'shuffle' ? left : right];
+        for (const x of destinations) g.fx.push({type:'beamp',x0:shot.x,y0:shot.y,x1:x,y1:slotY+slotSize/2,blockColor:shot.color,t:0,dur:MATCH_GLOW.duration});
       } else if (g.combat) g.combat.spawnChainShots({ key: shot.towerKey, x: shot.x, y: shot.y, color: shot.color });
     }
   }

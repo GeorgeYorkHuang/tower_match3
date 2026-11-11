@@ -9,8 +9,8 @@ module.exports = {
       { id: 'spd', name: '疾风药剂', desc: '攻速+30%20秒', cost: [550], max: 0, duration: 20, speed: 0.3, color: '#a4e9c5' },
       { id: 'energy', name: '能量药剂', desc: '全塔能量+20', cost: [350], max: 0, energy: 20, color: '#8cdbff' },
       { id: 'reset', name: '重置药剂', desc: '重置棋盘', cost: [450], max: 0, resetBoard: true, color: '#c7a5ff' },
-      { id: 'repair', name: '修复药剂', desc: '恢复50%城墙生命', cost: [1800], max: 1, heal: 0.5, color: '#b9ef9b' },
-      { id: 'auto', name: '自动药剂', desc: '自动消除30秒', cost: [1500], max: 1, duration: 30, durationClock: 'real', autoMatchInterval: 1, autoMatchClock: 'real', color: '#ffb3bf' },
+      { id: 'repair', name: '修复药剂', desc: '恢复50%城墙生命', cost: [1800], max: 3, heal: 0.5, color: '#b9ef9b' },
+      { id: 'auto', name: '自动药剂', desc: '自动消除60秒', cost: [1500], max: 3, duration: 60, durationClock: 'real', autoMatchInterval: 1, autoMatchClock: 'real', color: '#ffb3bf' },
     ],
   },
 };

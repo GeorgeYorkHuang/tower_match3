@@ -11,6 +11,7 @@ function queue(game) {
   const { run, meta } = game;
   if (!CONFIG.STAR3_ENABLED || !run || !meta || run._openingRelicPickQueued) return false;
   if (game.state === 'testfield' || game.menuStage === 'test') return false;
+  if (run.chapter && run.chapter.isPrologue) return false; // 前置章由教学节奏开放圣遗物，不提前插入局外三星奖励。
   const count = CONFIG.relicValue(ID, 'openingPick', meta.starOf(ID));
   if (count <= 0) return false;
   // 开局还没有激活塔：使用全部塔系与通用池，沿用普通品质概率及去重规则。

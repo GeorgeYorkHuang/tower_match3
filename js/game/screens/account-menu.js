@@ -51,9 +51,11 @@ function draw(ctx, s, push, shell, drawImg) {
       '品牌：' + (device.brand || '未知'), '机型：' + (device.model || '未知'),
       '系统：' + (device.system || '未知'), '屏幕：' + (device.screen || '未知'),
       '窗口：' + (device.window || '未知') + ' · DPR ' + (device.pixelRatio || '未知')];
-    fillRoundRect(ctx,145,y+716,460,56,12,'#365c40');
-    text(ctx,'重新体验新手引导',375,y+744,23,'#ffe4a1','center');
-    push('accountTutorial',null,145,y+716,460,56);
+    fillRoundRect(ctx,145,y+696,460,48,12,'#365c40');
+    text(ctx,'重新体验新手引导',375,y+720,23,'#ffe4a1','center');
+    push('accountTutorial',null,145,y+696,460,48);
+    fillRoundRect(ctx,145,y+752,460,42,10,'#643b35');
+    text(ctx,'清除当前档案',375,y+773,22,'#ffd0c1','center');push('accountClear',null,145,y+752,460,42);
     rows.forEach((v,i) => {
       ctx.font = '20px sans-serif';
       const width = ctx.measureText(v).width;

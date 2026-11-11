@@ -16,6 +16,10 @@ const EMPTY = { attack: 0, speed: 0, charge: 0, damage: 0, skill: 0, dot: 0, dur
 
 // 开局时生成战斗快照，局内触发进度不写回天赋装配档案。
 function initialize(run, meta) {
+  if (run.chapter && !run.chapter.features.talents) {
+    run.talentState = { bonuses: {}, purple: [], gold: [], charge: {}, ready: {} };
+    return;
+  }
   const a = T.analyze(meta);
   run.talentState = {
     bonuses: a.bonuses,

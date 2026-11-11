@@ -1,0 +1,7 @@
+﻿treatment,route,profile,seed,terminal,seconds,phase,hp,maxHp
+baseline,primary,wind_artillery,41,wall_broken,109.76666666666172,1,431017.80125458434,540000
+baseline,primary,wind_artillery,123,wall_broken,107.48333333332852,1,428012.90685338894,540000
+boss80,primary,wind_artillery,41,wall_broken,109.76666666666172,1,323017.80125458905,432000
+boss80,primary,wind_artillery,123,wall_broken,107.48333333332852,1,320012.90685339604,432000
+boss50,primary,wind_artillery,41,wall_broken,111.04999999999498,2,339780.0532425504,345600
+boss50,primary,wind_artillery,123,wall_broken,107.46666666666185,2,338521.35803857393,345600

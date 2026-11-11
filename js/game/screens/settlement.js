@@ -69,7 +69,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, tp * 1.6);
       ctx.translate(375, 250); ctx.scale(sc, sc);
-      text(ctx, su.victory ? '终局胜利' : win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
+      text(ctx, su.victory ? (su.prologue?'章节通关':'终局胜利') : win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
       ctx.restore();
     }
     // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（），旧摘要回退 wave
@@ -89,7 +89,8 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const base = this._goPh(T, TL.trail, 200);
     if (base <= 0) return;
     const wave = (su.cleared != null) ? su.cleared : su.wave;   // 轨迹/终点按全歼波数（通关数口径）
-    const waveMax = su.stage === 'abyss' ? 90 : 60;
+    const chapter=require('../../prologue.js').chapter(su.stage);
+    const waveMax = chapter?chapter.maxWave:su.stage === 'abyss' ? 90 : 60;
     const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / waveMax));
     ctx.globalAlpha = base;
     // 底线（未走段灰）
@@ -238,7 +239,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const bA = this._goPh(T, TL.btn, 240);
     ctx.globalAlpha = bA > 0 ? bA : 0;
     restart.hit = button(ctx, 40, 1172, 320, 96, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 34 }).hit;
-    restart.toMenu = button(ctx, 390, 1172, 320, 96, '返回主界面', { bg: '#45505f', fontSize: 30 }).hit;
+    restart.toMenu = button(ctx, 390, 1172, 320, 96, '领取奖励', { bg: '#2b6d4f', fontSize: 30 }).hit;
     ctx.globalAlpha = 1;
   }
 
@@ -268,7 +269,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
     // 与汇总分支统一：hit/toMenu 都注册为命中函数（main.js 兼容两种形态）
     restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
-    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '返回主界面', { bg: '#45505f', fontSize: 28 }).hit;
+    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '领取奖励', { bg: '#2b6d4f', fontSize: 28 }).hit;
   }
 
   }

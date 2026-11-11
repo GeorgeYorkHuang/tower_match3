@@ -130,7 +130,7 @@ const IMG_SRC = {
   chestOpen: 'assets/images/resources/chest_open.png',      // 全开帧（帧5，金光绽放）
   actionArea: 'assets/images/interface/battle/action_area_edges.jpg', // 行动区背景（底版+两侧边缘灌木，750×720，y128-848）
   wall: 'assets/images/interface/battle/wall.jpg',              // 城墙背景（750×60 主体，y967-1027；血条区 10px y1027-1037 含血量数字，底部空隙 5px）
-  towerRow: 'assets/images/interface/battle/tower_row_dark.jpg', // 塔位区背景（深色石板，750×122，y1042-1164；浅色旧版 tower_row.jpg 保留备份）
+  towerRow: 'assets/images/interface/battle/wall-garden-v2.jpg', // 城墙与放塔横带，750×122；血条由界面独立绘制。
   boardBg: 'assets/images/interface/battle/board_bg_dark_1.jpg', // 三消棋盘区背景（深蓝款，750×462，y1164-1626；浅色版 board_bg.jpg 保留备用）
   // v1.17.17 火墙技能帧动画
   // v1.17.25 火柱技能 8 帧动画（512×640 透明底；75° 俯视：圈落印→汇聚→立柱→拔高→满高→抵边→崩解→余烬）
@@ -152,7 +152,7 @@ const imageCache = ImageCache.create({
 });
 // v1.16.75 主菜单分页定义与主题色（页签 ↔ 页面同色呼应）
 const MENU_TABS = [
-  ['relic', '💎', '圣物'], ['talent', '⬡', '天赋'], ['battle', '🏠', '主页'], ['shop', '🏪', '商店'], ['codex', '📖', '塔图鉴'],  // v5.3c 主页标签换房屋图标
+  ['relic', '圣物'], ['talent', '天赋'], ['battle', '主页'], ['shop', '商店'], ['codex', '塔图鉴'],
 ];
 const MENU_TAB_THEME = {
   talent: { main:'#b86764', dark:'#653a40', top:'rgba(111,62,78,0.16)' },
@@ -814,13 +814,14 @@ class Renderer {
     // v1.17.10c 底部大分页标签（4 个全部显示，不隐藏）：激活页签与页面"融为一体"——
     // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
     const tabY=1504, tabH=100, gap=8, widths=[132,132,166,132,132];
-    fillRoundRect(ctx,12,1494,726,118,18,'#142d23');
+    fillRoundRect(ctx,0, 1500, 750, 124, 2,'#142d23');
     let tx=12;
-    MENU_TABS.forEach(([key,icon,label],i)=>{
+    MENU_TABS.forEach(([key,label],i)=>{
       const home=key==='battle',active=s.tab===key,w=widths[i],y=home?1482:tabY,h=home?122:tabH;
+      const locked=(key==='talent'&&!require('../talents/access.js').unlocked(s.talentMeta))||(['shop','relic'].includes(key)&&!s.testProfile&&!(s.encounters||{})[key]);
       push('tab',key,tx,y,w,h);
       fillRoundRect(ctx,tx,y,w,h,home?22:12,home?'#52633a':'#244330');
-      ctx.save();ctx.globalAlpha=active?1:0.76;
+      ctx.save();ctx.globalAlpha=locked?0.3:active?1:0.76;
       drawImg(ctx,'garden:nav:'+key,tx,y,w,h);
       ctx.restore();
       if(home){
@@ -830,12 +831,31 @@ class Renderer {
         text(ctx,'◆',tx+w/2,y+22,19,'#ffe49b','center');
       }else if(active)strokeRoundRect(ctx,tx+2,y+2,w-4,h-4,10,'#ffe49b',2.5);
       ctx.save();ctx.shadowColor='#152419';ctx.shadowBlur=3;ctx.shadowOffsetY=2;
-      text(ctx,label,tx+w/2,y+h/2+(home?10:0),home?30:24,active||home?'#fff2c5':'#e5dfc9','center');ctx.restore();
+      text(ctx,label,tx+w/2,y+h/2+(home?10:locked?12:0),home?30:24,locked?'#7e897e':active||home?'#fff2c5':'#e5dfc9','center');ctx.restore();
+      if(locked){const lx=tx+w/2,ly=y+22;ctx.save();ctx.strokeStyle='#a0a797';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(lx,ly,7,Math.PI,0);ctx.stroke();fillRoundRect(ctx,lx-11,ly,22,18,4,'#9a9f8d');ctx.fillStyle='#344538';ctx.fillRect(lx-1.5,ly+5,3,7);ctx.restore();}
       tx+=w+gap;
     });
     // 子面板
     if (s.panel) {
       if (['accountMenu', 'accountInfo', 'accountMail', 'testProfile'].includes(s.panel.type)) AccountMenuScreen.draw(ctx, s, push, this._menuPanelShell.bind(this), drawImg);
+      else if(s.panel.type==='talentLocked'){
+        const pw=600,ph=468,px=(750-pw)/2,py=(CONFIG.DESIGN.H-ph)/2;
+        ctx.fillStyle='rgba(0,0,0,0.72)';ctx.fillRect(0,0,750,CONFIG.DESIGN.H);
+        if(!drawImg(ctx,'assets/images/interface/skins/settings-garden-v1.png',px,py,pw,ph)){
+          fillRoundRect(ctx,px,py,pw,ph,16,'#182616');strokeRoundRect(ctx,px,py,pw,ph,16,'#a78c4c',2);
+        }
+        push('panelBounds',null,px,py,pw,ph);
+        text(ctx,'天赋尚未解锁',375,py+94,34,'#ffe4a1','center');
+        const lockY=py+157;ctx.save();ctx.strokeStyle='#cfb96e';ctx.lineWidth=4;
+        ctx.beginPath();ctx.arc(375,lockY,14,Math.PI,0);ctx.stroke();
+        fillRoundRect(ctx,354,lockY,42,32,6,'#b49c55');ctx.fillStyle='#26341d';ctx.fillRect(373,lockY+10,4,13);ctx.restore();
+        text(ctx,'解锁红色圣遗物后解锁',375,py+249,28,'#e9ddba','center');
+        const bx=265,by=py+332,bw=220,bh=58;
+        fillRoundRect(ctx,bx,by,bw,bh,14,'#354c2b');strokeRoundRect(ctx,bx,by,bw,bh,14,'#b49b56',1.5);
+        text(ctx,'知道了',375,by+bh/2,27,'#fff0bd','center');push('panelClose',null,bx,by,bw,bh);
+        text(ctx,'✕',px+pw-37,py+44,25,'#e4d3a0','center');push('panelClose',null,px+pw-64,py+18,52,52);
+      }
+      else if(s.panel.type==='featureLocked'){const py=this._menuPanelShell(ctx,s,push,'功能尚未解锁',320,true);text(ctx,s.panel.message,375,py+166,24,'#e8d8a0','center');}
       else if (s.panel.type === 'fieldLocked') { this._menuPanelShell(ctx,s,push,'战场尚未解锁',320,true); text(ctx,s.panel.message,375,810,22,'#f0b45c','center'); }
       else if (s.panel.type === 'relicDex') this.menuRelicDex(ctx, s, push);
       else if (s.panel.type === 'relicInfo') this.menuRelicInfo(ctx, s, push);  // v1.16.78 圣遗物详情（1/2/3★ + 升星）
@@ -1036,7 +1056,9 @@ class Renderer {
 
   /** v1.17.46 主页技能配置行：单行双分区（左全局 / 右三消），每区 2 卡，卡上无槽位文字 */
   _menuSkillRow(ctx, s, push, x, y, w, ch) {
-    return this._getSkillLoadout().skillRow(ctx, s, push, x, y, w, ch);
+    const regions=[];const result=this._getSkillLoadout().skillRow(ctx,s,(key,data,xx,yy,ww,hh)=>{push(key,data,xx,yy,ww,hh);if(key==='matchCfg'||key==='globalCfg')regions.push({key,x:xx,y:yy,w:ww,h:hh});},x,y,w,ch);
+    for(const a of regions){const id=a.key==='matchCfg'?'match':'global';if(!s.testProfile&&!(s.encounters||{})[id]){fillRoundRect(ctx,a.x,a.y,a.w,a.h,12,'rgba(12,24,18,0.72)');text(ctx,'🔒 '+(id==='match'?'三消技能':'全局技能'),a.x+a.w/2,a.y+a.h/2,22,'#9ba893','center');}}
+    return result;
   }
 
   /** v5.3c 技能是否已解锁（未购买过时按默认解锁集判定） */
@@ -1152,27 +1174,7 @@ class Renderer {
       text(ctx, waveHint.text, 375, yc + 54, 52, '#7ef0a3', 'center');
       ctx.globalAlpha = 1;
     }
-    // Boss 警告：红色三角感叹号 + BOSS 字样，0.5s 闪烁，4s 自动消失
-    if (bossHint && now < bossHint.until) {
-      if (Math.floor(now / 500) % 2 !== 0) return; // 闪烁：半秒显示半秒隐藏
-      const yc = (AREA_Y + WALL_Y) / 2 - 20;
-      const R = 46;
-      ctx.save();
-      ctx.translate(375, yc);
-      ctx.beginPath();
-      ctx.moveTo(0, -R);
-      ctx.lineTo(R * 0.92, R * 0.62);
-      ctx.lineTo(-R * 0.92, R * 0.62);
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(230,57,70,0.88)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(-5, -R * 0.45, 10, R * 0.55);
-      ctx.beginPath(); ctx.arc(0, R * 0.32, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-      text(ctx, 'BOSS', 375, yc + R + 36, 30, '#ff4757', 'center');
-    }
+    require('./fx/boss-announcement.js').draw(ctx,bossHint,TOWER_ROW_Y,now);
   }
 }
 

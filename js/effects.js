@@ -66,6 +66,11 @@ class TowerBuild {
    *  正式游戏经验统一入整体池（run.gainExp），此塔级方法为兜底/测试路径。 */
   gainExp(v) {
     if (this.level === 0) return;
+    const run = this._mgr && this._mgr.run;
+    // 前置章的备用入口也必须走整体经验池，不能另外发12次塔级选择。
+    if (run && run.chapter && run.chapter.isPrologue) {
+      return run.slotOrder.includes(this.key) ? run.gainExp(v) : 0;
+    }
     this.exp += v;
     // 机会上限 = 剩余选择额度：已做（level-1）+ 待选（pending）< towerMaxLevel-1（建塔基数占 1 级）
     while ((this.level - 1) + this.pending < CONFIG.EXP.towerMaxLevel - 1 && this.exp >= this.expNeed()) {
@@ -98,6 +103,8 @@ class TowerBuild {
    * 返回 [{name, icon, color, desc, type, branch?, branchLv?, fromTower, level}]。
    */
   _choices() {
+    const features = this._mgr && this._mgr.run && this._mgr.run.chapter.features;
+    if (features && !features.skills) return [];
     const cands = [];
     const slotsFull = this.activeNames.length >= CONFIG.EFFECT.activeSlots;
     this.pool.forEach((ef) => {
@@ -111,6 +118,7 @@ class TowerBuild {
           });
         }
       } else {
+        if (features && !features.branches) return;
         // .9c 分支三选一：尚无分支升级 → A/B/C 三分支各出一张卡，由三选一真正决定方向（不再恒为 A）
         // 分支解锁：已定路线技能不再锁定单一分支，从所有未满分支随机一个方向出卡
         //   （原 「分支锁定」导致技能一旦选过 A 后 B/C 分支卡永不出现，三选一界面清一色 A 分支）
@@ -201,8 +209,14 @@ class TowerBuild {
     if (!ef) return { ok: false };
     const host = (ef.fromTower && this._mgr) ? this._mgr.towers[ef.fromTower] : this;
     if (!host) return { ok: false };
+    const run = host._mgr && host._mgr.run;
+    if (run && (!run.chapter.features.skills || !run.chapter.colors.includes(host.color) || host.level <= 0)) return { ok: false };
+    // 过期窗口不能在待选已用完后再消费一次；仅约束前置章，保持正式测试接口兼容。
+    if (run && run.chapter.isPrologue && (this.pending <= 0 || !run.slotOrder.includes(host.key))) return { ok: false };
     const poolEf = host.pool.find((e) => e.name === ef.name);
     if (!poolEf) return { ok: false };
+    // 禁止旧候选或外部调用绕过章节限制，把已激活技能重复选择成分支升级。
+    if (run && !run.chapter.features.branches && (ef.type === 'branch' || host._activated(poolEf))) return { ok: false };
     const res = { ok: true, activated: false, replaced: false, leveled: false };
     if (ef.type === 'branch') {
       // 分支卡：仅对已激活技能生效，该分支 +1
@@ -306,6 +320,24 @@ class EffectManager {
 
   tower(key) { return this.towers[key]; }
 
+  /** 全池实际还可消费的选择次数；pending属于触发塔，候选可来自任意出战塔。 */
+  choiceCapacity(ownedKeys) {
+    const features = this.run && this.run.chapter.features;
+    if (features && !features.skills) return 0;
+    let total = 0;
+    (ownedKeys || Object.keys(this.towers)).forEach(key => {
+      const tower = this.towers[key];
+      if (!tower || tower.level <= 0) return;
+      const active = tower.pool.filter(skill => skill.level > 0);
+      const empty = Math.min(CONFIG.EFFECT.activeSlots - active.length, tower.pool.length - active.length);
+      const branches = !features || features.branches;
+      const capacity = Math.max(0, empty) * (branches ? 1 + CONFIG.EFFECT.maxLevel : 1)
+        + (branches ? active.reduce((n, skill) => n + CONFIG.EFFECT.maxLevel - Math.max(...Object.values(skill.branches)), 0) : 0);
+      total += Math.max(0, Math.min(CONFIG.EXP.towerMaxLevel - tower.level, capacity));
+    });
+    return total;
+  }
+
   /**
    * 跨塔统一技能池三选一（.28b 用户口径）：把所有已激活塔的候选卡（每塔 _choices()：
    * 未激活技能→技能卡 + 已激活技能→未满分支卡；槽满塔未激活技能已被过滤）摊平成一个大池，
@@ -315,7 +347,7 @@ class EffectManager {
    */
   _buildGroup(poolKeys) {
     const pickSize = CONFIG.EFFECT.pickSize;
-    const pool = [];
+    let pool = [];
     (poolKeys || Object.keys(this.towers)).forEach((key) => {
       const t = this.towers[key];
       if (t && t.level > 0) {
@@ -323,6 +355,11 @@ class EffectManager {
       }
     });
     if (!pool.length) return null;
+    // 第三章首次分支教学只在确有分支可选时定向，不创建空候选。
+    if (this.run && this.run._tutorialChoiceType === 'branch') {
+      const branches = pool.filter(choice => choice.type === 'branch');
+      if (branches.length) pool = branches;
+    }
     shuffle(pool, this.rng);
     const cands = pool.slice(0, pickSize);
     // 首选保底：组内替换一张为标志特效卡（若尚未达成）
@@ -373,7 +410,8 @@ class EffectManager {
     Object.keys(this.towers).forEach((key) => {
       const t = this.towers[key];
       while (t.pending > 0) {
-        const cands = t.pickChoices(true);
+        const group = this.run && this.run.chapter.isPrologue ? this._buildGroup(this.run.slotOrder) : null;
+        const cands = group ? group.cands : t.pickChoices(true);
         if (!cands.length) { t.pending = 0; break; }
         const res = t.applyChoice(cands[0]);
         detail.picks++;

@@ -10,7 +10,7 @@ const CONFIG_BOSS = require('../../config/bosses.js').altar_galvin;
 function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, AREA_W, ENTRY_H, WALL_Y, TOWER_ROW_Y, BOARD_Y }) {
   function actionArea(ctx, s) {
     // 行动区背景图（y128 起 720 高 = 怪物行走区）；按战场切换主题背景；加载失败回退深色底
-    const aaSrc = (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
+    const aaSrc = s && require('../../prologue.js').chapter(s.stage) ? 'assets/images/interface/battle/field_bg_prologue.jpg' : (s && (s.stage === 'lava' || s.stage === 'frost' || s.stage === 'abyss'))
       ? `assets/images/interface/battle/field_bg_${s.stage}.jpg` : IMG_SRC.actionArea;
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
@@ -43,11 +43,6 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       if (group.phase === 2) info = '共鸣 ' + group.resonanceStacks + '/' + CONFIG_BOSS.resonanceMax + ' · ' + info;
       if (group.firstDeathAt !== null) info = group.syncExpired ? '同步超时 · 独存圣像已回复' : '同步击破 ' + Math.max(0, CONFIG_BOSS.syncWindow - (group.elapsed - group.firstDeathAt)).toFixed(1) + 's';
       text(ctx, info, 375, AREA_Y + ENTRY_H + (group.phase === 1 ? 48 : 68), 15, group.firstDeathAt !== null ? '#ffda82' : '#d1c393', 'center');
-    } else if(s.miniBoss) {
-      const b=s.miniBoss;
-      text(ctx,b.bossName+' · '+(b.phase===1?'藤甲':'花绽狂暴'),375,AREA_Y+ENTRY_H+16,16,'#ead3ff','center');
-      progressBar(ctx,220,AREA_Y+ENTRY_H+28,338,9,Math.max(0,b.hp/b.maxHp),'#ba82e7','#30253d');
-      text(ctx,'藤甲 '+(b.shieldLayers||0)+'/'+(b.shieldMaxLayers||1),375,AREA_Y+ENTRY_H+45,13,'#d1c393','center');
     }
     // 塔位区（即城墙，先画背景）
     this.towerRow(ctx, s);
@@ -89,8 +84,8 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, fy, 750, 2);
     // 底部功能条三键：设置 / 帮助 / 商店（商店改入分页栏，点击弹出面板）
-    const labels = ['⚙ 设置', 'ℹ 帮助', '🛒 商店'];
-    const keys = ['setting', 'help', 'shop'];
+    const labels = s.showBattleShop === false ? ['⚙ 设置', 'ℹ 帮助'] : ['⚙ 设置', 'ℹ 帮助', '🛒 商店'];
+    const keys = s.showBattleShop === false ? ['setting', 'help'] : ['setting', 'help', 'shop'];
     const kw = 150, kh = 80;
     const gap = (750 - labels.length * kw) / (labels.length + 1);
     this.funcHits = [];
@@ -107,7 +102,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       fillRoundRect(ctx, x + 6, y + 4, kw - 12, 16, 8, ctx.fillStyle);
       text(ctx, labels[i].split(' ')[0], x + kw / 2, y + 42, 26, '#d7dee6', 'center');
       text(ctx, labels[i].split(' ')[1], x + kw / 2, y + 66, 17, '#8ea3b8', 'center');
-      this.funcHits.push({ key: keys[i], hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
+      this.funcHits.push({ key: keys[i], x, y, w:kw, h:kh, hit: (px, py) => px >= x && px <= x + kw && py >= y && py <= y + kh });
     }
     // 加速按钮：城墙上方 · 怪物移动区右下角
     // 去底色/描边/阴影/辅助文字：仅保留 ⏩ 图标 + ×N 倍数（颜色随档位：×1 暗灰 / ×2 金 / ×3+ 橙）
@@ -131,7 +126,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     }
     text(ctx, '塔位', AREA_X + 14, TOWER_ROW_Y + 24, 18, 'rgba(255,255,255,0.4)');
     // .10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
-    const showG = showGlobal !== false;
+    const showG = showGlobal !== false && s.showGlobal !== false;
     const itemN = showG ? slotCount + 2 : slotCount;
     const totalX = itemN * slotSize + (itemN - 1) * slotGap;
     const x0 = (750 - totalX) / 2;

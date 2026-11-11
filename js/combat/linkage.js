@@ -39,7 +39,6 @@ function spawnChainShots(combat, ent) {
   const { key, x, y } = ent;
   if (!combat.tower(key)) return;
   const main = combat.pickTarget(key);
-  if (!main) return;
   let dmg = combat.shotDmg(key);
   const t = combat.tower(key);
   if (t && t.energy <= 0) dmg /= CONFIG.GLOBAL_SKILL.weakDmg;   // 去弱化：不受能量影响
@@ -47,10 +46,11 @@ function spawnChainShots(combat, ent) {
   const tint = { fire: '#e74c3c', ice: '#7fd4ff', poison: '#52be80', electric: '#f4d03f', boomerang: '#a569bd', cannon: '#b5651d' }[key] || '#ffd24a';
   const dur = cfg.shot.dur;
   // 每枚独立寻敌：主目标上方 40px 截面带内随机敌人（带内无其他敌人则回退主目标），避免所有子弹打向同一个敌人
-  const target = combat.pickAltTarget(key, main);
-  const chainFlight = ChainFlight.create(x, y, target.x, target.y, dur);
+  const target = main ? combat.pickAltTarget(key, main) : null;
+  const aim = target || {x,y:y-600};
+  const chainFlight = ChainFlight.create(x, y, aim.x, aim.y, dur);
   const totalDuration = require('../config/chain-flight.js').maxFlightTime;
-  combat.addProjectile({ key, target, dmg, t: 0, dur: totalDuration, sx: x, sy: y, x, y, chainFlight }, { type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: target.x, ty: target.y, t: 0, dur: totalDuration, key, chainFlight });
+  combat.addProjectile({ key, target, dmg, t: 0, dur: totalDuration, sx: x, sy: y, x, y, chainFlight }, { type: 'shot', kind: cfg.shot.kind, color: tint, x, y, tx: aim.x, ty: aim.y, t: 0, dur: totalDuration, key, chainFlight });
   g.playSfx('shot', 0.25);
   // 消除格迸发小闪光（连消触发反馈）
   combat.fxFlash(x, y, tint);
@@ -60,21 +60,22 @@ function castEnergy(combat, key, name) {
   const t = combat.tower(key);
   if (!t) return;
   const cost = (CONFIG.SKILL_ENERGY && CONFIG.SKILL_ENERGY[name]) || 0;
-  if (cost <= 0) return;
-  if (t.energy < cost) return;
-  t.energy = Math.max(0, t.energy - cost);
+  const energyBefore = t.energy;
+  // 缺能仍施放并扣光余量；返回出手快照，调用方显式传给本次伤害。
+  // 周期技保留只花塔内能量的规则，备用库仍供普攻使用。
+  if (cost > 0) t.energy = Math.max(0, t.energy - cost);
+  return energyBefore;
 }
 
 function bonusStrike(combat, key, shape) {
   const g = combat.game;
   const t = combat.tower(key);
   if (!t || t.level === 0) return;
-  // 能量：三消额外攻击同样耗 0.5 能量；能量耗尽不取消，伤害走弱化态（shotDmg 内 ×0.5）
-  // 弹药箱3★：能量不足时从备用能量库借用
-  g.run.spendAttackEnergy(t);
   const tgt = combat.pickTarget(key);
   if (!tgt) return;
-  const dmg = combat.shotDmg(key);
+  // 三消额外攻击只收该塔基础费；无目标不收费，缺能继续，按扣费前档位计算。
+  const energyBefore = g.run.spendAttackEnergy(t);
+  const dmg = combat.shotDmg(key, false, false, energyBefore);
   const tint = CONFIG.TOWERS[key].color || '#fff';
   if (shape === '3') {
     // 三连：单发直击

@@ -3,12 +3,13 @@ const CONFIG = require('../config.js');
 const B = require('../config/bosses.js').altar_galvin;
 const enemySize = require('../enemy-size.js');
 const ART = require('../config/enemy-visuals.js').bossAnimations.altar_galvin;
-function enabled(g) { return g.menuStage === B.field && g.run.wave === B.wave && g.state !== 'testfield'; }
+function enabled(g) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin); return g.menuStage === B.field && g.run.wave === B.wave && g.state !== 'testfield'; }
 function entries(levels) {
   return levels.map(lv => { const c = CONFIG.ENEMY.levelOf(lv); return { lv, type: c.type, hp: c.hp, offset: 0.5, isBoss: false }; });
 }
 function setup(director) {
   const g = director.game;
+  const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   if (!enabled(g)) return false;
   // Prior-wave survivors may still be present; their IDs must not alias either twin's hit cooldowns.
   director._eid = g.enemies.reduce((next, e) => Math.max(next, Number(e.id) + 1 || 0), director._eid);
@@ -32,7 +33,7 @@ function setup(director) {
   }
   return true;
 }
-function configure(g, e, twin) {
+function configure(g, e, twin) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   e.bossId = B.id; e.bossName = B.name; e.phase = twin ? 2 : 1;
   e.hp = e.maxHp = twin ? B.hp * B.twinHpRatio : B.hp; e.delayHp = e.maxHp;
   e.armor = twin ? B.twinArmor : B.armor; e.attack = B.attack;
@@ -40,17 +41,17 @@ function configure(g, e, twin) {
   e.controlResist = B.controlResist; e.bossPlaceholder = false;
   e.bossArtKey = twin ? 'altar_galvin_twin' : B.id;
 }
-function spawn(g, e, id) {
+function spawn(g, e, id) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   if (id !== B.id) return;
   configure(g, e, false); g.run.bossEnemy = e; g.run.bossEncounter.members = [e];
 }
-function transition(g, e, value) {
+function transition(g, e, value) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const group = g.run.bossEncounter;
   if (!group || group.id !== B.id || group.phase !== 1 || e.bossId !== B.id || e.phase !== 1) return null;
   const remaining = Math.max(0, e.hp - e.maxHp * B.threshold);
   return value >= remaining ? { damage: remaining, overflow: Math.max(0, value - remaining) } : null;
 }
-function split(g, e) {
+function split(g, e) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const group = g.run.bossEncounter;
   if (!group || group.id !== B.id || group.phase !== 1) return [];
   group.phase = 2; group.members = []; group.nextResonanceAt = group.elapsed + B.resonancePeriod;
@@ -84,14 +85,14 @@ function clearTemporary(g) {
   const group = g.run && g.run.bossEncounter;
   if (group && group.id === B.id) { group.slowUntil = {}; group.attackDebt = {}; }
 }
-function attackScale(g, key) {
+function attackScale(g, key) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const group = active(g);
   if (!group || ['menu', 'gameover', 'testfield'].includes(g.state)) return 1;
   return (group.slowUntil[key] || 0) > group.elapsed + EPS ? 1 - B.echoSlow : 1;
 }
 // Boomerangs have a flight/return cadence instead of a normal attack interval.
 // Accumulate lost action time while flying, then pay it before the next throw.
-function attackStep(g, key, dt, flying) {
+function attackStep(g, key, dt, flying) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const group = active(g), scale = attackScale(g, key);
   if (!group || scale === 1) {
     if (group) delete group.attackDebt[key];
@@ -103,7 +104,7 @@ function attackStep(g, key, dt, flying) {
   group.attackDebt[key] = Math.max(0, (wait - used) * scale);
   return group.attackDebt[key] > EPS ? -1 : Math.max(0, dt - used) * scale;
 }
-function castEcho(g, group) {
+function castEcho(g, group) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const alive = group.members.filter(e => e.hp > 0);
   const candidates = [...new Set(g.run.slotOrder)].filter(key => {
     const t = g.run.effects.tower(key); return t && t.level > 0;
@@ -115,7 +116,7 @@ function castEcho(g, group) {
   if (candidates.length) group.echoVisual = { at: group.elapsed };
   if (candidates.length) g.fx.push({ type: 'floatText', text: '圣坛回响 · 攻速 −' + Math.round(B.echoSlow * 100) + '%', x: 375, y: g.ly.wallY - 45, t: 0, dur: 1.2, size: 20, color: '#e4c88d' });
 }
-function tick(g, dt) {
+function tick(g, dt) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   const group = active(g);
   if (!group || !group.members.some(e => e.hp > 0)) return;
   const alive = group.members.filter(e => e.hp > 0);
@@ -152,7 +153,8 @@ function tick(g, dt) {
   }
   g.run.bossEnemy = alive[0] || group.members[group.members.length - 1] || null;
 }
-function syncBonus(g, group) {
+function syncBonus(g, group) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
+  if(g.run.chapter&&g.run.chapter.isPrologue){group.syncBonusResolved=true;return;}
   if (group.syncBonusResolved) return;
   group.syncBonusResolved = true;
   const tier = CONFIG.DEPTH_CHEST.tiers.find(t => t.key === B.syncChestTier);
@@ -160,7 +162,7 @@ function syncBonus(g, group) {
   g.toast(group.syncChestGranted ? '同步击破 · 额外' + tier.name + '已存入' : tier ? '同步击破 · 宝箱槽位已满' : '同步击破 · 奖励配置不可用', '#f4cf72');
   if (group.syncChestGranted) g.save.save();
 }
-function onDeath(g, e) {
+function onDeath(g, e) {const B=require('../prologue/balance.js').profile(g,require('../config/bosses.js').altar_galvin);
   if (e.bossId !== B.id) return true;
   const group = g.run.bossEncounter;
   if (!group || group.id !== B.id || group.phase !== 2 || !group.members.includes(e) || group.rewardGranted || e.hp > 0) return false;

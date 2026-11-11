@@ -227,17 +227,19 @@ module.exports = {
   },
 
   FIELDS: {
-    ancient: { name: '圣坛花园', short: '🏰 圣坛花园', tint: '#2ecc71', tintDark: '#1f8c5f',
+    ancient: { name: '圣坛花园', chapterTitle: '圣庭战场', short: '🏰 圣坛花园', tint: '#2ecc71', tintDark: '#1f8c5f',
       subtitle: '城墙防守 · 怪物攻城 · 圣坛裂痕', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0,
+      // 首关后半段逐步缓和血量成长；普通、精英、小Boss及其召唤统一在出生时应用一次。
+      lateEnemyHp: { startWave: 41, endWave: 59, startMultiplier: 1, endMultiplier: 0.7 },
       desc: ['城墙防守：怪物沿唯一路径推进，攻破城墙即失守',
              '无地形障碍，弹药上限与金币收益均为标准值',
              '20 / 40 / 60 波各有一场锁关 Boss 战'] },
-    lava:    { name: '熔岩矿场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
+    lava:    { name: '熔岩矿场', chapterTitle: '圣庭战场', short: '🌋 熔岩矿场', tint: '#e8603c', tintDark: '#8c2f18',
       subtitle: '高血精英 · 弹药上限 -30% · 攻击类碎片', goldMult: 1.0, ammoCapMult: 0.7, dropAttr: 'attack', unlockWave: 40, boardObstacles: [[1,3],[2,8],[3,3],[4,8]],
       desc: ['高血精英：怪物血量与护甲更厚，推进更慢但更难打穿',
              '弹药上限 -30%，棋盘固定 4 格熔岩障碍',
              '掉落偏向攻击类碎片，20 / 40 / 60 波各一场锁关 Boss 战'] },
-    frost:   { name: '霜风峡谷', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',
+    frost:   { name: '霜风峡谷', chapterTitle: '圣庭战场', short: '❄️ 霜风峡谷', tint: '#5dade2', tintDark: '#21618c',
       subtitle: '高速成群 · 每15波风场增速 · 控制类碎片', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'control', unlockWave: 40, boardObstacles: [[1,4],[1,7],[3,4],[3,7]], windEvery: 15,
       desc: ['高速成群：数量多、移速快，每 15 波风场再抬一次速度',
              '棋盘固定 4 格冰障，掉落偏向控制类碎片',
@@ -342,3 +344,11 @@ for (const card of require('./config/red-relics.js').cards()) {
 
 // Both configuration facades expose the same active UR list.
 module.exports.RELIC_REWORK.RELIC_RUN.ur=module.exports.RELIC_RUN.ur;
+
+// Presentation descriptors for introductory chapters; visibility remains gated by releaseReady.
+for(const chapter of Object.values(require('./config/prologue.js').chapters)){
+ module.exports.FIELDS[chapter.id]={name:chapter.name,short:chapter.name,chapterTitle:chapter.chapterTitle,tint:'#9bbd6d',tintDark:'#526d39',goldMult:1,ammoCapMult:1,dropAttr:'none',unlockWave:0,
+ subtitle:chapter.maxWave+'波 · '+chapter.colors.length+'色选'+chapter.towerSlots+'塔',
+ desc:[chapter.maxWave+'波教学章节 · '+chapter.colors.length+'色选'+chapter.towerSlots+'塔',chapter.features.branches?'开放技能分支与圣遗物':chapter.features.skills?'开放塔技能，暂不开放分支':'熟悉消除与建塔，暂不开放技能',chapter.rewards.firstClearRed?'首次通关赠随机红色圣遗物，解锁天赋':'通关解锁下一章'],
+ icon:chapter.icon};
+}

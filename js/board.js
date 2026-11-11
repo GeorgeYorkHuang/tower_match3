@@ -25,7 +25,11 @@ function Board(cfg) {
   this.cols = cfg.cols || CONFIG.LAYOUT.boardCell.cols;   // 12
   this.rows = cfg.rows || CONFIG.LAYOUT.boardCell.rows;   // 6
   this.difficulty = cfg.difficulty || CONFIG.DIFFICULTY.default; // 4|5|6
-  this.activeColors = (CONFIG.DIFFICULTY.activeColors[this.difficulty] || []).slice();
+  const colors = cfg.colors || CONFIG.DIFFICULTY.activeColors[this.difficulty] || [];
+  if (colors.length < 3 || new Set(colors).size !== colors.length || colors.some(color => !CONFIG.COLORS[color])) {
+    throw new Error('棋盘颜色池必须包含至少三种不同的有效颜色');
+  }
+  this.activeColors = Object.freeze(colors.slice());
   this.weights = normalizeWeight(CONFIG.COLOR_WEIGHT, this.activeColors);
   this.obstacles = cfg.obstacles || [];
   this.theme = cfg.theme || 'ancient';
@@ -491,6 +495,7 @@ Board.prototype._scanAllColors = function(matches,toClear) {
 
 /** 高连技·染色：随机 n 个非该色普通块变为该色（避开清除区），返回被染色格列表 */
 Board.prototype._recolorBoard = function _recolorBoard(color, toClear) {
+  if (!this.activeColors.includes(color)) return [];
   const cands = [];
   for (let r = 0; r < this.rows; r++)
     for (let c = 0; c < this.cols; c++)
@@ -508,6 +513,8 @@ Board.prototype._recolorBoard = function _recolorBoard(color, toClear) {
 
 /** 高连技·随机播种：随机 n 个普通块变为随机特殊爆炸块（5 款随机抽取，避开清除区），返回播种格列表 */
 Board.prototype._seedSpecials = function _seedSpecials(color, toClear) {
+  // 空格会采用传入颜色，先检查色池，避免旧回调或外部调用播出章外色。
+  if (!this.activeColors.includes(color)) return [];
   const cands = [];
   for (let r = 0; r < this.rows; r++)
     for (let c = 0; c < this.cols; c++)

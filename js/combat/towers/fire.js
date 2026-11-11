@@ -3,6 +3,8 @@
 const CONFIG = require('../../config.js');
 const SKILL_NUM = require('../../config/tower-skills.js');
 const enemySize = require('../../enemy-size.js');
+const Trajectory = require('../trajectory-aim.js');
+const TARGETING = require('../../config/targeting.js');
 
 function relicStar(run, id) {
   if (!run || run.relicRun(id) <= 0) return 0;
@@ -69,7 +71,7 @@ function _leaveMultiFireGround(combat, enemy, attackDmg, cLv) {
   combat.fxParticle(enemy.x, enemy.y, '#ff9f43', 5, 28, 0.35, 100, 4);
 }
 
-function _fireMultiShot(combat, e, dmg, fromTriple = false) {
+function _fireMultiShot(combat, e, dmg, fromTriple = false, rangeSnapshot) {
   const g = combat.game;
   const balance = SKILL_NUM.fire['多重火球'];
   const big = combat.lv('fire', '大火球');
@@ -85,7 +87,10 @@ function _fireMultiShot(combat, e, dmg, fromTriple = false) {
     const cos = Math.cos(off), sin = Math.sin(off);
     return { tx: fsx + dx * cos - dy * sin, ty: fsy + dx * sin + dy * cos };
   };
-  const R = combat.range('fire');                 // 射界半径（= 塔射程）
+  // 普攻调用传入选敌时快照；无收费的独立触发仍可使用当前射程。
+  const R = rangeSnapshot == null ? combat.range('fire') : rangeSnapshot;
+  // 出手前预判方向，随后保持原直线、弹速和完整射程。
+  const aimTarget=TARGETING.fire.trajectoryAim?Trajectory.intercept(combat,'fire',e,R):e;
   const hitR = balance.hitRadius;                              // 散射火球碰撞半径（弹体较大）
   const cLv = combat.branchLv('fire', '多重火球', 'C');
   const strike = (o, d, ang) => {
@@ -95,8 +100,6 @@ function _fireMultiShot(combat, e, dmg, fromTriple = false) {
     combat.fxParticle(o.x, o.y, '#ff9f43', 6, 46, 0.35, 140, 5);
     combat.fxRing(o.x, o.y, '#ff7043', 26, 0.25, 3);
     combat.fxFlash(o.x, o.y, '#ffd24a', 0.2);
-    // C 散射：每枚主火球命中后留下 40px 燃烧地面。
-    _leaveMultiFireGround(combat, o, dmg, cLv);
     // 大火球叠加：每枚火球命中处按大火球口径爆炸溅射（选了大火球 → 火球变大火球）
     if (big > 0) {
       const bgr = SKILL_NUM.fire['大火球'].radius * (1 + SKILL_NUM.fire['大火球'].radiusPerBranch * combat.branchLv('fire', '大火球', 'A'));
@@ -123,12 +126,21 @@ function _fireMultiShot(combat, e, dmg, fromTriple = false) {
   offsets.push(0); // 中心弹与侧弹走同一发射/命中路径；主目标仅决定此方向基准
   offsets.sort((a, b) => a - b);
   for (const off of offsets) {
-    const ap = aimOf(e, off);
+    const ap = aimOf(aimTarget, off);
     const rayLen=Math.hypot(ap.tx-fsx,ap.ty-fsy)||1;
     ap.tx=fsx+(ap.tx-fsx)*R/rayLen; ap.ty=fsy+(ap.ty-fsy)*R/rayLen;
     const angle = Math.atan2(ap.ty - fsy, ap.tx - fsx);
-    const onHit = (o) => strike(o, perDmg, angle);
-    combat.addProjectile({ key: 'fire', scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
+    const deposit = (point, shot) => {
+      if(cLv<=0 || shot._groundPlaced)return;
+      shot._groundPlaced=true;
+      const ly=combat.ly();
+      const x=Math.max(ly.areaX || 0,Math.min((ly.areaX || 0)+(ly.areaW || 750),point.x));
+      const y=Math.max(ly.areaY+(ly.entryH || 0),Math.min(ly.wallY,point.y));
+      _leaveMultiFireGround(combat,{x,y},dmg,cLv);
+    };
+    const onHit = (o, damage, shot) => { strike(o, perDmg, angle); deposit(o,shot); };
+    const onExpire = (shot) => deposit({x:shot.tx,y:shot.ty},shot);
+    combat.addProjectile({ key: 'fire', aimTarget:e, scatter: true, dmg: perDmg, t: 0, dur, sx: fsx, sy: fsy, tx: ap.tx, ty: ap.ty, hitR, onHit, onExpire }, { type: 'shot', kind: 'line', color: tint, x: fsx, y: fsy, t: 0, dur, key: 'fire', aim: true, scale: 1.35, tx: ap.tx, ty: ap.ty });
   }
 }
 
@@ -219,18 +231,18 @@ function tickFire(combat, dt) {
     combat.timers.firePillar = (combat.timers.firePillar || 0) + dt;
     const fireCdPct = relicTier(run, 'r_fire_cd') / 100;
     const pillarBaseCd = pillarBalance.period * combat._weakPeriod('fire') * (1 - fireCdPct);
-    if (combat.timers.firePillar >= pillarBaseCd) {
+    if (combat.timers.firePillar >= pillarBaseCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y))) {
       combat.timers.firePillar = 0;
-      combat.castEnergy('fire', '火柱');
+      const energyBefore = combat.castEnergy('fire', '火柱');
       const cycleDmg = burnallCast(combat, 'firePillar');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y, energyBefore));
       if (alive.length) {
         const tgt = alive[Math.floor(Math.random() * alive.length)];
-        const pDmg = combat.shotDmg('fire', true) * pillarBalance.damage * (1 + pillarBalance.damagePerBranch * combat.branchLv('fire', '火柱', 'A')) * cycleDmg;
+        const pDmg = combat.shotDmg('fire', true, true, energyBefore) * pillarBalance.damage * (1 + pillarBalance.damagePerBranch * combat.branchLv('fire', '火柱', 'A')) * cycleDmg;
         const pR = pillarBalance.radius * (1 + pillarBalance.radiusPerBranch * combat.branchLv('fire', '火柱', 'B'));
         const emberLv = combat.branchLv('fire', '火柱', 'C');
         combat.pillarWaves = combat.pillarWaves || [];
-        combat.pillarWaves.push({ t: pillarBalance.delay, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt, cycleDmg });
+        combat.pillarWaves.push({ t: pillarBalance.delay, x: tgt.x, y: tgt.y, r: pR, dmg: pDmg, ember: emberLv, e: tgt, cycleDmg, energyBefore });
         // 火柱视觉：地面火环（下层）→ 冲天火柱（上层，新 6 帧火龙卷）
         // 地面环锚在目标脚下而非身体中心，避免被怪物主体完全盖住。
         g.fx.push({ type: 'pillarBase', x: tgt.x, y: pillarFloorY(tgt), r: pR, t: 0, dur: 5, seed: Math.random() * 100 });
@@ -247,7 +259,7 @@ function tickFire(combat, dt) {
           combat.explode(wv.x, wv.y, wv.r, wv.dmg, 'fire', undefined, undefined, undefined, '火柱');   // 伤害统计标注
           if (wv.ember > 0) {
             combat.groundDots = combat.groundDots || [];
-            combat.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: combat.shotDmg('fire', true) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire', skill: '火柱' });   // 余烬 15%/级（C1 15%→C3 45%）；标注
+            combat.groundDots.push({ x: wv.x, y: wv.y, r: wv.r, ttl: pillarBalance.emberDuration, dps: combat.shotDmg('fire', true, true, wv.energyBefore) * pillarBalance.emberDamagePerBranch * wv.ember, key: 'fire', skill: '火柱' });
           }
         } else {
           remaining.push(wv);
@@ -265,11 +277,11 @@ function tickFire(combat, dt) {
     combat.timers.fireWall = (combat.timers.fireWall || 0) + dt;
     const wallCdPct = relicTier(run, 'r_fire_cd') / 100;
     const wallCd = wallBalance.period * combat._weakPeriod('fire') * (1 - wallCdPct);
-    if (combat.timers.fireWall >= wallCd) {
+    if (combat.timers.fireWall >= wallCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y))) {
       combat.timers.fireWall = 0;
-      combat.castEnergy('fire', '烈焰墙');
+      const energyBefore = combat.castEnergy('fire', '烈焰墙');
       const cycleDmg = burnallCast(combat, 'fireWall');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y, energyBefore));
       if (alive.length) {
         const tgt = alive.reduce((a, b) => (b.y > a.y ? b : a));   // 最近怪物 = 离塔/城墙最近（y 最大）
         const aLv = combat.branchLv('fire', '烈焰墙', 'A');   // 神火 +20/40/60%
@@ -277,7 +289,7 @@ function tickFire(combat, dt) {
         const cLv = combat.branchLv('fire', '烈焰墙', 'C');   // 迟滞 减速 10/20/30%
         const w = wallBalance.width * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
         const h = wallBalance.height * (1 + SKILL_NUM.fire['烈焰墙'].range[bLv]);
-        const wDmg = combat.shotDmg('fire', true) * wallBalance.impactDamage * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]) * (1 + wallDmgBonus / 100) * cycleDmg;
+        const wDmg = combat.shotDmg('fire', true, true, energyBefore) * wallBalance.impactDamage * (1 + SKILL_NUM.fire['烈焰墙'].dmg[aLv]) * (1 + wallDmgBonus / 100) * cycleDmg;
         const wallX = tgt.x;
         const wallXs = [wallX];
         if (run.relic3('s_sr_fire_wall')) wallXs.push(Math.max(w / 2, Math.min(750 - w / 2, wallX + (wallX < 375 ? w : -w))));
@@ -290,7 +302,7 @@ function tickFire(combat, dt) {
         combat.fireWalls = combat.fireWalls || [];
         const wallDuration = wallBalance.duration;
         wallXs.forEach((wx) => {
-          combat.fireWalls.push({ x: wx, y: tgt.y, w, h, ttl: wallDuration, cLv, tick: 0, cycleDmg });
+          combat.fireWalls.push({ x: wx, y: tgt.y, w, h, ttl: wallDuration, cLv, tick: 0, cycleDmg, energyBefore });
           g.fx.push({ type: 'fireWall', x: wx, y: tgt.y, w, h, t: 0, dur: wallDuration, seed: Math.random() * 100 });
         });
       }
@@ -308,7 +320,7 @@ function tickFire(combat, dt) {
               if (o.hp <= 0) return;
               if (Math.abs(o.x - wl.x) <= wl.w / 2 && o.y >= wl.y - wl.h / 2 && o.y <= wl.y + wl.h / 2) {
                 o._fireWallBurnT = 0.6;
-                combat.applyBurn(o, combat.shotDmg('fire', true) * (wl.cycleDmg || 1) * (1 + wallDmgBonus / 100), 'fire');
+                combat.applyBurn(o, combat.shotDmg('fire', true, true, wl.energyBefore) * (wl.cycleDmg || 1) * (1 + wallDmgBonus / 100), 'fire');
                 if (wl.cLv > 0) {
                   const sm = 1 - SKILL_NUM.fire['烈焰墙'].slow[wl.cLv];
                   if (!o._genericSlow || o._genericSlow.mult > sm) combat.applySlow(o, 1 - sm, wallBalance.slowDuration);
@@ -331,18 +343,18 @@ function tickFire(combat, dt) {
     combat.timers.fireRain = (combat.timers.fireRain || 0) + dt;
     const rainCdPct = relicTier(run, 'r_fire_cd') / 100;
     const rainCd = Math.max(0.1, rainBalance.period * combat._weakPeriod('fire') * (1 - rainCdPct) - relicTier(run, 's_fire_rain', 'interval'));
-    if (combat.timers.fireRain >= rainCd) {
+    if (combat.timers.fireRain >= rainCd && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y))) {
       combat.timers.fireRain = 0;
-      combat.castEnergy('fire', '火雨');
+      const energyBefore = combat.castEnergy('fire', '火雨');
       const cycleDmg = burnallCast(combat, 'fireRain');
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y));
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('fire', e.x, e.y, energyBefore));
       if (alive.length) {
         const bLv = combat.branchLv('fire', '火雨', 'B');
         const cLv = combat.branchLv('fire', '火雨', 'C');
         const segR = rainBalance.baseRadius * (1 + SKILL_NUM.fire['火雨'].radius[cLv]);
         const perR = 80;                                        // 火雨点视觉落点半径
         const rainRelicDmg = relicTier(run, 's_sr_fire_rain') + relicTier(run, 's_fire_rain');
-        const segDmg = combat.shotDmg('fire', true) * rainBalance.waveDamage * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]) * (1 + rainRelicDmg / 100) * cycleDmg;
+        const segDmg = combat.shotDmg('fire', true, true, energyBefore) * rainBalance.waveDamage * (1 + SKILL_NUM.fire['火雨'].segDmg[bLv]) * (1 + rainRelicDmg / 100) * cycleDmg;
         const waves = rainBalance.baseWaves + combat.branchLv('fire', '火雨', 'A') + relicTier(run, 's_sr_fire_rain', 'waveAdd');
         const gap = rainBalance.waveGap;
         const FALL = rainBalance.fallDuration;                                        // 单颗下落时长（与 render raindrop 同步）
@@ -368,7 +380,7 @@ function tickFire(combat, dt) {
           }
           // 每波一次结算：全部颗落地后（t = w0 + rainBalance.spawnWindow + FALL）对火雨圈内敌人造成 24% 伤害并灼烧
           // 天火3★：火雨最后一波升级为天火一击（单点 120% 伤害）
-          combat.rainWaves.push({ t: w0 + rainBalance.spawnWindow + FALL, px, py, r: segR, dmg: segDmg });
+          combat.rainWaves.push({ t: w0 + rainBalance.spawnWindow + FALL, px, py, r: segR, dmg: segDmg, energyBefore });
         }
         combat.fxParticle(px, py, '#ffd24a', 3, 30, 0.4, 100, 4);
       }
@@ -388,7 +400,7 @@ function tickFire(combat, dt) {
                 combat.applyBurn(o, wv.dmg, 'fire');   // 灼烧（叠层 DoT）
                 if (run.relic3('s_fire_rain') && wasBurning) {
                   const blastR = relicTier(run, 's_fire_rain', 'explosionRadius');
-                  combat.explode(o.x, o.y, blastR, combat.shotDmg('fire', true) * relicTier(run, 's_fire_rain', 'burnExplosion') / 100, 'fire', undefined, undefined, undefined, '火雨');
+                  combat.explode(o.x, o.y, blastR, combat.shotDmg('fire', true, true, wv.energyBefore) * relicTier(run, 's_fire_rain', 'burnExplosion') / 100, 'fire', undefined, undefined, undefined, '火雨');
                 }
               }
             });

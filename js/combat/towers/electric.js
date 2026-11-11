@@ -240,7 +240,7 @@ function tickElectric(combat, dt) {
     combat.timers.ballLightning = (combat.timers.ballLightning || 0) + dt;
     if (combat.timers.ballLightning >= bal.period * combat._weakPeriod('electric') * relicCd) {
       combat.timers.ballLightning = 0;
-      combat.castEnergy('electric', '球形闪电');
+      const energyBefore = combat.castEnergy('electric', '球形闪电');
       const aLv = combat.branchLv('electric', '球形闪电', 'A');
       const bLv = combat.branchLv('electric', '球形闪电', 'B');
       const cLv = combat.branchLv('electric', '球形闪电', 'C');
@@ -249,7 +249,7 @@ function tickElectric(combat, dt) {
       const y1 = g.ly ? g.ly.wallY - 35 : 1200;
       const x0 = g.ly ? g.ly.areaX + 28 : 28;
       const x1 = g.ly ? g.ly.areaX + g.ly.areaW - 28 : 722;
-      const dmg = combat.shotDmg('electric', false, true) * (bal.damage + bal.damagePerBranch[bLv]);
+      const dmg = combat.shotDmg('electric', false, true, energyBefore) * (bal.damage + bal.damagePerBranch[bLv]);
       const foes = combat.enemies().filter((e) => e.hp > 0);
       for (let i = 0; i < count; i++) {
         // 生成在随机存活怪旁边（雷球锁定该怪附近开场，便于立即脉冲命中）；场上无怪时退回行动区随机
@@ -263,7 +263,7 @@ function tickElectric(combat, dt) {
           by = y0 + Math.random() * Math.max(1, y1 - y0);
         }
         const orb = {
-          key: 'electric', orb: true, ballLightning: true, dmg, trailDmg: bal.trailDamage,
+          key: 'electric', orb: true, ballLightning: true, dmg, trailDmg: bal.trailDamage, energyBefore,
           t: 0, dur: bal.duration, x: bx, y: by,
           ang: Math.random() * Math.PI * 2, speed: cLv > 0 ? bal.speedPerBranch[cLv] : bal.moveSpeed,
           damageTimer: 0, trailCooldowns: new Map(), trail: [], trailDistance: 0,
@@ -287,18 +287,18 @@ function tickElectric(combat, dt) {
     const arcC = combat.branchLv('electric', '极光电击', 'C');
     combat.timers.arc = (combat.timers.arc || 0) + dt;
     const period = arcBalance.period * combat._weakPeriod('electric') * relicCd;
-    if (combat.timers.arc >= period) {
+    if (combat.timers.arc >= period && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y))) {
       combat.timers.arc = 0;
-      combat.castEnergy('electric', '极光电击');
+      const energyBefore = combat.castEnergy('electric', '极光电击');
       // 统一 towerMuzzle（测试战场单塔大槽）
       const mz = combat.towerMuzzle('electric');
       const tx = mz.x, ty = mz.y;
-      const range = combat.range('electric');
+      const range = combat.range('electric', energyBefore);
       const alive = combat.enemies().filter((e) => e.hp > 0 && Math.abs(ty - e.y) <= range);
       if (alive.length) {
         // 最近的敌人（行距离最小）为电击目标（：不再沿延长线穿透，仅此一目标受主线伤害）
         const nearest = alive.slice().sort((a, b) => Math.abs(ty - a.y) - Math.abs(ty - b.y))[0];
-        const dmg = combat.shotDmg('electric', false, true) * (arcBalance.damage + arcBalance.damagePerBranch * arcB);
+        const dmg = combat.shotDmg('electric', false, true, energyBefore) * (arcBalance.damage + arcBalance.damagePerBranch * arcB);
         const x1 = tx, y1 = ty, x2 = nearest.x, y2 = nearest.y;
         combat.damage(nearest, dmg, 'electric', undefined, '极光电击');   // 标注
         combat.fxFlash(nearest.x, nearest.y, '#f4d03f');
@@ -364,17 +364,17 @@ function tickElectric(combat, dt) {
     const cLv = combat.branchLv('electric', '雷暴', 'C');
     const period = (stormBalance.period - stormBalance.periodReductionPerBranch * cLv) * combat._weakPeriod('electric') * relicCd;
     combat.timers.storm = (combat.timers.storm || 0) + dt;
-    if (combat.timers.storm >= period) {
+    if (combat.timers.storm >= period && combat.enemies().some((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y))) {
       combat.timers.storm = 0;
-      combat.castEnergy('electric', '雷暴');
+      const energyBefore = combat.castEnergy('electric', '雷暴');
       const aLv = combat.branchLv('electric', '雷暴', 'A');
       const bLv = combat.branchLv('electric', '雷暴', 'B');
       const n = stormBalance.targetCount + stormBalance.targetsPerBranch * aLv
         + g.run.relicNum('s_elec_field') + g.run.relicValue('s_sr_elec_storm', 'targetAdd');
       const stormRelicDmg = g.run.relicNum('s_sr_elec_storm') + g.run.relicNum('s_elec_field');
-      const dmg = combat.shotDmg('electric', false, true) * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1) + stormRelicDmg / 100);
+      const dmg = combat.shotDmg('electric', false, true, energyBefore) * stormBalance.damage * (1 + stormBalance.damagePerLevel * (storm - 1) + stormRelicDmg / 100);
       // 全图随机 N 个存活目标（Fisher-Yates）
-      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y));
+      const alive = combat.enemies().filter((e) => e.hp > 0 && combat.inTowerRange('electric', e.x, e.y, energyBefore));
       const pool = alive.slice();
       // 雷域3★：雷暴优先命中血量最高的敌人
       if (combat.game.run.relic3('elec_domain')) {
@@ -396,7 +396,7 @@ function tickElectric(combat, dt) {
         if (g.run.relic3('s_elec_field')) {
           combat.groundDots = combat.groundDots || [];
           const r = 90;
-          combat.groundDots.push({ x: e.x, y: e.y, r, ttl: g.run.relicValue('s_elec_field', 'groundDuration'), dps: combat.shotDmg('electric', true, true) * g.run.relicValue('s_elec_field', 'groundDps') / 100, damageInterval: 1, paralyzeChance: g.run.relicValue('s_elec_field', 'paralyze') / 100, paralyzeDuration: 1, onParalyze: (cb, enemy) => registerShockStack(cb, enemy), key: 'electric', skill: '雷暴' });
+          combat.groundDots.push({ x: e.x, y: e.y, r, ttl: g.run.relicValue('s_elec_field', 'groundDuration'), dps: combat.shotDmg('electric', true, true, energyBefore) * g.run.relicValue('s_elec_field', 'groundDps') / 100, damageInterval: 1, paralyzeChance: g.run.relicValue('s_elec_field', 'paralyze') / 100, paralyzeDuration: 1, onParalyze: (cb, enemy) => registerShockStack(cb, enemy), key: 'electric', skill: '雷暴' });
           combat.fxRing(e.x, e.y, '#ffe978', r, 0.35, 3);
         }
         // 雷霆3★：雷暴击中麻痹的敌人时，将其麻痹向 90 码内 2 名敌人传导（各 1 秒）
@@ -503,7 +503,7 @@ function stepBallLightning(combat, s, dt) {
       if (e.hp <= 0 || (s.trailCooldowns.get(e) || 0) > 0) continue;
       const onTrail = s.trail.some((p) => Math.hypot(e.x - p.x, e.y - p.y) <= s.trailRadius);
       if (!onTrail) continue;
-      combat.damage(e, combat.shotDmg('electric', false, true) * s.trailDmg, 'electric', undefined, '球形闪电');   // 电痕归球形闪电
+      combat.damage(e, combat.shotDmg('electric', false, true, s.energyBefore) * s.trailDmg, 'electric', undefined, '球形闪电');
       s.trailCooldowns.set(e, s.trailHitInterval);
     }
   }
@@ -513,7 +513,7 @@ function stepBallLightning(combat, s, dt) {
   }
   if (!alive && !s._magnetBurstDone && combat.game.run.relic3('elec_magnet')) {
     s._magnetBurstDone = true;
-    combat.explode(s.x, s.y, 80, combat.shotDmg('electric', false, true) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');   // 磁爆3★归球形闪电
+    combat.explode(s.x, s.y, 80, combat.shotDmg('electric', false, true, s.energyBefore) * 0.6, 'electric', undefined, undefined, undefined, '球形闪电');
     combat.fxRing(s.x, s.y, '#ffe978', 80, 0.42, 4);
   }
   return alive || s.trail.length > 0;

@@ -3,11 +3,17 @@ const CONFIG = require('../../config.js');
 
 module.exports = {
   finishRun(evacuated) {
+    if (!this.testProfile && evacuated && this.run.lineHp > 0 && this.run.wave === 60 && (this.run.finalVictory || (this._waveCleared && this._waveCleared[60]))) {
+      require('../../field-access.js').markCleared(this.meta,this.menuStage);
+    }
     if (this.state === 'gameover' && this.runSummary) return;
     if (!evacuated && this.run.lineHp <= 0 && !this.run.adRevived && !this.run.adReviveDeclined && this.menuStage !== 'test') {
       this.state = 'reviveOffer'; this.shopOpen = false; this.funcLayer = null; this.dmgStat = false;
       return;
     }
+    const chapter=this.run.chapter,prologue=!!(chapter&&chapter.isPrologue);
+    const prologueVictory=prologue&&evacuated&&this.run.lineHp>0&&this.run.wave===chapter.maxWave&&!!(this._waveCleared&&this._waveCleared[chapter.maxWave]);
+    const completion=prologue?require('../../prologue/completion.js').complete(this.meta,chapter.id,{victory:prologueVictory,test:!!this.testProfile}):null;
     const EV = CONFIG.EVAC;
     // 深渊裂隙合约：深度结算 ×2（deepMult）
     const deepMult = (this.field && this.field.deepMult) || 1;
@@ -23,14 +29,14 @@ module.exports = {
     }
     this.run.gold = 0;
     if(this.menuStage==='ancient') this.meta.ancientBestWave=Math.max(this.meta.ancientBestWave||0,this.run.wave);
-    const miles = this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
+    const miles = prologue ? [] : this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
     // 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
     const noChest = !evacuated && this.run.wave <= 3;
     const cleared = this.run.clearedWaves || 0;
-    const tier = noChest || cleared < 1 ? null : this.meta.tierByWave(cleared);
+    const tier = prologue || noChest || cleared < 1 ? null : this.meta.tierByWave(cleared);
     let chestExtra = null, chestExtraFull = false;
     const ok1 = tier ? this.meta.grantDeepChest(tier) : false;
-    if (evacuated && cleared >= CONFIG.EVAC.lateWave) {
+    if (!prologue && evacuated && cleared >= CONFIG.EVAC.lateWave) {
       // 撤离成功顶配加发：星辉→黄金 / 黄金→白银（低一档宝箱）
       const idx = CONFIG.DEPTH_CHEST.tiers.indexOf(tier);
       const lower = CONFIG.DEPTH_CHEST.tiers[Math.max(0, idx - 1)];
@@ -43,6 +49,7 @@ module.exports = {
     // 碎片统一入账：撤离全额，失守按 SHARD_SETTLE.deadRatio 折算（floor 张数 + 随机保留）
     const ss = this.settleRunShards(evacuated ? 1 : CONFIG.SHARD_SETTLE.deadRatio);
     this.runSummary = {
+      prologue, victory:prologueVictory, prologueCompletion:completion,
       evacuated, wave: this.run.wave, stage: this.menuStage, payout, miles,
       cleared: this.run.clearedWaves || 0,   // 全歼波数（通关数口径：一波怪全部死亡才算，非「到达第几波」）
       chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra, chestExtraFull,   // chestKey：结算页宝箱档位图标

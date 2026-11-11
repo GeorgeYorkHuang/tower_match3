@@ -89,6 +89,17 @@ function handle(game, key, data) {
     if (game.meta.musicOn) game.sfx.startBgm();
     game.save.save(); return;
   }
+  if(key==='accountClear'){
+    if(typeof wx==='undefined'||!wx.showModal){game.toast('当前环境不支持清档确认','#ffb3a0');return;}
+    const storageKey=game.save.storageKey,previousMeta=game.meta;
+    wx.showModal({title:'确认清除当前档案？',content:'将清除当前'+(game.testProfile?'测试':'正常')+'档案的章节、圣遗物、天赋和货币进度，无法恢复。另一档案不受影响。',confirmText:'确认清档',confirmColor:'#b64b36',success(result){
+      if(!result.confirm||game.save.storageKey!==storageKey||game.meta!==previousMeta)return;
+      game.meta=new Meta();
+      if(game.save.save()===false){game.meta=previousMeta;game.toast('保存失败，已保留原档案','#ff6b6b');return;}
+      game.saveData=game.meta.toJSON();game.menuStage=require('../config/prologue.js').order[0];game.menuTab='battle';game.menuPanel=null;game.newRun(false);game.state='menu';
+      game.sfx.setMusicEnabled(game.meta.musicOn);game.toast('当前档案已清除','#ffe4a1');
+    }});return;
+  }
   if (key === 'accountInfo') { game.menuPanel = { type: 'accountInfo' }; return; }
   if (key === 'accountLogout') {
     if (game.testProfile) switchProfile(game, false);

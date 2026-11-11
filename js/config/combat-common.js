@@ -1,4 +1,4 @@
-// 通用战斗约束；秒、像素。保留当前行为，不改变技能/圣遗物口径。
+// 通用战斗约束；时间单位秒，距离单位像素。
 module.exports = {
   minAttackInterval: 0.15,
   alternateTargetBand: 40,

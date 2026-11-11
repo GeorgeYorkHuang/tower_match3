@@ -6,7 +6,7 @@ const { roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
   function battleShop(ctx, s) {
-    if (!s.shopOpen) return;
+    if (!s.shopOpen || s.showBattleShop === false) return;
     const w = 650, h = 1000, x = 50, y = (LOGIC_H - h) / 2 - 40;
     const shopPanelRect = { x, y, w, h }, shopItemRects = [];
     ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(0, 0, 750, LOGIC_H);
@@ -32,7 +32,7 @@ function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
       // 上半张卡为图标区，下半张为名称、功能与价格；正文不小于21px。
       text(ctx, item.name, cx + cw / 2, cy + 151, 25, inactive ? '#88949b' : '#ffffff', 'center');
       text(ctx, item.desc, cx + cw / 2, cy + 188, 23, '#d4e3e9', 'center');
-      if (item.max === 1) text(ctx, '限购1次', cx + 15, cy + 24, 19, '#ffe1a0', 'left');
+      if (item.max > 0) text(ctx, '限购'+item.max+'次（'+offer.bought+'/'+item.max+'）', cx + 15, cy + 24, 19, '#ffe1a0', 'left');
       // Transient state belongs in the top corner, keeping the description area uncluttered.
       const state = cooling ? '冷却' + Math.ceil(offer.cooldown) + '秒'
         : timer > 0 ? '剩余' + Math.ceil(timer) + '秒' : offer.sold ? '已售罄' : '';

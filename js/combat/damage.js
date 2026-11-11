@@ -32,7 +32,7 @@ function recordDmgStat(combat, e, hpBefore, shieldBefore, srcKey, kind, skill) {
   else if (kind !== 'dot' && kind !== 'true') st.normal += amount;
 }
 
-function shotDmg(combat, key, isSkill, isTowerSkill) {
+function shotDmg(combat, key, isSkill, isTowerSkill, energyBefore) {
   const dps = combat.game.run.effects.towerDps(key);
   const iv = CONFIG.TOWERS[key].atkInterval;
   let dmg = dps * iv * (combat.game.run.gsState && combat.game.run.gsState.forge > 0 ? GS_BALANCE.forge.damageMultiplier : 1);
@@ -62,14 +62,16 @@ function shotDmg(combat, key, isSkill, isTowerSkill) {
   if (run._shuffleBuffTtl > 0) dmg *= 1.3;
   // 能量状态同时影响普攻与周期技能伤害。
   const t = combat.tower(key);
-  if (t) dmg *= EnergyState.evaluate(t.energy, run.armoryEnergyMax(key)).attack;
-  if (overload.level > 0 && !isSkill && t && t.energy >= run.armoryEnergyMax(key) * overloadBalance.resonanceThreshold) {
+  // 已收费的攻击/周期技传入出手快照；独立被动仍读取当前能量。
+  const energy = energyBefore == null ? (t ? t.energy : 0) : energyBefore;
+  if (t) dmg *= EnergyState.evaluate(energy, run.armoryEnergyMax(key)).attack;
+  if (overload.level > 0 && !isSkill && t && energy >= run.armoryEnergyMax(key) * overloadBalance.resonanceThreshold) {
     dmg *= 1 + overloadBalance.resonanceDamage[overload.C];
   }
   // 炮·军火库 C 过剩：能量 ≥ 上限 80% 时普攻伤害 +10%/+20%/+30%（仅普攻，与能量状态乘区叠加）
   if (!(isTowerSkill === undefined ? isSkill : isTowerSkill) && key === 'cannon') {
     const armC = combat.branchLv('cannon', '军火库', 'C');
-    if (armC > 0 && t && t.energy >= run.armoryEnergyMax(key) * (SKILL_NUM.cannon['军火库'].overThreshold || 0.8)) {
+    if (armC > 0 && t && energy >= run.armoryEnergyMax(key) * (SKILL_NUM.cannon['军火库'].overThreshold || 0.8)) {
       dmg *= (1 + SKILL_NUM.cannon['军火库'].overPerBranch * armC);
     }
   }

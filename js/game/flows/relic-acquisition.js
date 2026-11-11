@@ -7,6 +7,7 @@ const BattleDrops = require('../../relics/battle-drops.js');
 
 module.exports = {
   onKillReward(e) {
+    const prologue = !!(this.run.chapter && this.run.chapter.isPrologue);
     // 测试战场：无击杀奖励（不涨经验/不掉宝箱，专注技能验证）
     if (this.state === 'testfield') return;
     const b = this.meta.relicBonus();
@@ -15,7 +16,8 @@ module.exports = {
     // ：战斗中击杀只积累升级待选（pending），不弹三选一打断战斗；
     // 升级三选一统一在波末「波次完成 → 继续」时结算（设计：波末逐次结算）
     // 普通三地图改为固定节点；深渊暂沿用原精英掉落，银币/经验/碎片不受影响。
-    if (!BattleDrops.scheduled(this) && e.type === 'elite') {
+    const canDropRelic = !prologue || (this.run.chapter.features.relics && (e.waveNo || this.run.wave) >= this.run.chapter.features.relicStartWave);
+    if (canDropRelic && !BattleDrops.scheduled(this) && e.type === 'elite') {
       const chance = RelicKill.eliteChestChance(this.run, b);
       if (Math.random() < chance) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
@@ -26,24 +28,25 @@ module.exports = {
     // 同一波Boss只发一份宝箱和碎片；银币、经验仍逐个敌人结算。
     const bossReward = BattleDrops.claimBoss(this, e);
     if (bossReward) {
-      const red=require('../../relics/red-boss-drop.js').grant(this,e);
+      const red=prologue?null:require('../../relics/red-boss-drop.js').grant(this,e);
       if(red)this.toast('圣庭红卡碎片 +'+red.n+'（局末结算）','#ff8e80');
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = waveNo > 0 && waveNo % 20 === 0;
       // 普通三地图W20/40保底全金，W55之后不发局内宝箱；深渊保留原Boss概率。
-      const fieldChestDropped = !BattleDrops.scheduled(this) && !e.isFinalBoss &&
+      const fieldChestDropped = canDropRelic && !BattleDrops.scheduled(this) && !e.isFinalBoss &&
         Math.random() < (majorBoss ? CONFIG.KILL_DROP.majorBossChestChance : CONFIG.KILL_DROP.miniBossChestChance);
-      if (BattleDrops.scheduled(this)) BattleDrops.grantBossChest(this, e);
+      if (canDropRelic && BattleDrops.scheduled(this)) BattleDrops.grantBossChest(this, e);
       else if (fieldChestDropped) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: majorBoss ? 'majorBoss' : 'miniBoss' });
         this.run._waveChestDropped = true;
         this.toast(majorBoss ? '大Boss宝箱 · 消除棋盘相邻方块领取' : '小Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
       }
-      this.meta.chests += 1; // Boss 进度奖励计入主界面宝箱，与战斗宝箱概率独立
+      if(!prologue)this.meta.chests += 1; // Boss 进度奖励计入主界面宝箱，与战斗宝箱概率独立
       if (e.isFinalBoss) this.toast('终极Boss宝箱已存入主界面', '#f7c948');
       this.save.save();
     }
     /* 碎片独立掉落表：精英10%×1；小Boss25%×2~4；大Boss保底2，另55%×3~6。 */
+    if(prologue)return;
     const field = this.field || CONFIG.FIELDS.ancient;
     if (field.dropAttr && field.dropAttr !== 'none') {
       const KD = CONFIG.KILL_DROP;
@@ -86,6 +89,8 @@ module.exports = {
   },
 
   spawnRelicPick(mode, options = {}) {
+    const chapter = this.run.chapter;
+    if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) { this._chestBusy = false; return; }
     const star3Mode = mode === 'star3';
     const rarity = options.rarity === 'ssr' ? 'ssr' : undefined;
     const cands = this._rollRelicCandidates(star3Mode, { rarity });
@@ -102,6 +107,8 @@ module.exports = {
   },
 
   _rollRelicCandidates(star3Mode, options = {}) {
+    const chapter = this.run.chapter;
+    if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) return [];
     const RR = CONFIG.RELIC_RUN;
     const star3 = !!star3Mode;
     // 在场塔（本局已激活的塔色）+ 通用池；候选带 tint（塔色/金色）供弹层圆底配色
@@ -173,6 +180,12 @@ module.exports = {
   },
 
   relicPickChoice(i) {
+    const chapter = this.run.chapter;
+    if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) {
+      this.relicPick = null; this.pendingRelicPicks = []; this._chestBusy = false;
+      this.state = this._relicReturnState || 'fighting'; this._relicReturnState = null;
+      return;
+    }
     const c = this.relicPick && this.relicPick.candidates[i];
     if (!c) return;
     const opening = !!this.relicPick.opening;
@@ -205,6 +218,7 @@ module.exports = {
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
       this.run.relicFx(c.id, '已生效'); // 圣遗物生效提示（★星级 + 名称 + 圣遗物色）
     }
+    require('../prologue-tutorial.js').action(this, 'relic');
     this.relicPick = null;
     // 测试战场 3★ 模式：选中圣遗物按 3★ 质变注入（无需真实 3★ 解锁）
     if (this._relicReturnState === 'testfield' && this._lastPickStar3 && c) {

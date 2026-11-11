@@ -3,6 +3,7 @@ const Collision = require('./collision.js');
 // Shared projectile bookkeeping, target resolution and geometry. No cached game state.
 const COMBAT_BALANCE = require('../config/combat-common.js');
 const BoomerangTrajectory = require('./boomerang-trajectory.js');
+const CannonFlight = require('./cannon-flight.js');
 
 function addProjectile(combat, shot, visual) {
   shot.visual = visual; visual.projectile = shot;
@@ -11,6 +12,7 @@ function addProjectile(combat, shot, visual) {
 }
 
 function resolveShot(combat, s) {
+  if(s.fixedImpact) { CannonFlight.resolve(combat,s); return; }
   const g = combat.game;
   const e = s.target;
   if (!e || e.hp <= 0 || !g.enemies.includes(e)) return; // 目标已死/消失 → 落空

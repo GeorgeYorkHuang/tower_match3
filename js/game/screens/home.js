@@ -1,3 +1,4 @@
+/** 主页战场选择：章节标题、图标、切换箭头与战斗入口共用逻辑坐标。 */
 'use strict';
 const CONFIG = require('../../config.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
@@ -8,25 +9,50 @@ function createHomeScreen({ drawImg, skillRow }) {
     const stage = s.stage || 'ancient';
     const F = CONFIG.FIELDS[stage] || CONFIG.FIELDS.ancient;
     const isTest = stage === 'test';
+    const stageOrder=require('../../field-access.js').selectable(s,s.testProfile),stageIndex=stageOrder.indexOf(stage);
+    const canPrev=stageIndex>0,canNext=stageIndex<stageOrder.length-1;
     const tint = F.tint;
-    // 战场面板背景整体移除：只留图标 + 战场名；图标放大 30%（260→338）
-    const iw = 338, ix = 375 - iw / 2, iy = 480;
+    // 图标、箭头、名称和入口整体下移 70，给上方章节标题留出空间。
+    const iw = 338, ix = 375 - iw / 2, iy = 550;
     const nameY = iy + iw + 42;
+
+    const chapterTitle = F.chapterTitle || (stage === 'abyss' ? '深渊挑战' : '测试战场');
+    // 无底板章节标题：字号 29→44，以深绿描边与投影保证草地上的对比度。
+    ctx.save();
+    ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(8,28,17,0.70)'; ctx.fillText(chapterTitle, 377, 501);
+    ctx.lineJoin = 'round'; ctx.strokeStyle = '#284a30'; ctx.lineWidth = 4;
+    ctx.strokeText(chapterTitle, 375, 498);
+    const chapterGold = ctx.createLinearGradient(0, 476, 0, 520);
+    chapterGold.addColorStop(0, '#fff5ca'); chapterGold.addColorStop(0.5, '#ffe29a'); chapterGold.addColorStop(1, '#d9ae52');
+    ctx.fillStyle = chapterGold; ctx.fillText(chapterTitle, 375, 498);
+    // 装饰随标题实际宽度向外排布，兼容四字的「圣庭战场」。
+    const titleEdge = ctx.measureText(chapterTitle).width / 2 + 28;
+    for (const dir of [-1, 1]) {
+      const innerX = 375 + dir * titleEdge, outerX = innerX + dir * 66;
+      const lineGold = ctx.createLinearGradient(innerX, 498, outerX, 498);
+      lineGold.addColorStop(0, 'rgba(255,226,154,0.95)'); lineGold.addColorStop(1, 'rgba(225,195,117,0.12)');
+      ctx.strokeStyle = lineGold; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(innerX, 498); ctx.lineTo(outerX, 498); ctx.stroke();
+      ctx.save(); ctx.translate(innerX + dir * 13, 498); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#f2d28b'; ctx.fillRect(-3.5, -3.5, 7, 7); ctx.restore();
+    }
+    ctx.restore();
 
     // 命中区先注册箭头再注册战场本体：命中测试按 push 顺序取首个命中，
     // 箭头光晕圈与图标命中区重叠时保证箭头优先。
     const arR = 30, ay = iy + iw / 2, gap = 36;
     const aLx = ix - gap - arR, aRx = ix + iw + gap + arR;
-    push('stagePrev', null, aLx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
-    push('stageNext', null, aRx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
+    if(canPrev)push('stagePrev', null, aLx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
+    if(canNext)push('stageNext', null, aRx - arR - 7, ay - arR - 7, (arR + 7) * 2, (arR + 7) * 2);
     push('stage', { id: stage }, ix, iy, iw, iw + 62);
 
-    const requirement = s.testProfile ? '' : (stage === 'abyss' ? (!s.normalFieldCleared ? '通关任一普通战场解锁' : '') : (stage === 'lava' || stage === 'frost') && (s.ancientBestWave || 0) < 40 ? '圣坛花园达到40波解锁' : '');
+    const requirement = s.stageRequirement || '';
     const locked = !!requirement;
 
     // 战场图标：无背景直出（放大 30% → 338px；锁定态整体压暗）
     ctx.globalAlpha = locked ? 0.4 : 1;
-    const badge = drawImg(ctx, isTest ? 'assets/images/interface/home/icon_stage_test.png' : `assets/images/interface/home/icon_stage_${stage}.png`, ix, iy, iw, iw);
+    const badge = drawImg(ctx, F.icon || (isTest ? 'assets/images/interface/home/icon_stage_test.png' : `assets/images/interface/home/icon_stage_${stage}.png`), ix, iy, iw, iw);
     ctx.globalAlpha = 1;
     if (!badge) {
       ctx.beginPath(); ctx.arc(375, iy + iw / 2, iw / 2, 0, Math.PI * 2); ctx.fillStyle = tint; ctx.fill();
@@ -94,7 +120,7 @@ function createHomeScreen({ drawImg, skillRow }) {
     arrow(aRx, '›');
     // Capsule entry button and skill rows share their left/right edges.
     // 按钮 440→374（再缩短 15%）；配色固定金色，不随战场切换变色
-    const ey = 950, eh = 80, entryW = 374, entryX = (750 - entryW) / 2;
+    const ey = 1020, eh = 80, entryW = 374, entryX = (750 - entryW) / 2;
     push('enter', null, entryX, ey, entryW, eh);
     const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
     bgrad.addColorStop(0, '#f7c948'); bgrad.addColorStop(1, '#d99e16');

@@ -8,6 +8,7 @@ const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
 
 // Menu hit priority, purchase/equip actions and modal routing. No renderer dependency.
 function onMenuTap(game, p) {
+    if(require('../unlock-guide.js').tap(game,p))return;
     if (require('./talent-actions.js').handle(game,p)) return;
     if (game.menuPanel) {
       const bounds = game.menuHits.find(it => it.key === 'panelBounds');
@@ -117,9 +118,10 @@ function onMenuTap(game, p) {
       switch (it.key) {
         case 'accountOpen': game.menuPanel = { type: 'accountMenu' }; return;
         case 'tab':
+          if(['shop','relic'].includes(it.data)){const E=require('../../prologue/encounters.js');if(!E.unlocked(game.meta,it.data,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[it.data]};return;}}
           if(it.data==='talent'){
             const access=require('../../talents/access.js');
-            if(!access.unlocked(game.meta)){game.toast(access.message,'#f7c948');return;}
+            if(!access.unlocked(game.meta)){game.menuPanel={type:'talentLocked'};return;}
           }
           game.menuTab = it.data;
           game.menuPanel = null;
@@ -128,11 +130,13 @@ function onMenuTap(game, p) {
           // 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
           game.menuPanel = { type: 'relicInfo', id: it.data };
           return;
-        case 'matchCfg':
+        case 'matchCfg': {const E=require('../../prologue/encounters.js'),id='match';if(!E.unlocked(game.meta,id,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[id]};return;}}
+
           // 主页三消技能配置行 → 三消技能配置面板
           game.menuPanel = { type: 'matchCfg', slot: it.data && it.data.slot || 'match4' };
           return;
-        case 'globalCfg':
+        case 'globalCfg': {const E=require('../../prologue/encounters.js'),id='global';if(!E.unlocked(game.meta,id,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[id]};return;}}
+
           // 主页全局技能配置行 → 全局技能配置面板（滚动版：scrollY 归零）
           game.menuPanel = { type: 'globalCfg', index: it.data && it.data.index || 0, scrollY: 0 };
           return;
@@ -144,6 +148,7 @@ function onMenuTap(game, p) {
         }
         case 'codexSel':
           // 塔图鉴：切换选中塔
+          if(!game.testProfile&&!game.meta.towerCodex[it.data]){game.menuPanel={type:'featureLocked',message:'战斗中首次建造该塔后解锁图鉴'};return;}
           game.codexSel = it.data;
           return;
         case 'codexSkill':
@@ -153,6 +158,7 @@ function onMenuTap(game, p) {
         case 'codexLearn': {
           // 塔图鉴：金币学习解锁塔（回旋镖 3000 / 炮塔 5000）
           const key = it.data;
+          game.menuPanel={type:'featureLocked',message:'战斗中首次建造该塔后解锁图鉴'};return;
           if (game.meta.towerCodex[key]) return;
           const cost = key === 'cannon' ? 5000 : 3000;
           if (game.meta.gold < cost) { game.toast('金币不足', '#ff6b6b'); return; }
@@ -171,10 +177,10 @@ function onMenuTap(game, p) {
         case 'stagePrev':
         case 'stageNext': {
           // ◀ ▶ 按合约切换战场：未解锁战场不再静默跳过（可见、进场时校验）
-          const order = FieldAccess.visible(game.testProfile);
+          const order = FieldAccess.selectable(game.meta,game.testProfile);
           const dir = it.key === 'stageNext' ? 1 : -1;
           let idx = order.indexOf(game.menuStage);
-          idx = (idx + dir + order.length) % order.length;
+          idx = Math.max(0,Math.min(order.length-1,idx+dir));
           game.menuStage = order[idx];
           const F2 = CONFIG.FIELDS[game.menuStage];
           const why=FieldAccess.reason(game.menuStage,game.meta,game.testProfile);

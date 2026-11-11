@@ -79,7 +79,7 @@ class GameMain {
     this.testHits = {};          // 测试战场命中区（渲染时重建）
     this.testSpeed = 1;          // 倍速 ×1/×2/×4
     this.runSpeed = 1;           // 主战斗加速 ×1/×2/×3/×4（移到城墙上方按钮）
-    this.menuStage = 'ancient';  // 主界面所选战场：ancient 远古 | test 测试（◀ ▶ 切换）
+    this.menuStage = require('../config/prologue.js').releaseReady ? require('../config/prologue.js').order[0] : 'ancient';  // 主界面所选战场：ancient 远古 | test 测试（◀ ▶ 切换）
     this.funcLayer = null;       // 底部功能弹层：{type:'shop'|'setting'|'tome'|'help', confirming?, version?}
     this.funcLayerHits = {};     // 功能弹层命中：{bg, close, confirm?}
     this.dmgStat = null;         // 伤害统计弹层开关
@@ -130,6 +130,8 @@ class GameMain {
   newRun(enterBattle) {
     this._talentGesture=null;
     this._tutorial = null;
+    require('./prologue-tutorial.js').cancel(this);
+    this._prologueTutorial = null;
     // New runs and profile switches must not inherit the previous run's reward UI or payout cache.
     this.pendingRelicPicks = [];
     this.runRelics = [];
@@ -141,6 +143,9 @@ class GameMain {
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
     this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // 三消技能局外三槽配置
+    // 只更新当前布局实例，切章或回正式战场时不会改写全局四塔配置。
+    this.ly.slotCount = this.run.towerSlots;
+    this.renderer.ly.slotCount = this.run.towerSlots;
     this.run.metaRef = this.meta;   // 星级查询（圣遗物 2★ 数值乘区）
     this.run.fxTarget = this.fx;    // 圣遗物生效触发飘字承接（run 内部事件 → game.fx）
     this.run.combatRef = this.combat;   // 连消技：连锁攻击子弹 / 连锁技能周期技
@@ -194,7 +199,7 @@ class GameMain {
     // ：不再默认激活任何技能——塔无获取技能时技能列表为空，
     // 所有技能通过「打怪经验 → 整体升级 → 三选一」获取（技能卡激活 / 分支卡续升）
     // 圣物·磐石印：城墙血量上限；城墙加固（局内圣遗物）：城墙血量 +N%
-    const talentCenter=require('./input/talent-actions.js').center(this.meta);
+    const talentCenter=this.run.chapter.features.talents ? require('./input/talent-actions.js').center(this.meta) : null;
     if(talentCenter){this.run._talentCenterId=talentCenter.id;this.run.runRelic[talentCenter.id]=1;this.runRelics.push(talentCenter.id);this.battleRelics.push({id:talentCenter.id,name:talentCenter.name,icon:talentCenter.icon,desc:(talentCenter.star>=2?talentCenter.star2||talentCenter.desc:talentCenter.desc)+(talentCenter.star>=3&&talentCenter.star3?' '+talentCenter.star3:''),star3:talentCenter.star>=3});}
     const b = this.meta.relicBonus();
     const wallRelic = this.run.relicNum('s_sr_cm_wall');
@@ -273,6 +278,7 @@ class GameMain {
   }
 
   update(dt) {
+    if (this.state==='picking'||this.state==='relicpick') require('./prologue-tutorial.js').tick(this);
     if (this._adBusy) return;
     if (this.state === 'fighting' && this.run.adReviveProtection > 0) this.run.adReviveProtection = Math.max(0, this.run.adReviveProtection - dt * this.runSpeed);
     ShopScroll.update(this, dt);
@@ -307,7 +313,11 @@ class GameMain {
     }
     if (this.state === 'fighting') {
       // 战斗宝箱与开局奖励：有队列先弹层，暂停战斗推进。
-      if (require('./tutorial.js').tick(this)) return;
+      if(this.run.chapter.isPrologue){const tutorial=require('./prologue-tutorial.js');if(!this._prologueTutorial||this._prologueTutorial.run!==this.run)tutorial.begin(this);tutorial.tick(this);const lesson=this._prologueTutorial&&this._prologueTutorial.current;if(this._prologueTutorial&&(this._prologueTutorial.move||lesson&&lesson.id==='tower'))return;}
+      else if (require('./tutorial.js').tick(this)) return;
+      require('../prologue/encounters.js').visit(this);
+      const chapter = this.run.chapter;
+      if (chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) this.pendingRelicPicks = [];
       if (this.pendingRelicPicks.length) {
         this.shopOpen = false;
         this.relicPick = this.pendingRelicPicks.shift();
@@ -355,7 +365,7 @@ class GameMain {
       if (allDead) {
         this._overlapWave = false;
         this.waveEnd();
-      } else if (spawnedAll && this.waveTime - this.wave.planDoneAt >= 3) {
+      } else if (spawnedAll && this.waveTime - this.wave.planDoneAt >= 3 && !(this.run.chapter.isPrologue && this.run.wave >= this.run.chapter.maxWave)) {
         this._overlapWave = this.enemies.length > 0;   // 叠加波：保留场上残怪，下一波继续出
         this.waveEnd();
       }
@@ -465,6 +475,13 @@ class GameMain {
     });
   }
 
+  /** Boss 按渲染的完整体型停在塔区前，并为命中后震的最大 3px 位移留出空间。
+   * 普通怪沿用既有攻城距离；移动、攻城与炮击预测必须共用同一边界。 */
+  enemyWallLine(e) {
+    const size = e.isBoss ? require('../enemy-size.js')(e, CONFIG.LAYOUT.enemy) : (e.size || 40);
+    return this.ly.wallY - Math.max(10, size * 0.5) - (e.isBoss ? 3 : 0);
+  }
+
   /** 攻城：到达城墙攻击范围的怪物按攻击力×攻击频率持续扣城墙血（冰冻/麻痹停止攻击；冰墙吸收/反伤/迟缓）
    *  修复：无塔（槽位未解锁）时怪物到城墙也应攻城掉血——此前被「无塔不战斗」提前 return 跳过，城墙完全不扣血 */
   siegeEnemies(dt) {
@@ -472,7 +489,7 @@ class GameMain {
     let wallHits = 0, wallHitY = wallEdge - 10;
     for (const e of this.enemies) {
       // 以怪物脚底/精灵下沿到达行走区边界作为攻城线，避免大体型怪进入塔位区。
-      const wallLine = wallEdge - Math.max(10, (e.size || 40) * 0.5);
+      const wallLine = this.enemyWallLine(e);
       if (e.y < wallLine) continue;
       wallHitY = wallLine;
       if (e.frozen > 0 || e.paralyzed > 0 || e._bossStun > 0) continue;
@@ -538,13 +555,12 @@ class GameMain {
 
   predictEnemyPosition(e, seconds) {
     if (!e) return { x: 0, y: 0 };
-    const wallEdge = this.ly.wallY;
-    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5);
-    let y = e.y;
+    const lineY = this.enemyWallLine(e);
+    const stopY = e.bossStandoffY == null ? lineY : Math.min(lineY, e.bossStandoffY);
+    let y = Math.min(e.y, stopY);
     if (!(e.frozen > 0 || e._vineT > 0 || e._bossStun > 0 || e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY))) {
       y += this.enemyMoveSpeed(e) * Math.max(0, seconds || 0);
-      y = Math.min(y, lineY);
-      if (e.bossStandoffY != null) y = Math.min(y, e.bossStandoffY);
+      y = Math.min(y, stopY);
     }
     return { x: e.x, y };
   }
@@ -576,12 +592,13 @@ class GameMain {
   /** 敌人移动：冰冻停止移动；减速乘系数；到达城墙攻击范围后停止前进（转入攻城）
    *  时间停滞3★：Boss 对减速效果只生效 50%（减速幅度折半，普通怪全吃） */
   moveEnemy(e, dt) {
+    const lineY = this.enemyWallLine(e);
+    const stopY = e.bossStandoffY == null ? lineY : Math.min(lineY, e.bossStandoffY);
+    // 先修正旧位置／牵引位移，再处理冻结；长帧和加速也不能跨过边界。
+    e.y = Math.min(e.y, stopY);
     if (e.frozen > 0 || e._vineT > 0 || e._bossStun > 0) return;
-    const wallEdge = this.ly.wallY;
-    const lineY = wallEdge - Math.max(10, (e.size || 40) * 0.5); // 精灵下沿到达行走区边界时开始攻城
-    if (e.y >= lineY || (e.bossStandoffY != null && e.y >= e.bossStandoffY)) return;
-    e.y += this.enemyMoveSpeed(e) * dt;
-    if (e.bossStandoffY != null) e.y = Math.min(e.y, e.bossStandoffY);
+    if (e.y >= stopY) return;
+    e.y = Math.min(stopY, e.y + this.enemyMoveSpeed(e) * Math.max(0, dt));
   }
 
   playSfx(kind, minGap) {
@@ -614,6 +631,10 @@ class GameMain {
     // 波末银币只入「局内银币」（run.endWave 已累加 _waveGold），不再发放局外金币；
     //   招财符加成移至战斗结束统一结算（finishRun）
     this.save.save();
+    const chapter=this.run.chapter;
+    if(chapter&&chapter.isPrologue&&this.run.wave===chapter.maxWave&&this.run.lineHp>0&&this._waveCleared&&this._waveCleared[chapter.maxWave]){
+      this.run.finalVictory=true;this.enemies=[];this.wave.plan=[];this.finishRun(true);return;
+    }
     if (this.run.finalVictory && this.run.lineHp > 0) {
       const EV = CONFIG.EVAC;
       this.depthPool += res.waveGold * EV.poolShare * this.depthMult * (this.firstBonus || 1) * (this.field.goldMult || 1);
@@ -709,7 +730,7 @@ class GameMain {
     }
     const w = this.run.wave || 1; // 兜底：极端情况下 wave 未递增时避免显示 undefined
     this.waveHint = { text: `第 ${w} 波`, until: Date.now() + 2000 };
-    this.bossHint = (w % 5 === 0) ? { until: Date.now() + 4000 } : null;
+    // Boss告警由WaveDirector统一登记，避免覆盖名字及入场标记。
   }
 
   /** 塔升级三选一：把全部待升级（pending）生成跨塔候选队列并进入 picking；无待升级返回 false */
@@ -728,7 +749,16 @@ class GameMain {
 
   nextPick() {
     this.pickIndex++;
-    if (this.pickIndex < this.pickQueue.length) return;
+    if (this.pickIndex < this.pickQueue.length) {
+      const current = this.pickQueue[this.pickIndex];
+      const fresh = this.run.effects.rerollUpgradeCandidates(this.run.slotOrder);
+      if (fresh) {
+        current.candidates = fresh.candidates; current.target = fresh.target;
+        delete current._pickT0; this.pickHits = {};
+        return;
+      }
+      this.pickIndex = this.pickQueue.length;
+    }
     // 队列耗尽：仍有待升级 → 继续弹窗；否则回到战斗/波次流程
     const q = this.run.effects.buildUpgradeQueue(this.run.slotOrder.slice());
     if (q.length) {
@@ -789,6 +819,7 @@ class GameMain {
 
   /** 返回主界面（战斗结束/设置入口）：金币已由 finishRun 结算，局内银币不镜像（币种分离） */
   goMenu() {
+    require('./prologue-tutorial.js').cancel(this);
     Bosses.clearTemporary(this);
     this.anim = null;
     this.combat.reset();
@@ -898,9 +929,14 @@ class GameMain {
         } else {
           // 全局技能色：洗牌左按钮 / 补给右按钮（渲染 globalBtns 同口径：btnW 102、btnH 75、btnY = towerRowY+12）
           const skill = this.run._globalSkillOf ? this.run._globalSkillOf(m.color) : null;
-          const isShuffle = skill === 'shuffle';
-          ex = isShuffle ? (8 + 51) : (750 - 8 - 102 + 51);
-          ey = towerRowY + 12 + 75 / 2;
+          if (!skill || !this.run.chapter.features.globalSkills) return;
+          const { slotSize, slotGap, slotCount, slotY } = this.ly;
+          const rowWidth = (slotCount + 2) * slotSize + (slotCount + 1) * slotGap;
+          const left = (750 - rowWidth) / 2 + slotSize / 2;
+          const right = left + (slotCount + 1) * (slotSize + slotGap);
+          ex = skill === 'shuffle' ? left : right;
+          ey = slotY + slotSize / 2;
+          if (skill === 'both') this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: left, y1: ey, color: glow, blockColor: m.color, t: 0, dur: MATCH_GLOW.duration });
         }
         this.fx.push({ type: 'beamp', x0: cx, y0: cy, x1: ex, y1: ey, color: glow, blockColor: m.color, t: 0, dur: MATCH_GLOW.duration });   // 星芒：下落0.3s、停留0.05s、上升0.65s
       });
@@ -918,6 +954,7 @@ class GameMain {
     if (this.state === 'menu') {
       this.menuHits = this.renderer.menuLayer(ctx, this.menuState(), this.menuHits);
       require('./tutorial.js').draw(ctx,this);
+      require('./unlock-guide.js').draw(ctx,this);
       if (this.testProfile) this.renderer.toast(ctx, this.toasts);
       return;
     }
@@ -948,7 +985,8 @@ class GameMain {
     const GlobalFeedback = require('./fx/global-feedback.js');
     const castShake = GlobalFeedback.shake(this);
     ctx.save();
-    ctx.translate(castShake.x, castShake.y);
+    const bossShake = require('./fx/boss-announcement.js').shake(this);
+    ctx.translate(castShake.x + bossShake.x, castShake.y + bossShake.y);
     this.renderer.status(ctx, st);
     this.renderer.actionArea(ctx, st);
     // 底部功能键命中区由渲染器生成（renderer.funcHits），同步到 game 供触摸判定
@@ -974,6 +1012,9 @@ class GameMain {
     this.renderer.damageNumbers(ctx, this.dmgNumbers);
     // 战场宝箱（怪物掉落，点击开启圣物三选一）
     this.renderer.fieldChests(ctx, this.fieldChests);
+    // 20波Boss生命条位于敌人和弹道上层，避免出生贴图遮住血量。
+    const boss20=st.miniBoss||(st.wave===20&&this.enemies.find(e=>e.hp>0&&e.isBoss&&e.waveNo===20));
+    if(boss20&&!st.bossEncounter)require('./screens/boss-health.js').draw(ctx,boss20,this.ly.areaY+this.ly.entryH);
     // 局内商店面板：从 actionArea 内移到敌人/特效层之后绘制（否则怪物贴图浮在商店面板上方）；
     // 在 toast 之前画（商店遮罩不盖 toast），仍先于三选一/塔详情/功能弹层，保持"弹层盖商店"的既有层级
     GlobalFeedback.draw(ctx, this);
@@ -1033,9 +1074,9 @@ class GameMain {
   sceneState() {
     const run = this.run;
     const eff = run.effects;
-    // 4 槽：按先消先得顺序填已获塔，其余空位（null）
+    // 按当局章节的塔位数，先消先得填塔，其余空位保持null。
     const slots = [];
-    for (let i = 0; i < CONFIG.TOWER_SLOTS; i++) {
+    for (let i = 0; i < run.towerSlots; i++) {
       const key = run.slotOrder[i];
       if (!key) { slots.push(null); continue; }
       const t = eff.tower(key);
@@ -1086,6 +1127,8 @@ class GameMain {
       boardHint: this.boardHint || null,
       boardChestHoles: this.fieldChests.filter(c => !c.hidden && ['ready', 'open', 'fly'].includes(c.stage)).map(c => c.r + ',' + c.c),
       towers: slots,
+      showGlobal: run.chapter.features.globalSkills,
+      showBattleShop: run.chapter.features.battleShop,
       synergies: eff.synergyStatus(),
       synDoneCount: eff.synergyDone.filter(Boolean).length,
       enemyCount: this.enemies.length + this.wave.plan.length,
@@ -1115,6 +1158,8 @@ class GameMain {
 
   /* ---------- 主界面状态 ---------- */
   menuState() {
+    const accessible = require('../field-access.js').selectable(this.meta,this.testProfile);
+    if (!accessible.includes(this.menuStage)) this.menuStage = accessible[accessible.length-1];
     if(this.menuStage==='test'&&!this.testProfile)this.menuStage='ancient';
     const m = this.meta;
     const keys = Object.keys(CONFIG.TOWERS).filter((k) => !CONFIG.TOWERS[k].p1);
@@ -1138,8 +1183,10 @@ class GameMain {
       gold: m.gold,
       diamond: m.diamond,
       tab: this.menuTab,
+      stageRequirement: require('../field-access.js').reason(this.menuStage,this.meta,this.testProfile),
       stage: this.menuStage==='test'&&!this.testProfile?'ancient':this.menuStage,           // 主界面所选战场：ancient | test
       codexSel: this.codexSel,         // 塔图鉴选中塔
+      encounters:this.meta.encounters,
       towerCodex: this.meta.towerCodex, // 已学习塔 { key: 1 }
       keys,
       towerName,
@@ -1181,6 +1228,7 @@ class GameMain {
       relicDust: this.meta.relicDust,
       shards: this.meta.shards,
       bestWave: this.meta.bestWave, ancientBestWave: this.meta.ancientBestWave || 0, normalFieldCleared: !!this.meta.normalFieldCleared,
+      fieldClears: this.meta.fieldClears, prologue: this.meta.prologue,
       gameVersion: GAME_VERSION,
       deviceInfo: this.menuPanel && this.menuPanel.type === 'accountInfo' ? AccountMenu.deviceInfo() : null,
       testProfile: !!this.testProfile,

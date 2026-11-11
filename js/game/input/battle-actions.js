@@ -86,6 +86,7 @@ function dispatchTouch(game, p, version) {
     return true; // 面板内点击不处理其它
   }
   if (game.shopOpen) {
+    if (!require('../../prologue.js').featureEnabled(game.run, 'battleShop')) { game.shopOpen = false; return true; }
     const panel = game.renderer.shopPanelRect;
     if (panel && (p.x < panel.x || p.x > panel.x + panel.w || p.y < panel.y || p.y > panel.y + panel.h)) {
       game.shopOpen = false;
@@ -117,7 +118,13 @@ function dispatchTouch(game, p, version) {
   if (game.funcHits.length) {
     for (const f of game.funcHits) {
       if (f.hit(p.x, p.y)) {
-        if (f.key === 'shop') { game.shopOpen = true; return true; }
+        if (f.key === 'shop') {
+          if (require('../../prologue.js').featureEnabled(game.run, 'battleShop')) {
+            game.shopOpen = true;
+            require('../prologue-tutorial.js').action(game, 'shop');
+          }
+          return true;
+        }
         game.funcLayer = { type: f.key, version: version, soundOn: game.meta.soundOn !== false };
         return true;
       }
@@ -173,7 +180,7 @@ function dispatchTouch(game, p, version) {
       if (game.pickHits[i] && game.pickHits[i].hit(p.x, p.y)) {
         const res = game.run.applyChoice(group.tower, group.candidates[i]);
         if (res.ok) {
-          require('../tutorial.js').chosen(game);
+          require('../tutorial.js').chosen(game, group.candidates[i]);
           const cd = group.candidates[i];
           const nm = cd.name;
           // 提示优化：分支卡 toast 显示分支名 + 等级变化（如「爆燃·灼烧爆裂 Lv0→1」）
@@ -218,6 +225,15 @@ function dispatchTouch(game, p, version) {
   // 撤离决策层（战斗暂停）
   if (game.state === 'evacuation') {
     const H = game.evacHits || {};
+    // 教学确认消耗本次点击；不能同时误触下面的撤离／继续按钮。
+    if (!game.testProfile && !(game.meta.unlockGuideSeen || {}).evacuation) {
+      if (H.evacGuide && H.evacGuide.hit(p.x, p.y)) {
+        game.meta.unlockGuideSeen = game.meta.unlockGuideSeen || {};
+        game.meta.unlockGuideSeen.evacuation = true;
+        game.save.save();
+      }
+      return true;
+    }
     if (H.evacGo && H.evacGo.hit(p.x, p.y)) { game.finishRun(true); return true; }
     if (H.evacStay && H.evacStay.hit(p.x, p.y)) {
       game.state = 'fighting';

@@ -1,7 +1,8 @@
 'use strict';
 const CONFIG=require('../config.js');
+const ChapterGuide=require('./prologue-tutorial.js');
 const titles=['进入战斗','完成三消','激活防御塔','补充塔能量','选择技能','释放全局技能'];
-function pending(g){return !g.testProfile&&g.meta&&g.meta.tutorial&&!g.meta.tutorial.done;}
+function pending(g){return !require('../config/prologue.js').releaseReady&&!ChapterGuide.isChapter(g)&&!g.testProfile&&g.meta&&g.meta.tutorial&&!g.meta.tutorial.done;}
 function active(g){return pending(g)&&(g.state==='menu'||!!g._tutorial);}
 function save(g,step){g.meta.tutorial={version:1,done:false,step};g.save.save();}
 function finish(g,skipped){g.meta.tutorial={version:1,done:true,skipped:!!skipped};g._tutorial=null;g.save.save();g.toast(skipped?'已跳过新手引导':'新手引导完成 · 开始守护圣坛','#bdeba0');}
@@ -17,15 +18,15 @@ function prepare(g){const b=g.run.board,colors=b.activeColors,r=b.rows-2,c=Math.
  if(!found)throw Error('Tutorial board has no valid teaching move');
  g._tutorial.move=[r,c,r+1,c];g.selected=null;g.pickCell=null;g.boardHint=null;
 }
-function begin(g){g._tutorial=null;if(!pending(g)||g.menuStage==='test')return;
+function begin(g){g._tutorial=null;if(ChapterGuide.isChapter(g))return ChapterGuide.begin(g);if(!pending(g)||g.menuStage==='test')return;
  g._tutorial={step:1,waiting:false};prepare(g);save(g,1);
 }
 function advance(g,n){g._tutorial.step=n;g._tutorial.waiting=false;save(g,n);}
-function allowSwap(g,a,b,c,d){if(!g._tutorial)return true;const t=g._tutorial,m=t.move;
+function allowSwap(g,a,b,c,d){if(ChapterGuide.isChapter(g))return ChapterGuide.allowSwap(g,a,b,c,d);if(!g._tutorial)return true;const t=g._tutorial,m=t.move;
  return (t.step===1||t.step===3)&&!t.waiting&&((a===m[0]&&b===m[1]&&c===m[2]&&d===m[3])||(a===m[2]&&b===m[3]&&c===m[0]&&d===m[1]));}
-function swapped(g){if(g._tutorial)g._tutorial.waiting=true;}
-function chosen(g){if(g._tutorial&&g._tutorial.step===4)g._tutorial.chosen=true;}
-function tick(g){const t=g._tutorial;if(!t)return false;
+function swapped(g,ret){ChapterGuide.action(g,'swap',ret);if(g._tutorial)g._tutorial.waiting=true;}
+function chosen(g,choice){ChapterGuide.action(g,choice&&choice.type==='branch'?'branch':'skill');if(g._tutorial&&g._tutorial.step===4)g._tutorial.chosen=true;}
+function tick(g){if(ChapterGuide.isChapter(g))return ChapterGuide.tick(g);const t=g._tutorial;if(!t)return false;
  if(t.waiting&&!g.anim&&!g._chestBusy){
   if(t.step===1){t.tower=g.run.slotOrder[0];advance(g,2);}
   else if(t.step===3){advance(g,4);if(!g.run.effects.pendingTotal())g.run.gainExp(Math.max(0,g.run.expNeed()-g.run.exp));}
@@ -36,7 +37,7 @@ function tick(g){const t=g._tutorial;if(!t)return false;
  }
  return true;
 }
-function globalUsed(g,skill){const t=g._tutorial;if(t&&t.step===5&&skill==='refill'){if(t.oldSlot)g.run.globalSlots[0]=t.oldSlot;finish(g,false);}}
+function globalUsed(g,skill){ChapterGuide.action(g,'global',skill);const t=g._tutorial;if(t&&t.step===5&&skill==='refill'){if(t.oldSlot)g.run.globalSlots[0]=t.oldSlot;finish(g,false);}}
 function towerRect(g){const l=g.ly,n=l.slotCount||4,total=(n+2)*l.slotSize+(n+1)*l.slotGap;return{x:(750-total)/2+l.slotSize+l.slotGap,y:l.slotY,w:l.slotSize,h:l.slotSize};}
 function target(g){const t=g._tutorial;if(!t){const h=(g.menuHits||[]).find(h=>h.key==='enter');return h&&(h.rect||h);}
  if(t.step===1||t.step===3){const l=g.ly,m=t.move;return{x:l.boardX+m[1]*l.cell-5,y:l.boardY+m[0]*l.cell-5,w:l.cell+10,h:l.cell*2+10};}
@@ -45,7 +46,7 @@ function target(g){const t=g._tutorial;if(!t){const h=(g.menuHits||[]).find(h=>h
  return (g.renderer.globalBtns||[]).find(b=>b.key==='shuffle');
 }
 function inside(p,b){return b&&p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h;}
-function tap(g,p){if(!active(g))return false;
+function tap(g,p){if(ChapterGuide.isChapter(g))return ChapterGuide.tap(g,p);if(!active(g))return false;
  if(inside(p,{x:582,y:g._tutorial&&g._tutorial.step===4?1166:236,w:130,h:48})){const t=g._tutorial;if(t&&t.oldSlot)g.run.globalSlots[0]=t.oldSlot;finish(g,true);return true;}
  const t=g._tutorial;if(!t){const h=(g.menuHits||[]).find(h=>h.key==='enter');if(h&&h.hit(p.x,p.y)){g.menuStage='ancient';return false;}return true;}
  if(t.waiting||g.anim)return true;
@@ -55,7 +56,7 @@ function tap(g,p){if(!active(g))return false;
  if(t.step===5)return !inside(p,target(g));
  return true;
 }
-function draw(ctx,g){if(!active(g))return;const t=g._tutorial,step=t?t.step:0,b=target(g),tipY=step===4?1150:220;ctx.save();ctx.fillStyle='rgba(5,20,15,0.55)';
+function draw(ctx,g){if(ChapterGuide.isChapter(g))return ChapterGuide.draw(ctx,g);if(!active(g))return;const t=g._tutorial,step=t?t.step:0,b=target(g),tipY=step===4?1150:220;ctx.save();ctx.fillStyle='rgba(5,20,15,0.55)';
  if(b&&Number.isFinite(b.x)&&Number.isFinite(b.w)){const x=Math.max(0,b.x-6),y=Math.max(0,b.y-6),w=b.w+12,h=b.h+12;ctx.fillRect(0,0,750,y);ctx.fillRect(0,y, x,h);ctx.fillRect(x+w,y,750-x-w,h);ctx.fillRect(0,y+h,750,1626-y-h);ctx.strokeStyle='#ffdc78';ctx.lineWidth=4;ctx.strokeRect(x,y,w,h);}else ctx.fillRect(0,0,750,1626);
  ctx.fillStyle='#183f30';ctx.fillRect(30,tipY,690,190);ctx.strokeStyle='#bda66b';ctx.lineWidth=2;ctx.strokeRect(30,tipY,690,190);
  ctx.textAlign='left';ctx.textBaseline='middle';ctx.font='bold 27px sans-serif';ctx.fillStyle='#ffe4a1';ctx.fillText('新手引导 '+(step+1)+'/6 · '+titles[step],54,tipY+42);
@@ -63,5 +64,5 @@ function draw(ctx,g){if(!active(g))return;const t=g._tutorial,step=t?t.step:0,b=
  ctx.fillStyle='#b9cbb9';ctx.textAlign='center';ctx.font='20px sans-serif';ctx.fillText('跳过引导',647,tipY+40);
  if(t&&(step===1||step===3)&&!t.waiting&&b){const l=g.ly,m=t.move,x=l.boardX+(m[1]+0.5)*l.cell,y=l.boardY+(m[2]+0.5)*l.cell;ctx.strokeStyle='#ffe5a0';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-l.cell);ctx.lineTo(x-12,y-l.cell+18);ctx.moveTo(x,y-l.cell);ctx.lineTo(x+12,y-l.cell+18);ctx.stroke();ctx.beginPath();ctx.arc(x,y-(Date.now()%1100)/1100*l.cell,10,0,Math.PI*2);ctx.fillStyle='#fff6d0';ctx.fill();}
  ctx.restore();}
-function restart(g){if(g.testProfile){g.toast('请在正常档案体验新手引导','#ffdf9b');return;}g.meta.tutorial={version:1,done:false,step:0};g.menuPanel=null;g.menuTab='battle';g.menuStage='ancient';g.newRun(false);g.save.save();}
+function restart(g){if(require('../config/prologue.js').releaseReady&&!g.testProfile){g.menuStage=require('../config/prologue.js').order[0];g.menuTab='battle';g.menuPanel=null;g.meta.prologue.tutorials[g.menuStage]={done:[],skipped:false};g.newRun(false);g.save.save();return;}if(g.testProfile){g.toast('请在正常档案体验新手引导','#ffdf9b');return;}if(ChapterGuide.restart(g))return;g.meta.tutorial={version:1,done:false,step:0};g.menuPanel=null;g.menuTab='battle';g.menuStage='ancient';g.newRun(false);g.save.save();}
 module.exports={begin,tick,draw,tap,allowSwap,swapped,chosen,globalUsed,restart,prepare};

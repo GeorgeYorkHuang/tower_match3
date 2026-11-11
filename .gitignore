@@ -1,5 +1,7 @@
 # Node
 node_modules/
+__pycache__/
+*.pyc
 
 # 微信开发者工具个人本地配置（含开发者 openid/私密信息）
 project.private.config.json

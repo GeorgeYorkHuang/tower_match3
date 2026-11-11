@@ -58,15 +58,14 @@ function createBattleOverlays({ fmtNum, drawImg }) {
   }
 
   function evacuationLayer(ctx, g, hits) {
-    const w = 620, h = 470, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 40;
+    const w = 620, h = 510, x = (750 - w) / 2, y = (LOGIC_H - h) / 2 - 40;
     ctx.fillStyle = 'rgba(0,0,0,0.78)';
     ctx.fillRect(0, 0, 750, LOGIC_H);
-    // 暗金主窗口（呼应圣遗物三选一的显现仪式感）
-    const bg = ctx.createLinearGradient(0, y, 0, y + h);
-    bg.addColorStop(0, '#2a2112'); bg.addColorStop(1, '#1d1a10');
-    fillRoundRect(ctx, x, y, w, h, 20, bg);
-    strokeRoundRect(ctx, x - 3, y - 3, w + 6, h + 6, 23, '#c8860a', 3);
-    strokeRoundRect(ctx, x, y, w, h, 20, '#ffd34d', 1.5);
+    // 与主页详情共用深绿纹理、金色枝叶边框；加载失败仍保持主题配色。
+    if (!(drawImg && drawImg(ctx, 'assets/images/interface/skins/account-info-garden-v1.png', x, y, w, h))) {
+      fillRoundRect(ctx, x, y, w, h, 20, '#182b1c');
+      strokeRoundRect(ctx, x, y, w, h, 20, '#c5aa65', 2);
+    }
     text(ctx, `撤离决策 · 第 ${g.run.wave} 波`, 375, y + 64, 38, '#ffd34d', 'center');
     text(ctx, '深度收益池（撤离可全取，阵亡只保底 30%）', 375, y + 116, 21, '#c9b98a', 'center');
     // 收益池
@@ -76,11 +75,24 @@ function createBattleOverlays({ fmtNum, drawImg }) {
     text(ctx, `当前深度倍率 ×${g.depthMult.toFixed(2)}${g.run.wave < CONFIG.EVAC.lateWave ? `（继续 ×${CONFIG.EVAC.depthMult}）` : `（继续 ×${CONFIG.EVAC.depthMultLate}，收益递减期）`}`, 375, y + 212, 17, '#9fb2c3', 'center');
     // 里程碑预览
     const nextM = CONFIG.MILESTONES.find((m) => m > g.run.wave);
-    if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#a86bff', 'center');
+    if (nextM) text(ctx, `🏆 下一里程碑：${nextM} 波（首达一次大奖）`, 375, y + 256, 18, '#d4c397', 'center');
     // 按钮
     // 修复：button() 返回 {hit} 对象，dispatchTouch 按 .hit 调用；此前误存裸函数导致按钮永不命中
     hits.evacGo = button(ctx, x + 50, y + 292, w - 100, 76, '🚪 正常撤离 · 拿走 100%', { bg: '#2b6d4f', fontSize: 27 });
-    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续前进 · 正常进入下一波', { bg: '#3a6ea5', fontSize: 25 });
+    hits.evacStay = button(ctx, x + 50, y + 382, w - 100, 76, '⚔ 继续前进 · 正常进入下一波', { bg: '#65532c', fontSize: 25 });
+    for (const by of [y + 292, y + 382]) {
+      strokeRoundRect(ctx, x + 50, by, w - 100, 76, 12, '#c5aa65', 1.5);
+      fillRoundRect(ctx, x + 64, by + 7, w - 128, 6, 3, 'rgba(255,236,172,0.13)');
+    }
+    // 首次遇到才展示；先确认说明，再自由选择，不代玩家作撤离决定。
+    if (!g.testProfile && !(g.meta.unlockGuideSeen || {}).evacuation) {
+      const tip = require('../spotlight.js').draw(ctx, [
+        {x:x+50,y:y+142,w:w-100,h:88},
+        {x:x+50,y:y+292,w:w-100,h:76},
+        {x:x+50,y:y+382,w:w-100,h:76},
+      ], '首次抵达撤离点', '正常撤离可带走全部深度收益；继续前进可提高倍率，但防线失守时深度收益只保留30%。确认后，可自由选择撤离或继续。', '');
+      hits.evacGuide = button(ctx, 245, tip.panel.y + tip.panel.h + 14, 260, 58, '我知道了', {bg:'#365c40',fontSize:26});
+    }
   }
 
   /** 伤害统计弹层：每塔总伤害 + 普攻/DOT + 各技能等级与伤害（数据 g.run.dmgStat） */

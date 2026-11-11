@@ -4,6 +4,8 @@ const Bosses = require('./bosses/index.js');
  * 持有 game 引用以访问 run / enemies / 状态 / BGM；持有 ly 以取布局坐标
  */
 const CONFIG = require('./config.js');
+const FieldBalance = require('./config/field-balance.js');
+const ChapterCurve = require('./prologue/enemy-curve.js');
 const { initEnemyState } = require('./combat.js');
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
 
@@ -29,6 +31,7 @@ class WaveDirector {
     if (!keepEnemies) g.enemies = [];   // 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // 冻结时刻：每波首个敌人冰冻
     this.buildPlan();
+    require('./game/fx/boss-announcement.js').wave(g);
     require('./game/flows/board-chests.js').grantFirstReward(g);
     // 本波参考时长 ≈ 投放时长(数量/平均每批 × 平均间隔1.5s) + 3s（仅用于状态条倒计时展示；实际结束=清场或投完+3s）
     const avgBatch = (1 + Math.max(1, Math.ceil(g.run.wave / 5))) / 2;
@@ -49,9 +52,10 @@ class WaveDirector {
     const w = this.game.run.wave;
     const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // 深渊诅咒被动
     // 数量增长：基数 15，每 2 波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
-    const count = CONFIG.ENEMY.countForWave(w);
+    const chapter=this.game.run.chapter,m=chapter&&chapter.isPrologue?chapter.enemyMultipliers:null;
+    const count = Math.ceil(CONFIG.ENEMY.countForWave(w)*(m?m.count:1));
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
-    const eliteCount = Math.floor(count / 20);                  // 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
+    const eliteCount = Math.min(Math.floor(count / 20),m?m.eliteMax:Infinity);                  // 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
     const mix = CONFIG.ENEMY.levelMix(w);                       // 代际权重数组（主代 + 副代 + 残留代）
     const mainLv = CONFIG.ENEMY.mainLevel(w);                   // 本波主等级（精英/Boss 属性基准）
     this.plan = [];
@@ -61,6 +65,7 @@ class WaveDirector {
     const bossN = hasBoss ? 1 : 0;
     const normalCount = count - bossN - eliteCount;
     for (let i = 0; i < normalCount; i++) {
+      if(chapter&&chapter.enemyCurve){const enemy=ChapterCurve.ordinary(chapter,w,i);this.plan.push({...enemy,offset:0.5+Math.random()*0.5,isBoss:false});continue;}
       const lv = mix[i % mix.length];
       const lcfg = CONFIG.ENEMY.levelOf(lv);
       this.plan.push({ lv, type: lcfg.type, hp: lcfg.hp * curseMult, offset: 0.5 + Math.random() * 0.5, isBoss: false });
@@ -75,7 +80,11 @@ class WaveDirector {
     this.interval = 1 + Math.random();   // 首批间隔也随机 1~2s
     if(Bosses.setup(this)) return;
     this.hasBoss = hasBoss;
-    this.enemyTotalHp = CONFIG.ENEMY.waveTotalHp(w, curseMult); // 与 run.endWave 结算口径一致
+    const fieldHp = FieldBalance.enemyHpMultiplier(this.game.run.fieldCfg, w);
+    this.enemyTotalHp = chapter&&chapter.enemyCurve
+      ? this.plan.reduce((n,e)=>n+ChapterCurve.plannedHp(chapter,w,e),0)
+      : m ? this.plan.reduce((n,e)=>n+e.hp*(e.isBoss?m.bossHp:m.hp)*fieldHp,0) : CONFIG.ENEMY.waveTotalHp(w, curseMult * fieldHp);
+    if(chapter&&chapter.enemyCurve){this.game.run.chapterWaveHp=this.enemyTotalHp;this.game.run.chapterWaveNo=w;}
   }
 
   /** 每帧推进投放：每批间隔随机 1~2s，每批数量随机 1~⌈w/5⌉ 只 */
@@ -104,6 +113,7 @@ class WaveDirector {
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
     // 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
     if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born._ringClock=0;born._ringCount=0;}
+    if(it.isBoss)require('./game/fx/boss-announcement.js').enter(this.game,born);
     if(it.isSummon)born.isSummon=true;
     if(Number.isFinite(it.spawnX)) born.x=it.spawnX;
     if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // 投放完成时间戳
@@ -123,6 +133,8 @@ class WaveDirector {
    *  代际重构：lv 为代际等级，攻击/减伤/移速/展示等级由 CONFIG.ENEMY.levelOf(lv) 取值；
    *  精英/Boss 在等级表基础上叠加自带 armor 与攻击倍率 */
   pushEnemy(hp, entryY, speed, offset, isBoss, type, lv) {
+    // 所有出生路径（含小Boss召唤）统一应用一次；地图区间外倍率为1。
+    hp *= FieldBalance.enemyHpMultiplier(this.game.run.fieldCfg, this.game.run.wave);
     const lcfg = CONFIG.ENEMY.levelOf(lv || 1);
     const size = isBoss ? CONFIG.LAYOUT.enemy.boss : (CONFIG.LAYOUT.enemy[type] || CONFIG.LAYOUT.enemy.normal);
     const atkKey = isBoss ? 'boss' : (type || 'normal');
@@ -144,6 +156,7 @@ class WaveDirector {
       attackT: 0,
       vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
     };
+    require('./prologue/balance.js').spawnScale(this.game,e);
     const en = initEnemyState(e);
     require('./combat/boss-control.js').attach(en);
     en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零

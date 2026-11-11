@@ -25,6 +25,7 @@ const RelicProgression = require('./relics/progression.js');
 const Mail=require('./economy/mail.js');
 const GlobalSkills = require('./global-skills.js');
 const CONFIG = require('./config.js');
+const Prologue = require('./prologue.js');
 
 
 
@@ -35,6 +36,9 @@ class Meta {
     this.adDaily = null;
     this.talents = {version:1,slots:[null,null,null,null,null,null],center:null};
     this.tutorial = { version: 1, done: false, step: 0 };
+    this.prologue = Prologue.initialProgress();
+    this.encounters = {};
+    this.unlockGuideSeen = {};
     this.gold = 0;
     this.diamond = 0;
     this.relics = {};            // { relicId: count }
@@ -46,7 +50,7 @@ class Meta {
     this.musicOn = true;
     this.soundOn = true;             // 声音开关（默认开）
     this.runCodex = {};            // 局内圣遗物图鉴解锁 { id: 1 }（获得过才显示）
-    this.towerCodex = { fire: 1, ice: 1, poison: 1, electric: 1 }; // 塔图鉴已学习塔（基础四塔默认解锁）
+    this.towerCodex = {}; // 塔图鉴已学习塔（基础四塔默认解锁）
     /* ---------- 激励系统 ---------- */
     this.relicStars = {};          // 圣遗物星级 { id: 1|2|3 }（获得即 1★）
     this.relicDust = 0;
@@ -55,6 +59,7 @@ class Meta {
     this.milestones = {};          // 里程碑首达 { wave: 1 }
     this.ancientBestWave = 0;
     this.normalFieldCleared = false;
+    this.fieldClears = {};
     this.bestWave = 0;             // 历史最深波次
     this.dailyFirst = null;        // 每日首战加成 { date, counts: { field: n } }
     this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
@@ -227,11 +232,15 @@ class Meta {
       adDaily: this.adDaily,
       talents: this.talents,
       tutorial: this.tutorial,
+      prologue: this.prologue,
+      encounters:this.encounters,
+      unlockGuideSeen:this.unlockGuideSeen,
       relicDust: this.relicDust,
       shards: this.shards,
       deepChests: this.deepChests,
       milestones: this.milestones,
       ancientBestWave: this.ancientBestWave, normalFieldCleared: this.normalFieldCleared,
+      fieldClears: this.fieldClears,
       bestWave: this.bestWave,
       dailyFirst: this.dailyFirst,
       totalDiamondSpent: this.totalDiamondSpent,
@@ -259,7 +268,7 @@ class Meta {
     m.dailyPicks = d.dailyPicks || null;
     m.runCodex = d.runCodex || {};    // 局内圣遗物图鉴解锁（旧档无此字段 → 空）
     // 塔图鉴已学习塔（旧档无此字段 → 基础四塔默认解锁）
-    m.towerCodex = Object.assign({ fire: 1, ice: 1, poison: 1, electric: 1 }, d.towerCodex || {});
+    m.towerCodex = Object.assign({}, d.towerCodex || {});
     /* 激励系统（旧档兼容：无字段给默认值） */
     m.relicStars = d.relicStars || {};
     m.relicDust = Math.max(0, Math.floor(Number(d.relicDust) || 0));
@@ -288,7 +297,12 @@ class Meta {
     m.milestones = d.milestones || {};
     m.ancientBestWave = d.ancientBestWave || 0;
     m.normalFieldCleared = d.normalFieldCleared === true;
+    m.fieldClears = Object.fromEntries(['ancient','lava','frost'].filter(id => d.fieldClears && d.fieldClears[id] === true).map(id => [id,true]));
+    if (!d.fieldClears && d.normalFieldCleared === true) m.fieldClears.ancient = true;
     m.bestWave = d.bestWave || 0;
+    m.prologue = Prologue.normalizeProgress(d.prologue, d);
+    m.encounters={...(d.encounters||{})};
+    if(!d.encounters&&(d.bestWave>0||d.ancientBestWave>0||d.normalFieldCleared)){m.encounters={match:true,global:true,shop:true,relic:true};}
     m.dailyFirst = d.dailyFirst || null;
     m.totalDiamondSpent = d.totalDiamondSpent || 0;
     // 三消技能三槽配置（旧档无字段 → 默认 cross/rainbow/attack）
@@ -315,6 +329,10 @@ class Meta {
     }
     require('./relics/red-migration.js').migrate(m);
     Object.keys(m.shards).forEach(id => RelicProgression.normalizeShard(m, id));
+    // 已存在的旧档不一次弹出所有历史解锁；新档及已有指引记录继续跟踪新解锁。
+    m.unlockGuideSeen = d.unlockGuideSeen && typeof d.unlockGuideSeen==='object'
+      ? Object.fromEntries(Object.entries(d.unlockGuideSeen).filter(([,seen])=>seen===true))
+      : Object.fromEntries(require('./prologue/unlock-notices.js').available(m).map(item=>[item.id,true]));
     return m;
   }
 }

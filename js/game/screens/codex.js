@@ -1,9 +1,12 @@
 /** Tower codex rendering only. Host injects shared image/theme/text helpers; no game or save references. */
 'use strict';
 const CONFIG = require('../../config.js');
+const { skillEnergy } = require('../codex-energy.js');
 const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 const TOWERS_COLOR = key => (CONFIG.TOWERS[key] || {}).color;
+// 属性最多显示两位小数，去掉多余尾零并消除DPS换算产生的浮点误差。
+const formatStat = value => String(Number(value.toFixed(2)));
 function createCodexScreen(deps) {
   const { drawImg, skillIconSrc, drawTowerGlyph, IMG_SRC, TOWER_HEX, MENU_TAB_THEME, lighten, hexA, wrapText } = deps;
   function menuCodex(ctx, s, push) {
@@ -40,10 +43,12 @@ function createCodexScreen(deps) {
         ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
       }
       // 仅塔美术图标（居中）
+      const unseen=!s.testProfile&&!(s.towerCodex||{})[k];ctx.save();if(unseen)ctx.globalAlpha=.28;
       const isz = 56;
       if (!drawImg(ctx, IMG_SRC[k], cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz, isz)) {
         drawTowerGlyph(ctx, k, cx + (tw2 - isz) / 2, ty0 + (th2 - isz) / 2, isz);
       }
+      ctx.restore();if(unseen)text(ctx,'🔒',cx+tw2/2,ty0+th2/2,26,'#bac4ac','center');
       // 竖线分隔（相邻两页签均未激活时）
       if (i < keys.length - 1 && !sel && s.codexSel !== keys[i + 1]) {
         fillRoundRect(ctx, cx + tw2, ty0 + 12, 1, th2 - 24, 0, 'rgba(0,0,0,0.35)');
@@ -51,6 +56,7 @@ function createCodexScreen(deps) {
     });
     // ---- 详情面板（紧贴标签行底部，无间隙）：塔色 60% 透明 + 高度 +50% + 4 列属性 ----
     const k = s.codexSel && keys.includes(s.codexSel) ? s.codexSel : keys[0];
+    if(!s.testProfile&&!(s.towerCodex||{})[k]){text(ctx,'战斗中首次建造该塔后解锁图鉴',375,460,28,'#c7d3b8','center');return;}
     const T = CONFIG.TOWERS[k];
     const cCol = TOWER_HEX[T.color] || '#8ea3b8';
     const GS = CONFIG.GLOBAL_SKILL || {};
@@ -64,8 +70,8 @@ function createCodexScreen(deps) {
     text(ctx, colorName(k), dx + 26, dy + 33, 38, '#ffffff', 'left');
     // 3 行属性：单发攻击力/攻速/射程 —— 每行 = 属性名 + 胶囊进度条 + 数值
     const statCols = [
-      { name: '攻击力', val: T.baseDps * T.atkInterval, cap: 100, txt: `${Math.round(T.baseDps * T.atkInterval)}/发` },
-      { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${(1 / T.atkInterval).toFixed(1)}发/s` },
+      { name: '攻击力', val: T.baseDps * T.atkInterval, cap: 100, txt: `${formatStat(T.baseDps * T.atkInterval)}/发` },
+      { name: '攻速', val: 1 / T.atkInterval, cap: 2, txt: `${formatStat(1 / T.atkInterval)}发/s` },
       { name: '射程', val: T.range, cap: 1000, txt: `${T.range}` },
     ];
     const barW = 430, barX = dx + 110, valX = barX + barW + 14;
@@ -79,16 +85,16 @@ function createCodexScreen(deps) {
       strokeRoundRect(ctx, barX, by, barW, 16, 8, 'rgba(255,255,255,0.35)', 1);
       text(ctx, c.txt, valX, rowY, 18, '#e8f0f8', 'left');
     });
-    // 耗能胶囊（面板右上角）：深色内凹 + 金描边 + ⚡；按塔攻速×DPS 定价（attackCost）
+    // 基础普攻费用独立配置；强化后的参考费用显示在各技能卡中。
     const enV = (CONFIG.TOWERS[k] && CONFIG.TOWERS[k].attackCost) || GS.perAttack || 0.5;
     const ecW = 155, ecH = 34, ecX = dx + dw - 20 - ecW, ecY = dy + 15;
     fillRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, '#0b0f16');
     strokeRoundRect(ctx, ecX, ecY, ecW, ecH, ecH / 2, 'rgba(244,208,63,0.55)', 1.2);
-    text(ctx, `⚡ 耗能 ${Number(enV).toFixed(2)}/发`, ecX + ecW / 2, ecY + ecH / 2 + 1, 16, '#f4d03f', 'center');
+    text(ctx, `⚡ 基础 ${formatStat(Number(enV))}/次`, ecX + ecW / 2, ecY + ecH / 2 + 1, 16, '#f4d03f', 'center');
     // ---- 技能池卡片（大字号：塔色立体卡 + 内部上下分区；底部留 5% 白不满铺）----
     const pool = CONFIG.EFFECT_POOLS[k] || [];
     // 标题只留「技能池」（去掉「· 点击卡片查看详情」提示）
-    text(ctx, '技能池', dx + 30, dy + 264, 30, '#ffffff', 'left');
+    text(ctx, '技能池 · 单技能耗能', dx + 30, dy + 264, 30, '#ffffff', 'left');
     const TAB_Y = 1504;                       // 底部分页栏 y（menuLayer 常量一致）
     const cw3 = 300, ch3 = 205;               // 卡高 210→205
     const gx0 = Math.round(750 * 0.05) + 10;  // 5% 左边距再向内 10px
@@ -119,20 +125,19 @@ function createCodexScreen(deps) {
         text(ctx, sk.icon || '?', gx + 48, gy + 44, 32, '#ffffff', 'center');
       }
       text(ctx, sk.name, gx + 92, gy + 30, 33, '#ffffff', 'left');
-      // 类型行 + 能耗胶囊（卡片右上）：SKILL_ENERGY 表内为周期技能耗能；表外（普攻强化/DoT/命中触发型）= 0
-      const en = CONFIG.SKILL_ENERGY[sk.name];
-      const enTxt = en === undefined ? 0 : en;
+      // 普攻强化展示整轮攻击费用，周期技能展示单次释放费用，避免把强化费用误标成0。
+      const energy = skillEnergy(k, sk.name);
       text(ctx, sk.type || '', gx + 92, gy + 62, 19, hexA(cMain, 0.9), 'left');
-      const ecW2 = 72, ecH2 = 32, ecX2 = gx + cw3 - 16 - ecW2, ecY2 = gy + 77 - ecH2;
+      const ecW2 = 190, ecH2 = 26, ecX2 = gx + cw3 - 16 - ecW2, ecY2 = gy + 71;
       fillRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, '#0b0f16');
       strokeRoundRect(ctx, ecX2, ecY2, ecW2, ecH2, ecH2 / 2, 'rgba(244,208,63,0.55)', 1.2);
-      text(ctx, `⚡${enTxt}`, ecX2 + ecW2 / 2, ecY2 + ecH2 / 2 + 1, 17, '#f4d03f', 'center');
+      text(ctx, `⚡${energy.label}`, ecX2 + ecW2 / 2, ecY2 + ecH2 / 2 + 1, 18, '#f4d03f', 'center');
       // 分隔线（塔色渐隐），上下分区
-      fillRoundRect(ctx, gx + 18, gy + 83, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
+      fillRoundRect(ctx, gx + 18, gy + 103, cw3 - 36, 1.5, 0.75, hexA(cMain, 0.35));
       // ---- 下区：技能描述（左右各留 20px 白）----
       const descLines = wrapText(ctx, sk.pick || sk.desc || '暂无描述', cw3 - 40, 24).slice(0, 3);
       descLines.forEach((ln, li) => {
-        text(ctx, ln, gx + 20, gy + 102 + li * 32, 24, '#d7e2ee', 'left');
+        text(ctx, ln, gx + 20, gy + 123 + li * 32, 24, '#d7e2ee', 'left');
       });
       // 移除右下角"点击查看详情 >>>"（卡片整体可点，入口语义由能耗胶囊+说明区承担）
     });
@@ -144,11 +149,15 @@ function createCodexScreen(deps) {
     if (!sk) return;
     const cCol = TOWER_HEX[TOWERS_COLOR(towerKey)] || '#8ea3b8';
     const branchCopy = require('../../branch-description.js');
+    const energy = skillEnergy(towerKey, sk.name);
+    const attackEnergy = energy.kind === 'attack';
+    const conditionalEnergy = attackEnergy && ['电磁过载', '军火库'].includes(sk.name);
+    const baseY = attackEnergy ? (conditionalEnergy ? 474 : 446) : 420;
     const baseCopy = wrapText(ctx, sk.pick || sk.desc || '暂无描述', 600, 34);
     const branchRows = ['A','B','C'].map(bk => ({bk,
       lines: wrapText(ctx, branchCopy.current(sk,bk,0), 612, 32),
       levels: branchCopy.upgrades(sk,bk)}));
-    const baseEnd = 420 + (baseCopy.length - 1) * 42 + 26;
+    const baseEnd = baseY + (baseCopy.length - 1) * 42 + 26;
     const heights = branchRows.map(row => 100 + Math.max(1,row.lines.length)*38 + 18 + row.levels.length*36 + 18);
     const W2 = 700, H2 = baseEnd + 30 + heights.reduce((a,b)=>a+b,0) + 32 + 30, px = 25, py = Math.round((LOGIC_H - H2) / 2);
     const panelScale = (2 / 3) * 1.1;
@@ -195,16 +204,18 @@ function createCodexScreen(deps) {
     }
     text(ctx, fit(sk.name, W2 - 80, 48), 375, py + 312, 48, '#ffffff', 'center');
     // 类型 + 能耗胶囊（居中）
-    const en = CONFIG.SKILL_ENERGY[sk.name];
-    const enTxt = en === undefined ? 0 : en;
-    const mw = 320, mh = 48, mx = 375 - mw / 2, my = py + 342;
+    const mw = 600, mh = 48, mx = 375 - mw / 2, my = py + 342;
     fillRoundRect(ctx, mx, my, mw, mh, mh / 2, '#0b0f16');
     strokeRoundRect(ctx, mx, my, mw, mh, mh / 2, hexA(cCol, 0.65), 1.2);
-    text(ctx, `${sk.type || '被动'} · ⚡${enTxt}`, 375, my + mh / 2 + 1, 28, lighten(cCol, 1.25), 'center');
+    text(ctx, `${sk.type || '被动'} · ⚡${energy.label}`, 375, my + mh / 2 + 1, 28, lighten(cCol, 1.25), 'center');
+    if (attackEnergy) {
+      text(ctx, '仅激活本技能；不含其他技能、圣物与天赋', 375, py + 411, 23, '#9fb2c3', 'center');
+      if (conditionalEnergy) text(ctx, '分支费用区间随当前能量变化', 375, py + 439, 23, '#9fb2c3', 'center');
+    }
     // 基础效果（居中排版，最多 2 行）
     const baseLines = baseCopy;
     baseLines.forEach((ln, li) => {
-      text(ctx, ln, 375, py + 420 + li * 42, 34, '#c9d6e4', 'center');
+      text(ctx, ln, 375, py + baseY + li * 42, 34, '#c9d6e4', 'center');
     });
     fillRoundRect(ctx, px + 30, py + baseEnd, W2 - 60, 1.5, 0.75, hexA(cCol, 0.35));
     // 三张分支卡：字母徽章列 + 分支名 + 概述 + 金色 Lv 前缀逐级行
@@ -229,6 +240,16 @@ function createCodexScreen(deps) {
       fillRoundRect(ctx, cx0 + 22, cy0 + 18, 60, 60, 16, cCol);
       text(ctx, bk, cx0 + 54, cy0 + 48, 32, '#0d1117', 'center');
       text(ctx, fit(bName, cw - 130, 32), cx0 + 104, cy0 + 36, 34, '#ffffff', 'left');
+      if (attackEnergy) {
+        const costs = [1, 2, 3].map(rank => `${bk}${rank} ${skillEnergy(towerKey, sk.name, bk, rank).amount}`);
+        const costText = `耗能：${costs.join('  ')}/次`;
+        let costSize = 22;
+        ctx.font = `bold ${costSize}px sans-serif`;
+        while (costSize > 16 && ctx.measureText(costText).width > cw - 126) {
+          ctx.font = `bold ${--costSize}px sans-serif`;
+        }
+        text(ctx, costText, cx0 + 104, cy0 + 69, costSize, '#f7c948', 'left');
+      }
       // 概述最多 2 行（28px）
       branchRows[bi].lines.forEach((ln, li) => {
         text(ctx, ln, cx0 + 22, cy0 + 100 + li * 38, 32, '#c9d6e4', 'left');

@@ -4,6 +4,7 @@ const { get } = require('./global-catalog.js');
 // State belongs to the supplied run/combat, never to this module.
 function tick(run,dt){const s=run.gsState;if(!s)return;for(const k of ['forge','haste','reflect','gold'])s[k]=Math.max(0,(s[k]||0)-dt);if(s.shieldWave!==run.wave){s.shield=0;s.shieldWave=run.wave;}}
 function cast(combat,id){
+ if(!require('../prologue.js').featureEnabled(combat.game.run,'globalSkills'))return false;
  const g=combat.game,r=g.run,s=r.gsState||(r.gsState={}),def=get(id);if(!def)return false;
  const towers=r.slotOrder.filter(k=>{const t=r.effects.tower(k);return t&&t.level>0;});
  switch(id){
@@ -21,7 +22,8 @@ function cast(combat,id){
  }
  require('../game/fx/global-feedback.js').emit(combat,id);
  combat.fxFlash(375,800,def.color,0.35);
- if(g.toast)g.toast(def.name+' · 已释放',def.color);return true;
+ if(g.toast)g.toast(def.name+' · 已释放',def.color);
+ require('../game/tutorial.js').globalUsed(g,id);return true;
 }
 
 module.exports = { tick, cast };

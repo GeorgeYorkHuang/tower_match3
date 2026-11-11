@@ -1,0 +1,287 @@
+{
+  "assumptions": "preset full roster; native level1 start; 2s swap cadence; no talents/relics/shop/revive; fixed skill routes; not a player win-rate estimate",
+  "results": [
+    {
+      "id": "prologue_awakening",
+      "keys": [
+        "fire",
+        "ice"
+      ],
+      "seed": 41,
+      "terminal": "victory",
+      "wave": 10,
+      "seconds": 230,
+      "wallHp": 2590,
+      "wallMax": 3000,
+      "levels": {
+        "fire": 1,
+        "ice": 1
+      },
+      "firstFullSkillsWave": null,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 17
+        },
+        {
+          "wave": 10,
+          "seconds": 66
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 18
+        },
+        {
+          "wave": 10,
+          "seconds": 83
+        }
+      ]
+    },
+    {
+      "id": "prologue_awakening",
+      "keys": [
+        "ice",
+        "poison"
+      ],
+      "seed": 73,
+      "terminal": "victory",
+      "wave": 10,
+      "seconds": 232,
+      "wallHp": 2843,
+      "wallMax": 3000,
+      "levels": {
+        "ice": 1,
+        "poison": 1
+      },
+      "firstFullSkillsWave": null,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 30
+        },
+        {
+          "wave": 10,
+          "seconds": 63
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 17
+        },
+        {
+          "wave": 10,
+          "seconds": 78
+        }
+      ]
+    },
+    {
+      "id": "prologue_awakening",
+      "keys": [
+        "fire",
+        "poison"
+      ],
+      "seed": 101,
+      "terminal": "victory",
+      "wave": 10,
+      "seconds": 210,
+      "wallHp": 3000,
+      "wallMax": 3000,
+      "levels": {
+        "fire": 1,
+        "poison": 1
+      },
+      "firstFullSkillsWave": null,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 17
+        },
+        {
+          "wave": 10,
+          "seconds": 52
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 16
+        },
+        {
+          "wave": 10,
+          "seconds": 66
+        }
+      ]
+    },
+    {
+      "id": "prologue_trial",
+      "keys": [
+        "fire",
+        "ice",
+        "poison"
+      ],
+      "seed": 41,
+      "terminal": "victory",
+      "wave": 20,
+      "seconds": 371,
+      "wallHp": 2800,
+      "wallMax": 2800,
+      "levels": {
+        "fire": 4,
+        "ice": 4,
+        "poison": 4
+      },
+      "firstFullSkillsWave": 9,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 4
+        },
+        {
+          "wave": 10,
+          "seconds": 6
+        },
+        {
+          "wave": 15,
+          "seconds": 7
+        },
+        {
+          "wave": 20,
+          "seconds": 21
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 23
+        },
+        {
+          "wave": 10,
+          "seconds": 22
+        },
+        {
+          "wave": 15,
+          "seconds": 18
+        },
+        {
+          "wave": 20,
+          "seconds": 21
+        }
+      ]
+    },
+    {
+      "id": "prologue_trial",
+      "keys": [
+        "fire",
+        "poison",
+        "cannon"
+      ],
+      "seed": 73,
+      "terminal": "victory",
+      "wave": 20,
+      "seconds": 348,
+      "wallHp": 2800,
+      "wallMax": 2800,
+      "levels": {
+        "fire": 4,
+        "poison": 4,
+        "cannon": 4
+      },
+      "firstFullSkillsWave": 9,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 5
+        },
+        {
+          "wave": 10,
+          "seconds": 2
+        },
+        {
+          "wave": 15,
+          "seconds": 3
+        },
+        {
+          "wave": 20,
+          "seconds": 15
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 21
+        },
+        {
+          "wave": 10,
+          "seconds": 19
+        },
+        {
+          "wave": 15,
+          "seconds": 19
+        },
+        {
+          "wave": 20,
+          "seconds": 15
+        }
+      ]
+    },
+    {
+      "id": "prologue_trial",
+      "keys": [
+        "ice",
+        "poison",
+        "cannon"
+      ],
+      "seed": 101,
+      "terminal": "victory",
+      "wave": 20,
+      "seconds": 353,
+      "wallHp": 2800,
+      "wallMax": 2800,
+      "levels": {
+        "ice": 4,
+        "poison": 4,
+        "cannon": 4
+      },
+      "firstFullSkillsWave": 9,
+      "bossLifetimes": [
+        {
+          "wave": 5,
+          "seconds": 6
+        },
+        {
+          "wave": 10,
+          "seconds": 5
+        },
+        {
+          "wave": 15,
+          "seconds": 6
+        },
+        {
+          "wave": 20,
+          "seconds": 16
+        }
+      ],
+      "bossWaveSeconds": [
+        {
+          "wave": 5,
+          "seconds": 20
+        },
+        {
+          "wave": 10,
+          "seconds": 22
+        },
+        {
+          "wave": 15,
+          "seconds": 20
+        },
+        {
+          "wave": 20,
+          "seconds": 16
+        }
+      ]
+    }
+  ]
+}

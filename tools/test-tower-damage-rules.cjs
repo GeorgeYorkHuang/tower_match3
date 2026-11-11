@@ -2,6 +2,8 @@
 // 在项目根目录运行：node tools/test-tower-damage-rules.cjs
 const assert = require('assert'),
   root = require('path').resolve(__dirname, '..');
+// 输入攻击直接决定扣血；不在结算时额外乘共用增伤。
+const hpAfter = rawLoss => 10000 - rawLoss;
 const { Run } = require(root + '/js/run.js'),
   { Meta } = require(root + '/js/meta.js'),
   { CombatSystem, initEnemyState } = require(root + '/js/combat.js');
@@ -68,20 +70,20 @@ function enemy(id = 1, x = 375, y = 600) {
     far = enemy(3, 700, 300);
   g.enemies = [main, near, far];
   Cannon.hitCannon(c, main, 100);
-  close(main.hp, 9900);
-  close(near.hp, 9980);
+  close(main.hp, hpAfter(100));
+  close(near.hp, hpAfter(20));
   close(far.hp, 10000);
   for (const e of g.enemies) e.hp = 10000;
   c.turrets = [{ x: 375, y: 600, ttl: 10, atkT: 0, atkI: 1, dmg: 80, r: 100 }];
   Cannon.updateTurrets(c, 1);
-  close(main.hp, 9920);
-  close(near.hp, 9960);
+  close(main.hp, hpAfter(80));
+  close(near.hp, hpAfter(40));
   close(far.hp, 10000);
   // Pure area attacks have no separate direct hit; their center target still receives AOE once.
   for (const e of g.enemies) e.hp = 10000;
   c.explode(main.x, main.y, 100, 70, 'cannon', 0, false, undefined, '碎裂弹');
-  close(main.hp, 9930);
-  close(near.hp, 9930);
+  close(main.hp, hpAfter(70));
+  close(near.hp, hpAfter(70));
 }
 // 100 attack →20/sec burn, regardless of all poison-strength branches.
 for (const durationStep of [1 / 30, 1 / 60, 1 / 120])
@@ -93,7 +95,7 @@ for (const durationStep of [1 / 30, 1 / 60, 1 / 120])
     c.applyBurn(e, 100, 'fire');
     close(e.dots[0].dps, 20);
     for (let i = 0; i < Math.round(1 / durationStep); i++) c.tickStatus(e, durationStep);
-    close(e.hp, 9980);
+    close(e.hp, hpAfter(20));
   }
 // Poison retains its own10%/24% per-stack baseline, with no duplicate multiplier.
 for (const boost of [false, true]) {
@@ -104,9 +106,9 @@ for (const boost of [false, true]) {
   c.applyPoison(e, 100, 'poison', 1);
   close(e.dots[0].stackDps, boost ? 24 : 10);
   c.tickStatus(e, 1 / 60);
-  close(e.hp, 10000 - (boost ? 24 : 10));
+  close(e.hp, hpAfter(boost ? 24 : 10));
   for (let i = 1; i < 60; i++) c.tickStatus(e, 1 / 60);
-  close(e.hp, 10000 - 2 * (boost ? 24 : 10));
+  close(e.hp, hpAfter(2 * (boost ? 24 : 10)));
 }
 // Burn starts after0.5s, pays all six half-second ticks, and catches up at lower frame rates.
 for (const dt of [1 / 30, 1 / 60, 1 / 120, 0.4, 4]) {
@@ -122,7 +124,7 @@ for (const dt of [1 / 30, 1 / 60, 1 / 120, 0.4, 4]) {
     c.tickStatus(e, step);
     elapsed += step;
   }
-  close(e.hp, 9940);
+  close(e.hp, hpAfter(60));
   assert.equal(e.dots.length, 0);
 }
 // Ember expiry includes the final valid burn tick before its30% accumulated-damage burst.
@@ -134,7 +136,7 @@ for (const level of [1, 2, 3]) {
   c.applyBurn(e, 100, 'fire');
   const total = 20 * (1 + 0.2 * level) * (3 - 0.5 * level);
   for (let i = 0; i < 240; i++) c.tickStatus(e, 1 / 60);
-  close(e.hp, 10000 - total * 1.3);
+  close(e.hp, hpAfter(total * 1.3));
   assert.equal(e.dots.length, 0);
 }
 // Every shard derives from its own ordinary/tiny/multiple cone, with B applied once.
@@ -148,7 +150,7 @@ for (const parentDamage of [100, 10, 55])
       throw Error('Shatter must inherit cone damage');
     };
     Ice.hitIce(c, main, parentDamage);
-    close(main.hp, 10000 - parentDamage);
+    close(main.hp, hpAfter(parentDamage));
     assert.equal(c.shots.length, 3);
     const shard = c.shots[0],
       expected = parentDamage * 0.65 * (1 + 0.15 * branchB);
@@ -157,7 +159,7 @@ for (const parentDamage of [100, 10, 55])
     const victim = enemy(2, shard.sx, shard.sy);
     g.enemies = [victim];
     c.stepShot(shard, shard.dur / 10);
-    close(victim.hp, 10000 - expected);
+    close(victim.hp, hpAfter(expected));
     assert.equal(c.shots.length, 3, 'shards cannot recursively shatter');
   }
 // Actual multi-shot emitters supply55%/10%, rather than recalculating full tower damage.

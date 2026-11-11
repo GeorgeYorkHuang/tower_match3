@@ -9,6 +9,7 @@ const SPAWN_N = 2;          // 每次敲钟震出小怪数
 const SPAWN_HP_MULT = 0.6;  // 小怪血量 = 本波主等级普通怪 × 0.6
 
 function tick(g, dt) {
+  if(g.run.chapter&&g.run.chapter.isPrologue&&g.run.chapter.bossProfile.noSummons)return;
   if (!g.enemies || !g.enemies.length) return;
   const boss = g.enemies.find(e => e.isBoss && e.bossArtKey === 'miniboss_bell' && e.hp > 0);
   if (!boss) return;

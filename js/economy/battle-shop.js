@@ -1,12 +1,14 @@
 // 局内购买唯一入口，无UI/存档依赖；恢复立即生效，强化仅按战斗秒持续。
 'use strict';
 const CONFIG = require('../config.js');
+const { featureEnabled } = require('../prologue.js');
 function offer(run, item) {
   const bought = run.store && run.store[item.id] || 0;
   const cooldown = item.max === 0 ? (run.storeCooldowns && run.storeCooldowns[item.id] || 0) : 0;
   return { bought, sold: item.max > 0 && bought >= item.max, cooldown, cost: item.cost[Math.min(bought, item.cost.length - 1)] };
 }
 function buy(run, id) {
+  if (!featureEnabled(run, 'battleShop')) return { ok: false, reason: 'locked' };
   const item = CONFIG.STORE.items.find(it => it.id === id);
   if (!item) return { ok: false, reason: 'item' };
   const state = offer(run, item);
