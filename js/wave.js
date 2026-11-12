@@ -6,6 +6,7 @@ const Bosses = require('./bosses/index.js');
 const CONFIG = require('./config.js');
 const FieldBalance = require('./config/field-balance.js');
 const ChapterCurve = require('./prologue/enemy-curve.js');
+const FieldEnemies = require('./field-enemies.js');
 const { initEnemyState } = require('./combat.js');
 const WAVE_DUR = CONFIG.WAVE.seconds; // 40s
 
@@ -53,13 +54,15 @@ class WaveDirector {
     const curseMult = Math.pow(1.15, this.game.run.curseStacks || 0); // 深渊诅咒被动
     // 数量增长：基数 15，每 2 波 +1 只，每 5 波额外 +5 只（线性低增长，配合等级表强度）
     const chapter=this.game.run.chapter,m=chapter&&chapter.isPrologue?chapter.enemyMultipliers:null;
-    const count = Math.ceil(CONFIG.ENEMY.countForWave(w)*(m?m.count:1));
+    const local=FieldEnemies.ofGame(this.game);
+    const count = local ? FieldEnemies.count(local,w) : Math.ceil(CONFIG.ENEMY.countForWave(w)*(m?m.count:1));
     const hasBoss = w >= 5 && w % CONFIG.ENEMY.bossEvery === 0; // 每 5 波（5,10,15...）
     const eliteCount = Math.min(Math.floor(count / 20),m?m.eliteMax:Infinity);                  // 每 20 只怪多 1 只精英（wave1-21 无精英，22 起 1 只逐档递增）
     const mix = CONFIG.ENEMY.levelMix(w);                       // 代际权重数组（主代 + 副代 + 残留代）
     const mainLv = CONFIG.ENEMY.mainLevel(w);                   // 本波主等级（精英/Boss 属性基准）
     this.plan = [];
     this.timer = 0;
+    this._fieldBatchIndex = 0;
     this._eid = 0;
     this.planDoneAt = null;   // 投放完成时刻（game.waveTime），null=未放完
     const bossN = hasBoss ? 1 : 0;
@@ -68,10 +71,12 @@ class WaveDirector {
       if(chapter&&chapter.enemyCurve){const enemy=ChapterCurve.ordinary(chapter,w,i);this.plan.push({...enemy,offset:0.5+Math.random()*0.5,isBoss:false});continue;}
       const lv = mix[i % mix.length];
       const lcfg = CONFIG.ENEMY.levelOf(lv);
-      this.plan.push({ lv, type: lcfg.type, hp: lcfg.hp * curseMult, offset: 0.5 + Math.random() * 0.5, isBoss: false });
+      const fieldStats=local&&FieldEnemies.stats(local,lv,lcfg.type);
+      this.plan.push({ lv, type: lcfg.type, hp: (fieldStats?fieldStats.hp:lcfg.hp) * curseMult, offset: 0.5 + Math.random() * 0.5, isBoss: false });
     }
     for (let i = 0; i < eliteCount; i++) {
-      this.plan.push({ lv: mainLv, type: 'elite', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.eliteHpMult * curseMult, offset: 0.5 + Math.random() * 0.5, isBoss: false });
+      const elite=local&&FieldEnemies.stats(local,mainLv,'elite');
+      this.plan.push({ lv: mainLv, type: 'elite', hp: (elite?elite.hp:CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.eliteHpMult) * curseMult, offset: 0.5 + Math.random() * 0.5, isBoss: false });
     }
     if (hasBoss) {
       this.plan.push({ lv: mainLv, type: 'boss', hp: CONFIG.ENEMY.levelOf(mainLv).hp * CONFIG.ENEMY.bossHpMult * curseMult, offset: 0.5 + Math.random() * 0.3, isBoss: true }); // Boss 最后出场
@@ -79,12 +84,17 @@ class WaveDirector {
     // 投放节奏：每 1~2s（随机）投放一批，每批随机投放 1~⌈w/5⌉ 只（wave 越高单批越多）
     this.interval = 1 + Math.random();   // 首批间隔也随机 1~2s
     if(Bosses.setup(this)) return;
+    if(local){this.plan=FieldEnemies.arrange(this.plan,local);this.interval=local.batch.interval;}
     this.hasBoss = hasBoss;
     const fieldHp = FieldBalance.enemyHpMultiplier(this.game.run.fieldCfg, w);
     this.enemyTotalHp = chapter&&chapter.enemyCurve
       ? this.plan.reduce((n,e)=>n+ChapterCurve.plannedHp(chapter,w,e),0)
       : m ? this.plan.reduce((n,e)=>n+e.hp*(e.isBoss?m.bossHp:m.hp)*fieldHp,0) : CONFIG.ENEMY.waveTotalHp(w, curseMult * fieldHp);
     if(chapter&&chapter.enemyCurve){this.game.run.chapterWaveHp=this.enemyTotalHp;this.game.run.chapterWaveNo=w;}
+    if(local){
+      this.enemyTotalHp=this.plan.reduce((n,e)=>n+e.hp*fieldHp,0);
+      this.game.run.fieldWaveHp=this.enemyTotalHp;this.game.run.fieldWaveNo=w;
+    }
   }
 
   /** 每帧推进投放：每批间隔随机 1~2s，每批数量随机 1~⌈w/5⌉ 只 */
@@ -92,6 +102,18 @@ class WaveDirector {
     if (!this.plan.length) return;
     this.timer += dt;
     if(this.game.run.bossLock){if(this.timer>=this.interval){this.timer=0;this.spawnOne();}return;}
+    const local=FieldEnemies.ofGame(this.game);
+    if(local){
+      const b=local.batch;
+      if(this.timer<this.interval)return;
+      const room=b.aliveLimit-this.game.enemies.filter(e=>e.hp>0).length;
+      if(room<=0){this.timer=this.interval;return;}
+      this.timer=0;this._fieldBatchIndex=(this._fieldBatchIndex||0)+1;
+      const n=Math.min(room,b.min+Math.floor(Math.random()*(b.max-b.min+1)));
+      for(let i=0;i<n&&this.plan.length;i++)this.spawnOne();
+      this.interval=b.restEvery&&this._fieldBatchIndex%b.restEvery===0?b.rest:b.interval;
+      return;
+    }
     const maxBatch = Math.max(1, Math.ceil(this.game.run.wave / 5)); // 单批上限随波次
     if (this.timer >= this.interval && this.plan.length) {
       this.timer = 0;
@@ -157,6 +179,11 @@ class WaveDirector {
       vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
     };
     require('./prologue/balance.js').spawnScale(this.game,e);
+    const local=FieldEnemies.ofGame(this.game),fieldStats=!isBoss&&local&&FieldEnemies.stats(local,lv||1,e.type);
+    if(fieldStats){
+      e.armor=fieldStats.armor;e.attack=fieldStats.attack;e.attackInterval=fieldStats.attackInterval;
+      e.speed=speed*fieldStats.speed;
+    }
     const en = initEnemyState(e);
     require('./combat/boss-control.js').attach(en);
     en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零

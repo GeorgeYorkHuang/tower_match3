@@ -645,7 +645,8 @@ class Run {
     // 代际重构：本波总血量由等级表生成（与 wave.buildPlan 同口径）
     const fieldHp = FieldBalance.enemyHpMultiplier(this.fieldCfg, this.wave);
     const enemyHp = this.bossWaveNo===this.wave && this.bossWaveHp ? this.bossWaveHp
-      : this.chapterWaveNo===this.wave&&this.chapterWaveHp!=null?this.chapterWaveHp:CONFIG.ENEMY.waveTotalHp(this.wave, curseMul * fieldHp);
+      : this.chapterWaveNo===this.wave&&this.chapterWaveHp!=null?this.chapterWaveHp
+      : this.fieldWaveNo===this.wave&&this.fieldWaveHp!=null?this.fieldWaveHp:CONFIG.ENEMY.waveTotalHp(this.wave, curseMul * fieldHp);
     const totalDps = this.effects.totalDps();
     const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
     const leak = Math.max(0, enemyHp - dealt);
