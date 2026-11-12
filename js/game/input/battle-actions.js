@@ -14,15 +14,6 @@ function dispatchTouch(game, p, version) {
       const from = game.relicDetail.from || 'fighting';   // 关闭后回到来源状态（testfield/fighting）
       game.relicDetail = null; game.state = from; return true;
     }
-    if (h.next && h.next.hit(p.x, p.y)) {
-      const pages = Math.ceil(new Set(game.battleRelics.map(r=>r.id)).size / 20);
-      game.relicDetail.page = Math.min((game.relicDetail.page || 0) + 1, Math.max(pages - 1, 0));
-      return true;
-    }
-    if (h.prev && h.prev.hit(p.x, p.y)) {
-      game.relicDetail.page = Math.max((game.relicDetail.page || 0) - 1, 0);
-      return true;
-    }
     return true; // 面板内点击不处理其它
   }
   // 主界面：分页 / 进入战斗 / 技能搭配 / 圣物配置 / 商店 / 圣物升级 / 宝箱
@@ -138,7 +129,8 @@ function dispatchTouch(game, p, version) {
     // 顶部状态栏圣遗物行：点击查看本局圣遗物详情（战斗暂停）
     const rb = game.renderer.relicBarHit;
     if (rb && p.x >= rb.x && p.x <= rb.x + rb.w && p.y >= rb.y && p.y <= rb.y + rb.h) {
-      game.relicDetail = { page: 0 };
+      game.relicDetail = { from: game.state };
+      game.relicDetailHits = {scroll:0};
       game.state = 'relicDetail'; // 详情查看中战斗暂停
       return true;
     }
@@ -227,7 +219,7 @@ function dispatchTouch(game, p, version) {
     const H = game.evacHits || {};
     // 教学确认消耗本次点击；不能同时误触下面的撤离／继续按钮。
     if (!game.testProfile && !(game.meta.unlockGuideSeen || {}).evacuation) {
-      if (H.evacGuide && H.evacGuide.hit(p.x, p.y)) {
+    if (H.evacGuide && H.evacGuide.hit(p.x, p.y)) {
         game.meta.unlockGuideSeen = game.meta.unlockGuideSeen || {};
         game.meta.unlockGuideSeen.evacuation = true;
         game.save.save();

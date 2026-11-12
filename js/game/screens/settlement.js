@@ -72,12 +72,12 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       text(ctx, su.victory ? (su.prologue?'章节通关':'终局胜利') : win ? '撤离成功' : '防线失守', 0, 0, 88, win ? '#ffd34d' : '#ff6b6b', 'center');
       ctx.restore();
     }
-    // meta 行（基线 312，26px 淡入）；通关数口径 = 全歼波数（），旧摘要回退 wave
+    // 击溃数只取实际全歼波数，不能用到达波次补齐。
     const mp = this._goPh(T, TL.meta, 200);
     if (mp > 0) {
       ctx.globalAlpha = mp;
-      const cleared = (su.cleared != null) ? su.cleared : su.wave;
-      text(ctx, '全歼 ' + cleared + ' 波 · 深度倍率 ×' + (su.depthMult || 1).toFixed(2) + ' · 总击杀 ' + (su.kills || 0), 375, 312, 26, '#dfe6ee', 'center');
+      const cleared = su.cleared || 0;
+      text(ctx, '击溃 ' + cleared + ' 波敌人 · 深度倍率 ×' + (su.depthMult || 1).toFixed(2) + ' · 总击杀 ' + (su.kills || 0), 375, 312, 24, '#dfe6ee', 'center');
       ctx.globalAlpha = 1;
     }
   }
@@ -88,7 +88,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const TR = CONFIG.GO.TRAIL, TL = CONFIG.GO.TL;
     const base = this._goPh(T, TL.trail, 200);
     if (base <= 0) return;
-    const wave = (su.cleared != null) ? su.cleared : su.wave;   // 轨迹/终点按全歼波数（通关数口径）
+    const wave = su.cleared || 0;   // 轨迹/终点按实际击溃波数，不读取到达波次。
     const chapter=require('../../prologue.js').chapter(su.stage);
     const waveMax = chapter?chapter.maxWave:su.stage === 'abyss' ? 90 : 60;
     const fx = (w) => TR.x0 + (TR.x1 - TR.x0) * Math.min(1, Math.max(0, w / waveMax));
@@ -131,7 +131,7 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
       ctx.fillStyle = win ? '#f7c948' : '#e74c3c'; ctx.fill();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
       const near = CONFIG.MILESTONES.some((m) => m <= wave && Math.abs(fx(m) - ex) < TR.labelGap);
-      text(ctx, wave + '波 · ' + (su.victory ? '胜利' : win ? '撤离' : '失守'), ex, TR.lineY + (near ? 88 : 60), 22, win ? '#ffd34d' : '#ff8a8a', 'center');
+      text(ctx, '击溃 ' + wave + ' 波 · ' + (su.victory ? '胜利' : win ? '撤离' : '失守'), ex, TR.lineY + (near ? 88 : 60), 22, win ? '#ffd34d' : '#ff8a8a', 'center');
     }
     ctx.globalAlpha = 1;
   }

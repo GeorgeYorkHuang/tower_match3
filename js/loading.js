@@ -11,6 +11,32 @@ const canvas = getMainCanvas();
 ensureCanvasSize(canvas);
 let ctx = null;
 try { ctx = canvas && canvas.getContext('2d'); } catch (error) { /* 主入口会输出环境诊断。 */ }
+let latest = null, shown = null, transition = null, animation = null;
+const requestFrame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : callback => setTimeout(callback, 33);
+
+// 只平滑已经收到的百分比，不按时间增加目标值。首帧就绪后停止绘制。
+function present(state) {
+  const previous = latest;
+  latest = state;
+  if (state.phase === 'assets' && state.percent !== null) {
+    if (!previous || previous.phase !== 'assets' || state.percent < (previous.percent || 0)) shown = 0;
+    if (!previous || state.percent !== previous.percent || previous.phase !== state.phase) {
+      transition = { from: shown || 0, to: state.percent, at: Date.now() };
+    }
+  } else { shown = null; transition = null; }
+  if (state.phase === 'ready') return;
+  if (animation === null) animate();
+}
+function animate() {
+  animation = null;
+  if (!latest || latest.phase === 'ready') return;
+  if (transition) {
+    const p = Math.min(1, (Date.now() - transition.at) / 220);
+    shown = transition.from + (transition.to - transition.from) * (1 - Math.pow(1 - p, 3));
+  }
+  draw({ ...latest, percent: shown === null ? latest.percent : shown });
+  if (latest.phase !== 'failed') animation = requestFrame(animate);
+}
 
 function roundRect(x, y, w, h, radius) {
   const r = Math.min(radius, h / 2, w / 2);
@@ -44,6 +70,12 @@ function draw(state) {
     gradient.addColorStop(0, '#ff8c3a'); gradient.addColorStop(1, '#ffca58'); ctx.fillStyle = gradient;
     if (known && state.percent > 0) {
       roundRect(bx, by, bw * state.percent / 100, bh, bh / 2); ctx.fill();
+      // 即使平台长时间没有新百分比，也持续表达正在工作，不制造假进度。
+      ctx.save(); roundRect(bx, by, bw, bh, bh / 2); ctx.clip();
+      const phase = (Date.now() % 1800) / 1800;
+      const shine = ctx.createLinearGradient(bx - bw * .3 + phase * bw * 1.6, 0, bx + phase * bw * 1.6, 0);
+      shine.addColorStop(0, 'rgba(255,246,204,0)'); shine.addColorStop(.5, 'rgba(255,246,204,.35)'); shine.addColorStop(1, 'rgba(255,246,204,0)');
+      ctx.fillStyle = shine; ctx.fillRect(bx, by, bw, bh); ctx.restore();
     } else if (!failed) {
       // 未收到百分比时用移动光带表达等待，不把动画伪装成下载进度。
       const phase = (Date.now() % 1600) / 1600;
@@ -62,7 +94,7 @@ function draw(state) {
 const flow = LoadingFlow.create({
   platform: typeof wx !== 'undefined' ? wx : null,
   boot: Boot,
-  changed: draw,
+  changed: present,
   loadGame() {
     const previous = typeof GameGlobal !== 'undefined' ? GameGlobal.game : null;
     const GameMain = require('./game/main.js');

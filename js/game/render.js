@@ -1102,7 +1102,10 @@ class Renderer {
 
   /** 塔图鉴详情：原布局等比缩至 2/3 后放大 10%，绘制与触摸区域使用相同变换。 */
   codexSkillPanel(ctx, s, push) {
-    return this._getCodexScreen().codexSkillPanel(ctx, s, push);
+    const metrics = this._getCodexScreen().codexSkillPanel(ctx, s, push);
+    this._codexViewport = metrics && metrics.viewport;
+    this._codexMaxScroll = metrics ? metrics.max : 0;
+    return metrics;
   }
 
   /** v1.16.76 撤离决策层：每 10 波暂停，撤离拿深度池 100% / 继续深入阵亡保底 30% */

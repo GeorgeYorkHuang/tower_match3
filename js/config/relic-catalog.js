@@ -28,11 +28,12 @@ for (const [t, label, icon] of [
   ['electric', '雷', '⚡'], ['boomerang', '镖', '🌀'], ['cannon', '炮', '💣'],
 ]) {
   set(t);
-  R(t, `r_${t}_atk`, `${label}·强攻`, icon, 'attack', '塔攻击 +12%', [12, 18, 24]);
-  R(t, `r_${t}_energy`, `${label}·充能`, icon, 'energy', '该色三消充能 +1', [1, 2, 3]);
-  R(t, `r_${t}_cd`, `${label}·迅技`, icon, 'cooldown', '周期技冷却 -8%', [8, 12, 16]);
-  R(t, `r_${t}_spd`, `${label}·速射`, icon, 'speed', '攻击间隔 -8%', [8, 12, 16]);
-  R(t, `r_${t}_cap`, `${label}·蓄能`, icon, 'capacity', '能量上限 +5', [5, 8, 12]);
+  const towerName = {fire:'火塔',ice:'冰塔',poison:'毒塔',electric:'电塔',boomerang:'回旋镖塔',cannon:'炮塔'}[t];
+  R(t, `r_${t}_atk`, `${label}·强攻`, icon, 'attack', `${towerName}攻击 +12%`, [12, 18, 24]);
+  R(t, `r_${t}_energy`, `${label}·充能`, icon, 'energy', `${towerName}三消充能 +1`, [1, 2, 3]);
+  R(t, `r_${t}_cd`, `${label}·迅技`, icon, 'cooldown', `${towerName}周期技冷却 -8%`, [8, 12, 16]);
+  R(t, `r_${t}_spd`, `${label}·速射`, icon, 'speed', `${towerName}攻击间隔 -8%`, [8, 12, 16]);
+  R(t, `r_${t}_cap`, `${label}·蓄能`, icon, 'capacity', `${towerName}能量上限 +5`, [5, 8, 12]);
 }
 
 // 塔系 SR：18 张，数值增强 + 独立 3★小质变。
@@ -47,7 +48,7 @@ SR('poison','s_sr_poison_stick','毒棒·增殖','🪵','毒棒伤害 +30%','毒
 SR('poison','s_sr_poison_dot','中毒·蚀骨','☠️','中毒伤害 +30%','中毒伤害 +45%','中毒伤害 +60%；毒叠满 5 层引爆（60%，清层）',[30,45,60],{detonateStacks:[0,0,0,5],detonateDamage:[0,0,0,60]});
 SR('electric','s_sr_elec_storm','雷暴·高压','⚡','雷暴伤害 +30%','雷暴伤害 +45%','雷暴伤害 +60%；雷暴 +1 目标（3→4）',[30,45,60],{targetAdd:[0,0,0,1]});
 SR('electric','s_sr_elec_chain','连锁·传导','〰️','连锁伤害 +30%','连锁伤害 +45%','连锁伤害 +60%；连锁 +1 跳',[30,45,60],{hopAdd:[0,0,0,1]});
-SR('electric','s_sr_elec_para','麻痹·强麻','⚡','麻痹概率 +10%','麻痹概率 +15%','麻痹概率 +20%；被麻痹敌人受雷伤 +20%',[10,15,20],{paralyzedDamage:[0,0,0,20]});
+SR('electric','s_sr_elec_para','活电·增幅','⚡','活电伤害 +30%','活电伤害 +45%','活电伤害 +60%；活电自动寻敌',[30,45,60],{homing:[0,0,0,1]});
 SR('boomerang','s_sr_boo_hunt','涡心','🌀','折返伤害 +20%','折返伤害 +30%','折返伤害 +40%；折返生成风眼（60px，40%）',[20,30,40],{vortexRadius:[0,0,0,60],vortexDamage:[0,0,0,40]});
 SR('boomerang','s_sr_boo_multi','多重·弹道','📍','多重飞镖伤害 +15%','多重飞镖伤害 +25%','多重飞镖伤害 +35%；多重飞镖 +1 弹道（3→4）',[15,25,35],{projectileAdd:[0,0,0,1]});
 SR('boomerang','s_sr_boo_bleed','流血·见血','🩸','流血伤害 +30%','流血伤害 +45%','流血伤害 +60%；流血可叠 2 层',[30,45,60],{stackCap:[0,0,0,2]});

@@ -111,9 +111,6 @@ function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
     const run3 = combat.game.run;
     if (kind === 'dot' && e._seedGroundT > 0 && run3.relic3('s_fire_burn')) v *= 1 + run3.relicValue('s_fire_burn', 'groundBurn') / 100;
   }
-  if (srcKey === 'electric' && e.paralyzed > 0 && combat.game.run.relic3('s_sr_elec_para')) {
-    v *= 1 + combat.game.run.relicValue('s_sr_elec_para', 'paralyzedDamage') / 100;
-  }
   // 凝霜3★：冰缓敌人受暴击率 +10%（无全局暴击判定，以受击 ×1.1 实现暴击期望）
   if (combat.game.run.relic3('ice_condense') && e.slow && e.slow.ttl > 0) v *= 1.1;
   // 永冻3★：被冰冻超过 1.5 秒的敌人防御 -20%

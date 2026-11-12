@@ -126,14 +126,15 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
     titleLines.forEach((ln, i) => text(ctx, ln, x + w / 2, titleY + i * 34, 30, '#fff0c8', 'center'));
 
     const chest = p.kind === 'chest' ? CONFIG.SHOP_CHEST[item.key] : null;
-    const shardRange = chest ? [...new Set(chest.shards)].join('～') : '';
+    const tier = chest && CONFIG.DEPTH_CHEST.tiers.find(t=>t.key===chest.tier);
+    const shardRange = tier ? Object.entries(tier.fragments).map(([rar,range])=>`${{r:'蓝',sr:'紫',ssr:'金'}[rar]}碎片${range[0]===range[1]?range[0]:range.join('～')}`).join('、')+(tier.ssrChance?'；25%概率额外1金碎片':'') : '';
     const desc = p.kind === 'shard'
       ? '圣遗物碎片，可用于解锁或提升星级。'
       : (p.kind === 'chest'
-        ? `随机获得 ${shardRange} 个${item.rarName || ''}色圣遗物碎片。`
+        ? `${shardRange}。无金币、钻石。`
         : (item.desc || ''));
-    const lines = (wrapText ? wrapText(ctx, desc, w - 64, 24) : [desc]).slice(0, 3);
-    lines.forEach((ln, i) => text(ctx, ln, x + w / 2, y + 300 + i * 32, 24, '#4c4b36', 'center'));
+    const lines = (wrapText ? wrapText(ctx, desc, w - 64, 22) : [desc]).slice(0, 4);
+    lines.forEach((ln, i) => text(ctx, ln, x + w / 2, y + 285 + i * 30, 22, '#4c4b36', 'center'));
     const extra = p.kind === 'adReward' ? '每日限领一次' : p.kind.startsWith('diamond') ? `消耗钻石 ${item.price}` : p.kind === 'shard' ? `碎片 ×${item.shards}　金币 ${item.price}`
       : (p.kind === 'chest' ? `剩余 ${item.left} 次　金币 ${item.price}` : `金币 ${item.price}`);
     text(ctx, extra, x + w / 2, y + 442, 22, '#45583c', 'center');

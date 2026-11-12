@@ -124,7 +124,7 @@ function createRelicScreen(deps = {}) {
           text(ctx, '未解锁', rx + cw / 2, ry2 + ch - 26, 15, '#4a5a6e', 'center');
         }
       }
-      const clickableG = true;
+      const clickableG = owned;
       push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
@@ -243,7 +243,7 @@ function createRelicScreen(deps = {}) {
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，）
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
-      const clickable = true;
+      const clickable = owned;
       if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
     });
     ctx.restore();

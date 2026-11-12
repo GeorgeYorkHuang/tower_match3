@@ -128,6 +128,11 @@ function createHomeScreen({ drawImg, skillRow }) {
     strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
     fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.22)');
     text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
+    if (!isTest && s.firstGoldBonus) {
+      const bonus=s.firstGoldBonus;
+      fillRoundRect(ctx,130,ey+98,490,44,22,'rgba(18,48,30,0.85)');
+      text(ctx,bonus.remaining>0?`本战场每日前2局：深度金币×1.5 · 剩${bonus.remaining}次`:'今日加成已用完 · 深度金币正常×1',375,ey+120,21,'#ffe4a1','center');
+    }
     // 技能配置行：单行双分区，随版面整体下移 150（1130→1280）
     skillRow(ctx, s, push, 55, 1280, 640, 170);
     // 移除主界面「测试战场 · 免三消直测技能」入口按钮（战场卡 ◀▶ 切换仍可进入测试战场）

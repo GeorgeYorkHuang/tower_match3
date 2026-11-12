@@ -301,17 +301,21 @@ module.exports = {
 
   DAILY: {
     perDay: 6,                  // 每日碎片精选数量（改为碎片奖励，非整件）
+    selectionVersion: 2,
+    guaranteedBlue: 2,
+    rarityWeight: {r:0.50,sr:0.35,ssr:0.15}, // 除保底蓝卡外，各栏位独立抽品质。
     shards: { r: 3, sr: 2, ssr: 1 },      // 各稀有度每日碎片数量
-    price: { r: 300, sr: 600, ssr: 1200 }, // 各稀有度精选金币价
+    price: { r: 750, sr: 1800, ssr: 3000 }, // 指定碎片价格，与随机混合宝箱区分。
     refreshHour: 0,             // 每日 0 点刷新
   },
 
   SHOP_CHEST: {
-    wood: { key: 'wood', name: '木质宝箱', icon: '📦', color: '#b68a62', price: 100, shards: [1], rarities: ['r'], daily: 5 },
-    star: { key: 'star', name: '星辉宝箱', icon: '✨', color: '#a8d8ff', price: 2600, shards: [3, 4], rarities: ['ssr'], daily: 1 },
-    blue:   { key: 'blue',   name: '青铜宝箱', icon: '📦', color: '#4aa3ff', price: 300,  shards: [2, 3], rarities: ['r'],   daily: 3 },
-    purple: { key: 'purple', name: '白银宝箱', icon: '🎁', color: '#a86bff', price: 700,  shards: [2],    rarities: ['sr'],  daily: 2 },
-    gold:   { key: 'gold',   name: '黄金宝箱', icon: '👑', color: '#f7c948', price: 1300, shards: [1, 2], rarities: ['ssr'], daily: 1 },
+    // 奖励读取DEPTH_CHEST同级碎片规则，价格约为5个同级通关箱的平均金币。
+    wood: { key:'wood', tier:'wood', name:'木质宝箱', icon:'📦', color:'#b68a62', price:1000, rarities:['r'], daily:5 },
+    star: { key:'star', tier:'star', name:'星辉宝箱', icon:'✨', color:'#a8d8ff', price:13500, rarities:['ssr'], daily:1 },
+    blue: { key:'blue', tier:'bronze', name:'青铜宝箱', icon:'📦', color:'#4aa3ff', price:2250, rarities:['sr'], daily:3 },
+    purple: { key:'purple', tier:'silver', name:'白银宝箱', icon:'🎁', color:'#a86bff', price:4250, rarities:['sr'], daily:2 },
+    gold: { key:'gold', tier:'gold', name:'黄金宝箱', icon:'👑', color:'#f7c948', price:7750, rarities:['ssr'], daily:1 },
   },
 
   SAVE: {

@@ -143,46 +143,49 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     ctx.restore();
   }
 
-  /** 本局圣遗物详情弹层（点击顶部状态栏圣遗物行打开）：分页列表，每页 8 行，▲▼ 翻页 */
+  /** 本局圣遗物：按稀有度排序的卡片滚动列表，重复卡合并计数。 */
   function relicDetailLayer(ctx, relics, page, onPick) {
-    const w = 640, h = 760;
-    const x = (750 - w) / 2, y = (LOGIC_H - h) / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, 750, LOGIC_H);
-    fillRoundRect(ctx, x, y, w, h, 20, '#1d242e');
-    strokeRoundRect(ctx, x, y, w, h, 20, '#7ca8ff', 2);
-    text(ctx, '本局圣遗物', 375, y + 54, 34, '#ffffff', 'center');
-    text(ctx, `已获得 ×${relics.length} · 获得即本局生效${relics.some((r) => r.star3) ? ' · ★3 质变生效中' : ''}`, 375, y + 92, 18, '#8ea3b8', 'center');
-    // 关闭（右上）
-    ctx.beginPath(); ctx.arc(x + w - 50, y + 44, 20, 0, Math.PI * 2);
-    ctx.fillStyle = '#3a4553'; ctx.fill();
-    text(ctx, '✕', x + w - 50, y + 52, 26, '#ffffff', 'center');
-    onPick.bg = { hit: (px, py) => px < x || px > x + w || py < y || py > y + h };
-    onPick.close = { hit: (px, py) => Math.abs(px - (x + w - 50)) < 30 && Math.abs(py - (y + 44)) < 30 };
-    if (!relics.length) return;
-    const groups=Object.values(relics.reduce((m,r)=>{if(!m[r.id])m[r.id]={...r,count:0};m[r.id].count++;return m;},{}));
-    const per=20,pages=Math.max(1,Math.ceil(groups.length/per)),pg=Math.min(Math.max(page||0,0),pages-1);
-    onPick.tip=null;onPick.items=[];
-    groups.slice(pg*per,pg*per+per).forEach((r,i)=>{
-      const xx=x+46+(i%5)*112,yy=y+140+Math.floor(i/5)*126;
-      fillRoundRect(ctx,xx,yy,100,110,12,'#26352e');
-      const src=relicIconSrc(r.id);if(!(src&&drawImg(ctx,src,xx+10,yy+4,80,80)))text(ctx,r.icon,xx+50,yy+45,40,'#fff','center');
-      text(ctx,'×'+r.count,xx+50,yy+94,22,'#ffe5a0','center');
-      onPick.items.push({id:r.id,hit:(px,py)=>px>=xx&&px<=xx+100&&py>=yy&&py<=yy+110});
-    });
-    text(ctx,(pg+1)+' / '+pages,375,y+h-50,22,'#f7c948','center');
-    text(ctx,'上一页',x+100,y+h-50,22,'#b7c9db','center');text(ctx,'下一页',x+w-100,y+h-50,22,'#b7c9db','center');
-    onPick.prev={hit:(px,py)=>px>x+40&&px<x+160&&py>y+h-80&&py<y+h-20};
-    onPick.next={hit:(px,py)=>px>x+w-160&&px<x+w-40&&py>y+h-80&&py<y+h-20};
+    const w=680,h=1060,x=35,y=(LOGIC_H-h)/2;
+    ctx.fillStyle='rgba(0,0,0,.75)';ctx.fillRect(0,0,750,LOGIC_H);
+    fillRoundRect(ctx,x,y,w,h,22,'#142b20');
+    drawImg(ctx,'assets/images/interface/skins/account-info-garden-v1.png',x,y,w,h);
+    strokeRoundRect(ctx,x,y,w,h,22,'#c7aa65',2);
+    text(ctx,'本局圣遗物',375,y+70,36,'#ffe4a1','center');
+    const order={ur:0,ssr:1,sr:2,r:3};
+    const groups=Object.values(relics.reduce((m,r)=>{if(!m[r.id])m[r.id]={...r,count:0};m[r.id].count++;return m;},{})).sort((a,b)=>(order[CONFIG.relicRarity(a.id)]??4)-(order[CONFIG.relicRarity(b.id)]??4));
+    text(ctx,'已获得 '+groups.length+' 种 · 共 '+relics.length+' 件',375,y+113,22,'#bfccb5','center');
+    onPick.bg={hit:(px,py)=>px<x||px>x+w||py<y||py>y+h};
+    onPick.close={hit:(px,py)=>Math.abs(px-(x+w-46))<28&&Math.abs(py-(y+44))<28};
+    text(ctx,'×',x+w-46,y+44,34,'#e3d09a','center');
+    const vp={x:65,y:y+150,w:620,h:850},content=Math.ceil(groups.length/3)*228;
+    onPick.viewport=vp;onPick.maxScroll=Math.max(0,content-vp.h);
+    onPick.scroll=Math.max(0,Math.min(onPick.maxScroll,onPick.scroll||0));
+    onPick.items=[];onPick.tip=null;delete onPick.next;delete onPick.prev;
+    ctx.save();ctx.beginPath();ctx.rect(vp.x,vp.y,vp.w,vp.h);ctx.clip();
+    groups.forEach((r,i)=>{
+      const xx=vp.x+i%3*208,yy=vp.y+Math.floor(i/3)*228-onPick.scroll;
+      if(yy+216<vp.y||yy>vp.y+vp.h)return;
+      const color={ur:'#ef776a',ssr:'#e9c86b',sr:'#bb8af2',r:'#72b8ed'}[CONFIG.relicRarity(r.id)]||'#d6c184';
+      fillRoundRect(ctx,xx,yy,190,178,14,'#1b3829');
+      drawImg(ctx,'assets/images/interface/cards/relic-card-v1.png',xx,yy,190,178);
+      fillRoundRect(ctx,xx+3,yy+3,184,172,12,'rgba(10,38,23,.72)');
+      strokeRoundRect(ctx,xx,yy,190,178,14,color,2);
+      const src=relicIconSrc(r.id);if(!(src&&drawImg(ctx,src,xx+39,yy+8,112,112)))text(ctx,r.icon||'◆',xx+95,yy+65,50,color,'center');
+      const size=Math.min(24,162/Math.max(1,r.name.length));
+      text(ctx,r.name,xx+95,yy+148,size,'#f9ebc4','center');
+      text(ctx,'数量 ×'+r.count,xx+95,yy+201,24,color,'center');
+      const top=Math.max(vp.y,yy),bottom=Math.min(vp.y+vp.h,yy+178);
+      if(bottom>top)onPick.items.push({id:r.id,hit:(px,py)=>px>=xx&&px<=xx+190&&py>=top&&py<=bottom});
+    });ctx.restore();
+    if(onPick.maxScroll>0){const th=vp.h*vp.h/content;fillRoundRect(ctx,700,vp.y,5,vp.h,2,'#314333');fillRoundRect(ctx,700,vp.y+(vp.h-th)*onPick.scroll/onPick.maxScroll,5,th,2,'#d6be7d');}
     if(onPick.selected){const r=groups.find(r=>r.id===onPick.selected);if(r){
-      fillRoundRect(ctx,x+50,y+240,w-100,300,18,'#12231f');strokeRoundRect(ctx,x+50,y+240,w-100,300,18,'#d5bc74',2);
-      text(ctx,r.name+' ×'+r.count,375,y+282,28,'#ffe3a0','center');
-      const words=String(r.desc||'').match(/.{1,18}/g)||[];words.forEach((line,i)=>text(ctx,line,375,y+330+i*32,24,'#dae3d8','center'));
-      text(ctx,'点击关闭详情',375,y+510,18,'#a3b69c','center');
-      onPick.tip={hit:()=>true};
+      ctx.fillStyle='rgba(0,0,0,.60)';ctx.fillRect(x,y,w,h);
+      const lines=String(r.desc||'').match(/.{1,20}/g)||[],ph=150+lines.length*34,py=(LOGIC_H-ph)/2;
+      fillRoundRect(ctx,95,py,560,ph,18,'#19382a');strokeRoundRect(ctx,95,py,560,ph,18,'#d5bc74',2);
+      text(ctx,r.name+' ×'+r.count,375,py+42,29,'#ffe3a0','center');
+      lines.forEach((line,i)=>text(ctx,line,375,py+92+i*34,24,'#e5eddc','center'));
+      text(ctx,'点击关闭详情',375,py+ph-24,19,'#b2c5a5','center');onPick.tip={hit:()=>true};
     }}
-
-
   }
   return { relicPickLayer, relicDetailLayer };
 }

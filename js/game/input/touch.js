@@ -23,6 +23,12 @@ function bindTouch(game, c) {
     const onStart = (e) => {
       const p = touchPoint(e);
       if (!p) return;
+      if(game.relicDetail&&!game.relicDetailHits.tip){
+        const vp=game.relicDetailHits.viewport;
+        if(vp&&p.x>=vp.x&&p.x<=vp.x+vp.w&&p.y>=vp.y&&p.y<=vp.y+vp.h){
+          game._battleRelicDrag={p,start:p.y,scroll:game.relicDetailHits.scroll||0,moved:false};return;
+        }
+      }
       if(MailRail.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
       if(MailButtons.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
       if(TalentGestures.begin(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
@@ -64,6 +70,11 @@ function bindTouch(game, c) {
       if(MailButtons.move(game,touchPoint(e)))return;
       if(TalentGestures.move(game,e))return;
       const p = touchPoint(e);
+      if(game._battleRelicDrag&&p){
+        const d=game._battleRelicDrag;if(Math.abs(p.y-d.start)>6)d.moved=true;
+        if(d.moved)game.relicDetailHits.scroll=Math.max(0,Math.min(game.relicDetailHits.maxScroll||0,d.scroll+d.start-p.y));
+        return;
+      }
       if (game._lootDrag && p) {
         const d = game._lootDrag, count = Object.keys((game.runSummary && game.runSummary.shardDetail) || {}).filter(id => game.runSummary.shardDetail[id] > 0).length;
         const max = Math.max(0, Math.ceil(count / 5) * 185 - 374);
@@ -105,6 +116,7 @@ function bindTouch(game, c) {
       lastCell = cell;
     };
     const onEnd = (e) => {
+      if(game._battleRelicDrag){const d=game._battleRelicDrag;game._battleRelicDrag=null;if(!d.moved)game.dispatchTouch(d.p);return;}
       if(MailRail.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if(MailButtons.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if(TalentGestures.end(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
@@ -150,6 +162,7 @@ function bindTouch(game, c) {
       game._touchStart = null;
     };
     const onCancel = () => {
+      game._battleRelicDrag=null;
       MailRail.cancel(game);
       MailButtons.cancel(game);
       TalentGestures.cancel(game);

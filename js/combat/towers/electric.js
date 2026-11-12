@@ -75,7 +75,7 @@ function hitElectric(combat, e, dmg, projectile = null) {
   if (bounce > 0 && e.paralyzed > 0) {
     const live = SKILL_NUM.electric['活电'];
     const n = live.count + live.countPerBranch * combat.branchLv('electric', '活电', 'A');
-    const orbDmg = dmg * live.damage * (1 + live.damagePerBranch * combat.branchLv('electric', '活电', 'B'));
+    const orbDmg = dmg * live.damage * (1 + live.damagePerBranch * combat.branchLv('electric', '活电', 'B')) * (1 + combat.game.run.relicNum('s_sr_elec_para') / 100);
     const oDur = live.duration + live.durationPerBranch * combat.branchLv('electric', '活电', 'C');   // 游走时长 0.8→1.4s
     for (let i = 0; i < n; i++) {
       const ang = (Math.PI * 2 / n) * i + (Math.random() - 0.5) * live.angleJitter;
@@ -89,6 +89,7 @@ function hitElectric(combat, e, dmg, projectile = null) {
         // 电球速度 +30%：150-230 → 195-299
         speed: (live.minSpeed + Math.random() * live.randomSpeed) * live.speedMultiplier,   // 速度 95-155→150-230
         orb: true, fx: null,
+        homing: combat.game.run.relic3('s_sr_elec_para'), originEnemy: e,
       };
       orb.fx = { type: 'shot', kind: 'orb', ref: orb, t: 0, dur: oDur };
       combat.shots.push(orb);
@@ -184,11 +185,9 @@ function tryAttackDebuff(combat, o, dmg) {
   const pA = combat.branchLv('electric', '麻痹', 'A');
   const pB = combat.branchLv('electric', '麻痹', 'B');
   const pC = combat.branchLv('electric', '麻痹', 'C');
-  const relicPara = combat.game.run.relicNum('s_sr_elec_para') + combat.game.run.relicNum('s_elec_shock');
-  const pProb = Math.min(1, SKILL_NUM.electric['麻痹'].baseProbability + (paraLv > 0 ? SKILL_NUM.electric['麻痹'].learnedProbability : 0) + SKILL_NUM.electric['麻痹'].probabilityPerBranch * pA + combat.relicVal('elec_strong') / 100 + relicPara / 100);
-  // 强麻3★：麻痹概率触顶（≥80%）时，多余判定转为麻痹时长 +0.5 秒
-  const strong = combat.game.run.relic3('elec_strong') && pProb >= 0.8;
-  if (strong ? Math.random() < 0.8 : Math.random() < pProb) {
+  const relicPara = combat.game.run.relicNum('s_elec_shock');
+  const pProb = Math.min(1, SKILL_NUM.electric['麻痹'].baseProbability + (paraLv > 0 ? SKILL_NUM.electric['麻痹'].learnedProbability : 0) + SKILL_NUM.electric['麻痹'].probabilityPerBranch * pA + relicPara / 100);
+  if (Math.random() < pProb) {
     const dur = (SKILL_NUM.electric['麻痹'].duration + SKILL_NUM.electric['麻痹'].durationPerBranch * pB);
     o.paralyzed = Math.max(o.paralyzed || 0, require('../../talents/runtime.js').statusDuration(combat.game.run,'electric',dur));
     combat.applySlow(o, SKILL_NUM.electric['麻痹'].slow, dur, 'electric');
@@ -220,18 +219,13 @@ function tryAttackDebuff(combat, o, dmg) {
         } else break;
       }
     }
-  } else if (strong) {
-    // 强麻：失败判定转为麻痹时长 +0.5 秒（仍能短暂麻痹）
-    o.paralyzed = Math.max(o.paralyzed || 0, require('../../talents/runtime.js').statusDuration(combat.game.run,'electric',0.5));
-    combat.applySlow(o, 0.5, 0.5, 'electric');
-    combat.fxParticle(o.x, o.y, '#f4d03f', 4, 30, 0.3, 100, 4);
   }
 }
 
 function tickElectric(combat, dt) {
   const g = combat.game;
   const relicCd = Math.max(0.2, 1 - g.run.relicNum('r_electric_cd') / 100);
-  const paralysisBonus = (g.run.relicNum('s_sr_elec_para') + g.run.relicNum('s_elec_shock')) / 100;
+  const paralysisBonus = g.run.relicNum('s_elec_shock') / 100;
   const arcBalance = SKILL_NUM.electric['极光电击'];
   // 球形闪电：每12秒生成3球，漂移6秒；每秒对60px范围内全体敌人造成伤害，C提升移动速度。
   const ballLv = combat.lv('electric', '球形闪电');
@@ -433,7 +427,27 @@ function tickElectric(combat, dt) {
 function stepOrb(combat, s, dt) {
   if (s.ballLightning) return stepBallLightning(combat, s, dt);
   // 游走电球（活电扩散）：每帧随机转向漂移（转向幅度加大 ±1.6 rad，配合等分初角更像四周扩散），命中 34px 内敌人即结算消失，dur 耗尽消散
-  s.ang += (Math.random() - 0.5) * SKILL_NUM.electric['活电'].turnJitter;
+  if (s.homing) {
+    // 目标存活时复用；每0.2秒重评一次，死亡/离场立即重选，避免每球每帧全场排序。
+    s.seekT = (s.seekT || 0) - dt;
+    const enemies = combat.enemies();
+    if (!s.seekTarget || s.seekTarget.hp <= 0 || !enemies.includes(s.seekTarget) || s.seekT <= 0) {
+      let target = null, nearest = Infinity;
+      for (const enemy of enemies) {
+        if (enemy.hp <= 0 || enemy === s.originEnemy) continue;
+        const distance = (enemy.x-s.x)**2 + (enemy.y-s.y)**2;
+        if (distance < nearest) { target=enemy;nearest=distance; }
+      }
+      // 场上只有生成活电的敌人时仍可追击，不会丢失单Boss收益。
+      s.seekTarget = target || (s.originEnemy && s.originEnemy.hp > 0 && enemies.includes(s.originEnemy) ? s.originEnemy : null);
+      s.seekT = .2;
+    }
+    if (s.seekTarget) {
+      const desired = Math.atan2(s.seekTarget.y-s.y,s.seekTarget.x-s.x);
+      const delta = Math.atan2(Math.sin(desired-s.ang),Math.cos(desired-s.ang));
+      s.ang += Math.max(-6*dt,Math.min(6*dt,delta));
+    }
+  } else s.ang += (Math.random() - 0.5) * SKILL_NUM.electric['活电'].turnJitter;
   s.x += Math.cos(s.ang) * s.speed * dt;
   s.y += Math.sin(s.ang) * s.speed * dt;
   const hitE = combat.enemies().find((o) => o.hp > 0 && Math.hypot(o.x - s.x, o.y - s.y) < Collision.reach(o, SKILL_NUM.electric['活电'].hitRadius));

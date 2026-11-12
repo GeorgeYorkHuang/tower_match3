@@ -1,4 +1,4 @@
-/** 塔图鉴耗能说明：用独立构筑调用战斗计费，展示单技能及分支的参考费用。 */
+/** 塔图鉴耗能说明：独立构筑调用真实计费；分支各档沿用初次激活费用。 */
 'use strict';
 const CONFIG = require('../config.js');
 const SKILLS = require('../config/tower-skills.js');
@@ -21,7 +21,7 @@ function skillEnergy(key, name, branch, rank = 0) {
   const tower = new TowerBuild(key);
   const skill = tower.pool.find(item => item.name === name);
   skill.act = true;
-  if (branch) skill.branches[branch] = rank;
+  // branch/rank 参数仅兼容既有调用，费用参考始终使用初次激活档。
   const run = {
     relicNum: () => 0,
     relicValue: () => 0,

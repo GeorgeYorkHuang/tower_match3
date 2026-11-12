@@ -127,7 +127,7 @@ class GameMain {
   }
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
-  newRun(enterBattle) {
+  newRun(enterBattle, inheritedBonus) {
     this._talentGesture=null;
     this._tutorial = null;
     require('./prologue-tutorial.js').cancel(this);
@@ -180,7 +180,9 @@ class GameMain {
     this.animClock = 0;          // 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
     // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
-    this.firstBonus = (this.menuStage !== 'test') ? this.meta.dailyFirstBonus(this.menuStage, Date.now()) : 1;
+    this.firstBonus = this.menuStage === 'test' ? 1 : Number.isFinite(inheritedBonus) ? inheritedBonus
+      : enterBattle ? this.meta.dailyFirstBonus(this.menuStage, Date.now())
+      : this.meta.dailyFirstStatus(this.menuStage, Date.now()).multiplier;
     if (enterBattle) {
       this.enterBattle();
     } else {
@@ -785,9 +787,8 @@ class GameMain {
     // 修复：旧实现只清棋盘/塔位/技能，未重置 run.wave 与深度收益池——
     // 第 10 波（或任意波）重开后 wave.start() 使波数 +1，出现"塔清空却从 11 波继续"且深度池带旧账。
     // 改为复用 newRun(true)：全新 Run（波数/深度池/倍率/经验/敌人/战斗实体全部归零），波 1 重来。
-    const fb = this.firstBonus;   // 重开不计入每日首战加成次数
-    this.newRun(true);
-    this.firstBonus = fb;
+    const fb = this.state === 'gameover' ? undefined : this.firstBonus;
+    this.newRun(true, fb); // 战斗中重开沿用本局；结算后重开为真正新的一局。
     this.toast('重新开局 · 第 1 波', '#7ef0a3');
   }
 
@@ -1183,6 +1184,7 @@ class GameMain {
       gold: m.gold,
       diamond: m.diamond,
       tab: this.menuTab,
+      firstGoldBonus: m.dailyFirstStatus(this.menuStage, Date.now()),
       stageRequirement: require('../field-access.js').reason(this.menuStage,this.meta,this.testProfile),
       stage: this.menuStage==='test'&&!this.testProfile?'ancient':this.menuStage,           // 主界面所选战场：ancient | test
       codexSel: this.codexSel,         // 塔图鉴选中塔

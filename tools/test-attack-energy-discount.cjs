@@ -56,13 +56,13 @@ try {
   small.tower.pool.find(s => s.name === '多重冰锥').branches.C = 1;
   small.tower.energy = 60;
   small.combat.attackOnce('ice');
-  close(60 - small.tower.energy, 0.32, '10枚10%小冰锥合计1倍，仍应收0.4×0.8');
+  close(60 - small.tower.energy, 0.528, '小冰锥分支沿用首次多重冰锥费用');
 
   const armory = world('cannon', ['军火库']);
   armory.tower.pool.find(s => s.name === '军火库').branches.C = 1;
   armory.tower.energy = 120;
   armory.combat.attackOnce('cannon');
-  close(120 - armory.tower.energy, 0.88, '军火库高能普攻1.1倍再八折');
+  close(120 - armory.tower.energy, 0.8, '军火库高能分支不增加普攻费用');
   armory.tower.energy = 60;
   close(attackEnergyMultiplier(armory.combat, 'cannon'), 0.8, '激活后折算独立于军火库高能增伤条件');
 
@@ -71,7 +71,7 @@ try {
   resonance.tower.pool.find(s => s.name === '电磁过载').branches.C = 1;
   resonance.tower.energy = 60;
   resonance.combat.attackOnce('electric');
-  close(60 - resonance.tower.energy, 0.5 * 1.1 * 0.8, '共振普攻增伤统一八折');
+  close(60 - resonance.tower.energy, 0.5 * 0.8, '共振分支增伤不增加普攻费用');
 
   // 参数位于各技能，修改其中一个只影响对应技能；组合按各自参数相乘。
   const heavy = SKILLS.cannon['重炮'], double = SKILLS.cannon['双管齐射'];

@@ -230,6 +230,10 @@ module.exports = {
     // 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
     this.state = this._relicReturnState || 'fighting';
     this._relicReturnState = null;
+    if(!this.run._relicViewHintShown){
+      this.run._relicViewHintShown=true;
+      this.toast('点击上方圣遗物图标，可查看本局已获得的圣遗物','#ffe4a1');
+    }
     if (opening) require('../../relics/opening-pick.js').finish(this);
     if (this.pendingRelicPicks.length) return; // 还有宝箱：下帧继续弹
     if (this.state === 'fighting' && this.run.effects.pendingTotal() > 0) this.flushUpgrades(); // 顺带处理升级待选

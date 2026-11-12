@@ -1,4 +1,4 @@
-/** 用真实发射的弹数/伤害/穿透数校验组合收费；覆盖缺能、分支、圣物追加和独立系数。 */
+/** 校验分支成长仍改变实弹，普攻组合收费固定激活档；覆盖缺能与圣物追加。 */
 'use strict';
 const assert = require('assert');
 const api = require('./tower-balance-fixture.cjs');
@@ -40,7 +40,8 @@ try {
     const first = shots.reduce((sum, s) => sum + s.dmg / base, 0);
     const extra = shots[0].pierceMaxHits - 1;
     const follow = 1 + SKILLS.ice['冰穿刺'].pierceDmg[pierceBranch === 'B' ? pierceLevel : 0];
-    close(factor, Math.max(1, first * (1 + .6 * extra * follow)) * .8 * .8, '实际弹体×穿透预期×各技能系数');
+    close(factor, 1.65 * 1.6 * .8 * .8, '任意分支组合沿用两个技能的初始档费用');
+    assert(first > 0 && extra >= 1 && follow >= 1, '分支实弹与穿透仍正常生成');
     close(attackEnergyMultiplier(w.combat, 'ice'), factor, '读取不重复折算');
     cases++;
   }
@@ -49,7 +50,7 @@ try {
     const w = api.setup(key, names, 3, 'dense', 41, 'finite');
     const out = launch(w, key, energy);
     const projectileFactor = out.shots.reduce((sum, s) => sum + s.dmg / out.base, 0);
-    const expected = key === 'ice' ? 1.8 * 3.4 * .64 : 2.6 * .8;
+    const expected = key === 'ice' ? 1.65 * 1.6 * .64 : 1.76 * .8;
     close(out.factor, expected, '临界能量不改变费用预估');
     close(projectileFactor, key === 'ice' ? 1.8 : 2.6, '实弹伤害使用扣费前能量'); cases++;
   }
@@ -58,7 +59,7 @@ try {
     upgrade(w, '多镖', branch, level); relics(w, extra, 0, extra ? 15 : 0);
     const { base, factor, shots } = launch(w, 'boomerang', 60);
     const actual = shots.reduce((sum, s) => sum + s.dmg / base, 0);
-    close(factor, Math.max(1, actual) * .8, '每枚同倍率，圣物只追加弹数/增伤不追加衰减');
+    close(factor, (2 + extra) * .88 * (1 + (extra ? .15 : 0)) * .8, '分支不加价，圣物费用仍按原有口径');
     assert(shots.every(s => Math.abs(s.dmg - shots[0].dmg) < 1e-7)); cases++;
   }
   for (const swarm of [false, true]) {
@@ -66,13 +67,14 @@ try {
     relics(w, 2, 3, 0);
     const { base, factor, shots } = launch(w, 'ice', 60);
     const actual = shots.reduce((sum, s) => sum + s.dmg / base, 0);
-    close(factor, actual * (1 + .6 * (shots[0].pierceMaxHits - 1)) * .64, '普通/小冰锥均计入实际追加弹数和穿透数'); cases++;
+    close(factor, 5 * .55 * (1 + .6 * 4) * .64, '圣物追加沿用原口径，普通/小冰锥分支不额外加价');
+    assert(actual > 0 && shots[0].pierceMaxHits > 4); cases++;
   }
   const a = SKILLS.ice['多重冰锥'].attackEnergyFactor, b = SKILLS.ice['冰穿刺'].attackEnergyFactor;
   try {
     SKILLS.ice['多重冰锥'].attackEnergyFactor = .7; SKILLS.ice['冰穿刺'].attackEnergyFactor = .9;
     const w = api.setup('ice', [['多重冰锥', 'C'], ['冰穿刺', 'A']], 3, 'dense', 41, 'finite');
-    close(launch(w, 'ice', 60).factor, 1.8 * 3.4 * .7 * .9, '组合仍分别读取独立参数');
+    close(launch(w, 'ice', 60).factor, 1.65 * 1.6 * .7 * .9, '组合仍分别读取独立参数');
   } finally { SKILLS.ice['多重冰锥'].attackEnergyFactor = a; SKILLS.ice['冰穿刺'].attackEnergyFactor = b; }
   // 真实碰撞/穿透/碎冰和回程扫敌都不能再次收费。
   for (const key of ['ice', 'boomerang']) {

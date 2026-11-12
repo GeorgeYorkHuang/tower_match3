@@ -103,12 +103,17 @@ class Meta {
   /** 钻石速开：成功返回 true */
   speedOpen(idx) { return DeepChests.speedOpen(this, idx); }
   /* ---------- 每日首战加成（） ---------- */
+  dailyFirstStatus(field, now) {
+    const counts = this.dailyFirst && this.dailyFirst.date === todayStr(now) ? this.dailyFirst.counts : {};
+    const remaining = Math.max(0, 2 - ((counts || {})[field] || 0));
+    return {remaining, multiplier:remaining > 0 ? 1.5 : 1};
+  }
   dailyFirstBonus(field, now) {
     const d = todayStr(now);
     if (!this.dailyFirst || this.dailyFirst.date !== d) this.dailyFirst = { date: d, counts: {} };
     const n = this.dailyFirst.counts[field] || 0;
     this.dailyFirst.counts[field] = n + 1;
-    return n < 2 ? 1.5 : 0.5;   // 前 2 局 ×1.5，之后 ×0.5
+    return n < 2 ? 1.5 : 1;   // 同战场前2局深度金币×1.5，之后恢复正常收益。
   }
 
   /* ---------- 局内圣遗物图鉴 ---------- */

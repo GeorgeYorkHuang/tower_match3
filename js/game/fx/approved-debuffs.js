@@ -7,6 +7,8 @@
 const { core: C, effects } = require('./pixelfx-debuff-runtime.js');
 const BUDGET = require('../../config/performance.js').debuff;
 const actors = new Map(), renders = new Map(), latest = new Map(), pending = new Map();
+// Boss 中毒不使用32px身体重绘；仅缓存原图大小的透明绿色轮廓，不读回像素。
+const poisonTints = new Map();
 let handled = new WeakMap(), frameId = 0, actorReads = 0, disabled = false;
 let actorCanvas = null, scratch = null;
 const counters = { builds: 0, reads: 0, reused: 0, fallback: 0 };
@@ -163,7 +165,12 @@ function fallback(ctx, id, x, y, size, now) {
 
 function draw(ctx, img, crop, e, x, y, size, now) {
   handled.set(e, false);
-  const ids = selected(e), ice = e._iceSlowT > 0 && !(e.frozen > 0);
+  let ids = selected(e);
+  const ice = e._iceSlowT > 0 && !(e.frozen > 0);
+  if (e.isBoss && ids.includes('status/poisoned')) {
+    drawBossPoison(ctx, img, crop, e, x, y, size, now);
+    ids = ids.filter(id => id !== 'status/poisoned');
+  }
   if (!ids.length && !ice) { handled.set(e, true); return; }
   let info = null;
   try { info = actorOf(img, crop); } catch (error) { disabled = true; }
@@ -185,11 +192,44 @@ function draw(ctx, img, crop, e, x, y, size, now) {
   } finally { ctx.restore(); }
 }
 
+/** 原轮廓透明染色叠加在高清Boss上；毒泡用Canvas几何绘制，放大后仍清晰。 */
+function drawBossPoison(ctx, img, crop, e, x, y, size, now) {
+  const key = (img.src || 'image') + ':' + [crop.x,crop.y,crop.w,crop.h].join(',');
+  let tinted = touch(poisonTints,key);
+  if (!tinted) {
+    try {
+      // 缩放上限避免异常大图创建过大的纹理；正常Boss帧保留原始分辨率。
+      const scale = Math.min(1,512/Math.max(crop.w,crop.h));
+      tinted = surface(Math.max(1,Math.round(crop.w*scale)),Math.max(1,Math.round(crop.h*scale)));
+      if(tinted){
+        const c=tinted.getContext('2d');c.clearRect(0,0,tinted.width,tinted.height);
+        c.drawImage(img,crop.x,crop.y,crop.w,crop.h,0,0,tinted.width,tinted.height);
+        c.globalCompositeOperation='source-in';c.fillStyle='rgba(74,206,91,0.18)';
+        c.fillRect(0,0,tinted.width,tinted.height);c.globalCompositeOperation='source-over';
+        poisonTints.set(key,tinted);trim(poisonTints,8);
+      }
+    } catch(error) { tinted=null; } // 设备不支持离屏合成时仍显示清晰毒泡。
+  }
+  ctx.save();
+  if(tinted)ctx.drawImage(tinted,x,y,size,size);
+  const dot=(e.dots||[]).find(d=>d.type==='poison'&&d.ttl>0);
+  const count=Math.max(3,Math.min(5,dot&&dot.stack||1));
+  for(let i=0;i<count;i++){
+    const phase=now/650+i*1.7;
+    const px=x+size*(.5+Math.sin(phase)*.27),py=y+size*(.68-.28*((phase/3+i/count)%1));
+    const r=Math.max(3.5,Math.min(6,size*.028));
+    ctx.fillStyle='rgba(12,64,30,0.85)';ctx.beginPath();ctx.arc(px,py,r+1.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#68df86';ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#e2ffce';ctx.beginPath();ctx.arc(px-r*.28,py-r*.3,r*.3,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
 function ready(e) { return handled.get(e) === true; }
 function clear() {
-  actors.clear(); renders.clear(); latest.clear(); pending.clear(); handled = new WeakMap();
+  actors.clear(); renders.clear(); latest.clear(); pending.clear(); poisonTints.clear(); handled = new WeakMap();
   actorCanvas = null; scratch = null; disabled = false; frameId = 0; actorReads = 0;
   for (const key of Object.keys(counters)) counters[key] = 0;
 }
-function stats() { return { ...counters, actors: actors.size, frames: renders.size, pending: pending.size, disabled }; }
+function stats() { return { ...counters, actors: actors.size, frames: renders.size, pending: pending.size, poisonTints:poisonTints.size, disabled }; }
 module.exports = { draw, ready, selected, beginFrame, clear, stats };

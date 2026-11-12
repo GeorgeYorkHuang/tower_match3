@@ -8,12 +8,30 @@ const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
 
 // Menu hit priority, purchase/equip actions and modal routing. No renderer dependency.
 function onMenuTap(game, p) {
+    const modalStart=game.menuPanel?game.menuHits.map(it=>it.key).lastIndexOf('panelBounds'):-1;
+    const locked=game.menuHits.slice(modalStart+1).find(it=>['relicInfo','relicLock'].includes(it.key)&&it.hit(p.x,p.y));
+    if(locked && (!game.menuPanel || ['relicDex','starUp'].includes(game.menuPanel.type)) && game.meta.starOf(locked.data)<1){
+      if(game.meta.canUnlockByShard(locked.data)){
+        const error=game.meta.unlockByShard(locked.data);if(!error)game.save.save();
+        game.toast(error||'圣遗物已解锁','#f7c948');
+      }else game.toast('尚未解锁，集齐碎片后可解锁','#c6cbb3');
+      return;
+    }
     if(require('../unlock-guide.js').tap(game,p))return;
     if (require('./talent-actions.js').handle(game,p)) return;
     if (game.menuPanel) {
       const bounds = game.menuHits.find(it => it.key === 'panelBounds');
       if (bounds && !bounds.hit(p.x, p.y)) { game.menuPanel = null; return; }
       const ptype = game.menuPanel.type;
+      if (ptype === 'codexSkill') {
+        const skill = game.menuHits.find(it => it.key === 'codexSkillSelect' && it.hit(p.x, p.y));
+        if (skill) {
+          game.menuPanel.idx = skill.data.idx;
+          game.menuPanel.scrollY = 0;
+          game._panelScrollVelocity = 0;
+          return;
+        }
+      }
       if (['accountMenu', 'accountInfo', 'accountMail', 'testProfile'].includes(ptype)) {
         const target = game.menuHits.find(it => (it.key.startsWith('account') || it.key.startsWith('profile')) && it.hit(p.x, p.y));
         if (target) { AccountMenu.handle(game, target.key, target.data); return; }
@@ -150,6 +168,7 @@ function onMenuTap(game, p) {
           // 塔图鉴：切换选中塔
           if(!game.testProfile&&!game.meta.towerCodex[it.data]){game.menuPanel={type:'featureLocked',message:'战斗中首次建造该塔后解锁图鉴'};return;}
           game.codexSel = it.data;
+          game.menuPanel = {type:'codexSkill',tower:it.data,idx:0,scrollY:0};
           return;
         case 'codexSkill':
           // 塔图鉴：点技能卡 → 打开 A/B/C 分支效果面板
@@ -246,7 +265,7 @@ function onMenuTap(game, p) {
               name: cd.name, icon: cd.icon, color: cd.color, key: cd.key,
               price: cd.price, left: game.meta.shopChestLeft(cd.key),
               rarName: RAR_NAME[rar] || rar.toUpperCase(),
-              desc: `随机开启 ${cd.shards.join('~')} 个${RAR_NAME[rar] || rar.toUpperCase()}色稀有度圣遗物碎片`,
+              desc: '同级通关宝箱的碎片奖励，不含金币或钻石。',
             },
           };
           return;

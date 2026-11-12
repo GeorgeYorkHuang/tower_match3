@@ -2,8 +2,11 @@
 // 全局技能配置面板滚动（）：与圣遗物页同一套匀减速惯性运动参数（config/relic-scroll.js）。
 // 滚动状态挂在 game.menuPanel.scrollY（面板关闭即废弃）；拖拽/速度状态挂 game._panelDrag / _panelScrollVelocity。
 const MOTION = require('../../config/relic-scroll.js');
-function active(game) { return game.state === 'menu' && game.menuPanel && ['globalCfg','talentPicker','talentSummary','accountMail'].includes(game.menuPanel.type); }
-function talentMetrics(game) { if(game.menuPanel&&game.menuPanel.type==='accountMail'){const ui=require('../../config/mail-ui.js');return{viewport:ui.viewport,max:ui.maximum(game.meta.mails||[])};}return require('../screens/talent-layout.js').scroll(game.meta,game.menuPanel); }
+function active(game) { return game.state === 'menu' && game.menuPanel && ['globalCfg','talentPicker','talentSummary','accountMail','codexSkill'].includes(game.menuPanel.type); }
+function talentMetrics(game) {
+  if(game.menuPanel&&game.menuPanel.type==='codexSkill')return {viewport:game.renderer&&game.renderer._codexViewport,max:(game.renderer&&game.renderer._codexMaxScroll)||0};
+  if(game.menuPanel&&game.menuPanel.type==='accountMail'){const ui=require('../../config/mail-ui.js');return{viewport:ui.viewport,max:ui.maximum(game.meta.mails||[])};}return require('../screens/talent-layout.js').scroll(game.meta,game.menuPanel);
+}
 function viewport(game) { const m=talentMetrics(game);return m?m.viewport:game.renderer && game.renderer._globalCfgViewport; }
 function maximum(game) { const m=talentMetrics(game);return m?m.max:Math.max(0, (game.renderer && game.renderer._globalCfgMaxScroll) || 0); }
 function clamp(value, max) { return Math.max(0, Math.min(value, max)); }

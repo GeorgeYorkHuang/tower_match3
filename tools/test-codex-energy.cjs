@@ -52,8 +52,16 @@ try {
   close(skillEnergy('cannon', '重炮').min, 1.76);
   assert.equal(skillEnergy('electric', '活电').label, '无额外耗能');
   assert.equal(skillEnergy('boomerang', '风痕').label, '无额外耗能');
-  assert.equal(skillEnergy('electric', '电磁过载', 'C', 3).amount, '0.4–0.52');
-  assert.equal(skillEnergy('cannon', '军火库', 'C', 3).amount, '0.8–1.04');
+  assert.equal(skillEnergy('electric', '电磁过载', 'C', 3).amount, '0.4');
+  assert.equal(skillEnergy('cannon', '军火库', 'C', 3).amount, '0.8');
+  for (const [key, defs] of Object.entries(SKILLS)) for (const [name, def] of Object.entries(defs)) {
+    if (def.attackEnergyFactor == null) continue;
+    const base = skillEnergy(key, name);
+    for (const branch of ['A','B','C']) for (let rank=1;rank<=3;rank++) {
+      const next = skillEnergy(key,name,branch,rank);
+      close(next.min,base.min);close(next.max,base.max);
+    }
+  }
 
   // 运行真实图鉴绘制，检查卡片/详情均使用新费用且分支费用行未溢出。
   let labels = [];
@@ -82,7 +90,9 @@ try {
   for (const [key, pool] of Object.entries(CONFIG.EFFECT_POOLS)) {
     labels = [];
     screen.menuCodex(ctx, { codexSel: key, towerCodex: { [key]: 1 } }, () => {});
-    for (const skill of pool) assert(labels.some(item => item.value === `⚡${skillEnergy(key, skill.name).label}`));
+    // 新版主页展示六塔基础属性，单技能耗能在侧栏随技能切换。
+    assert(labels.some(item => item.value === '塔图鉴'));
+    assert.equal(labels.filter(item => item.value.startsWith('基础耗能 ')).length, 6);
     for (const item of labels.filter(item => item.value.startsWith('⚡') && !item.value.includes('基础'))) {
       assert(measure(item.value, item.size) <= 190, `${item.value} 卡片费用越界`);
     }
@@ -93,7 +103,7 @@ try {
       assert(labels.some(item => item.value.includes(`⚡${energy.label}`)));
       if (energy.kind === 'attack') {
         const rows = labels.filter(item => item.value.startsWith('耗能：'));
-        assert.equal(rows.length, 3);
+        assert.equal(rows.length, 0, '分支不再展示分档费用，只在技能标题旁显示固定费用');
         for (const row of rows) assert(measure(row.value, row.size) <= 530, `${row.value} 分支费用越界`);
       }
     }

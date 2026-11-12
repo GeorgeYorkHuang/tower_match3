@@ -57,7 +57,13 @@ function create(options) {
     if (packageReady) { prepareGame(id); return; }
     const callbacks = {
       name: 'assets',
-      success() { if (active(id, 'assets')) prepareGame(id); },
+      success() {
+        if (!active(id, 'assets')) return;
+        // 缓存命中也可能只有1%→完成，留出220ms让真实完成值平滑呈现。
+        // 此等待仅用于视觉收尾；游戏启动完成仍须首帧握手，不伪造初始化进度。
+        state.percent = 100; state.slow = false; state.retry = false; lastActivity = now(); notify();
+        schedule(() => { if (active(id, 'assets')) prepareGame(id); }, 240);
+      },
       fail(error) { if (active(id, 'assets')) failed(id, 'assets', error); },
     };
     let task;

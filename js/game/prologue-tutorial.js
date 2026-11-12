@@ -10,7 +10,14 @@ const lessons = {
     { id: 'match', wave: 1, title: '完成三消', body: '交换相邻方块，连成三个同色方块，激活第一座塔。', event: 'match' },
     { id: 'tower', wave: 1, title: '防御塔会自动攻击', body: '点击高亮防御塔继续。塔攻击会消耗能量，需要消除对应颜色补能。' },
     { id: 'second', wave: 2, title: '选择第二座塔', body: '消除另一种颜色激活第二座塔，本章最多两座。', owned: 2 },
-    { id: 'energy', wave: 3, title: '为塔补充能量', body: '再次消除已有塔的颜色，观察塔的能量条增长。', event: 'energy' },
+    { id: 'energy', wave: 1, title: '首次充能 · 能量影响塔的强度', body: [
+      '消除已激活塔对应颜色的方块，可以为它充能。',
+      '0点：攻击力30%；普攻间隔和周期技冷却×2。',
+      '不足20点：攻击力60%；普攻间隔和周期技冷却×1.5。',
+      '20～40点：攻击力逐步恢复到100%，间隔和冷却逐步恢复正常。',
+      '40～90点：攻击、普攻间隔和周期技冷却正常。',
+      '超过90点：攻击力逐步提升，100点时达到130%，普攻间隔缩短30%；周期技冷却不变。',
+    ].join('\n'), event: 'energy', acknowledge: true },
     { id: 'special', wave: 4, title: '四消特殊方块', body: '一次连成四个同色方块，会留下一个特殊方块。', event: 'match4' },
   ],
   [PLAN.order[1]]: [
@@ -21,7 +28,7 @@ const lessons = {
   ],
   [PLAN.order[2]]: [
     { id: 'branch', wave: 1, title: '本局只能选择一个分支', body: '每个技能的A／B／C分支，本次战斗只能选择其中一个。选定后只能继续升级该分支，另外两个本局不能再选。', event: 'branch' },
-    { id: 'relic', wave: 5, title: '领取第一件圣遗物', body: '消除宝箱旁的方块打开宝箱，再从三件圣遗物中选一件。', event: 'relic' },
+    { id: 'relic', wave: 5, title: '领取第一件圣遗物', body: '消除宝箱旁的方块可以打开宝箱，再从三件圣遗物中选一件。点击「确认继续」后自由操作，无需现在开箱。', event: 'relic', acknowledge: true },
     { id: 'rarities', wave: 10, title: '圣遗物品质', body: '蓝色可以重复叠加，紫色和金色在本局各只能获得一次。' },
   ],
 };
@@ -68,13 +75,19 @@ function tick(game) {
   const picking=game.state==='picking'&&game.pickQueue[game.pickIndex];
   const triggered=picking&&lessons[state.id].find(item=>['skill','branch'].includes(item.event)&&!state.saved.done.includes(item.id)&&picking.candidates.some(card=>card.type===item.event));
   if(triggered&&state.current!==triggered){restoreGlobal(game,state);state.current=triggered;state.move=null;}
+  // 首次补能可早于第3波或第二座塔；等建塔介绍完成、消除动画结束后再说明。
+  if(state.energyTower&&!state.saved.done.includes('energy')&&state.saved.done.includes('tower')&&game.state==='fighting'&&!game.anim){
+    const energyLesson=lessons[state.id].find(item=>item.id==='energy');
+    if(energyLesson&&state.current!==energyLesson){state.current=energyLesson;state.move=null;state.spotlight=null;}
+  }
   if (!state.current) {
     const group=game.state==='picking'&&game.pickQueue[game.pickIndex];
     const lesson = lessons[state.id].find(item => !state.saved.done.includes(item.id)&&game.run.wave>=item.wave&&
+      (item.event!=='energy'||!!state.energyTower)&&
       (!['skill','branch'].includes(item.event)||(group&&group.candidates.some(card=>card.type===item.event))));
     if (!lesson || game.run.wave < lesson.wave) return false;
     state.current = lesson;
-    if(state.id===PLAN.order[0]&&['match','energy'].includes(lesson.event)&&!game.anim){
+    if(state.id===PLAN.order[0]&&lesson.event==='match'&&!game.anim){
       const previous=game._tutorial;game._tutorial={};require('./tutorial.js').prepare(game);state.move=game._tutorial.move;game._tutorial=previous;
     }else state.move=null;
   }
@@ -89,17 +102,25 @@ function tick(game) {
 }
 function action(game, event, value) {
   const state = game._prologueTutorial, lesson = state && state.current;
+  if(state&&state.id===PLAN.order[0]&&event==='swap'&&!state.energyTower&&!state.saved.done.includes('energy')){
+    const charged=(value&&value.settled||[]).find(match=>match.tower&&!match.gotTower&&match.ammoGain>0);
+    if(charged)state.energyTower=charged.tower;
+  }
   if (!lesson) return;
   if (event === 'swap') {
     const matches = value && value.matches || [];
     if (lesson.event === 'match' && matches.length) complete(game);
-    else if (lesson.event === 'energy' && (value.settled || []).some(match => !match.gotTower && match.ammoGain > 0)) complete(game);
     else if (lesson.event === 'match4' && matches.some(match => match.shape === '4')) complete(game);
   } else if (lesson.event === event) complete(game);
 }
 function targets(game) {
   const state=game._prologueTutorial,lesson=state&&state.current,l=game.ly;
   if(!lesson)return [];
+  if(lesson.event==='energy'){
+    const idx=game.run.slotOrder.indexOf(state.energyTower),n=(l.slotCount||4)+2;
+    if(idx<0)return [];
+    return [{x:(750-n*l.slotSize-(n-1)*l.slotGap)/2+(idx+1)*(l.slotSize+l.slotGap),y:l.slotY,w:l.slotSize,h:l.slotSize}];
+  }
   if(state.move){const m=state.move;return [{x:l.boardX+Math.min(m[1],m[3])*l.cell,y:l.boardY+Math.min(m[0],m[2])*l.cell,w:(Math.abs(m[1]-m[3])+1)*l.cell,h:(Math.abs(m[0]-m[2])+1)*l.cell}];}
   if(lesson.id==='tower'){const n=game.run.towerSlots;return [{x:(750-n*l.slotSize-(n-1)*l.slotGap)/2,y:l.slotY,w:l.slotSize,h:l.slotSize}];}
   if(['skill','branch'].includes(lesson.event)){
@@ -117,8 +138,14 @@ function tap(game, point) {
   if (!['fighting','picking','relicpick'].includes(game.state))return false;
   if(game.towerInfo||game.towerSkill||game.funcLayer||game.relicDetail||game.shopOpen)return false;
   const state=game._prologueTutorial,lesson=state&&state.current;
+  // 告知型教学不能抢占升级／圣遗物选择窗口，即使上一帧还有指引坐标。
+  if(lesson&&lesson.acknowledge&&game.state!=='fighting'){state.spotlight=null;return false;}
   if(!lesson||!state.spotlight)return false;
-  if(Spotlight.inside(point,state.spotlight.skip)){state.saved.skipped=true;cancel(game);persist(game);return true;}
+  if(Spotlight.inside(point,state.spotlight.skip)){
+    if(lesson.acknowledge){complete(game);return true;}
+    state.saved.skipped=true;cancel(game);persist(game);return true;
+  }
+  if(lesson.acknowledge)return true;
   const boxes=targets(game);
   if(lesson.id==='tower'&&boxes.some(b=>Spotlight.inside(point,b))){complete(game);return true;}
   if(!lesson.event&&!lesson.owned&&lesson.id!=='tower'&&Spotlight.inside(point,state.spotlight.panel)){complete(game);return true;}
@@ -128,10 +155,11 @@ function tap(game, point) {
 function draw(ctx, game) {
   const state=game._prologueTutorial,lesson=state&&state.current;
   if(!lesson||!['fighting','picking','relicpick'].includes(game.state))return;
+  if(lesson.acknowledge&&game.state!=='fighting'){state.spotlight=null;return;}
   if(game.towerInfo||game.towerSkill||game.funcLayer||game.relicDetail||game.shopOpen){state.spotlight=null;return;}
   const boxes=targets(game);
   if(!boxes.length&&(lesson.event||lesson.owned||lesson.id==='tower')){state.spotlight=null;return;}
-  state.spotlight=Spotlight.draw(ctx,boxes,lesson.title,lesson.body);
+  state.spotlight=Spotlight.draw(ctx,boxes,lesson.title,lesson.body,lesson.acknowledge?'确认继续':'跳过本章');
   if(state.move){const l=game.ly,m=state.move,x=l.boardX+(m[1]+.5)*l.cell,y=l.boardY+(m[2]+.5)*l.cell;
     ctx.save();ctx.strokeStyle='#ffe291';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-l.cell);ctx.lineTo(x-10,y-l.cell+16);ctx.moveTo(x,y-l.cell);ctx.lineTo(x+10,y-l.cell+16);ctx.stroke();ctx.restore();}
 }
@@ -145,6 +173,7 @@ function restart(game) {
 }
 function allowSwap(g,a,b,c,d){
   const s=g._prologueTutorial;if(!s||!s.current)return true;
+  if(s.current.acknowledge&&s.spotlight)return false;
   if(s.move){const m=s.move;return (a===m[0]&&b===m[1]&&c===m[2]&&d===m[3])||(c===m[0]&&d===m[1]&&a===m[2]&&b===m[3]);}
   if(!s.spotlight)return true;
   const l=g.ly,from={x:l.boardX+(b+.5)*l.cell,y:l.boardY+(a+.5)*l.cell},to={x:l.boardX+(d+.5)*l.cell,y:l.boardY+(c+.5)*l.cell};
