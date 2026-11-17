@@ -2,6 +2,7 @@ const ChainFlight = require('../chain-flight.js');
 'use strict';
 const CONFIG = require('../config.js');
 const EnergyState = require('../config/energy-state.js');
+const Bosses = require('../bosses/index.js');
 // Queues, energy and timing remain on the caller-owned combat/run.
 
 function periodicTimers() {
@@ -16,6 +17,7 @@ function periodicTimers() {
 }
 
 function _weakPeriod(combat, key) {
+  if (Bosses.towerFrozen(combat.game, key)) return Infinity;
   const t = combat.tower(key);
   return t ? EnergyState.evaluate(t.energy, combat.game.run.armoryEnergyMax(key)).cooldown : 1;
 }
@@ -69,6 +71,7 @@ function castEnergy(combat, key, name) {
 
 function bonusStrike(combat, key, shape) {
   const g = combat.game;
+  if (Bosses.towerFrozen(g, key)) return;
   const t = combat.tower(key);
   if (!t || t.level === 0) return;
   const tgt = combat.pickTarget(key);

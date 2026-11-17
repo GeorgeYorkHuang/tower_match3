@@ -8,6 +8,7 @@ const RelicKill = require('../relics/kill-hooks.js');
 function onKill(combat, e) {
   require('../talents/runtime.js').onDeath(combat,e);
   const g = combat.game;
+  require('../game/fx/boss-death.js').emit(g, e);
   const rewardAllowed = Bosses.onDeath(g, e);
   // 毒·致死：低血死亡（此处仅为触发记录，实际致死在命中时判断）
   // 按所有激活塔触发死亡技能

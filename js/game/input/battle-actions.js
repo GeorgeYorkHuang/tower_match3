@@ -3,6 +3,7 @@ const CONFIG = require('../../config.js');
 
 // Preserve modal priority and consume each event once. Player state belongs to game.
 function dispatchTouch(game, p, version) {
+  if (require('../auto-battle.js').tap(game,p)) return true;
   if (require('../tutorial.js').tap(game,p)) return true;
   if (require('../flows/ad-actions.js').tap(game,p)) return true;
   // 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页

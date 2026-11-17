@@ -130,13 +130,14 @@ class WaveDirector {
     const entryY = this.ly.areaY + this.ly.entryH;
     const wallY = this.ly.wallY;
     const speed = (wallY - entryY) / WAVE_DUR;
-    this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv);
+    this.pushEnemy(it.hp, entryY, speed, it.offset, it.isBoss, it.type, it.lv, it);
     const born=this.game.enemies[this.game.enemies.length-1];
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
     // 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
     if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born._ringClock=0;born._ringCount=0;}
     if(it.isBoss)require('./game/fx/boss-announcement.js').enter(this.game,born);
     if(it.isSummon)born.isSummon=true;
+    Bosses.spawnSummon(this.game, born);
     if(Number.isFinite(it.spawnX)) born.x=it.spawnX;
     if (!this.plan.length) this.planDoneAt = this.game.waveTime;   // 投放完成时间戳
   }
@@ -154,7 +155,7 @@ class WaveDirector {
   /** 敌人入列（id / 位置 / 血量 / 速度 / 类型 / 攻城攻击参数 / A1 状态字段）
    *  代际重构：lv 为代际等级，攻击/减伤/移速/展示等级由 CONFIG.ENEMY.levelOf(lv) 取值；
    *  精英/Boss 在等级表基础上叠加自带 armor 与攻击倍率 */
-  pushEnemy(hp, entryY, speed, offset, isBoss, type, lv) {
+  pushEnemy(hp, entryY, speed, offset, isBoss, type, lv, meta = {}) {
     // 所有出生路径（含小Boss召唤）统一应用一次；地图区间外倍率为1。
     hp *= FieldBalance.enemyHpMultiplier(this.game.run.fieldCfg, this.game.run.wave);
     const lcfg = CONFIG.ENEMY.levelOf(lv || 1);
@@ -176,10 +177,12 @@ class WaveDirector {
       attack: lcfg.atk * (isBoss ? CONFIG.ENEMY.bossAtkMult : (type === 'elite' ? (CONFIG.ENEMY.eliteAtkMult || 1) : 1)), // 攻城每次伤害
       attackInterval: CONFIG.ENEMY.attackInterval[atkKey] || CONFIG.ENEMY.attackInterval.normal, // 攻城攻击间隔
       attackT: 0,
-      vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：毒藤缠绕/定身时长减免（Lv7 垂藤浮卫 0.5）
+      vineResist: lcfg.vineResist || 0,          // 藤蔓亲和：定身时长减免
+      isSummon: !!meta.isSummon, bossSummonId: meta.bossSummonId || null,
+      bossOpeningAdd: !!meta.bossOpeningAdd,
     };
     require('./prologue/balance.js').spawnScale(this.game,e);
-    const local=FieldEnemies.ofGame(this.game),fieldStats=!isBoss&&local&&FieldEnemies.stats(local,lv||1,e.type);
+    const local=FieldEnemies.ofGame(this.game),fieldStats=!isBoss&&!meta.bossSummonId&&local&&FieldEnemies.stats(local,lv||1,e.type);
     if(fieldStats){
       e.armor=fieldStats.armor;e.attack=fieldStats.attack;e.attackInterval=fieldStats.attackInterval;
       e.speed=speed*fieldStats.speed;

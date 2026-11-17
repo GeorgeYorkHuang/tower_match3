@@ -113,6 +113,8 @@ const IMG_SRC = {
   boss_altar_galvin_twin: 'assets/images/monsters/bosses/altar_galvin/twin-float-v1.png',
   boss_altar_vera: 'assets/images/monsters/bosses/altar_vera/hover-v1.png',
   boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
+  boss_lava_ridge: 'assets/images/monsters/bosses/lava-ridge/shell-cycle-v1.png',
+  boss_frost_alpha: 'assets/images/monsters/bosses/frost-alpha/charge-cycle-v2.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
   miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
   coin: 'assets/images/resources/coin.png', bullet: null,
@@ -354,6 +356,7 @@ const FX_HANDLERS = {
   strikeAim: 'fxStrikeAim',
   strike: 'fxStrike',
   boom: 'fxBoom',
+  bossDeath: 'fxBossDeath',
   flash: 'fxFlashFx',
   vine: 'fxVine',
   thorn: 'fxThorn',
@@ -512,6 +515,9 @@ class Renderer {
   }
 
   preloadBoss(id) { return this._getEnemyLayer().preloadBoss.call(this, id); }
+  bossSkillSprite(ctx, name, frame, x, y, size, alpha) {
+    return require('./fx/boss-skill-atlas.js').draw(ctx, loadImg, name, frame, x, y, size, alpha);
+  }
 
   /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（v1.16.43 重构拆分子方法） */
   enemies(ctx, enemies, splitVisual) { return this._getEnemyLayer().enemies.call(this, ctx, enemies, splitVisual); }
@@ -625,6 +631,7 @@ class Renderer {
 
   fxStrike(ctx, f) { return this._getCannonFx().fxStrike(ctx, f); }
 
+  fxBossDeath(ctx, f) { return require('./fx/boss-death.js').draw(ctx, f, loadImg); }
   fxBoom(ctx, f) { return this._getCommonFx().fxBoom(ctx, f); }
 
   fxFlashFx(ctx, f) { return this._getCommonFx().fxFlashFx(ctx, f); }
@@ -1311,4 +1318,5 @@ function drawTowerGlyph(ctx, key, x, y, size) {
 }
 
 module.exports = { COLOR_FILL, TOWER_TINT, IMG_SRC, BOARD_IMG, Renderer, layout, fmtNum };
+
 

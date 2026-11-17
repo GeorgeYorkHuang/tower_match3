@@ -1,5 +1,20 @@
 'use strict';
 module.exports={altar_rosea:{id:'altar_rosea',field:'ancient',wave:20,name:'缠根司祭·萝赛',hp:52000,armor:0.15,attack:210,speed:0.75,threshold:0.5,shieldPeriod:14,shieldPerLayer:1800,maxLayers:1,shieldDuration:5,shieldReduction:0,phaseStun:0.5,phaseSpeed:1.3,phaseAttackSpeed:1.1,summonHp:800,summonCount:3,adds:[[6,6,5,5,5],[6,6,6,5,5,5]]},
+  lava_ridge: {
+    id: 'lava_ridge', field: 'lava', wave: 20, name: '熔壳巨蜥·赤脊',
+    hp: 65000, armor: 0.35, openArmor: 0.05, attack: 230, speed: 0.72, threshold: 0.50,
+    closedSeconds: 5, openSeconds: 7, summonPeriod: 14, summonCount: 2, summonLimit: 4,
+    summonLv: 5, summonHp: 1100, phaseSpeed: 1.25, phaseAttack: 1.20,
+    spawnInterval: 0.25, openingAddsDelay: 3, adds: [4,4,4,4,4,4,6,6],
+  },
+  frost_alpha: {
+    id: 'frost_alpha', field: 'frost', wave: 20, name: '裂风狼王·霜牙',
+    hp: 60000, armor: 0.12, attack: 200, speed: 0.90, threshold: 0.50,
+    chargePeriod: 12, chargeWindup: 2, chargeDuration: 3, chargeSpeed: 1.80,
+    fatigueDuration: 2, phaseChargePeriod: 9,
+    summonCount: 2, summonLimit: 4, summonLv: 5, summonHp: 850, attackInterval: 1.2,
+    spawnInterval: 0.25, openingAddsDelay: 3, adds: [4,4,4,4,4,4,5,5,5,5],
+  },
 altar_galvin: {
   id: 'altar_galvin', field: 'ancient', wave: 40, name: '双生圣像·迦尔文',
   // 首关W40生命预算：本体与分身共同缩至原20%，保留分裂、回响和双生共鸣机制。

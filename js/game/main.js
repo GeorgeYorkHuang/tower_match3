@@ -128,6 +128,7 @@ class GameMain {
 
   /** 新建对局；enterBattle=true 时应用技能搭配/圣物并进入战斗，否则停留在主界面 */
   newRun(enterBattle, inheritedBonus) {
+    this.autoBattle = false; this._autoPickElapsed = 0; this.autoBattleHit = null;
     this._talentGesture=null;
     this._tutorial = null;
     require('./prologue-tutorial.js').cancel(this);
@@ -282,6 +283,7 @@ class GameMain {
   update(dt) {
     if (this.state==='picking'||this.state==='relicpick') require('./prologue-tutorial.js').tick(this);
     if (this._adBusy) return;
+    require('./auto-battle.js').tick(this, dt);
     if (this.state === 'fighting' && this.run.adReviveProtection > 0) this.run.adReviveProtection = Math.max(0, this.run.adReviveProtection - dt * this.runSpeed);
     ShopScroll.update(this, dt);
     RelicScroll.update(this, dt);
@@ -491,10 +493,12 @@ class GameMain {
     let wallHits = 0, wallHitY = wallEdge - 10;
     for (const e of this.enemies) {
       // 以怪物脚底/精灵下沿到达行走区边界作为攻城线，避免大体型怪进入塔位区。
+      if (e.hp <= 0) continue;
       const wallLine = this.enemyWallLine(e);
       if (e.y < wallLine) continue;
       wallHitY = wallLine;
       if (e.frozen > 0 || e.paralyzed > 0 || e._bossStun > 0) continue;
+      if (Bosses.coreAtWall(this, e)) continue;
       // 毒·瘴气：环内敌人命中率下降（20% 概率攻击落空，）
       if (e._miasma && Math.random() < 0.20) continue;
       // 冰墙攻击间隔迟缓计时（：被冰墙迟缓的敌人攻击间隔 +0.5s）
@@ -552,7 +556,7 @@ class GameMain {
     // 霜风峡谷风场被动：移速 ×1.10^风场层数
     const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
     const statusMult = slowEff * stasisMul;
-    return (e.speed || 0) * (e.isBoss ? Math.max(0.5,statusMult) : statusMult) * windMul * Bosses.moveScale(this);
+    return (e.speed || 0) * (e.isBoss ? Math.max(0.5,statusMult) : statusMult) * windMul * Bosses.moveScale(this, e);
   }
 
   predictEnemyPosition(e, seconds) {
@@ -726,6 +730,7 @@ class GameMain {
     this.wave.start(keep); // run.wave += 1
     // 20 波专属 Boss 贴图预热：进波即开始加载，避免 Boss 出场首秒回退旧 boss.png
     if (this.renderer && this.renderer.preloadBoss) {
+      if (this.run.bossEncounter) this.renderer.preloadBoss(this.run.bossEncounter.id);
       if (this.run.wave === 20) this.renderer.preloadBoss('altar_rosea');
       if (this.run.wave === 40) this.renderer.preloadBoss('altar_galvin');
       if (this.run.wave === 60) this.renderer.preloadBoss('altar_vera');
@@ -799,12 +804,14 @@ class GameMain {
   buyStoreItem(idx) {
     const item = CONFIG.STORE.items[idx];
     if (!item) return false;
-    const res = BattleShop.buy(this.run, item.id);
+    const res = BattleShop.buy(this.run, item.id, { free: !!this.testProfile });
     if (!res.ok) {
       this.toast(({ limit: '本局已售罄', cooldown: '购买冷却中', gold: '银币不足', full: '城墙生命已满', energy: '塔能量已满' })[res.reason] || '暂不可购买', '#ffb480');
       return false;
     }
-    this.toast(item.name + ' · ' + item.desc, item.color);
+    // Test-profile auto potion lasts for this run; normal profiles retain configured duration.
+    if (this.testProfile && item.id === 'auto') this.run.storeTimers.auto = Infinity;
+    this.toast(item.name + ' · ' + (this.testProfile && item.id === 'auto' ? '自动消除持续本局' : item.desc), item.color);
     return true;
   }
 
@@ -980,6 +987,7 @@ class GameMain {
       }
       if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
       else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
+      require('./auto-battle.js').draw(ctx,this);
       return;
     }
     const st = this.sceneState();
@@ -1000,6 +1008,7 @@ class GameMain {
       enemies: this.enemies, layout: this.ly, lock: this.run.bossLock };
     VeraFx.drawGround(ctx, veraView);
     this.renderer.animNow = this.animClock;   // 敌人帧动画时钟注入（暂停状态冻结）
+    this.renderer.bossEncounter = this.run.bossEncounter;
     this.renderer.enemies(ctx, this.enemies, this.run.bossEncounter && this.run.bossEncounter.splitVisual);
     // 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
@@ -1015,7 +1024,10 @@ class GameMain {
     this.renderer.fieldChests(ctx, this.fieldChests);
     // 20波Boss生命条位于敌人和弹道上层，避免出生贴图遮住血量。
     const boss20=st.miniBoss||(st.wave===20&&this.enemies.find(e=>e.hp>0&&e.isBoss&&e.waveNo===20));
-    if(boss20&&!st.bossEncounter)require('./screens/boss-health.js').draw(ctx,boss20,this.ly.areaY+this.ly.entryH);
+    if(boss20&&st.wave===20)require('./screens/boss-health.js').draw(ctx,boss20,this.ly.areaY+this.ly.entryH);
+    require('./fx/boss-ignis.js').draw(ctx, this);
+    require('./fx/boss-skall.js').draw(ctx, this);
+    require('./fx/boss-expansion-twins.js').draw(ctx, this);
     // 局内商店面板：从 actionArea 内移到敌人/特效层之后绘制（否则怪物贴图浮在商店面板上方）；
     // 在 toast 之前画（商店遮罩不盖 toast），仍先于三选一/塔详情/功能弹层，保持"弹层盖商店"的既有层级
     GlobalFeedback.draw(ctx, this);
@@ -1052,6 +1064,7 @@ class GameMain {
     if (this.dmgStat) this.renderer.dmgStatLayer(ctx, this, this.dmgStatHits);
     require('./screens/ad-prompts.js').draw(ctx, this);
     require('./tutorial.js').draw(ctx,this);
+    require('./auto-battle.js').draw(ctx,this);
   }
 
   /** 组装技能二级详情：技能效果 + 三分支完整文案 + 当前等级 */
@@ -1143,6 +1156,7 @@ class GameMain {
       chargePerUse: CONFIG.GLOBAL_SKILL.chargePerUse,
       runSpeed: this.runSpeed,   // 主战斗倍速（底部功能栏右下角按钮显示）
       shopOpen: this.shopOpen,   // 局内商店开关（此前缺失导致商店面板永不渲染 → 点击无效果）
+      testShopFree: !!this.testProfile,
       storeTimers: run.storeTimers,
       storeCooldowns: run.storeCooldowns,
       store: run.store,          // 局内商店已购层数

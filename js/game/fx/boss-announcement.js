@@ -2,13 +2,14 @@
 'use strict';
 const CONFIG=require('../../config.js');
 const BOSSES=require('../../config/bosses.js');
+const EXPANSION=require('../../config/boss-expansion.js');
 const {fillRoundRect,strokeRoundRect,text}=require('../ui.js');
 function wave(game){
  const number=game.run.wave;
  if(number<5||number%5){game.bossHint=null;return;}
  const planned=(game.wave.plan||[]).find(enemy=>enemy.isBoss);
- const boss=planned&&BOSSES[planned.bossId];
- game.bossHint={wave:number,name:boss?boss.name:'圣坛蔓钟',major:number===20,until:Date.now()+4000};
+ const boss=planned&&(BOSSES[planned.bossId]||EXPANSION[planned.bossId]);
+ game.bossHint={wave:number,name:boss?boss.name:'圣坛蔓钟',major:!!boss||number===20,until:Date.now()+4000};
 }
 function enter(game,enemy){
  if(game.run.wave!==20)return;

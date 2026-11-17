@@ -7,8 +7,10 @@ const IceTower = require('./towers/ice.js');
 const { attackEnergyMultiplier } = require('./attack-energy.js');
 const Incoming = require('./incoming-damage.js');
 const CannonFlight = require('./cannon-flight.js');
+const Bosses = require('../bosses/index.js');
 
 function tickTower(combat, key, dt) {    const g = combat.game;
+  if (Bosses.towerFrozen(g, key)) return;
   const t = combat.tower(key);
   if (!t || t.level === 0) return;
   const cfg = CONFIG.TOWERS[key];
@@ -26,6 +28,7 @@ function tickTower(combat, key, dt) {    const g = combat.game;
 
 function attackOnce(combat, key) {
   const g = combat.game;
+  if (Bosses.towerFrozen(g, key)) return;
   // 普攻按基础费×预期输出倍率×各已激活技能能耗系数收费；伤害取扣费前能量档位。
   // 弹药箱3★：能量不足时从备用能量库借用
   const ammoT = combat.tower(key);

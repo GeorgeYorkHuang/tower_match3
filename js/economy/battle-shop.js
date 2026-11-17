@@ -7,7 +7,7 @@ function offer(run, item) {
   const cooldown = item.max === 0 ? (run.storeCooldowns && run.storeCooldowns[item.id] || 0) : 0;
   return { bought, sold: item.max > 0 && bought >= item.max, cooldown, cost: item.cost[Math.min(bought, item.cost.length - 1)] };
 }
-function buy(run, id) {
+function buy(run, id, options = {}) {
   if (!featureEnabled(run, 'battleShop')) return { ok: false, reason: 'locked' };
   const item = CONFIG.STORE.items.find(it => it.id === id);
   if (!item) return { ok: false, reason: 'item' };
@@ -19,8 +19,9 @@ function buy(run, id) {
   if (item.heal && run.lineHp >= maxHp) return { ok: false, reason: 'full' };
   if (item.energy && !towers.some(t => t.energy < run.armoryEnergyMax(t.key))) return { ok: false, reason: 'energy' };
   if (item.resetBoard && (!run.board || typeof run.board.regen !== 'function')) return { ok: false, reason: 'board' };
-  if (run.gold < state.cost) return { ok: false, reason: 'gold' };
-  run.gold -= state.cost;
+  const cost = options.free === true ? 0 : state.cost;
+  if (run.gold < cost) return { ok: false, reason: 'gold' };
+  run.gold -= cost;
   if (item.max === 0) {
     if (!run.storeCooldowns) run.storeCooldowns = {};
     run.storeCooldowns[id] = CONFIG.STORE.repeatPurchaseCooldown || 5;
@@ -34,7 +35,7 @@ function buy(run, id) {
   if (item.heal) run.lineHp = Math.min(maxHp, run.lineHp + Math.round(maxHp * item.heal));
   if (item.energy) towers.forEach(t => { t.energy = Math.min(run.armoryEnergyMax(t.key), t.energy + item.energy); });
   if (item.resetBoard) run.board.regen();
-  return { ok: true, item, cost: state.cost };
+  return { ok: true, item, cost };
 }
 function tick(run, dt, speed = 1) {
   if (!(dt > 0)) return;

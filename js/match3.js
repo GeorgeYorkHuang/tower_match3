@@ -114,7 +114,8 @@ class Match3Controller {
   _tickStoreAutoMatch(dt) {
     const g = this.game, run = g.run;
     const item = CONFIG.STORE.items.find((it) => it.autoMatchInterval > 0);
-    if (!item || g.state !== 'fighting' || !run.storeTimers || !(run.storeTimers[item.id] > 0)) {
+    const testingAuto = require('./game/auto-battle.js').active(g);
+    if (!item || (!testingAuto && g.state !== 'fighting') || (!testingAuto && (!run.storeTimers || !(run.storeTimers[item.id] > 0)))) {
       run._storeAutoMatchElapsed = 0;
       return;
     }

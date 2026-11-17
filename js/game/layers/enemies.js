@@ -12,10 +12,22 @@ const L = CONFIG.LAYOUT;
 function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
 /* 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
+  ...require('../boss-idle-art.js'),
   altar_vera: { src: IMG_SRC.boss_altar_vera, ...ENEMY_VISUAL.bossAnimations.altar_vera },
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
   altar_galvin_twin: { src: IMG_SRC.boss_altar_galvin_twin, ...ENEMY_VISUAL.bossAnimations.altar_galvin_twin },
   altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
+  lava_ridge: { src: IMG_SRC.boss_lava_ridge, frames: 8, frameMs: 140,
+    frameFor: (e, now) => {
+      const exposed = e.phase >= 2 || e.bossStatus === '甲壳破绽' || e.bossAnimState === 'summon';
+      const start = exposed ? 4 : 0, count = exposed ? 4 : 4;
+      return start + (Math.floor(now / 140) % count);
+    } },
+  frost_alpha: { src: IMG_SRC.boss_frost_alpha, frames: 8, frameMs: 120,
+    frameFor: (e, now) => {
+      const frames = e.bossStatus === '蓄势突袭' ? [1, 2, 3] : e.bossStatus === '高速突袭' ? [4, 5, 6] : e.bossStatus === '突袭疲惫' ? [7] : [0];
+      return frames[Math.floor(now / 120) % frames.length];
+    } },
   // 每 5 波小 Boss「圣坛蔓钟」：1024×128 横向 8 帧钟摆（bossArtKey 标记，无 bossId）
   miniboss_bell: { src: IMG_SRC.miniboss_bell, frames: 8, frameMs: 260 },
 };
@@ -27,6 +39,7 @@ const ENEMY_ART_FALLBACK = { normal: 13, runner: 14, tank: 12, elite: 14 };
 const ENEMY_ART_FRAMES = { 4: 6, 5: 6, 6: 6, 7: 6, 8: 6, 10: 6, 11: 6, 12: 12, 13: 6, 14: 6 };   // Lv4-8/10/11/13/14 无腿悬浮·飞行怪 6 帧；Lv12 v3 滚石形态：单帧程序化旋转 12 帧（30°/帧）
 const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120, 12: 130, 13: 150, 14: 100 };
   function preloadBoss(id) {
+    require('../boss-cast-art.js').sourcesFor(id).forEach(src => loadImg(src));
     if(id==='altar_rosea')loadImg('assets/images/monsters/bosses/altar_rosea/models-v2.png');
     const a = BOSS_ART[id];
     if (a && a.src) loadImg(a.src);
@@ -46,6 +59,16 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         x = split.x + (e.x - split.x) * ease - size / 2;
         y = split.y + (e.y - split.y) * ease - size / 2;
         ctx.save(); ctx.globalAlpha *= Math.min(1, p * 1.8);
+      }
+      // 扩展双体以遭遇时钟展开；只移动绘制锚点，不改真实目标坐标。
+      const encounter = this.bossEncounter;
+      const fission = encounter && encounter.fissionVisual;
+      const age = fission ? encounter.elapsed - fission.at : -1;
+      if (fission && !encounter.finished && e.bossId === encounter.id && e.bossTwinIndex
+          && age >= 0 && age < fission.duration && fission.duration > 0) {
+        const p = age / fission.duration, ease = 1 - Math.pow(1 - p, 3);
+        x = fission.x + (e.x - fission.x) * ease - size / 2;
+        y = fission.y + (e.y - fission.y) * ease - size / 2;
       }
       // 麻痹只抖动渲染位置，不写回敌人坐标，不影响路径、碰撞或索敌。
       if (e.paralyzed > 0) {
@@ -107,7 +130,9 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     // 每 5 波小 Boss 无 bossId，用 bossArtKey（miniboss_bell）命中专属表
     const bossArt = (e.isBoss && (e.bossArtKey || e.bossId) && BOSS_ART[e.bossArtKey || e.bossId]) || null;
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
-    const summonArt = (!e.isBoss && e.isSummon) ? { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 } : null;
+    const summonArt = (!e.isBoss && e.isSummon) ? (e.bossSummonId === 'lava_ignis'
+      ? { src: 'assets/images/monsters/bosses/expansion/ignis-core-v1.png', frames: 5 }
+      : { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 }) : null;
     const art = bossArt || summonArt;
     const animSrc = e.bossPlaceholder ? null : (art ? art.src : IMG_SRC['lv' + imgLv]);
     const animFrames = art ? art.frames : 0;
@@ -125,7 +150,13 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
       const h=size*(1+Math.sin(now*2.5)*.012),yy=y+size-h;
       ctx.drawImage(model,n*sw,0,sw,model.height,x,yy,size,h);
       if(overlays)ApprovedDebuffs.draw(ctx,model,{x:n*sw,y:0,w:sw,h:model.height},e,x,yy,size,(this.animNow||0));roseaDrawn=true;}
-    const drawn = roseaDrawn || (animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames, overlays) : false);
+    const mirror = !!bossArt && ['lava_twins', 'frost_twins'].includes(e.bossId) && e.bossTwinIndex === 2;
+    let drawn = roseaDrawn;
+    ctx.save();
+    try {
+      if (mirror) { ctx.translate(x * 2 + size, 0); ctx.scale(-1, 1); }
+      drawn = drawn || (animSrc ? this.drawEnemyAnim(ctx, animSrc, e, x, y, size, isElite, imgLv, animFrames, overlays) : false);
+    } finally { ctx.restore(); }
     if (!drawn && !drawImg(ctx, src, x, y, size, size)) {
       fillRoundRect(ctx, x, y, size, size, e.isBoss ? 10 : 6, fallbackColor);
       text(ctx, fallbackText, x + size / 2, y + size / 2, e.isBoss ? 16 : 14, '#fff', 'center');
@@ -143,7 +174,11 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   }
 
   function drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames, overlays = true) {
-    const img = loadImg(src);
+    const selected = require('../boss-cast-art.js').select(this.bossEncounter, e);
+    let castArt = null;
+    let img = selected && loadImg(selected.src);
+    if (img && img.width > 0) { castArt = selected; frames = selected.frames; }
+    else img = loadImg(src);
     if (!(img && img.width > 0)) return false;
     // 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
@@ -160,9 +195,15 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         ctx.restore();return true;
       }
       const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
-      const atlas = e.isBoss && BOSS_ART[e.bossArtKey || e.bossId];
+      const atlas = castArt || (e.isBoss && BOSS_ART[e.bossArtKey || e.bossId]);
       let f;
-      if (!frames && imgLv === 1) {
+      if (atlas && typeof atlas.frameFor === 'function') {
+        f = atlas.frameFor(e, now);
+      } else if (atlas && atlas.durations) {
+        let t = (now + ((e.id || 0) * 53) % 1000) % atlas.durations.reduce((a,b)=>a+b,0);
+        f = 0;
+        while (f < atlas.durations.length - 1 && t >= atlas.durations[f]) { t -= atlas.durations[f]; f++; }
+      } else if (!frames && imgLv === 1) {
         // 史莱姆 6 帧非等时长：按累计时长表选帧（呼吸挤压节奏 140/160/200/310/200/220ms）
         const DURS = [140, 160, 200, 310, 200, 220];
         let t = (now + ((e.id || 0) * 53) % 1000) % DURS.reduce((a, b) => a + b, 0);

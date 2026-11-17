@@ -386,7 +386,17 @@ class CombatSystem {
 
 
 
-  tickFire(dt) { return FireTower.tickFire(this, dt); }
+  // 冰封只阻止新施法与冷却推进；已生成的火墙/火雨等队列继续更新。
+  _tickPeriodicFor(key, fn, dt) {
+    if (!Bosses.towerFrozen(this.game, key)) return fn(this, dt);
+    const before = { ...this.timers };
+    try { return fn(this, dt); }
+    finally {
+      Object.keys(this.timers).forEach(k => { if (!(k in before)) delete this.timers[k]; });
+      Object.assign(this.timers, before);
+    }
+  }
+  tickFire(dt) { return this._tickPeriodicFor('fire', FireTower.tickFire, dt); }
 
   // ===== tickIce =====
 
@@ -400,7 +410,7 @@ class CombatSystem {
 
   hitIce(e, dmg, projectile, options) { return IceTower.hitIce(this, e, dmg, projectile, options); }
 
-  tickIce(dt) { return IceTower.tickIce(this, dt); }
+  tickIce(dt) { return this._tickPeriodicFor('ice', IceTower.tickIce, dt); }
 
   // ===== tickElectric =====
 
@@ -408,7 +418,7 @@ class CombatSystem {
   /* ============ 电塔 ============ */
   hitElectric(e, dmg, projectile) { return ElectricTower.hitElectric(this, e, dmg, projectile); }
 
-  tickElectric(dt) { return ElectricTower.tickElectric(this, dt); }
+  tickElectric(dt) { return this._tickPeriodicFor('electric', ElectricTower.tickElectric, dt); }
 
   // ===== tickPoison =====
 
@@ -426,7 +436,7 @@ class CombatSystem {
   /** 塔口坐标（普攻/技能弹道统一发射点，统一口径）：
    *  正式战斗：塔位槽布局（槽中心）；测试战场：单塔出战大槽（渲染 testFieldLayer 硬编码 x=15/y=1053，中心 65,1103）
    *  槽数恒用渲染固定值（正式 4 槽），不随已激活塔数变化——得塔前/后塔位坐标稳定（旧实现 n=slotOrder.length，1 塔时算成单槽居中 → 塔区中心） */
-  tickPoison(dt) { return PoisonTower.tickPoison(this, dt); }
+  tickPoison(dt) { return this._tickPeriodicFor('poison', PoisonTower.tickPoison, dt); }
 
   // ===== tickCannon =====
 
@@ -436,7 +446,7 @@ class CombatSystem {
   missCannon(dmg, impactPosition) { return CannonTower.missCannon(this, dmg, impactPosition); }
 
   /** 范围爆炸（含击退/减速）；爆炸颜色按塔类型 */
-  tickCannon(dt) { return CannonTower.tickCannon(this, dt); }
+  tickCannon(dt) { return this._tickPeriodicFor('cannon', CannonTower.tickCannon, dt); }
 
   // ===== tickBoomerang =====
 
@@ -448,7 +458,7 @@ class CombatSystem {
   /* 普攻流血（回旋镖塔重做）：每移动 10px 结算 4% 攻击伤害（每 100px 跳 40%）；「放血」：基础 +25% 概率（20→45%）/ A 刺骨 +15%/级（45→90%）/ B 时长 +1s/级 / C 溃烂 每 10px 伤害 4%→6/8/10% */
   applyBleed(e, dmg) { return Statuses.applyBleed(this, e, dmg); }
 
-  tickBoomerang(dt) { return BoomerangTower.tickBoomerang(this, dt); }
+  tickBoomerang(dt) { return this._tickPeriodicFor('boomerang', BoomerangTower.tickBoomerang, dt); }
 
   /* ---------- 视觉 ---------- */
 

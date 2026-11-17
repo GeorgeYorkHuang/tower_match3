@@ -19,7 +19,7 @@ function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
     const cw = 284, ch = 250, gap = 22, top = y + 120;
     CONFIG.STORE.items.forEach((item, i) => {
       const cx = x + 30 + (i % 2) * (cw + gap), cy = top + Math.floor(i / 2) * (ch + 20);
-      const offer = Shop.offer({ store: s.store, storeCooldowns: s.storeCooldowns }, item), afford = s.gold >= offer.cost, cooling = offer.cooldown > 0;
+      const offer = Shop.offer({ store: s.store, storeCooldowns: s.storeCooldowns }, item), afford = s.testShopFree || s.gold >= offer.cost, cooling = offer.cooldown > 0;
       const timer = s.storeTimers && s.storeTimers[item.id] || 0;
       const inactive = cooling || (offer.sold && timer <= 0);
       shopItemRects.push({ x: cx, y: cy, w: cw, h: ch });
@@ -31,13 +31,13 @@ function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
       if (item.duration && !cooling && timer <= 0 && !offer.sold) text(ctx, item.duration + '秒', cx + cw - 34, cy + 22, 21, item.color, 'center');
       // 上半张卡为图标区，下半张为名称、功能与价格；正文不小于21px。
       text(ctx, item.name, cx + cw / 2, cy + 151, 25, inactive ? '#88949b' : '#ffffff', 'center');
-      text(ctx, item.desc, cx + cw / 2, cy + 188, 23, '#d4e3e9', 'center');
+      text(ctx, timer === Infinity ? '自动消除持续本局' : item.desc, cx + cw / 2, cy + 188, 23, '#d4e3e9', 'center');
       if (item.max > 0) text(ctx, '限购'+item.max+'次（'+offer.bought+'/'+item.max+'）', cx + 15, cy + 24, 19, '#ffe1a0', 'left');
       // Transient state belongs in the top corner, keeping the description area uncluttered.
       const state = cooling ? '冷却' + Math.ceil(offer.cooldown) + '秒'
-        : timer > 0 ? '剩余' + Math.ceil(timer) + '秒' : offer.sold ? '已售罄' : '';
+        : timer === Infinity ? '本局持续' : timer > 0 ? '剩余' + Math.ceil(timer) + '秒' : offer.sold ? '已售罄' : '';
       if (state) text(ctx, state, cx + cw - 12, cy + 24, 19, '#d4e3e9', 'right');
-      text(ctx, offer.sold ? '已购买' : offer.cost + ' 银币', cx + cw / 2, cy + 231, 25, offer.sold || cooling ? '#81929e' : afford ? '#ffe2a0' : '#ffad9a', 'center');
+      text(ctx, offer.sold ? '已购买' : s.testShopFree ? '测试免费' : offer.cost + ' 银币', cx + cw / 2, cy + 231, 25, offer.sold || cooling ? '#81929e' : afford ? '#ffe2a0' : '#ffad9a', 'center');
     });
     const shopCloseRect = { x: 280, y: y + h - 66, w: 190, h: 48 };
     fillRoundRect(ctx, shopCloseRect.x, shopCloseRect.y, 190, 48, 24, '#bca66d');
