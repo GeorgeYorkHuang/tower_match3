@@ -176,6 +176,7 @@ module.exports = {
   },
 
   clearTestEnemies() {
+    require('./test-boss.js').clear(this);
     this.enemies = [];
     this.combat.reset();
     this.toast('已清场', '#9fb2c3');
@@ -224,7 +225,8 @@ module.exports = {
         case 'tf_spawn_r': this.spawnTestEnemies('runner', 5); return true;
         case 'tf_spawn_t': this.spawnTestEnemies('tank', 5); return true;
         case 'tf_spawn_e': this.spawnTestEnemies('elite', 2); return true;
-        case 'tf_spawn_b': this.spawnTestEnemies('boss', 1); return true;
+        case 'tf_spawn_b': this.testPanel = { boss: true }; return true;
+        case 'panel_boss': require('./test-boss.js').start(this,it.data); return true;
         case 'tf_talentCharge': {const n=require('../../talents/testing.js').prime(this.run);this.toast(n?'已充能 '+n+' 项红卡金色效果':'当前无金色效果，请装配三星红卡',n?'#f0d57c':'#a9b6a5');return true;}
         case 'tf_clear': this.clearTestEnemies(); return true;
         case 'tf_addRelic': this.testAddRelic(); return true; // 测试战场添加圣遗物

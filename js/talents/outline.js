@@ -60,7 +60,7 @@ function fill(ctx, contours, cell, cx, cy) {
   ctx.save();
   ctx.shadowBlur = 0;
   // 区域填充为 30% 不透明，边线随后单独绘制以保持清晰。
-  ctx.globalAlpha = (Number.isFinite(ctx.globalAlpha) ? ctx.globalAlpha : 1) * 0.3;
+  ctx.globalAlpha = (Number.isFinite(ctx.globalAlpha) ? ctx.globalAlpha : 1) * 0.16;
   for (const c of contours) {
     ctx.beginPath();
     for (const key of c.cells || []) {
@@ -100,7 +100,7 @@ function draw(ctx, contours, cell, cx, cy) {
         ctx.lineTo(b.x + ox, b.y + oy);
       }
       ctx.strokeStyle = pass ? c.color : 'rgba(6,20,13,0.85)';
-      ctx.lineWidth = pass ? 1.9 : 5.3;
+      ctx.lineWidth = pass ? 3 : 6.5;
       ctx.stroke();
     }
   ctx.restore();

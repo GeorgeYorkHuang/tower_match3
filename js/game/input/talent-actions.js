@@ -68,8 +68,9 @@ function handle(g, p) {
   const allowed = isPanel
     ? {
         talentSlot: ['talentUnequip', 'talentDetails'],
-        talentPicker: ['talentClose', 'talentEquip', 'talentPage', 'talentTestStar'],
+        talentPicker: ['talentClose', 'talentEquip', 'talentUnequip', 'talentUndo', 'talentPage', 'talentTestStar'],
         talentDetails: ['talentClose', 'talentReplace'],
+        talentPreview: ['talentPreviewBack', 'talentConfirm', 'talentPreviewPage', 'talentPreviewDetails'],
         talentNode: ['talentClose'],
         talentSummary: ['talentClose'],
         talentCenter: ['talentClose', 'talentCenterPick', 'talentPage'],
@@ -109,7 +110,7 @@ function handle(g, p) {
     return true;
   }
   if (key === 'talentSlot') {
-    g.menuPanel = { type: 'talentSlot', slot: data, anchor: { x: p.x, y: p.y } };
+    g.menuPanel = { type: 'talentPicker', slot: data, page: 0, scrollY: 0 };
     return true;
   }
   if (key === 'talentDetails') {
@@ -120,13 +121,35 @@ function handle(g, p) {
     g.menuPanel = { type: 'talentPicker', slot: data, page: 0, scrollY: 0 };
     return true;
   }
-  if (key === 'talentUnequip') {
-    if (persist(g, () => T.unequip(g.meta, data))) g.menuPanel = null;
+  if (key === 'talentUndo') {
+    const previous = panel.undo;
+    if (previous && persist(g, () => { g.meta.talents = previous; return null; })) delete panel.undo;
     return true;
   }
+  if (key === 'talentUnequip') {
+    const previous = T.normalize(g.meta);
+    if (persist(g, () => T.unequip(g.meta, data))) { panel.undo = previous; panel.scrollY = 0; }
+    return true;
+  }
+  if (key === 'talentPreviewDetails') { panel.showDetails = !panel.showDetails; return true; }
+  if (key === 'talentPreviewPage') {
+    const count = require('../../talents/preview.js').build(g.meta, panel.slot, panel.id).lines.length;
+    panel.detailPage = ((panel.detailPage || 0) + 1) % Math.ceil(count / 3);
+    return true;
+  }
+  if (key === 'talentPreviewBack') { g.menuPanel = panel.picker; return true; }
   if (key === 'talentEquip') {
+    g.menuPanel = { type: 'talentPreview', slot: data.slot, id: data.id, picker: panel };
+    return true;
+  }
+  if (key === 'talentConfirm') {
+    const picker = panel.picker;
+    const data = { slot: panel.slot, id: panel.id };
+    const previous = T.normalize(g.meta);
     if (persist(g, () => T.equip(g.meta, data.slot, data.id))) {
-      g.menuPanel = null;
+      picker.undo = previous;
+      picker.scrollY = 0;
+      g.menuPanel = picker;
       g.toast('圣遗物已装配', '#91d99d');
     }
     return true;
@@ -180,7 +203,7 @@ function handle(g, p) {
       if (!n) return true;
       kind = n.type;
       if (n.type === 'green') description = n.desc;
-      else if (n.type === 'white') description = '攻击力 +3';
+      else if (n.type === 'white') description = '攻击力 +' + T.C.whiteAttack;
       else {
         const c = a.cards.find((c) => c.def.purpleNode === data);
         if (c) {

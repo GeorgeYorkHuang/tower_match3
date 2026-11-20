@@ -62,10 +62,15 @@ function createShopService(options = {}) {
   }
   // Offer comes from the already-rendered daily selection; preserve existing purchase semantics.
   function buyShardOffer(meta, offer) {
-    if (meta.gold < offer.price) return { ok: false, reason: 'gold' };
-    meta.gold -= offer.price;
-    const result = meta.addShard(offer.relic, offer.shards);
-    return { ok: true, dust: result.dust, kept: result.kept };
+    const daily = ensureDailyPicks(meta);
+    const pick = daily.picks.find(p => p.relic === offer.relic);
+    if (!pick) return { ok: false, reason: 'offer' };
+    if (pick.purchased) return { ok: false, reason: 'limit' };
+    if (meta.gold < pick.price) return { ok: false, reason: 'gold' };
+    meta.gold -= pick.price;
+    meta.addShard(pick.relic, pick.shards);
+    pick.purchased = true;
+    return { ok: true };
   }
   return { ensureDailyPicks, shopChestLeft, buyShopChest, buyShardOffer };
 }

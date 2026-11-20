@@ -110,11 +110,11 @@ const IMG_SRC = {
   lv14: 'assets/images/monsters/enemies/lv14.png',
   // v1.17.46 专属 Boss 逐帧动画（W 交付）：单帧 256×256 横向 6 帧，帧宽 = 图宽/6
   boss_altar_rosea: 'assets/images/monsters/bosses/altar_rosea/march.png',
-  boss_altar_galvin_twin: 'assets/images/monsters/bosses/altar_galvin/twin-float-v1.png',
-  boss_altar_vera: 'assets/images/monsters/bosses/altar_vera/hover-v1.png',
-  boss_altar_galvin: 'assets/images/monsters/bosses/altar_galvin/float-v1.png',
-  boss_lava_ridge: 'assets/images/monsters/bosses/lava-ridge/shell-cycle-v1.png',
-  boss_frost_alpha: 'assets/images/monsters/bosses/frost-alpha/charge-cycle-v2.png',
+  boss_altar_galvin_twin: 'assets/images/monsters/bosses/normalized256/altar_galvin-twin-float-v1.png',
+  boss_altar_vera: 'assets/images/monsters/bosses/normalized256/altar_vera-hover-v1.png',
+  boss_altar_galvin: 'assets/images/monsters/bosses/normalized256/altar_galvin-float-v1.png',
+  boss_lava_ridge: 'assets/images/monsters/bosses/lava-ridge/walk-down-v1.png',
+  boss_frost_alpha: 'assets/images/monsters/bosses/frost-alpha/walk-down-v2.png',
   boss_altar_rosea_summon: 'assets/images/monsters/bosses/altar_rosea/sapling_runner.png',
   miniboss_bell: 'assets/images/monsters/enemies/miniboss_bell.png',   // v1.17.52 每 5 波小 Boss「圣坛蔓钟」：钟摆 8 帧（单帧程序化摆动）
   coin: 'assets/images/resources/coin.png', bullet: null,
@@ -652,6 +652,7 @@ class Renderer {
     return this._fireFx;
   }
 
+  bossHud(ctx, state) { return this._getBattleScene().bossHud.call(this, ctx, state); }
   fxPillar(ctx, f) { return this._getFireFx().fxPillar(ctx, f); }
   /** v1.17.36 火柱地面火环（下层）：由 fxGround 在敌人之前调用 */
   fxPillarBase(ctx, f) { return this._getFireFx().fxPillarBase(ctx, f); }
@@ -804,7 +805,12 @@ class Renderer {
       : ['shop', 'relic', 'codex'].includes(s.tab)
         ? `assets/images/interface/home/menu-${s.tab}-ai-v1.png`
         : `assets/images/interface/home/menu_${s.tab}.png`;
-    drawImg(ctx, menuBackground, 0, 0, 750, LOGIC_H);
+    if (s.tab === 'relic' || s.tab === 'codex' || s.tab === 'battle') {
+      // These sources have a solid green header placeholder (first 161 of 1191 pixels).
+      // Start the lavender artwork immediately below the shared 186px header.
+      drawImg(ctx, menuBackground, 0, 186, 750, LOGIC_H - 186,
+        { x: 0, y: 161, w: 750, h: 1030 });
+    } else drawImg(ctx, menuBackground, 0, 0, 750, LOGIC_H);
     const grad = ctx.createLinearGradient(0, 0, 0, 236);
     grad.addColorStop(0, theme.top); grad.addColorStop(1, 'rgba(13,17,23,0)');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 750, 236);

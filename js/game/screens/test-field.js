@@ -107,7 +107,7 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     const btnW = 208, btnH = 64, btnGap = 16, bX = 44;
     const rows = [
       [['tf_spawn_n', '👾 普通×5', '#7cd6a6'], ['tf_spawn_r', '🏃 快速×5', '#f7c948'], ['tf_spawn_t', '🛡 重甲×5', '#a78bfa']],
-      [['tf_spawn_e', '💀 精英×2', '#ff6b6b'], ['tf_spawn_b', '👹 Boss×1', '#ff8c42'], ['tf_clear', '🧹 清怪', '#9fb2c3']],
+      [['tf_spawn_e', '💀 精英×2', '#ff6b6b'], ['tf_spawn_b', '👹 选择Boss', '#ff8c42'], ['tf_clear', '🧹 清怪', '#9fb2c3']],
     ];
     rows.forEach((row, ri) => {
       row.forEach((b, bi) => {
@@ -129,6 +129,20 @@ function createTestFieldScreen({ drawImg, IMG_SRC, relicIconSrc, drawTowerGlyph,
     text(ctx, '← 返回主界面', 375, 1540, 28, '#8ea3b8', 'center');
     // 技能配置面板（覆盖层）
     if (s.panel && s.panel.key) this.testSkillPanel(ctx, s.panel.key, s, push);
+    if (s.panel && s.panel.boss) {
+      ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(0,0,750,LOGIC_H);
+      fillRoundRect(ctx,55,200,640,1000,18,'#1b2230');
+      text(ctx,'选择测试 Boss',375,245,28,'#ffffff','center');
+      const defs=require('../flows/test-boss.js').defs;
+      Object.values(defs).filter(b=>b.id&&b.field&&b.wave).forEach((b,i)=>{
+        const y=285+i*82;
+        push('panel_boss',b.id,85,y,580,68);
+        fillRoundRect(ctx,85,y,580,68,10,'#334354');
+        text(ctx,'W'+b.wave+' '+b.name,375,y+34,22,'#ffdf9a','center');
+      });
+      push('panel_close',null,245,1110,260,60);
+      fillRoundRect(ctx,245,1110,260,60,10,'#48505d');text(ctx,'关闭',375,1140,24,'#ffffff','center');
+    }
     hits = items;
     return hits;
   }

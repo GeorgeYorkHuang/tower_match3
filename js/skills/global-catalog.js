@@ -5,7 +5,7 @@ const POOL = [
  ['refill','能量补给','辅助','全场已激活塔补充10点能量。','#79e5a4'],
  ['forge','神兵铸就','输出','全塔攻击提升25%，持续12秒。','#ffd36b'],
  ['haste','急速风暴','输出','全塔攻速提升40%，持续10秒。','#72d9ff'],
- ['volley','弹幕齐射','输出','全塔下一次普攻变为三连发，总伤害150%。','#ff967c'],
+ ['volley','能量均衡','辅助','平均分配所有已激活塔的当前能量，总能量不变。','#ff967c'],
  ['resonance','元素共鸣','输出','随机3座已激活塔各释放一次已学周期技能。','#bc9bff'],
  ['barrier','铁壁结界','防御','城墙获得1200点护盾，持续至波末。','#86caff'],
  ['heal','圣愈之光','防御','城墙立即回复40%最大血量。','#79e5a4'],
@@ -17,12 +17,12 @@ const POOL = [
  ['twins','双子印记','三消','下次四消同时遗留两个同类特殊方块。','#e7a5ff'],
  ['charge','元素充能','三消','下次有效消除优先为对应颜色塔、再为另一座塔各补10能量。','#83e4dd'],
  ['gold','黄金浪潮','收益','6秒内击杀获得的局内金币翻倍。','#ffe17c'],
-].map(([id,name,category,desc,color],i)=>({id,name,category,desc,color,glyph:i})).filter(def => !['shuffle', 'barrier', 'pull'].includes(def.id));
+].map(([id,name,category,desc,color],i)=>({id,name,category,desc,color,glyph:i})).filter(def => !['shuffle', 'barrier', 'pull', 'reflect', 'freeze', 'chainstorm', 'twins', 'gold'].includes(def.id));
 // 展示文案与实际行为共用参数，避免改数值后说明过期。
 const descriptions = {
  forge:()=>`全塔攻击提升${Math.round((BALANCE.forge.damageMultiplier-1)*100)}%，持续${BALANCE.forge.duration}秒。`,
  haste:()=>`全塔攻速提升${Math.round((BALANCE.haste.speedMultiplier-1)*100)}%，持续${BALANCE.haste.duration}秒。`,
- volley:()=>`全塔下一次普攻变为${BALANCE.volley.count}连发，总伤害${Math.round(BALANCE.volley.count*BALANCE.volley.damagePerShot*100)}%。`,
+ volley:()=> '平均分配所有已激活塔的当前能量，总能量不变。',
  resonance:()=>`随机${BALANCE.resonance.towerCount}座已激活塔各释放一次已学周期技能。`,
  barrier:()=>`城墙获得${BALANCE.barrier.shield}点护盾，持续至波末。`,
  heal:()=>`城墙立即回复${Math.round(BALANCE.heal.maxHpRatio*100)}%最大血量。`,

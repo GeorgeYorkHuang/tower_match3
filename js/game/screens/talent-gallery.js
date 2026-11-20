@@ -57,7 +57,7 @@ function drawCard(ctx, s, def, x, y, push, drawImg, vp) {
     (key, data, bx, by, bw, bh) => clipHit(push, vp, key, data, bx, by, bw, bh),
     'talentEquip',
     { slot: s.panel.slot, id: def.id },
-    current ? '已镶嵌' : '镶嵌',
+    current ? '已镶嵌' : '预览替换',
     x + 19,
     y + h - 54,
     w - 38,
@@ -74,6 +74,9 @@ function gallery(ctx, s, push, drawImg, frame) {
     metrics = L.scroll(s.talentMeta, p),
     offset = Math.max(0, Math.min(metrics.max, p.scrollY || 0));
   frame(ctx, push, drawImg, b, '镶嵌圣遗物');
+  button(ctx, push, 'talentUnequip', p.slot, '卸下', 76, 1236, 160, 48, !!s.talent.state.slots[p.slot]);
+  button(ctx, push, 'talentUndo', null, '撤销上次', 254, 1236, 190, 48, !!p.undo);
+  text(ctx, '槽位 ' + (p.slot + 1), 625, 1260, 20, '#ffe3a1', 'right');
   button(ctx, push, 'talentClose', null, '返回', b.x + b.w - 125, b.y + 13, 104, 42);
   ctx.save();
   ctx.beginPath();

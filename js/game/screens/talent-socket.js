@@ -62,7 +62,8 @@ function draw(ctx, x, y, r, kind, active, src, drawImg) {
     ctx.save();
     path(ctx, points(x, y, r * 0.82));
     ctx.clip();
-    drawImg(ctx, src, x - r * 0.94 * 0.9, y - r * 0.94 * 0.9, r * 1.88 * 0.9, r * 1.88 * 0.9);
+    const iconSize = r * 1.88 * 0.9 * 0.9;
+    drawImg(ctx, src, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
     ctx.restore();
     // 图标裁进六边形内部，再叠加内阴影和细边，表现嵌入凹槽的深度。
     const a = points(x, y, r * 0.83);

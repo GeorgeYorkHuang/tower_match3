@@ -9,7 +9,20 @@ function cast(combat,id){
  const towers=r.slotOrder.filter(k=>{const t=r.effects.tower(k);return t&&t.level>0;});
  switch(id){
  case 'forge':s.forge=BALANCE.forge.duration;break;case 'haste':s.haste=BALANCE.haste.duration;break;
- case 'volley':s.volley=Object.fromEntries(towers.map(k=>[k,true]));break;
+ case 'volley': {
+   // Equalise absolute energy, respecting per-tower caps without discarding energy.
+   let remaining = towers.reduce((sum,k)=>sum + r.effects.tower(k).energy, 0);
+   let pending = towers.slice();
+   while (pending.length) {
+     const average = remaining / pending.length;
+     const capped = pending.filter(k=>r.armoryEnergyMax(k) < average);
+     if (!capped.length) { pending.forEach(k=>{r.effects.tower(k).energy=average;}); break; }
+     capped.forEach(k=>{const cap=r.armoryEnergyMax(k);r.effects.tower(k).energy=cap;remaining-=cap;});
+     pending=pending.filter(k=>!capped.includes(k));
+   }
+   delete s.volley;
+   break;
+ }
  case 'resonance':{const pool=towers.slice();for(let n=0;n<BALANCE.resonance.towerCount&&pool.length;n++){const i=Math.floor((r.rng||Math.random)()*pool.length);combat.castPeriodicNow(pool.splice(i,1)[0]);}break;}
  case 'barrier':s.shield=BALANCE.barrier.shield;s.shieldWave=r.wave;break;
  case 'heal':r.lineHp=Math.min(r.lineMaxHp||require('../config.js').LINE.hp,r.lineHp+(r.lineMaxHp||require('../config.js').LINE.hp)*BALANCE.heal.maxHpRatio);break;

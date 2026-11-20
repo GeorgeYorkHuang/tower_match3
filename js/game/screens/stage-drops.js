@@ -87,7 +87,7 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     });
     const dropsY = descY + descH + 35;
     text(ctx, '专属掉落', 66, dropsY, 25, '#efbb93', 'left');
-    if (urs.length) text(ctx, '通关保底 ' + RED.fragments.join('～') + ' 片', 684, dropsY, 19, '#c2b78e', 'right');
+    if (urs.length) text(ctx, 'W20概率1–2 · W40 1–3 · W60 3–6片', 684, dropsY, 15, '#c2b78e', 'right');
     const cardY = dropsY + 33;
     if (urs.length) {
       const cw = 290, gap = 30;

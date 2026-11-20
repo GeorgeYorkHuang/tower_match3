@@ -59,6 +59,32 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
   const a = s.talent,
     p = s.panel;
   if (!p) return;
+  if (p.type === 'talentPreview') {
+    const preview = require('../../talents/preview.js').build(s.talentMeta, p.slot, p.id);
+    const b = { x: 28, y: 1402, w: 694, h: 108 };
+    fillRoundRect(ctx, b.x, b.y, b.w, b.h, 14, '#142d22');
+    strokeRoundRect(ctx, b.x, b.y, b.w, b.h, 14, '#e2c278', 1.5);
+    push('panelBounds', null, 0, 0, 750, 1626);
+    const card = preview.card;
+    text(ctx, (card ? card.def.name : '替换预览') + ' · 尚未保存', 48, 1426, 19, '#ffe3a1', 'left');
+    button(ctx, push, 'talentPreviewBack', null, '返回选卡', 48, 1450, 190, 44);
+    button(ctx, push, 'talentPreviewDetails', null, p.showDetails ? '收起收益' : '收益变化', 258, 1450, 190, 44);
+    button(ctx, push, 'talentConfirm', null, '确认替换', 468, 1450, 234, 44, !preview.error);
+    if (p.showDetails) {
+      const lines = preview.lines || [preview.error], perPage = 3;
+      const pages = Math.max(1, Math.ceil(lines.length / perPage));
+      const page = Math.min(pages - 1, Math.max(0, p.detailPage || 0));
+      fillRoundRect(ctx, 28, 1050, 694, 342, 14, '#142d22');
+      strokeRoundRect(ctx, 28, 1050, 694, 342, 14, '#8ca880', 1.5);
+      text(ctx, '收益变化 · 可收起查看完整天赋盘', 48, 1080, 20, '#ffe3a1', 'left');
+      let y = 1116;
+      lines.slice(page * perPage, (page + 1) * perPage).forEach(line => {
+        y = wrap(ctx, line, 48, y, 650, 17, '#e7edda') + 4;
+      });
+      if (pages > 1) button(ctx, push, 'talentPreviewPage', null, (page + 1) + '/' + pages + ' 下一页', 468, 1330, 234, 44);
+    }
+    return;
+  }
   if (p.type === 'talentSlot') {
     const anchor = p.anchor || Board.slotAnchor(s, p.slot),
       b = L.tooltip({ anchor }, 300, 180),

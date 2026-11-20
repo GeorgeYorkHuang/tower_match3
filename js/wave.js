@@ -190,6 +190,7 @@ class WaveDirector {
     const en = initEnemyState(e);
     require('./combat/boss-control.js').attach(en);
     en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零
+    require('./early-enemy-size.js')(this.game, en);
     const ga = this.game;
     ga._waveAlive = ga._waveAlive || {};
     ga._waveAlive[en.waveNo] = (ga._waveAlive[en.waveNo] || 0) + 1;

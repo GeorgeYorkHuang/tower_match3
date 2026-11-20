@@ -234,7 +234,7 @@ function onMenuTap(game, p) {
               name: def.name || d.name, icon: def.icon || d.icon, rar,
               color: CONFIG.GO.RARITY[rar] || '#4aa3ff',
               desc: def.desc || '',
-              price: d.price, shards: d.shards, relic: d.relic,
+              price: d.price, shards: d.shards, relic: d.relic, purchased: !!d.purchased,
             },
           };
           return;
@@ -359,7 +359,7 @@ function confirmShopBuy(game) {
   }
   if (pnl.kind === 'shard') {
     const res = game.meta.buyShardOffer({ relic: item.relic, shards: item.shards, price: item.price });
-    if (!res.ok) { game.toast('金币不足', '#ff6b6b'); return; }
+    if (!res.ok) { game.toast(res.reason === 'limit' ? '今日已购买，明日刷新' : res.reason === 'offer' ? '商品已刷新，请重新选择' : '金币不足', '#ff6b6b'); return; }
     game.save.save();
     game.toast(`获得 ${item.icon} ${item.name} 碎片 ×${item.shards}`, '#7ef0a3');
     game.menuPanel = null;

@@ -17,17 +17,8 @@ const BOSS_ART = {
   altar_rosea: { src: IMG_SRC.boss_altar_rosea, frames: 6, frameSize: 256 },
   altar_galvin_twin: { src: IMG_SRC.boss_altar_galvin_twin, ...ENEMY_VISUAL.bossAnimations.altar_galvin_twin },
   altar_galvin: { src: IMG_SRC.boss_altar_galvin, ...ENEMY_VISUAL.bossAnimations.altar_galvin },
-  lava_ridge: { src: IMG_SRC.boss_lava_ridge, frames: 8, frameMs: 140,
-    frameFor: (e, now) => {
-      const exposed = e.phase >= 2 || e.bossStatus === '甲壳破绽' || e.bossAnimState === 'summon';
-      const start = exposed ? 4 : 0, count = exposed ? 4 : 4;
-      return start + (Math.floor(now / 140) % count);
-    } },
-  frost_alpha: { src: IMG_SRC.boss_frost_alpha, frames: 8, frameMs: 120,
-    frameFor: (e, now) => {
-      const frames = e.bossStatus === '蓄势突袭' ? [1, 2, 3] : e.bossStatus === '高速突袭' ? [4, 5, 6] : e.bossStatus === '突袭疲惫' ? [7] : [0];
-      return frames[Math.floor(now / 120) % frames.length];
-    } },
+  lava_ridge: { src: IMG_SRC.boss_lava_ridge, frames: 3, frameMs: 180 },
+  frost_alpha: { src: IMG_SRC.boss_frost_alpha, frames: 6, durations: [170, 190, 140, 170, 190, 140] },
   // 每 5 波小 Boss「圣坛蔓钟」：1024×128 横向 8 帧钟摆（bossArtKey 标记，无 bossId）
   miniboss_bell: { src: IMG_SRC.miniboss_bell, frames: 8, frameMs: 260 },
 };
@@ -40,7 +31,7 @@ const ENEMY_ART_FRAMES = { 4: 6, 5: 6, 6: 6, 7: 6, 8: 6, 10: 6, 11: 6, 12: 12, 1
 const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120, 12: 130, 13: 150, 14: 100 };
   function preloadBoss(id) {
     require('../boss-cast-art.js').sourcesFor(id).forEach(src => loadImg(src));
-    if(id==='altar_rosea')loadImg('assets/images/monsters/bosses/altar_rosea/models-v2.png');
+    if(id==='altar_rosea')loadImg('assets/images/monsters/bosses/normalized256/altar_rosea-models-v2.png');
     const a = BOSS_ART[id];
     if (a && a.src) loadImg(a.src);
     if (id === 'altar_galvin' && IMG_SRC.boss_altar_galvin_twin) loadImg(IMG_SRC.boss_altar_galvin_twin);
@@ -94,10 +85,10 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   function drawSplit(ctx, v) {
     const img = loadImg(IMG_SRC.boss_altar_galvin);
     if (!img || !img.width || !img.height) return;
-    const p = v.t / v.duration, col = v.frame % 4, row = Math.floor(v.frame / 4);
-    const sx = Math.round(col * img.width / 4), sy = Math.round(row * img.height / 2);
-    const sw = Math.round((col + 1) * img.width / 4) - sx;
-    const sh = Math.round((row + 1) * img.height / 2) - sy, cut = Math.floor(sw / 2);
+    const p = v.t / v.duration, col = v.frame % 8, row = 0;
+    const sx = Math.round(col * img.width / 8), sy = Math.round(row * img.height);
+    const sw = Math.round((col + 1) * img.width / 8) - sx;
+    const sh = Math.round((row + 1) * img.height) - sy, cut = Math.floor(sw / 2);
     ctx.save();
     ctx.globalAlpha *= Math.max(0, 1 - p / 0.85);
     for (let side = 0; side < 2; side++) {
@@ -125,13 +116,17 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     // 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
     const genLv = e.genLv || 1;
+    if (!e.isBoss && e.isSummon && e.bossSummonId === 'lava_ignis') {
+      require('../fx/boss-skill-atlas.js').draw(ctx,null,'ignis-core',0,x+size/2,y+size/2,size,1);
+      return;
+    }
     const imgLv = (genLv >= 1 && genLv <= ENEMY_ART_MAX_LV) ? genLv : (ENEMY_ART_FALLBACK[e.type] || 13);
     // fix：Boss 有专属 sprite 表时优先用它，禁止借用同代小怪贴图（此前 Boss genLv=6 → 画成 Lv6 重坦）
     // 每 5 波小 Boss 无 bossId，用 bossArtKey（miniboss_bell）命中专属表
     const bossArt = (e.isBoss && (e.bossArtKey || e.bossId) && BOSS_ART[e.bossArtKey || e.bossId]) || null;
     // 萝赛召唤的幼芽（isSummon）用专属 5 帧小图，不再套用 Lv5 疾芽鼠
     const summonArt = (!e.isBoss && e.isSummon) ? (e.bossSummonId === 'lava_ignis'
-      ? { src: 'assets/images/monsters/bosses/expansion/ignis-core-v1.png', frames: 5 }
+      ? { src: 'assets/images/monsters/bosses/normalized256/expansion-ignis-core-v1.png', frames: 5 }
       : { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 }) : null;
     const art = bossArt || summonArt;
     const animSrc = e.bossPlaceholder ? null : (art ? art.src : IMG_SRC['lv' + imgLv]);
@@ -144,7 +139,7 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     const elite = isElite && EliteFx.eligible(e);
     if (elite && overlays) EliteFx.drawBase(ctx, e, x, y, size);
     const rosea = e.bossId === 'altar_rosea' || (!e.isBoss && e.isSummon && e.waveNo === 20);
-    const model = rosea && loadImg('assets/images/monsters/bosses/altar_rosea/models-v2.png');
+    const model = rosea && loadImg('assets/images/monsters/bosses/normalized256/altar_rosea-models-v2.png');
     let roseaDrawn=false;
     if(model && model.width){const n=e.isBoss?(e.phase>=2?1:0):2,sw=model.width/3,now=(this.animNow||0)/1000;
       const h=size*(1+Math.sin(now*2.5)*.012),yy=y+size-h;
@@ -231,6 +226,14 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
         return true;
       }
       const fw = img.width / frameCount, fh = img.height;
+      if (atlas && atlas.contentBottom) {
+        const sy=Math.floor(fh*atlas.contentTop), sh=Math.ceil(fh*atlas.contentBottom)-sy;
+        const scale=size/Math.max(fw,sh), dw=fw*scale, dh=sh*scale;
+        const dx=x+(size-dw)/2, dy=y+(size-dh)/2;
+        ctx.drawImage(img,fw*f,sy,fw,sh,dx,dy,dw,dh);
+        if(overlays) { ctx.save(); ctx.translate(dx,dy); ctx.scale(1,dh/dw); ApprovedDebuffs.draw(ctx,img,{x:fw*f,y:sy,w:fw,h:sh},e,0,0,dw,now); ctx.restore(); }
+        return true;
+      }
       ctx.drawImage(img, fw * f, 0, fw, fh, x, y, size, size);
       // 受击提亮和精英扫光只重绘本体，避免同一状态特效重复叠加。
       if (overlays) ApprovedDebuffs.draw(ctx,img,{x:fw*f,y:0,w:fw,h:fh},e,x,y,size,now);

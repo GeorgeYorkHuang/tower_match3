@@ -37,9 +37,11 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
       text(ctx, title, 58, y + 25, 25, '#29472f', 'left');
       text(ctx, subtitle, 690, y + 25, 17, '#5b563e', 'right');
     }
-    function card(x, y, title, subtitle, price, diamond, drawIcon, key, data) {
+    function card(x, y, title, subtitle, price, diamond, drawIcon, key, data, sold = false) {
       y -= scroll;
       if (y + 268.8 < top || y > bottom) return;
+      ctx.save();
+      if (sold && 'filter' in ctx) ctx.filter = 'grayscale(1)';
       fillRoundRect(ctx, x, y, 200, 268.8, 16, '#214a30');
       drawImg(ctx, 'assets/images/interface/shop/card-garden-v2.png', x, y, 200, 268.8);
       drawIcon(x + 100, y + 79);
@@ -47,7 +49,13 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
       text(ctx, subtitle, x + 100, y + 211, 17, '#665532', 'center');
       fillRoundRect(ctx, x + 15, y + 229, 170, 30, 10, '#31553a');
       text(ctx, key === 'adOffer' ? (price ? '今日已领取' : '观看广告 · 免费') : (diamond ? '💎 ' : '金币 ') + price, x + 100, y + 245, 19, '#fff0c4', 'center');
-      hit(key, data, x, y, 200, 268.8);
+      ctx.restore();
+      if (sold) {
+        // 灰色遮罩兼容不支持Canvas filter的微信环境；售罄文字最后绘制，保持红色。
+        fillRoundRect(ctx, x, y, 200, 268.8, 16, 'rgba(100,106,110,.68)');
+        fillRoundRect(ctx, x + 20, y + 107, 160, 54, 10, 'rgba(30,33,35,.82)');
+        text(ctx, '售罄', x + 100, y + 134.4, 38, '#ff5d58', 'center');
+      } else hit(key, data, x, y, 200, 268.8);
     }
     heading(names[0], '每日刷新', 300);
     ((s.daily && s.daily.picks) || []).slice(0, 6).forEach((p, i) => {
@@ -55,14 +63,14 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
       const shards = p.shards || 1;
       card(55 + i % 3 * 212, 364 + Math.floor(i / 3) * 286, def.name, '碎片 ×'+shards, p.price, false,
         (cx,cy) => { if (!drawImg(ctx, relicIconSrc(p.relic), cx-57.6,cy-57.6,115.2,115.2)) text(ctx,def.icon,cx,cy,48,'#ffffff','center'); },
-        'shopShard', {relic:p.relic,shards,price:p.price,icon:def.icon,name:def.name});
+        'shopShard', {relic:p.relic,shards,price:p.price,icon:def.icon,name:def.name}, !!p.purchased);
     });
     heading(names[1], '金币购买 ', 948);
     ['wood','blue','purple','gold','star'].forEach((key,i) => {
       const cd=CONFIG.SHOP_CHEST[key], left=s.shopLeft && s.shopLeft[key] !== undefined ? s.shopLeft[key] : cd.daily;
       const src={wood:IMG_SRC.chestWood,blue:IMG_SRC.chestBronze,purple:IMG_SRC.chestSilver,gold:IMG_SRC.chestGold,star:IMG_SRC.chestStar}[key];
       card(55+i%3*212,1012+Math.floor(i/3)*286,cd.name,'剩余 '+left+'/'+cd.daily,cd.price,false,
-        (cx,cy)=>drawChest(ctx,key,src,cx,cy,104),'shopChest',{key});
+        (cx,cy)=>drawChest(ctx,key,src,cx,cy,104),'shopChest',{key},left <= 0);
     });
     card(479,1298,'每日免费宝箱','青铜箱 · 每日1次',s.adDaily && s.adDaily.chest,false,
       (cx,cy)=>drawChest(ctx,'blue',IMG_SRC.chestBronze,cx,cy,104),'adOffer','chest');
@@ -140,14 +148,14 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
     text(ctx, extra, x + w / 2, y + 442, 22, '#45583c', 'center');
 
     const bw = w - 64, bh = 62, bx = x + 32, by = y + 502;
-    const disabled = (p.kind === 'chest' && item.left <= 0) || (p.kind === 'skill' && item.owned);
+    const disabled = (p.kind === 'shard' && item.purchased) || (p.kind === 'chest' && item.left <= 0) || (p.kind === 'skill' && item.owned);
     const buy = ctx.createLinearGradient(0, by, 0, by + bh);
     buy.addColorStop(0, disabled ? '#69717b' : '#ffe17a');
     buy.addColorStop(1, disabled ? '#3c444e' : '#c48616');
     fillRoundRect(ctx, bx, by, bw, bh, 13, buy);
     strokeRoundRect(ctx, bx, by, bw, bh, 13, disabled ? '#87909b' : '#fff1b4', 1.6);
     if (disabled) {
-      text(ctx, p.kind === 'chest' ? '今日已售罄' : '已解锁', bx + bw / 2, by + bh / 2, 30, '#d6dce3', 'center');
+      text(ctx, p.kind === 'chest' ? '今日已售罄' : p.kind === 'shard' ? '今日已购买' : '已解锁', bx + bw / 2, by + bh / 2, 30, '#d6dce3', 'center');
     } else {
       push('shopBuy', null, bx, by, bw, bh);
       text(ctx, p.kind === 'adReward' ? '观看广告领取' : '确认购买', bx + bw / 2, by + bh / 2, 32, '#382600', 'center');

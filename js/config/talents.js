@@ -5,8 +5,8 @@
 'use strict';
 module.exports = {
   'version': 1,
-  'whiteAttack': 3,
-  'whiteDescription': '攻击力 +3。仅加成覆盖此白点的红色圣遗物所对应的塔。',
+  'whiteAttack': 2,
+  'whiteDescription': '攻击力 +2。仅加成覆盖此白点的红色圣遗物所对应的塔。',
   'seriesName': '圣庭',
   // 白点、绿点和紫点的位置固定；红卡只决定哪些格子被覆盖。
   'nodes': [

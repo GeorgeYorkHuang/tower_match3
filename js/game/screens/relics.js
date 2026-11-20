@@ -134,59 +134,51 @@ function createRelicScreen(deps = {}) {
   }
 
   function menuRelic(ctx, s, push) {
-    text(ctx, `圣物粉尘  ${fmtNum(s.relicDust || 0)}`, 55, 239, 23, '#705282', 'left');
     const list = _relicRunList();
     const unlocked = list.filter((d) => _relicUnlocked(s, d.id)).length;
-    // 深度宝箱槽位（4 格）：从主页移至圣遗物图鉴顶部（解锁进度与卡片整体下移）
-    // 宝箱图标与「收益宝箱」统一：档位图 chestWood/Bronze/Silver/Gold/Star，空槽用 chestClosed
-    const TIER_ICON = { wood: '🟤', bronze: '🔵', silver: '🟣', gold: '🟡', star: '💎' };
-    const TIER_IMG = {
-      wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver,
-      gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar,
-    };
+    // Independent dark reward tray, separated from the pale collection surface.
+    const tray = ctx.createLinearGradient(20, 210, 730, 510);
+    tray.addColorStop(0, '#303a35'); tray.addColorStop(1, '#171e1c');
+    fillRoundRect(ctx, 20, 210, 710, 300, 28, tray);
+    strokeRoundRect(ctx, 20, 210, 710, 300, 28, '#9c8353', 2);
+    text(ctx, '通关宝箱', 46, 246, 30, '#f3dfad', 'left');
+    const tierImg = { wood: IMG_SRC.chestWood, bronze: IMG_SRC.chestBronze, silver: IMG_SRC.chestSilver, gold: IMG_SRC.chestGold, star: IMG_SRC.chestStar };
     const slots = s.deepChests || [];
     for (let i = 0; i < 4; i++) {
-      const bx = 40 + i * 170, by = 262, bw = 160, bh = 128;
+      const bx = 40 + i * 170, by = 280, bw = 160, bh = 208;
+      const chest = slots[i];
       push('deepChest', i, bx, by, bw, bh);
-      const ch = slots[i];
-      fillRoundRect(ctx, bx, by, bw, bh, 14, ch ? '#1d2330' : '#141a22');
-      drawImg(ctx, 'assets/images/interface/cards/chest-slot-v1.png', bx, by, bw, bh);
-      strokeRoundRect(ctx, bx, by, bw, bh, 14, ch ? (TIER_COLOR[ch.tier] || '#d89e63') : '#232b36', ch ? 1.6 : 1.2);
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      fillRoundRect(ctx, bx + 10, by + 6, bw - 20, 12, 6, ctx.fillStyle);
-      const iw = 64, ix = bx + (bw - iw) / 2, iy = by + 18;
-      if (!ch) {
-        ctx.globalAlpha = 0.42;
-        if (!drawImg(ctx, IMG_SRC.chestClosed, ix, iy, iw, iw)) text(ctx, '📦', bx + bw / 2, iy + iw / 2 + 10, 30, '#3a4654', 'center');
-        ctx.globalAlpha = 1;
-        text(ctx, '空槽位', bx + bw / 2, by + 98, 16, '#3a4654', 'center');
-        text(ctx, '局末按深度获得', bx + bw / 2, by + 118, 13, '#2c3644', 'center');
+      fillRoundRect(ctx, bx, by, bw, bh, 18, chest && chest.ready ? '#403922' : '#111b17');
+      ctx.save();
+      if (!chest && ctx.setLineDash) ctx.setLineDash([6, 5]);
+      strokeRoundRect(ctx, bx, by, bw, bh, 18, chest ? (chest.ready ? '#e6c56f' : '#637363') : '#576457', chest && chest.ready ? 2.5 : 1.2);
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = chest ? 1 : 0.22;
+      drawImg(ctx, chest ? tierImg[chest.tier] || IMG_SRC.chestClosed : IMG_SRC.chestClosed, bx + 27, by + 12, 106, 106);
+      ctx.restore();
+      if (!chest) { text(ctx, '＋', bx + bw / 2, by + 157, 30, '#839083', 'center'); continue; }
+      text(ctx, chest.name, bx + bw / 2, by + 133, 20, '#e4dcc6', 'center');
+      if (chest.ready) {
+        const gold = ctx.createLinearGradient(0, by + 157, 0, by + 195);
+        gold.addColorStop(0, '#f3d77f'); gold.addColorStop(1, '#b58a35');
+        fillRoundRect(ctx, bx + 12, by + 157, bw - 24, 38, 10, gold);
+        text(ctx, '开启', bx + bw / 2, by + 176, 23, '#352810', 'center');
       } else {
-        const tierSrc = TIER_IMG[ch.tier] || IMG_SRC.chestClosed;
-        if (!drawImg(ctx, tierSrc, ix, iy, iw, iw)) text(ctx, TIER_ICON[ch.tier] || '📦', bx + bw / 2, iy + iw / 2 + 10, 28, '#ffffff', 'center');
-        text(ctx, ch.name, bx + bw / 2, by + 98, 16, TIER_COLOR[ch.tier] || '#d89e63', 'center');
-        if (ch.ready) text(ctx, '✅ 点击开启', bx + bw / 2, by + 118, 15, '#7ef0a3', 'center');
-        else {
-          const rm = ch.remainMin;
-          const rt = rm >= 60 ? `${Math.floor(rm / 60)}时${rm % 60}分` : `${rm}分`;
-          text(ctx, `⏳ ${rt}`, bx + bw / 2, by + 118, 14, '#9fb2c3', 'center');
-        }
+        const minutes = Math.max(0, chest.remainMin || 0);
+        const timer = Math.floor(minutes / 60).toString().padStart(2, '0') + ':' + (minutes % 60).toString().padStart(2, '0');
+        text(ctx, timer, bx + bw / 2, by + 176, 23, '#bdc9c5', 'center');
       }
     }
-    // 顶部固定区：标题 + 解锁进度条（随宝箱上移整体下移 154px）
-    text(ctx, '圣遗物图鉴', 55, 448, 32, '#51415e', 'left');
-    const px0 = 250, pw = 460, py = 434;
-    fillRoundRect(ctx, px0, py, pw, 24, 12, 'rgba(255,255,255,0.08)');
-    const ratio = list.length ? unlocked / list.length : 0;
-    if (ratio > 0) {
-      const pg = ctx.createLinearGradient(px0, 0, px0 + pw, 0);
-      pg.addColorStop(0, '#a86bff'); pg.addColorStop(1, '#f7c948');
-      fillRoundRect(ctx, px0, py, Math.max(24, pw * ratio), 24, 12, pg);
-    }
-    strokeRoundRect(ctx, px0, py, pw, 24, 12, '#a86bff', 1.2);
-    text(ctx, `${unlocked} / ${list.length}`, px0 + pw / 2, py + 13, 20, '#ffffff', 'center');
+    // Collection begins on its own surface; only its card list scrolls.
+    fillRoundRect(ctx, 20, 542, 710, 950, 28, '#eee7ee');
+    strokeRoundRect(ctx, 20, 542, 710, 950, 28, '#b6a4ba', 1.5);
+    text(ctx, '圣物图鉴', 48, 580, 31, '#57445f', 'left');
+    text(ctx, unlocked + ' / ' + list.length, 702, 580, 25, '#80658d', 'right');
+    fillRoundRect(ctx, 48, 607, 654, 7, 3.5, '#d2c6d6');
+    if (unlocked && list.length) fillRoundRect(ctx, 48, 607, Math.max(7, 654 * unlocked / list.length), 7, 3.5, '#a679ca');
+    text(ctx, '✧ 圣物粉尘 ' + fmtNum(s.relicDust || 0), 48, 640, 20, '#8a7395', 'left');
     // 滚动视口
-    const vy0 = 484, vy1 = 1492;
+    const vy0 = 670, vy1 = 1492;
     const PER_ROW = 4, cw = 149, ch = 210, gx = 14, gy = 14;
     const rows = Math.ceil(list.length / PER_ROW);
     const contentH = rows * (ch + gy);

@@ -383,6 +383,7 @@ class GameMain {
       });
       this.dmgNumbers.step(dt);
       this.waveTime += dt;
+      if (this._testBossActive) this.wave.tick(dt * this.testSpeed);
       this.stepEnemies(dt * this.testSpeed);
       this.syncTargetedCannonFx();
       return;
@@ -539,7 +540,14 @@ class GameMain {
         }
       }
     }
-    if (wallHits) this.fx.push({ type: 'hitwall', x: 375, y: wallHitY, t: 0, dur: 0.3 });
+    if (wallHits) {
+      const ratio = this.run.lineHp / (this.run.lineMaxHp || CONFIG.LINE.hp);
+      // One pulse per frame prevents stacked attackers from producing an opaque flash.
+      this.fx = this.fx.filter(f => f.type !== 'hitwall');
+      this.fx.push({ type: 'hitwall', x: 0, y: this.ly.slotY,
+        width: 750, height: CONFIG.LAYOUT.towerRow.h, danger: ratio < 0.1 ? 0.30 : ratio < 0.3 ? 0.12 : 0,
+        t: 0, dur: 0.35 });
+    }
   }
 
   enemyMoveSpeed(e) {
@@ -972,8 +980,11 @@ class GameMain {
       const testFeedback = require('./fx/global-feedback.js');
       const testShake = testFeedback.shake(this);
       ctx.save(); ctx.translate(testShake.x, testShake.y);
+      this.renderer.bossEncounter = this.run.bossEncounter;
+      this.renderer.animNow = this.animClock;
       this.testHits = this.renderer.testFieldLayer(ctx, this.testState(), this.testHits, this.enemies, this.fx, this.combat, this.dmgNumbers);
-      EliteFx.drawDeaths(ctx, this.run);
+      require('./fx/boss-skill-atlas.js').events(ctx,this);
+    EliteFx.drawDeaths(ctx, this.run);
       testFeedback.draw(ctx, this);
       ctx.restore();
       if (this.testProfile) this.renderer.toast(ctx, this.toasts);
@@ -1013,6 +1024,7 @@ class GameMain {
     // 萝赛技能表现层（画在 Boss 本体帧之后、通用特效之前）
     if (this.bossFx) this.bossFx.drawTo(ctx);
     VeraFx.drawBody(ctx, veraView);
+    require('./fx/boss-skill-atlas.js').events(ctx,this);
     EliteFx.drawDeaths(ctx, this.run);
     if (this.run.bossEncounter && this.run.bossEncounter.id === 'altar_galvin') {
       GalvinFx.draw(ctx, { ...veraView, towers: [...new Set(this.run.slotOrder)].map(key =>
@@ -1025,6 +1037,7 @@ class GameMain {
     // 20波Boss生命条位于敌人和弹道上层，避免出生贴图遮住血量。
     const boss20=st.miniBoss||(st.wave===20&&this.enemies.find(e=>e.hp>0&&e.isBoss&&e.waveNo===20));
     if(boss20&&st.wave===20)require('./screens/boss-health.js').draw(ctx,boss20,this.ly.areaY+this.ly.entryH);
+    this.renderer.bossHud(ctx, st);
     require('./fx/boss-ignis.js').draw(ctx, this);
     require('./fx/boss-skall.js').draw(ctx, this);
     require('./fx/boss-expansion-twins.js').draw(ctx, this);

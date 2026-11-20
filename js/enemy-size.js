@@ -18,5 +18,8 @@ module.exports = function enemySize(enemy, sizes) {
     const baseType = MONSTERS.levelOf(lv).type;
     size = Math.round((VISUAL.generationSizes[lv] || VISUAL.generationFallbackSizes[baseType] || sizes[baseType] || sizes.normal) * VISUAL.elite.scale);
   }
+  // 实例显示覆盖仅作用于普通小怪；不参与血量、移动和碰撞计算。
+  if (!enemy.isBoss && !enemy.isSummon && ['normal', 'runner', 'tank'].includes(enemy.type)
+      && Number.isFinite(enemy.visualSize) && enemy.visualSize > 0) return enemy.visualSize;
   return size;
 };

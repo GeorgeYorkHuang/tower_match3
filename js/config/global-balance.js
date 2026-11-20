@@ -11,6 +11,6 @@ module.exports = {
  tide: { slowRatio:0.6, duration:6 },
  pull: { distance:240 },
  chainstorm: { startGroup:2 },
- charge: { towerCount:2, energy:10 },
+ charge: { towerCount:2, energy:30 },
  gold: { duration:6, multiplier:2 },
 };

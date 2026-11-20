@@ -4,7 +4,7 @@ const ElectricBuff = require('./electric-blessing.js');
 const LeafStorm = require('./leaf-storm.js');
 const Catalog = require('../../skills/global-catalog.js');
 const { text } = require('../ui.js');
-const STYLE = {refill:'rays',forge:'blades',haste:'wind',volley:'arrows',resonance:'orbits',barrier:'shield',heal:'cross',reflect:'spikes',freeze:'snow',tide:'waves',pull:'vortex',chainstorm:'chain',twins:'twins',charge:'bolts',gold:'coins',shuffle:'shuffle'};
+const STYLE = {refill:'rays',forge:'blades',haste:'wind',volley:'bolts',resonance:'orbits',barrier:'shield',heal:'cross',reflect:'spikes',freeze:'snow',tide:'waves',pull:'vortex',chainstorm:'chain',twins:'twins',charge:'bolts',gold:'coins',shuffle:'shuffle'};
 function now(g) { return (g.animClock || 0) / 1000; }
 function emit(combat,id) {
  const g=combat.game,s=g.run.gsState||(g.run.gsState={});

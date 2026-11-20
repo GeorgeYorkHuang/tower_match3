@@ -16,34 +16,6 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
     this.entryStatus(ctx,s);
-    if (s.bossEncounter && s.bossEncounter.id === 'altar_vera') {
-      const q = s.bossEncounter, e = q.members[0];
-      const B = require('../../config/bosses.js').altar_vera;
-      text(ctx, B.name + ' · ' + B.phaseNames[q.phase - 1], 375, AREA_Y + ENTRY_H + 16, 17, '#ffd17b', 'center');
-      if (e) {
-        progressBar(ctx, 190, AREA_Y + ENTRY_H + 28, 380, 11, Math.max(0, e.hp / e.maxHp), '#dcac5c', '#30253d');
-        ctx.strokeStyle = '#fff0be'; ctx.lineWidth = 2;
-        for (const mark of B.thresholds) { ctx.beginPath(); ctx.moveTo(190 + 380 * mark, AREA_Y + ENTRY_H + 27); ctx.lineTo(190 + 380 * mark, AREA_Y + ENTRY_H + 40); ctx.stroke(); }
-        const summon = Math.max(0, q.nextSummonAt - q.elapsed).toFixed(1);
-        const status = q.phase === 3 ? '裂痕 ' + Math.max(0, q.nextRiftAt - q.elapsed).toFixed(1) + 's' : q.phase === 2 ? '庇护 ' + Math.round(e.armor * 100) + '%' : '播种';
-        text(ctx, status + ' · 召唤 ' + summon + 's', 375, AREA_Y + ENTRY_H + 57, 15, '#f3d9b1', 'center');
-      }
-    } else if (s.bossEncounter && s.bossEncounter.id === 'altar_galvin') {
-      const group = s.bossEncounter;
-      text(ctx, '双生圣像·迦尔文 · ' + (group.phase === 1 ? '圣像本体' : '双体裂生'), 375, AREA_Y + ENTRY_H + 16, 16, '#ead3ff', 'center');
-      const members = group.members;
-      members.forEach((e, i) => {
-        const x = members.length === 1 ? 220 : 140 + i * 250;
-        const w = members.length === 1 ? 338 : 220;
-        progressBar(ctx, x, AREA_Y + ENTRY_H + 28, w, 9, Math.max(0, e.hp / e.maxHp), '#ba82e7', '#30253d');
-        if (members.length > 1) text(ctx, '圣像' + (i + 1) + (e.hp <= 0 ? ' · 已击败' : ''), x + w / 2, AREA_Y + ENTRY_H + 48, 13, '#d1c393', 'center');
-      });
-      const echo = Math.max(0, group.nextEchoAt - group.elapsed).toFixed(1);
-      let info = '圣坛回响 ' + echo + 's';
-      if (group.phase === 2) info = '共鸣 ' + group.resonanceStacks + '/' + CONFIG_BOSS.resonanceMax + ' · ' + info;
-      if (group.firstDeathAt !== null) info = group.syncExpired ? '同步超时 · 独存圣像已回复' : '同步击破 ' + Math.max(0, CONFIG_BOSS.syncWindow - (group.elapsed - group.firstDeathAt)).toFixed(1) + 's';
-      text(ctx, info, 375, AREA_Y + ENTRY_H + (group.phase === 1 ? 48 : 68), 15, group.firstDeathAt !== null ? '#ffda82' : '#d1c393', 'center');
-    }
     // 塔位区（即城墙，先画背景）
     this.towerRow(ctx, s);
     // 防线血条（移至塔位区底部，覆盖在塔位区背景之上）
@@ -55,26 +27,53 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     // 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
   }
 
+  function bossHud(ctx, s) {
+    if (s.bossEncounter && s.bossEncounter.id === 'altar_vera') {
+      const q = s.bossEncounter, e = q.members[0];
+      const B = require('../../config/bosses.js').altar_vera;
+      if (e) {
+        require('../screens/boss-health.js').draw(ctx, { ...e, bossName: B.name, bossStatus: B.phaseNames[q.phase - 1], phaseThresholds: B.thresholds }, AREA_Y + ENTRY_H);
+        const summon = Math.max(0, q.nextSummonAt - q.elapsed).toFixed(1);
+        const status = q.phase === 3 ? '裂痕 ' + Math.max(0, q.nextRiftAt - q.elapsed).toFixed(1) + 's' : q.phase === 2 ? '庇护 ' + Math.round(e.armor * 100) + '%' : '播种';
+        text(ctx, status + ' · 召唤 ' + summon + 's', 375, AREA_Y + ENTRY_H + 94, 15, '#f3d9b1', 'center');
+      }
+    } else if (s.bossEncounter && s.bossEncounter.id === 'altar_galvin') {
+      const group = s.bossEncounter;
+      const members = group.members;
+      const totalHp = members.reduce((sum,e)=>sum+Math.max(0,e.hp),0);
+      const totalMax = members.reduce((sum,e)=>sum+e.maxHp,0);
+      require('../screens/boss-health.js').draw(ctx, {
+        hp: totalHp, maxHp: totalMax, bossName: '双生圣像·迦尔文',
+        bossStatus: group.phase === 1 ? '圣像本体' : '双体裂生', phaseThresholds: group.phase === 1 ? [0.6] : []
+      }, AREA_Y + ENTRY_H);
+      const echo = Math.max(0, group.nextEchoAt - group.elapsed).toFixed(1);
+      let info = '圣坛回响 ' + echo + 's';
+      if (group.phase === 2) info = '共鸣 ' + group.resonanceStacks + '/' + CONFIG_BOSS.resonanceMax + ' · ' + info;
+      if (group.firstDeathAt !== null) info = group.syncExpired ? '同步超时 · 独存圣像已回复' : '同步击破 ' + Math.max(0, CONFIG_BOSS.syncWindow - (group.elapsed - group.firstDeathAt)).toFixed(1) + 's';
+      text(ctx, info, 375, AREA_Y + ENTRY_H + 94, 15, group.firstDeathAt !== null ? '#ffda82' : '#d1c393', 'center');
+    }
+  }
+
   function wall(ctx, hp, maxHp, barY, shield) {
     // 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
     // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
-    const barH = 14;
-    const by = barY !== undefined ? barY : (TOWER_ROW_Y + L.towerRow.h - barH);
+    const barH = 18;
+    const by = barY !== undefined ? barY - 10 : (TOWER_ROW_Y + L.towerRow.h - 24);
     const ratio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
     // 槽（深棕阴影底 + 淡描边）
-    fillRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, '#241a12');
-    strokeRoundRect(ctx, AREA_X, by, AREA_W, barH, 7, 'rgba(255,255,255,0.18)', 1);
+    fillRoundRect(ctx, AREA_X, by, AREA_W, barH, barH / 2, '#17251f');
+    strokeRoundRect(ctx, AREA_X, by, AREA_W, barH, barH / 2, '#a9bba1', 1.2);
     // 血量填充（分级变色）
     if (ratio > 0) {
       const barCol = ratio > 0.5 ? '#4cd964' : ratio > 0.25 ? '#ffcc00' : '#ff5252';
-      fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, 5, barCol);
+      fillRoundRect(ctx, AREA_X + 2, by + 2, Math.max(2, (AREA_W - 4) * ratio), barH - 4, (barH - 4) / 2, barCol);
     }
     if (shield > 0) {
       fillRoundRect(ctx,AREA_X,by-8,AREA_W*Math.min(1,shield/GS_BALANCE.barrier.shield),5,2,'#86caff');
       text(ctx,'护盾 '+Math.ceil(shield),AREA_X+AREA_W-5,by-18,16,'#a6e8ff','right');
     }
     // 血量数字（血条内居中）
-    text(ctx, `${Math.max(0, Math.ceil(hp))}`, AREA_X + AREA_W / 2, by + barH / 2 + 1, 15, '#ffffff', 'center');
+    text(ctx, `${Math.max(0, Math.ceil(hp))} / ${Math.ceil(maxHp || 0)}`, AREA_X + AREA_W / 2, by + barH / 2 + 1, 15, '#ffffff', 'center');
   }
 
   function funcBar(ctx, s) {
@@ -223,6 +222,6 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     text(ctx,'📊',x+30,y+h/2,30,'#99c8d5','center');
     text(ctx,'统计',x+68,y+h/2+1,24,'#d7dee6','center');
   }
-  return { actionArea, wall, funcBar, towerRow, _globalBtn, _speedBadge, _dmgStatBadge };
+  return { actionArea, bossHud, wall, funcBar, towerRow, _globalBtn, _speedBadge, _dmgStatBadge };
 }
 module.exports = { createBattleScene };

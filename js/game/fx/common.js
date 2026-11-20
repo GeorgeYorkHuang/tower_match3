@@ -19,12 +19,11 @@ function createCommonFx({ drawImg, IMG_SRC, drawAnimSheet, animVariantOf }) {
   }
 
   function fxHitwall(ctx, f) {
-      // 城墙受击闪光（怪物攻城命中）
-      const p = Math.min(1, f.t / f.dur);
-      ctx.globalAlpha = (1 - p) * 0.8;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(f.x - 160, f.y - 2, 320, 4);
-      ctx.globalAlpha = 1;
+    const fade = Math.pow(Math.max(0, 1 - f.t / f.dur), 2);
+    ctx.save(); ctx.globalAlpha = 0.42 * fade;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(f.x || 0, f.y, f.width || 750, f.height || 122);
+    ctx.restore();
   }
 
   function fxBullet(ctx, f) {

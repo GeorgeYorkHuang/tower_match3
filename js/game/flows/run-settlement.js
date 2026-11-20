@@ -22,7 +22,10 @@ module.exports = {
     // 战斗结束统一结算金币：局内银币（波末累加 + 击杀）按深度池口径折算（poolShare=50%）
     //   折算系数对齐 EV.poolShare，使「局内银币→局外金币」与深度结算 payout 数量级相当（招财符按星级 +20%）
     const b = this.meta.relicBonus();
-    const silver = Math.round(this.run.gold * EV.poolShare * (1 + 0.20 * b.gold));
+    // 先按正常口径折算，再对失守收益保留30%，与复活弹窗预览保持一致。
+    const fullSilver = Math.round(this.run.gold * EV.poolShare * (1 + 0.20 * b.gold));
+    const silver = evacuated ? fullSilver : Math.round(fullSilver * EV.deadRatio);
+    this.silverGained = silver;
     if (silver > 0) {
       this.meta.gold += silver;
       this.silverGained = silver;

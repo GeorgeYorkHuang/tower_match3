@@ -1,0 +1,116 @@
+[
+  {
+    "source": "altar_rosea/models-v2.png",
+    "target": "normalized256/altar_rosea-models-v2.png",
+    "frames": 3,
+    "frameSize": 256
+  },
+  {
+    "source": "altar_galvin/float-v1.png",
+    "target": "normalized256/altar_galvin-float-v1.png",
+    "frames": 8,
+    "frameSize": 256
+  },
+  {
+    "source": "altar_galvin/twin-float-v1.png",
+    "target": "normalized256/altar_galvin-twin-float-v1.png",
+    "frames": 8,
+    "frameSize": 256
+  },
+  {
+    "source": "altar_vera/hover-v1.png",
+    "target": "normalized256/altar_vera-hover-v1.png",
+    "frames": 8,
+    "frameSize": 256
+  },
+  {
+    "source": "lava-ridge/shell-cycle-v1.png",
+    "target": "normalized256/lava-ridge-shell-cycle-v1.png",
+    "frames": 8,
+    "frameSize": 256
+  },
+  {
+    "source": "frost-alpha/charge-cycle-v2.png",
+    "target": "normalized256/frost-alpha-charge-cycle-v2.png",
+    "frames": 8,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/carlos-idle-v1.png",
+    "target": "normalized256/expansion-carlos-idle-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/carlos-reignite-v1.png",
+    "target": "normalized256/expansion-carlos-reignite-v1.png",
+    "frames": 3,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/carlos-resonance-v1.png",
+    "target": "normalized256/expansion-carlos-resonance-v1.png",
+    "frames": 3,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/ignis-charge-v1.png",
+    "target": "normalized256/expansion-ignis-charge-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/ignis-core-v1.png",
+    "target": "normalized256/expansion-ignis-core-v1.png",
+    "frames": 5,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/ignis-eruption-v1.png",
+    "target": "normalized256/expansion-ignis-eruption-v1.png",
+    "frames": 5,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/ignis-idle-v1.png",
+    "target": "normalized256/expansion-ignis-idle-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/skar-coldwind-v1.png",
+    "target": "normalized256/expansion-skar-coldwind-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/skar-freeze-v1.png",
+    "target": "normalized256/expansion-skar-freeze-v1.png",
+    "frames": 3,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/skar-idle-v1.png",
+    "target": "normalized256/expansion-skar-idle-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/skar-shadowfission-v1.png",
+    "target": "normalized256/expansion-skar-shadowfission-v1.png",
+    "frames": 5,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/skar-shellbreak-v1.png",
+    "target": "normalized256/expansion-skar-shellbreak-v1.png",
+    "frames": 4,
+    "frameSize": 256
+  },
+  {
+    "source": "expansion/velde-idle-v1.png",
+    "target": "normalized256/expansion-velde-idle-v1.png",
+    "frames": 6,
+    "frameSize": 256
+  }
+]

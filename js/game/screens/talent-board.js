@@ -13,7 +13,9 @@ let outlineKey = '',
   outlineCache = [];
 const { text, strokeRoundRect } = require('../ui.js');
 
-function node(ctx, n, x, y, r, active) {
+const towerColors = { fire: '#ed6556', ice: '#68b9ef', poison: '#65c97b', electric: '#f0d461', boomerang: '#b78ae8', cannon: '#efa353' };
+function node(ctx, n, x, y, r, active, colors = []) {
+  r *= 0.8;
   const style = {
       white: { fill: '#e3dcc5', ink: '#3e3b2e', edge: '#fff4d4' },
       green: { fill: '#279653', ink: '#efffe9', edge: '#b4f3bd' },
@@ -22,10 +24,23 @@ function node(ctx, n, x, y, r, active) {
     radius = r * (n.type === 'white' ? 0.64 : n.type === 'green' ? 0.79 : 0.9);
   ctx.shadowBlur = 0;
   ctx.shadowColor = 'transparent';
-  const fill = active ? style.fill : n.type === 'white' ? '#434b45' : '#303833',
-    edge = active ? style.edge : '#788176',
-    ink = active ? style.ink : '#a6afa4';
-  hex(ctx, x, y, radius, fill, edge, active ? 2.4 : 1.3);
+  const attackColor = n.type === 'white' && active && colors.length ? colors[0] : null;
+  const fill = active ? attackColor || style.fill : '#18221e',
+    edge = active ? style.edge : '#46534a',
+    ink = active ? (attackColor ? '#14241b' : style.ink) : '#657268';
+  if (active) hex(ctx, x, y, radius + 4, 'rgba(225,255,185,.12)', style.edge, 1);
+  hex(ctx, x, y, radius, fill, edge, active ? 3 : 1);
+  if (attackColor && colors.length > 1) {
+    ctx.save();
+    // 多塔同时获得该白点攻击：分色显示所有来源，不覆盖掉任何塔的归属。
+    ctx.clip();
+    colors.forEach((color, i) => {
+      ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.arc(x, y, radius * 2, i * Math.PI * 2 / colors.length, (i + 1) * Math.PI * 2 / colors.length);
+      ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+    });
+    ctx.restore();
+  }
   if (n.type === 'green')
     hex(ctx, x, y, r * 0.65, 'transparent', active ? '#a0ddb0' : '#667468', 1);
   NodeIcons.draw(
@@ -33,13 +48,15 @@ function node(ctx, n, x, y, r, active) {
     n.type === 'white' ? 'attack' : n.effect,
     x,
     y,
-    r * (n.type === 'white' ? 0.8 : 1.0) * 0.9,
+    r * (n.type === 'white' ? 0.8 : 1.0) * 0.9 * 0.9,
     ink
   );
 }
 
 function draw(ctx, s, push, drawImg, relicIconSrc) {
-  const a = s.talent;
+  const preview = s.panel && s.panel.type === 'talentPreview'
+    ? require('../../talents/preview.js').build(s.talentMeta, s.panel.slot, s.panel.id) : null;
+  const a = preview && preview.after || s.talent;
   if (!a) return;
   const view = V.normalize(s.talentView),
     vp = V.viewport,
@@ -67,6 +84,24 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
   ctx.translate(vp.x + vp.w / 2 + view.x, vp.y + vp.h / 2 + view.y);
   ctx.scale(view.zoom, view.zoom);
   ctx.translate(-cx, -cy);
+  // 只有装配、星级或槽位变化时才重算轮廓，拖动缩放复用已有边界。
+  const key = a.cards
+    .map((c) => c.id + ':' + c.star + ':' + c.slot + ':' + c.def.outlineColor)
+    .join('|');
+  if (key !== outlineKey) {
+    outlineKey = key;
+    outlineCache = Outline.build(
+      a.cards,
+      T.C.slots.map((slot) => slot.node)
+    );
+  }
+  const focus = preview && preview.card;
+  if (focus) {
+    ctx.save(); ctx.globalAlpha = 0.2;
+    Outline.draw(ctx, outlineCache.filter(c => c.id !== focus.id), size, cx, cy);
+    ctx.restore();
+    Outline.draw(ctx, outlineCache.filter(c => c.id === focus.id), size, cx, cy);
+  } else Outline.draw(ctx, outlineCache, size, cx, cy);
   const sockets = [];
   T.C.nodes.forEach((n) => {
     const [x, y] = at(n.q, n.r),
@@ -82,7 +117,7 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
     if (n.type === 'slot') {
       const id = a.state.slots[slotIndex];
       sockets.push(() =>
-        Socket.draw(ctx, x, y, size * 1.02, 'red', !!id, id && T.get(id).icon, drawImg)
+        Socket.draw(ctx, x, y, size * 1.02 * 0.9, 'red', !!id, id && T.get(id).icon, drawImg)
       );
       boardHit(
         'talentSlot',
@@ -101,14 +136,21 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
           ctx,
           x,
           y,
-          size * 0.9,
+          size * 0.9 * 0.8,
           'purple',
           !!active,
           owner && (active ? owner.purple.icon || owner.icon : owner.purple.iconGray),
           drawImg
         )
       );
-    else node(ctx, n, x, y, size, active);
+    else {
+      ctx.save();
+      if (focus && !focus.coverage.includes(n.id)) ctx.globalAlpha = 0.3;
+      const colors = [...new Set(source.map(id => { const def = T.get(id); return def && towerColors[def.tower]; }).filter(Boolean))];
+      node(ctx, n, x, y, size, active, colors);
+      if (focus && focus.coverage.includes(n.id)) hex(ctx, x, y, size * 0.94 * 0.8, 'transparent', focus.def.outlineColor || '#fff0b0', 3);
+      ctx.restore();
+    }
     boardHit(
       'talentNode',
       n.id,
@@ -118,18 +160,6 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
       54 * baseScale
     );
   });
-  // 只有装配、星级或槽位变化时才重算轮廓，拖动缩放复用已有边界。
-  const key = a.cards
-    .map((c) => c.id + ':' + c.star + ':' + c.slot + ':' + c.def.outlineColor)
-    .join('|');
-  if (key !== outlineKey) {
-    outlineKey = key;
-    outlineCache = Outline.build(
-      a.cards,
-      T.C.slots.map((slot) => slot.node)
-    );
-  }
-  Outline.draw(ctx, outlineCache, size, cx, cy);
   // 槽位最后叠在覆盖填充之上，防止红卡和技能图标被区域颜色遮住。
   sockets.forEach((draw) => draw());
   T.C.slots.forEach((slot, i) => {
@@ -141,7 +171,7 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
       ctx,
       x,
       y,
-      V.goldRadius,
+      V.goldRadius * 0.8,
       'gold',
       !!active,
       def && (def.gold.icon || def.icon),
