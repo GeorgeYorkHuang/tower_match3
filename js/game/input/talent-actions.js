@@ -197,18 +197,18 @@ function handle(g, p) {
       if (c && a.gold.includes(c.id)) {
         cardName = c.def.gold.name;
         description = c.def.gold.desc;
-      } else description = '未镶嵌圣遗物';
+      } else description = c && c.def.gold.enabled === false ? '三星金天赋设计中，暂不生效' : c ? '需要3星' : '未镶嵌圣遗物';
     } else {
       const n = T.C.nodes.find((n) => n.id === data);
       if (!n) return true;
       kind = n.type;
       if (n.type === 'green') description = n.desc;
-      else if (n.type === 'white') description = '攻击力 +' + T.C.whiteAttack;
+      else if (n.type === 'white') description = ({fire:'火塔',ice:'冰塔',poison:'毒塔',electric:'电塔',cannon:'炮塔',boomerang:'飞镖塔'}[n.tower] || '防御塔') + '攻击力 +' + T.C.whiteAttack + '（任意红卡覆盖激活，同点不叠加）';
       else {
-        const c = a.cards.find((c) => c.def.purpleNode === data);
-        if (c) {
-          cardName = c.def.name;
-          description = c.def.purple.desc;
+        const cards = a.cards.filter((c) => c.def.purpleNode === data);
+        if (cards.length) {
+          cardName = '紫色天赋';
+          description = cards.map(c => c.def.name + '：' + (c.def.purple.enabled === false ? '设计中，暂不生效' : c.star < 2 ? '需要2星' : !a.purple.includes(c.id) ? '节点未覆盖' : c.def.purple.desc)).join('\n');
         } else description = '未镶嵌圣遗物';
       }
     }

@@ -19,10 +19,11 @@ function label(ctx, value, x, y, size, color = '#e7f0d2', align = 'left') {
 
 function draw(ctx, s, push) {
   const a = s.talent,
-    n = a.series.sanctum || 0;
+    n = a.series[a.seriesTrack] || 0,
+    seriesName = require('../../config/talents.js').seriesNames[a.seriesTrack] || '圣庭';
   ctx.save();
   ctx.shadowBlur = 0;
-  label(ctx, '圣庭天赋', 375, 264, 34, '#ffe5a0', 'center');
+  label(ctx, seriesName+'天赋', 375, 264, 34, '#ffe5a0', 'center');
   label(ctx, '复位', 667, 264, 19, '#e1eac8', 'center');
   push('talentReset', null, 618, 244, 98, 40);
   if (s.testProfile) {
@@ -32,7 +33,7 @@ function draw(ctx, s, push) {
       push('talentTestPreset', star, x, 243, 98, 42);
     });
   }
-  label(ctx, '圣庭羁绊', 48, 337, 25, '#ffe1a0');
+  label(ctx, seriesName+'羁绊', 48, 337, 25, '#ffe1a0');
   label(ctx, n + '/6', 342, 337, 26, '#f7d981', 'right');
   label(ctx, '2件 R · 4件 SR · 6件 SSR', 48, 375, 18);
   if (a.rank) label(ctx, a.rank.toUpperCase() + ' 自选', 342, 401, 18, '#edcf8b', 'right');

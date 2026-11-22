@@ -27,7 +27,10 @@ class WaveDirector {
   start(keepEnemies) {
     const g = this.game;
     if (g.run.finalVictory) return;
+    const oldHeat=g.run.heatStacks||0,oldWind=g.run.windStacks||0;
     g.run.startWave();
+    if(g.toast&&g.run.heatStacks>oldHeat)g.toast('熔壳 ×'+g.run.heatStacks+' · 普通护甲累计 +'+Math.round(g.run.heatStacks*g.run.fieldCfg.heatShell.armorPerStack*100)+'个百分点','#ed9973');
+    if(g.toast&&g.run.windStacks>oldWind)g.toast('风压 ×'+g.run.windStacks+' · 移速 ×'+require('./field-pressure.js').speed(g.run).toFixed(2)+' · 减速时长 ×'+require('./field-pressure.js').slowDuration(g.run).toFixed(2),'#91ceec');
     g.waveTime = 0;
     if (!keepEnemies) g.enemies = [];   // 40s 超时叠加波：不清残怪，新一波继续出
     this._freezeDone = false;   // 冻结时刻：每波首个敌人冰冻
@@ -187,6 +190,7 @@ class WaveDirector {
       e.armor=fieldStats.armor;e.attack=fieldStats.attack;e.attackInterval=fieldStats.attackInterval;
       e.speed=speed*fieldStats.speed;
     }
+    require('./field-pressure.js').armor(this.game.run,e);
     const en = initEnemyState(e);
     require('./combat/boss-control.js').attach(en);
     en.waveNo = this.game.run.wave;   // 归属波次：叠加波下场上可同时存在多波怪，全歼统计按此逐波归零

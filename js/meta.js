@@ -34,7 +34,7 @@ class Meta {
     this.mails=[];
     this.redeemedCodes={};
     this.adDaily = null;
-    this.talents = {version:1,slots:[null,null,null,null,null,null],center:null};
+    this.talents = {version:2,slots:[null,null,null,null,null,null],center:null};
     this.tutorial = { version: 1, done: false, step: 0 };
     this.prologue = Prologue.initialProgress();
     this.encounters = {};
@@ -333,6 +333,9 @@ class Meta {
       });
     }
     require('./relics/red-migration.js').migrate(m);
+    const talentMigration=require('./talents/model.js').migrate(m);
+    if(!m.talents||m.talents.version!==2){m._talentMigrationNotice={moved:talentMigration.moved,removed:talentMigration.removed};}
+    m.talents=talentMigration.state;
     Object.keys(m.shards).forEach(id => RelicProgression.normalizeShard(m, id));
     // 已存在的旧档不一次弹出所有历史解锁；新档及已有指引记录继续跟踪新解锁。
     m.unlockGuideSeen = d.unlockGuideSeen && typeof d.unlockGuideSeen==='object'

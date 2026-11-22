@@ -16,6 +16,12 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
     this.entryStatus(ctx,s);
+    if(s.stage==='lava'||s.stage==='frost'){
+      const heat=s.stage==='lava',n=heat?s.heatStacks:s.windStacks;
+      fillRoundRect(ctx,530,AREA_Y+ENTRY_H+44,196,34,10,heat?'#542f25':'#234657');
+      strokeRoundRect(ctx,530,AREA_Y+ENTRY_H+44,196,34,10,n>=5?'#e7c572':heat?'#ce805d':'#72b9d3',1.5);
+      text(ctx,(heat?'熔壳 ×':'风压 ×')+(n||0),628,AREA_Y+ENTRY_H+61,20,'#f3e6bf','center');
+    }
     // 塔位区（即城墙，先画背景）
     this.towerRow(ctx, s);
     // 防线血条（移至塔位区底部，覆盖在塔位区背景之上）

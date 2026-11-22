@@ -106,14 +106,14 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
   T.C.nodes.forEach((n) => {
     const [x, y] = at(n.q, n.r),
       source = a.sources[n.id] || [],
-      owner = (a.cards.find((c) => c.def.purpleNode === n.id) || {}).def,
+      owner = (a.cards.find((c) => c.def.purpleNode === n.id && a.purple.includes(c.id)) || a.cards.find((c) => c.def.purpleNode === n.id) || {}).def,
       slotIndex = T.C.slots.findIndex((slot) => slot.node === n.id),
       active =
         n.type === 'slot'
           ? !!a.state.slots[slotIndex]
           : n.type === 'purple'
             ? owner && a.purple.includes(owner.id)
-            : source.length > 0;
+            : n.type === 'white' ? !!a.whiteActive[n.id] : source.length > 0;
     if (n.type === 'slot') {
       const id = a.state.slots[slotIndex];
       sockets.push(() =>
@@ -146,7 +146,7 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
     else {
       ctx.save();
       if (focus && !focus.coverage.includes(n.id)) ctx.globalAlpha = 0.3;
-      const colors = [...new Set(source.map(id => { const def = T.get(id); return def && towerColors[def.tower]; }).filter(Boolean))];
+      const colors = n.type === 'white' ? [towerColors[n.tower]].filter(Boolean) : [...new Set(source.map(id => { const def = T.get(id); return def && towerColors[def.tower]; }).filter(Boolean))];
       node(ctx, n, x, y, size, active, colors);
       if (focus && focus.coverage.includes(n.id)) hex(ctx, x, y, size * 0.94 * 0.8, 'transparent', focus.def.outlineColor || '#fff0b0', 3);
       ctx.restore();

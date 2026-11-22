@@ -24,7 +24,7 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     fillRoundRect(ctx, x, y, w, h, 14, owned ? 'rgba(255,90,60,0.10)' : 'rgba(255,255,255,0.03)');
     strokeRoundRect(ctx, x, y, w, h, 14, owned ? UR_COLOR : 'rgba(255,90,60,0.45)', owned ? 1.8 : 1.2);
     // 图标（居中，放大到 129）
-    const ic = 129, cx = x + w / 2, cy = y + 14 + ic / 2;
+    const ic = 96, cx = x + w / 2, cy = y + 14 + ic / 2;
     const src = relicIconSrc(d.id);
     if (!owned) ctx.globalAlpha = 0.55;
     if (!(src && drawImg(ctx, src, cx - ic / 2, cy - ic / 2, ic, ic))) {
@@ -53,7 +53,7 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
       wrapText(ctx, line, 550, 22).forEach((seg, i) => bullets.push({ seg, first: i === 0 }));
     });
     const cardH = 218, descH = 76 + bullets.length * 34;
-    const rewardH = urs.length ? cardH : 100;
+    const rewardH = urs.length ? Math.ceil(urs.length/3)*(cardH+12) : 100;
     const panelH = 160 + descH + 68 + rewardH + 42;
     const px = 25, pw = 700, y0 = Math.round((CONFIG.DESIGN.H - panelH) / 2);
     ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, 750, CONFIG.DESIGN.H);
@@ -87,12 +87,12 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     });
     const dropsY = descY + descH + 35;
     text(ctx, '专属掉落', 66, dropsY, 25, '#efbb93', 'left');
-    if (urs.length) text(ctx, 'W20概率1–2 · W40 1–3 · W60 3–6片', 684, dropsY, 15, '#c2b78e', 'right');
+    if (urs.length) text(ctx, Object.entries(RED.bossDrops).map(([wave,rule])=>'W'+wave+' '+(rule.chance<1?Math.round(rule.chance*100)+'% ':'')+Math.min(...rule.amounts)+'–'+Math.max(...rule.amounts)).join(' · ')+'片', 684, dropsY, 15, '#c2b78e', 'right');
     const cardY = dropsY + 33;
     if (urs.length) {
-      const cw = 290, gap = 30;
-      const x0 = 375 - (urs.length * cw + (urs.length - 1) * gap) / 2;
-      urs.forEach((d, i) => _urCard(ctx, s, d, x0 + i * (cw + gap), cardY, cw, cardH));
+      const cw = 190, gap = 18;
+      const x0 = 375 - (Math.min(3,urs.length) * cw + (Math.min(3,urs.length) - 1) * gap) / 2;
+      urs.forEach((d, i) => _urCard(ctx, s, d, x0 + (i%3) * (cw + gap), cardY + Math.floor(i/3)*(cardH+12), cw, cardH));
     } else {
       fillRoundRect(ctx, 62, cardY, 626, 100, 14, 'rgba(6,26,18,0.55)');
       strokeRoundRect(ctx, 62, cardY, 626, 100, 14, 'rgba(200,178,111,0.25)', 1);

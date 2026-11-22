@@ -79,7 +79,11 @@ function createMenuShopScreen({ drawImg, relicIconSrc, IMG_SRC, panelShell, wrap
     card(267,1660,'星辉宝箱','固定4片SSR',10,true,(cx,cy)=>drawChest(ctx,'star',IMG_SRC.chestStar,cx,cy,104),'diamondOffer','star');
     card(479,1660,'每日免费钻石','钻石 ×1 · 每日1次',s.adDaily && s.adDaily.diamond,true,
       (cx,cy)=>drawImg(ctx,IMG_SRC.diamond,cx-48,cy-48,96,96),'adOffer','diamond');
-    card(55,1946,'猩红宝箱','红卡碎片 ×1～3',20,true,(cx,cy)=>drawImg(ctx,SCARLET_ICON,cx-52,cy-52,104,104),'diamondOffer','scarlet');
+    ['scarletSanctum','scarletForge','scarletGale'].forEach((key,i)=>{
+      const offer=require('../../economy/diamond-shop.js').OFFERS[key];
+      if(require('../../field-access.js').reason(offer.unlockField,{fieldClears:s.fieldClears,prologue:s.prologue},!!s.testProfile))return;
+      card(55+i*212,1946,offer.name,'红卡碎片 ×1～3',20,true,(cx,cy)=>drawImg(ctx,SCARLET_ICON,cx-52,cy-52,104,104),'diamondOffer',key);
+    });
     ctx.restore();
     const thumb = (bottom-top)*(bottom-top)/(bottom-top+maxScroll);
     fillRoundRect(ctx,734,top,4,bottom-top,2,'rgba(50,72,45,0.12)');

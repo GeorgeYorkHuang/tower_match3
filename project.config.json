@@ -112,6 +112,294 @@
       {
         "type": "folder",
         "value": "assets/images/relics"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/lava-ridge/skill-poses-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/lava-ridge/shell-cycle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/frost-alpha/skill-poses-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/frost-alpha/charge-cycle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/frost-alpha/charge-cycle-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/altar_rosea/models-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-carlos-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-carlos-reignite-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-carlos-resonance-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-ignis-charge-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-ignis-eruption-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-ignis-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-skar-coldwind-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-skar-freeze-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-skar-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-skar-shadowfission-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-skar-shellbreak-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/expansion-velde-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/frost-alpha-charge-cycle-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/lava-ridge-shell-cycle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/normalized256/manifest.json"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/carlos-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/carlos-reignite-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/carlos-resonance-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/ignis-charge-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/ignis-core-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/ignis-eruption-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/ignis-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/skar-coldwind-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/skar-freeze-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/skar-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/skar-shadowfission-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/skar-shellbreak-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/monsters/bosses/expansion/velde-idle-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "cli_upload_err.txt"
+      },
+      {
+        "type": "file",
+        "value": "upload_log.txt"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_fire.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_cannon.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_boomerang.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_electric.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_ice.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_poison.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_fire-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_cannon-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_boomerang-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_electric-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_ice-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_poison-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_fire-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_cannon-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_boomerang-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_electric-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_ice-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_poison-v1.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_fire-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_cannon-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_boomerang-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_electric-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_ice-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_sanctum_poison-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_fire-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_cannon-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_boomerang-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_electric-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_ice-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_forge_poison-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_fire-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_cannon-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_boomerang-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_electric-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_ice-v2.png"
+      },
+      {
+        "type": "file",
+        "value": "assets/images/redcards/ur_gale_poison-v2.png"
       }
     ],
     "include": []

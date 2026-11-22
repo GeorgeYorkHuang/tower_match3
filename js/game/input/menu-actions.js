@@ -19,6 +19,10 @@ function onMenuTap(game, p) {
     }
     if(require('../unlock-guide.js').tap(game,p))return;
     if (require('./talent-actions.js').handle(game,p)) return;
+    if (!game.menuPanel || game.menuPanel.type==='relicDex') {
+      const tab=game.menuHits.slice(modalStart+1).find(it=>it.key==='relicSeries'&&it.hit(p.x,p.y));
+      if(tab){game.relicSeries=tab.data;game.relicDexPage=0;return;}
+    }
     if (game.menuPanel) {
       const bounds = game.menuHits.find(it => it.key === 'panelBounds');
       if (bounds && !bounds.hit(p.x, p.y)) { game.menuPanel = null; return; }
@@ -251,7 +255,7 @@ function onMenuTap(game, p) {
           return;
         case 'diamondOffer': {
           const offer=require('../../economy/diamond-shop.js').OFFERS[it.data];if(!offer)return;
-          game.menuPanel={type:'shopDetail',kind:{gold:'diamondGold',star:'diamondStar',scarlet:'diamondScarlet'}[it.data],item:{name:offer.name,price:offer.price,desc:offer.desc,color:it.data==='scarlet'?'#dc706d':'#57b9b4'}};
+          game.menuPanel={type:'shopDetail',kind:offer.field?'diamondScarlet':{gold:'diamondGold',star:'diamondStar'}[it.data],item:{offerKey:it.data,name:offer.name,price:offer.price,desc:offer.desc,color:it.data==='scarlet'?'#dc706d':'#57b9b4'}};
           return;
         }
         case 'shopChest': {
@@ -351,7 +355,7 @@ function confirmShopBuy(game) {
   if (!item) return;
   if (pnl.kind === 'adReward') { require('../flows/ad-actions.js').watch(game,item.adKey); return; }
   if (['diamondGold','diamondStar','diamondScarlet'].includes(pnl.kind)) {
-    const m=game.meta,old={gold:m.gold,diamond:m.diamond,shards:m.shards,relicDust:m.relicDust,totalDiamondSpent:m.totalDiamondSpent},key={diamondGold:'gold',diamondStar:'star',diamondScarlet:'scarlet'}[pnl.kind];
+    const m=game.meta,old={gold:m.gold,diamond:m.diamond,shards:m.shards,relicDust:m.relicDust,totalDiamondSpent:m.totalDiamondSpent},key=pnl.item.offerKey||{diamondGold:'gold',diamondStar:'star',diamondScarlet:'scarlet'}[pnl.kind];
     let result;try{result=require('../../economy/diamond-shop.js').buy(m,key);if(!result.ok){game.toast(result.reason==='diamond'?'钻石不足':'奖励生成失败','#ff6b6b');return;}if(game.save.save()===false)throw Error('save');}catch(error){Object.assign(m,old);game.toast('保存失败，未扣除钻石，请重试','#ff6b6b');return;}
     if(key!=='gold')game.menuPanel={type:'chestOpen',mode:'shop',tier:key,gain:result.gain,openedAt:Date.now()};
     else{game.menuPanel=null;game.toast('金币 +1000','#f7c948');}

@@ -6,7 +6,7 @@
 module.exports = {
   'version': 1,
   'whiteAttack': 2,
-  'whiteDescription': '攻击力 +2。仅加成覆盖此白点的红色圣遗物所对应的塔。',
+  'whiteDescription': '攻击力 +2。固定加成节点所属塔；任意红卡覆盖激活，同一点不重复叠加。',
   'seriesName': '圣庭',
   // 白点、绿点和紫点的位置固定；红卡只决定哪些格子被覆盖。
   'nodes': [
@@ -25,6 +25,7 @@ module.exports = {
       'r': 1,
       'type': 'white',
       'id': '-5,1',
+      'tower': 'poison',
     },
     {
       'q': -5,
@@ -51,6 +52,7 @@ module.exports = {
       'r': 4,
       'type': 'white',
       'id': '-5,4',
+      'tower': 'ice',
     },
     {
       'q': -5,
@@ -67,6 +69,7 @@ module.exports = {
       'r': -1,
       'type': 'white',
       'id': '-4,-1',
+      'tower': 'poison',
     },
     {
       'q': -4,
@@ -83,6 +86,7 @@ module.exports = {
       'r': 1,
       'type': 'white',
       'id': '-4,1',
+      'tower': 'poison',
     },
     {
       'q': -4,
@@ -97,6 +101,7 @@ module.exports = {
       'r': 3,
       'type': 'white',
       'id': '-4,3',
+      'tower': 'ice',
     },
     {
       'q': -4,
@@ -113,6 +118,7 @@ module.exports = {
       'r': 5,
       'type': 'white',
       'id': '-4,5',
+      'tower': 'ice',
     },
     {
       'q': -3,
@@ -129,6 +135,7 @@ module.exports = {
       'r': -1,
       'type': 'white',
       'id': '-3,-1',
+      'tower': 'poison',
     },
     {
       'q': -3,
@@ -167,6 +174,7 @@ module.exports = {
       'r': 4,
       'type': 'white',
       'id': '-3,4',
+      'tower': 'ice',
     },
     {
       'q': -3,
@@ -211,18 +219,21 @@ module.exports = {
       'r': 0,
       'type': 'white',
       'id': '-2,0',
+      'tower': 'poison',
     },
     {
       'q': -2,
       'r': 1,
       'type': 'white',
       'id': '-2,1',
+      'tower': 'ice',
     },
     {
       'q': -2,
       'r': 2,
       'type': 'white',
       'id': '-2,2',
+      'tower': 'ice',
     },
     {
       'q': -2,
@@ -257,12 +268,14 @@ module.exports = {
       'r': -4,
       'type': 'white',
       'id': '-1,-4',
+      'tower': 'fire',
     },
     {
       'q': -1,
       'r': -3,
       'type': 'white',
       'id': '-1,-3',
+      'tower': 'fire',
     },
     {
       'q': -1,
@@ -279,6 +292,7 @@ module.exports = {
       'r': -1,
       'type': 'white',
       'id': '-1,-1',
+      'tower': 'fire',
     },
     {
       'q': -1,
@@ -301,6 +315,7 @@ module.exports = {
       'r': 2,
       'type': 'white',
       'id': '-1,2',
+      'tower': 'electric',
     },
     {
       'q': -1,
@@ -317,12 +332,14 @@ module.exports = {
       'r': 4,
       'type': 'white',
       'id': '-1,4',
+      'tower': 'electric',
     },
     {
       'q': -1,
       'r': 5,
       'type': 'white',
       'id': '-1,5',
+      'tower': 'electric',
     },
     {
       'q': 0,
@@ -355,6 +372,7 @@ module.exports = {
       'r': -2,
       'type': 'white',
       'id': '0,-2',
+      'tower': 'fire',
     },
     {
       'q': 0,
@@ -377,6 +395,7 @@ module.exports = {
       'r': 2,
       'type': 'white',
       'id': '0,2',
+      'tower': 'electric',
     },
     {
       'q': 0,
@@ -409,12 +428,14 @@ module.exports = {
       'r': -5,
       'type': 'white',
       'id': '1,-5',
+      'tower': 'fire',
     },
     {
       'q': 1,
       'r': -4,
       'type': 'white',
       'id': '1,-4',
+      'tower': 'fire',
     },
     {
       'q': 1,
@@ -431,6 +452,7 @@ module.exports = {
       'r': -2,
       'type': 'white',
       'id': '1,-2',
+      'tower': 'fire',
     },
     {
       'q': 1,
@@ -453,6 +475,7 @@ module.exports = {
       'r': 1,
       'type': 'white',
       'id': '1,1',
+      'tower': 'boomerang',
     },
     {
       'q': 1,
@@ -469,12 +492,14 @@ module.exports = {
       'r': 3,
       'type': 'white',
       'id': '1,3',
+      'tower': 'electric',
     },
     {
       'q': 1,
       'r': 4,
       'type': 'white',
       'id': '1,4',
+      'tower': 'electric',
     },
     {
       'q': 2,
@@ -509,18 +534,21 @@ module.exports = {
       'r': -2,
       'type': 'white',
       'id': '2,-2',
+      'tower': 'cannon',
     },
     {
       'q': 2,
       'r': -1,
       'type': 'white',
       'id': '2,-1',
+      'tower': 'cannon',
     },
     {
       'q': 2,
       'r': 0,
       'type': 'white',
       'id': '2,0',
+      'tower': 'boomerang',
     },
     {
       'q': 2,
@@ -565,6 +593,7 @@ module.exports = {
       'r': -4,
       'type': 'white',
       'id': '3,-4',
+      'tower': 'cannon',
     },
     {
       'q': 3,
@@ -603,6 +632,7 @@ module.exports = {
       'r': 1,
       'type': 'white',
       'id': '3,1',
+      'tower': 'boomerang',
     },
     {
       'q': 3,
@@ -619,6 +649,7 @@ module.exports = {
       'r': -5,
       'type': 'white',
       'id': '4,-5',
+      'tower': 'cannon',
     },
     {
       'q': 4,
@@ -635,6 +666,7 @@ module.exports = {
       'r': -3,
       'type': 'white',
       'id': '4,-3',
+      'tower': 'cannon',
     },
     {
       'q': 4,
@@ -649,6 +681,7 @@ module.exports = {
       'r': -1,
       'type': 'white',
       'id': '4,-1',
+      'tower': 'boomerang',
     },
     {
       'q': 4,
@@ -665,6 +698,7 @@ module.exports = {
       'r': 1,
       'type': 'white',
       'id': '4,1',
+      'tower': 'boomerang',
     },
     {
       'q': 5,
@@ -681,6 +715,7 @@ module.exports = {
       'r': -4,
       'type': 'white',
       'id': '5,-4',
+      'tower': 'cannon',
     },
     {
       'q': 5,
@@ -707,6 +742,7 @@ module.exports = {
       'r': -1,
       'type': 'white',
       'id': '5,-1',
+      'tower': 'boomerang',
     },
     {
       'q': 5,
@@ -1115,3 +1151,5 @@ module.exports = {
   ],
   'centerPageSize': 12,
 };
+
+module.exports=require('./red-series.js')(module.exports);

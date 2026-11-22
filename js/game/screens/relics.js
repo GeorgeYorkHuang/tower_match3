@@ -63,7 +63,9 @@ function createRelicScreen(deps = {}) {
 
   function _menuRelicGrid(ctx, s, push, pageKey, showChest) {
     const PER_ROW = 4, PAGE = 16;
-    const list = _relicRunList();
+    const series=s.relicSeries||'all',redConfig=require('../../config/talents.js');
+    const ids=new Set(redConfig.cards.filter(c=>c.series===series).map(c=>c.id));
+    const list=_relicRunList().filter(d=>series==='all'||ids.has(d.id));
     const pages = Math.max(1, Math.ceil(list.length / PAGE));
     const page = Math.min(s.relicDexPage || 0, pages - 1);
     const unlocked = list.filter((d) => _relicUnlocked(s, d.id)).length;
@@ -78,7 +80,13 @@ function createRelicScreen(deps = {}) {
     text(ctx, '点击查看效果 · 集齐碎片后解锁', 480, 290, 17, '#8ea3b8', 'left');
     const cw = 149, ch = 150, gx = 14, gy = 14;
     const x0 = 55;
-    const y0 = showChest ? 336 : 318;
+    const y0=showChest?402:384;
+    ['all','sanctum','forge','gale'].forEach((key,i)=>{
+      const x=55+i*163,selected=series===key;
+      fillRoundRect(ctx,x,317,149,44,10,selected?'#715443':'#263a31');
+      text(ctx,key==='all'?'全部':redConfig.seriesNames[key],x+74.5,339,21,selected?'#ffe3a0':'#b9cbb8','center');
+      push('relicSeries',key,x,317,149,44);
+    });
     list.slice(page * PAGE, page * PAGE + PAGE).forEach((d, i) => {
       const col = i % PER_ROW, row = Math.floor(i / PER_ROW);
       const rx = x0 + col * (cw + gx), ry2 = y0 + row * (ch + gy);
@@ -128,9 +136,9 @@ function createRelicScreen(deps = {}) {
       push(clickableG ? 'relicInfo' : 'relicLock', d.id, rx, ry2, cw, ch);
     });
     // 分页
-    text(ctx, `${page + 1}/${pages}`, 375, 985, 18, '#8ea3b8', 'center');
-    if (page > 0) { push(pageKey, -1, 280, 970, 56, 34); fillRoundRect(ctx, 280, 970, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 280, 970, 56, 34, 10, '#7ca8ff', 1); text(ctx, '‹ 上一页', 308, 993, 15, '#7ca8ff', 'center'); }
-    if (page < pages - 1) { push(pageKey, 1, 414, 970, 56, 34); fillRoundRect(ctx, 414, 970, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 414, 970, 56, 34, 10, '#7ca8ff', 1); text(ctx, '下一页 ›', 442, 993, 15, '#7ca8ff', 'center'); }
+    text(ctx, `${page + 1}/${pages}`, 375, 1051, 18, '#8ea3b8', 'center');
+    if (page > 0) { push(pageKey, -1, 280, 1036, 56, 34); fillRoundRect(ctx, 280, 1036, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 280, 1036, 56, 34, 10, '#7ca8ff', 1); text(ctx, '‹ 上一页', 308, 1059, 15, '#7ca8ff', 'center'); }
+    if (page < pages - 1) { push(pageKey, 1, 414, 1036, 56, 34); fillRoundRect(ctx, 414, 1036, 56, 34, 10, '#1b2230'); strokeRoundRect(ctx, 414, 1036, 56, 34, 10, '#7ca8ff', 1); text(ctx, '下一页 ›', 442, 1059, 15, '#7ca8ff', 'center'); }
   }
 
   function menuRelic(ctx, s, push) {
@@ -341,7 +349,7 @@ function createRelicScreen(deps = {}) {
       lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
     });
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
-    if(rar==='ur')text(ctx,'来源：猩红宝箱 / '+urFieldName(d)+'通关Boss',375,oy+678,17,'#ffb3a3','center');
+    if(rar==='ur')text(ctx,'来源：猩红宝箱·'+require('../../config/talents.js').seriesNames[require('../../config/talents.js').cards.find(c=>c.id===d.id).series]+' / '+urFieldName(d)+' Boss',375,oy+678,17,'#ffb3a3','center');
     const btnY = oy + 710;
     if (!owned) {
       // 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示

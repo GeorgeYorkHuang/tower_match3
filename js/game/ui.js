@@ -1,3 +1,5 @@
+let pressPoint = null;
+function setPressPoint(point) { pressPoint = point; }
 /**
  * ui.js —— 绘制原语（逻辑坐标 750×1334 画布内使用）CommonJS
  */
@@ -16,6 +18,12 @@ function fillRoundRect(ctx, x, y, w, h, r, color) {
   ctx.fillStyle = color;
   roundRect(ctx, x, y, w, h, r);
   ctx.fill();
+  if (pressPoint && h >= 24 && w >= h * 1.5 && r >= h * 0.25 && pressPoint.x >= x && pressPoint.x <= x+w && pressPoint.y >= y && pressPoint.y <= y+h) {
+    ctx.save();
+    roundRect(ctx,x,y,w,h,r);ctx.fillStyle='rgba(0,0,0,0.25)';ctx.fill();
+    roundRect(ctx,x+2,y+2,w-4,h-4,Math.max(0,r-2));ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function strokeRoundRect(ctx, x, y, w, h, r, color, lw) {
@@ -48,4 +56,4 @@ function button(ctx, x, y, w, h, label, opts) {
   return { hit: (px, py) => px >= x && px <= x + w && py >= y && py <= y + h };
 }
 
-module.exports = { roundRect, fillRoundRect, strokeRoundRect, text, progressBar, button };
+module.exports = { setPressPoint, roundRect, fillRoundRect, strokeRoundRect, text, progressBar, button };

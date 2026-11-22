@@ -29,7 +29,7 @@ module.exports = {
     const bossReward = BattleDrops.claimBoss(this, e);
     if (bossReward) {
       const red=prologue?null:require('../../relics/red-boss-drop.js').grant(this,e);
-      if(red)this.toast('圣庭红卡碎片 +'+red.n+'（局末结算）','#ff8e80');
+      if(red)this.toast((require('../../config/talents.js').seriesNames[require('../../config/talents.js').cards.find(c=>c.id===red.id).series]||'')+'红卡碎片 +'+red.n+'（局末结算）','#ff8e80');
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = waveNo > 0 && waveNo % 20 === 0;
       // 普通三地图W20/40保底全金，W55之后不发局内宝箱；深渊保留原Boss概率。

@@ -14,7 +14,7 @@ function complete(meta,id,{victory=false,test=false,random=Math.random}={}){
  let redId=null;
  const next={...current,cleared:Plan.order.filter(key=>key===id||current.cleared.includes(key))};
  if(chapter.rewards.firstClearRed&&!current.redGiftGranted){
-   const pool=Cards.filter(card=>!(Number((meta.relicStars||{})[card.id])>0||(meta.runCodex||{})[card.id]));
+   const pool=Cards.filter(card=>card.series==='sanctum'&&!(Number((meta.relicStars||{})[card.id])>0||(meta.runCodex||{})[card.id]));
    if(pool.length){const roll=Number(random());if(!Number.isFinite(roll))return {ok:false,reason:'random'};
      redId=pool[Math.min(pool.length-1,Math.max(0,Math.floor(roll*pool.length)))].id;
    }

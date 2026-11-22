@@ -312,6 +312,10 @@ class GameMain {
     // 主界面：宝箱开箱倒计时完成 → 发卡；每日精选跨天自动刷新
     if (this.state === 'menu') {
       this.tickChest(Date.now());
+      if(this.meta._talentMigrationNotice&&this.save.save()!==false){
+        const n=this.meta._talentMigrationNotice;delete this.meta._talentMigrationNotice;
+        if(n.moved||n.removed)this.toast('红卡槽位已整理：回位'+n.moved+'张，卸下'+n.removed+'张（卡片保留）','#f3d68b');
+      }
       this.meta.ensureDailyPicks(Date.now());
       return;
     }
@@ -561,8 +565,8 @@ class GameMain {
     // 时间停滞（局内圣遗物）：怪物移速降低 N%（按星级）
     const stasis = this.run.relicNum('cm_stasis');
     const stasisMul = stasis > 0 ? (1 - stasis / 100) : 1;
-    // 霜风峡谷风场被动：移速 ×1.10^风场层数
-    const windMul = this.run.windStacks ? Math.pow(1.10, this.run.windStacks) : 1;
+    // 霜风风压：按配置读取移速乘区
+    const windMul = require('../field-pressure.js').speed(this.run);
     const statusMult = slowEff * stasisMul;
     return (e.speed || 0) * (e.isBoss ? Math.max(0.5,statusMult) : statusMult) * windMul * Bosses.moveScale(this, e);
   }
@@ -668,9 +672,6 @@ class GameMain {
     this.depthPool += res.waveGold * EV.poolShare * this.depthMult * (this.firstBonus || 1) * (this.field.goldMult || 1);
     // 战场被动触发提示（下一波生效）
     const Fp = this.field || {};
-    if (Fp.windEvery && this.run.wave % Fp.windEvery === 0) {
-      this.toast(`🌪 霜风峡谷：风场增速！怪物移速 +10%（第 ${this.run.wave} 波起）`, '#7cd6ff');
-    }
     if (Fp.curseEvery && this.run.wave % Fp.curseEvery === 0) {
       this.toast(`☠ 深渊诅咒！怪物血量 +15%（第 ${this.run.wave} 波起）`, '#c9a0ff');
     }
@@ -885,6 +886,7 @@ class GameMain {
   /* ---------- 三消联动：圣物经验加成补差 + 塔额外攻击（多消不同特效） ---------- */
   onMatchBonus(ret) {
     if (!ret || !ret.settled) return;
+    if (ret.settled.some(s => s.gotTower)) require('../prologue/encounters.js').learnBuiltTowers(this);
     const b = this.meta.relicBonus();
     let ammoSum = 0, shuSum = 0, refSum = 0, towerHit = '';
     // 三消飞光：消除色块汇聚成光点飞向对应塔位/全局技能按钮（3消白 / 4消蓝 / 5消+金）
@@ -1145,6 +1147,7 @@ class GameMain {
       waveTime: this.waveTime,
       waveDuration: (this.wave && this.wave.waveDur) || WAVE_DUR,
       state: this.state,
+      heatStacks: this.run.heatStacks || 0, windStacks: this.run.windStacks || 0,
       stage: this.menuStage,   // 战斗态也需要战场标识（行动区主题背景切换）
       anim: this.anim,
       waveClear: this.waveClear,
@@ -1238,6 +1241,7 @@ class GameMain {
       adDaily: require('../economy/ad-rewards.js').daily(this.meta),
       shopScroll: this.shopScroll || 0,
       relicScroll: this.relicScroll || 0,   // 圣遗物页滚动位置
+      relicSeries: this.relicSeries || 'all',
       relicDexPage: this.relicDexPage,   // 圣物图鉴分页（主页与图鉴面板共用）
       /* 激励系统状态 */
       field: CONFIG.FIELDS[this.menuStage] || CONFIG.FIELDS.ancient,

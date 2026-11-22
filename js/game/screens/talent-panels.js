@@ -101,18 +101,19 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
   }
   if (p.type === 'talentTest') {
     const b = { x: 105, y: 550, w: 540, h: 480 };
-    frame(ctx, push, drawImg, b, '圣庭红卡测试');
+    frame(ctx, push, drawImg, b, '三系列红卡测试');
     wrap(
       ctx,
-      '选择星级，将六张圣庭红卡按原位装配，方便比较覆盖范围和实际战斗加成。',
+      '选择星级，将所选系列六张红卡按原位装配，方便比较覆盖范围和实际战斗加成。',
       135,
       650,
       480,
       22
     );
-    [1, 2, 3].forEach((star, i) =>
-      button(ctx, push, 'talentTestPreset', star, '配置' + star + '星', 133 + i * 162, 765, 150, 56)
-    );
+    ['sanctum','forge','gale'].forEach((series,row)=>{
+      const names={sanctum:'圣庭',forge:'熔铸',gale:'霜风'};
+      [1,2,3].forEach((star,i)=>button(ctx,push,'talentTestPreset',{star,series},names[series]+star+'星',133+i*162,710+row*60,150,48));
+    });
     text(ctx, '仅修改独立测试档，不影响正常档案', 375, 880, 20, '#d9d7bd', 'center');
     button(ctx, push, 'talentClose', null, '返回', 275, 952, 200, 46);
     return;

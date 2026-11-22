@@ -28,6 +28,7 @@ function drawCard(ctx, s, def, x, y, push, drawImg, vp) {
   drawImg(ctx, def.icon, x + 18, y + 20, 116, 116);
   mini(ctx, def, x + 114, y + 68, 90);
   text(ctx, def.name, x + w / 2, y + 157, 19, '#ffe6b1', 'center');
+  text(ctx, '白点固定加成所属塔', x + w / 2, y + 180, 16, '#c8d8bd', 'center');
   text(ctx, '★'.repeat(star), x + w - 15, y + 29, 17, '#f0cb6e', 'right');
   if (s.testProfile)
     [2, 3].forEach((level, i) =>
@@ -73,7 +74,7 @@ function gallery(ctx, s, push, drawImg, frame) {
     list = L.galleryList(s.talentMeta, p.slot),
     metrics = L.scroll(s.talentMeta, p),
     offset = Math.max(0, Math.min(metrics.max, p.scrollY || 0));
-  frame(ctx, push, drawImg, b, '镶嵌圣遗物');
+  frame(ctx, push, drawImg, b, '镶嵌 · '+L.towerNames[T.C.cards.find(c=>c.nativeSlot===p.slot).tower]+'专属槽');
   button(ctx, push, 'talentUnequip', p.slot, '卸下', 76, 1236, 160, 48, !!s.talent.state.slots[p.slot]);
   button(ctx, push, 'talentUndo', null, '撤销上次', 254, 1236, 190, 48, !!p.undo);
   text(ctx, '槽位 ' + (p.slot + 1), 625, 1260, 20, '#ffe3a1', 'right');
@@ -88,7 +89,7 @@ function gallery(ctx, s, push, drawImg, frame) {
       y = vp.y + Math.floor(i / 2) * (L.card.h + L.card.rowGap) - offset;
     if (y + L.card.h > vp.y && y < vp.y + vp.h) drawCard(ctx, s, d, x, y, push, drawImg, vp);
   });
-  if (!list.length) text(ctx, '暂无可镶嵌的圣遗物', 375, vp.y + 100, 24, '#e4ddc2', 'center');
+  if (!list.length) text(ctx, '此槽仅接受对应塔红卡，暂无可镶嵌卡片', 375, vp.y + 100, 24, '#e4ddc2', 'center');
   ctx.restore();
   if (metrics.max > 0) {
     const track = vp.h,

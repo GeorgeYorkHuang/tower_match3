@@ -1,3 +1,4 @@
+const PressUI = require('../ui.js');
 const ShopScroll = require('./shop-scroll.js');
 const TalentGestures = require('./talent-gestures.js');
 const RelicScroll = require('./relic-scroll.js');
@@ -7,6 +8,13 @@ const MailRail = require('./mail-rail.js');
 'use strict';
 // One gesture lifetime shared by wx and canvas channels; caller injects the main canvas.
 function bindTouch(game, c) {
+    let pendingButton = null, starting = false;
+    const dispatch = game.dispatchTouch.bind(game);
+    game.dispatchTouch = (point) => {
+      if (!starting) return dispatch(point);
+      pendingButton = { point, state: game.state, panel: game.menuPanel, cancelled: false };
+      return true;
+    };
     let startCell = null, lastCell = null;
     let gestureUsed = false;
     game.pickCell = null; // 点击交换：当前选中格（渲染高亮，直到下次点击/滑动）
@@ -20,7 +28,7 @@ function bindTouch(game, c) {
       const y = Number.isFinite(t.clientY) ? t.clientY : t.y;
       return Number.isFinite(x) && Number.isFinite(y) ? game.toLogic(x, y) : null;
     };
-    const onStart = (e) => {
+    const handleStart = (e) => {
       const p = touchPoint(e);
       if (!p) return;
       if(game.relicDetail&&!game.relicDetailHits.tip){
@@ -56,7 +64,8 @@ function bindTouch(game, c) {
         return;
       }
       // 状态/弹层/按钮命中分发（模块化 ：dispatchTouch 独立方法）
-      if (game.dispatchTouch(p)) return;
+      const boardCell = game.state === 'fighting' && !game.funcLayer && !game.towerInfo && !game.towerSkill && !game.shopOpen && game.cellAt(p);
+      if (!boardCell && game.dispatchTouch(p)) return;
       // 棋盘点击/滑动准备
       startCell = game.cellAt(p);
       lastCell = startCell;
@@ -65,7 +74,16 @@ function bindTouch(game, c) {
       moved = false;
       game._touchStart = { x: p.x, y: p.y };
     };
+    const onStart = (e) => {
+      if (e.touches && e.touches.length > 1) { pendingButton = null; PressUI.setPressPoint(null); return; }
+      PressUI.setPressPoint(touchPoint(e));
+      starting = true;
+      try { handleStart(e); } finally { starting = false; }
+    };
     const onMove = (e) => {
+      const press = touchPoint(e);
+      if (pendingButton && press && Math.hypot(press.x-pendingButton.point.x, press.y-pendingButton.point.y)>12) pendingButton.cancelled=true;
+      PressUI.setPressPoint(pendingButton && pendingButton.cancelled ? null : press);
       if(MailRail.move(game,touchPoint(e)))return;
       if(MailButtons.move(game,touchPoint(e)))return;
       if(TalentGestures.move(game,e))return;
@@ -116,6 +134,13 @@ function bindTouch(game, c) {
       lastCell = cell;
     };
     const onEnd = (e) => {
+      PressUI.setPressPoint(null);
+      if (pendingButton) {
+        const button = pendingButton; pendingButton = null;
+        const end = touchPoint(e);
+        if (!button.cancelled && end && game.state === button.state && game.menuPanel === button.panel && Math.hypot(end.x-button.point.x,end.y-button.point.y)<=12) dispatch(button.point);
+        return;
+      }
       if(game._battleRelicDrag){const d=game._battleRelicDrag;game._battleRelicDrag=null;if(!d.moved)game.dispatchTouch(d.p);return;}
       if(MailRail.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if(MailButtons.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
@@ -162,6 +187,7 @@ function bindTouch(game, c) {
       game._touchStart = null;
     };
     const onCancel = () => {
+      pendingButton = null; PressUI.setPressPoint(null);
       game._battleRelicDrag=null;
       MailRail.cancel(game);
       MailButtons.cancel(game);

@@ -98,7 +98,7 @@ function draw(ctx, x, y, r, kind, active, src, drawImg) {
       polygon(
         ctx,
         points(x + (px - x) * 0.94, y + (py - y) * 0.94, r * 0.065),
-        active ? '#ffd0a0' : '#a65b58'
+        active ? p.accent : p.rim
       );
     }
   }

@@ -125,6 +125,8 @@ function applyBleed(combat, e, dmg) {
 function applySlow(combat, e, mult, ttl, source) {
   const run = combat.game.run;
   const talent=TalentRuntime;ttl=talent.statusDuration(run,source,ttl);mult=talent.slowStrength(run,source,mult);
+  // 风压只压基础+天赋减速时长；圣遗物延长在后，冻结/麻痹不经过此乘区。
+  ttl *= require('../field-pressure.js').slowDuration(run);
   if (source === 'ice') mult = Math.min(0.9, mult + (run.relicNum('s_sr_ice_chill') + run.relicNum('s_ice_chill')) / 100);
   // 冰川1★/2★：所有减速效果的幅度提升 15%/20%
   mult *= (1 + combat.relicVal('ice_glacier') / 100);

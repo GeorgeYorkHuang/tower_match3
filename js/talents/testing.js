@@ -6,16 +6,17 @@
 const T = require('./model.js');
 const ACCESS = require('../config/test-access.js');
 
-function snapshot(meta, star) {
+function snapshot(meta, star, series='sanctum') {
+  if(!['sanctum','forge','gale'].includes(series))throw Error('Invalid series');
   if (!Number.isInteger(star) || star < 1 || star > 3) throw Error('Invalid talent test star');
   const state = T.normalize(meta),
     data = {
       relicStars: { ...meta.relicStars },
       runCodex: { ...meta.runCodex },
       talents: {
-        version: 1,
+        version: 2,
         slots: T.C.slots.map((_, i) => {
-          const c = T.C.cards.find((c) => c.series === 'sanctum' && c.nativeSlot === i);
+          const c = T.C.cards.find((c) => c.series === series && c.nativeSlot === i);
           if (!c) return null;
           return c.id;
         }),
@@ -30,7 +31,10 @@ function snapshot(meta, star) {
 }
 
 // 写入测试档前同时校验身份和存档键，保存失败则恢复原对象。
-function applyPreset(game, star) {
+function applyPreset(game, choice) {
+  const star=typeof choice==='object'&&choice?choice.star:choice;
+  const series=typeof choice==='object'&&choice?choice.series:'sanctum';
+  if(!['sanctum','forge','gale'].includes(series))return false;
   if (!game.testProfile || !game.save || game.save.storageKey !== ACCESS.testSaveKey) {
     game.toast('此功能仅用于独立测试档', '#f3bd83');
     return false;
@@ -38,14 +42,14 @@ function applyPreset(game, star) {
   if (!Number.isInteger(star) || star < 1 || star > 3) return false;
   const m = game.meta,
     old = { relicStars: m.relicStars, runCodex: m.runCodex, talents: m.talents };
-  Object.assign(m, snapshot(m, star));
+  Object.assign(m, snapshot(m, star, series));
   if (game.save.save() === false) {
     Object.assign(m, old);
     game.toast('保存失败，未修改测试配置', '#f3bd83');
     return false;
   }
   game.menuPanel = null;
-  game.toast('已装配六张' + star + '星圣庭红卡（测试档）', '#8ed6a4');
+  game.toast('已装配六张' + star + '星'+T.C.seriesNames[series]+'红卡（测试档）', '#8ed6a4');
   return true;
 }
 

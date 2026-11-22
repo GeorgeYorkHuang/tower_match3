@@ -88,6 +88,7 @@ class Run {
     this.storeTimers = {}; this.storeCooldowns = {}; this.pickRerolls = 0;
     this.store = {};                 // 本局购买次数；强化强度只读取storeTimers，不读取次数
     this.fieldCfg = null;              // 战场被动配置（由主流程注入：风场/诅咒触发器）
+    this.heatStacks = 0;
     this.windStacks = 0;               // 霜风峡谷：风场增速层数（每 windEvery 波 +1，移速 ×1.10^n）
     this.curseStacks = 0;              // 深渊裂隙：诅咒层数（每 curseEvery 波 +1，怪物血量 ×1.15^n）
     this._colors = this.chapter.colors;
@@ -607,7 +608,7 @@ class Run {
     // 战场被动触发：霜风每 windEvery 波风场增速 +1 层；深渊每 curseEvery 波诅咒 +1 层
     const f = this.fieldCfg;
     if (f) {
-      if (f.windEvery && this.wave % f.windEvery === 0) this.windStacks = (this.windStacks || 0) + 1;
+      require('./field-pressure.js').update(this);
       if (f.curseEvery && this.wave % f.curseEvery === 0) this.curseStacks = (this.curseStacks || 0) + 1;
     }
     WaveRelics.startWave(this);
@@ -641,14 +642,16 @@ class Run {
     WaveRelics.endWave(this);
     // 战斗：敌人血量 vs 全塔 DPS（含协同）；战场被动：诅咒 ×1.15^n 血量，风场 /1.10^n 有效输出时长
     const curseMul = Math.pow(1.15, this.curseStacks || 0);
-    const windMul = Math.pow(1.10, this.windStacks || 0);
+    const windMul = require('./field-pressure.js').speed(this);
     // 代际重构：本波总血量由等级表生成（与 wave.buildPlan 同口径）
     const fieldHp = FieldBalance.enemyHpMultiplier(this.fieldCfg, this.wave);
     const enemyHp = this.bossWaveNo===this.wave && this.bossWaveHp ? this.bossWaveHp
       : this.chapterWaveNo===this.wave&&this.chapterWaveHp!=null?this.chapterWaveHp
       : this.fieldWaveNo===this.wave&&this.fieldWaveHp!=null?this.fieldWaveHp:CONFIG.ENEMY.waveTotalHp(this.wave, curseMul * fieldHp);
     const totalDps = this.effects.totalDps();
-    const dealt = totalDps * CONFIG.WAVE.seconds / windMul;
+    // 仅供离线估算：普通怪熔壳乘区近似，不能替代真实护甲与精英构成模拟。
+    const heat=this.fieldCfg&&this.fieldCfg.heatShell;
+    const dealt = totalDps * CONFIG.WAVE.seconds / windMul * (1-(heat?heat.armorPerStack*(this.heatStacks||0):0));
     const leak = Math.max(0, enemyHp - dealt);
     if (!skipLeak) this.lineHp -= this.applyWallDamage(leak);
     // 协同检测（与模拟一致）

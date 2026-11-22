@@ -22,7 +22,7 @@ const summary = { x: 50, y: 270, w: 650, h: 1040 },
 function galleryList(meta, slot) {
   const state = T.normalize(meta),
     current = T.get(state.slots[slot]);
-  return (current ? [current] : []).concat(T.candidates(meta));
+  return (current ? [current] : []).concat(T.candidates(meta, slot));
 }
 
 function summaryItems(meta) {
