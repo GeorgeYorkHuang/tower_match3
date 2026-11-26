@@ -7,7 +7,7 @@ const CONFIG = require('../js/config.js');
 const SKILLS = require('../js/config/tower-skills.js');
 const { skillEnergy } = require('../js/game/codex-energy.js');
 const { createCodexScreen } = require('../js/game/screens/codex.js');
-const fixture = require('./tower-balance-fixture.cjs');
+const fixture = require('./balance/fixtures/tower-balance-fixture.cjs');
 const close = (a, b) => assert(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 
 try {

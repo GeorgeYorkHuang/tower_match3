@@ -3,8 +3,9 @@ const CONFIG = require('../../config.js');
 
 // Preserve modal priority and consume each event once. Player state belongs to game.
 function dispatchTouch(game, p, version) {
-  if (require('../auto-battle.js').tap(game,p)) return true;
   if (require('../tutorial.js').tap(game,p)) return true;
+  if (require('../screens/card-draft.js').tap(game,p)) return true;
+  if (require('../auto-battle.js').tap(game,p)) return true;
   if (require('../flows/ad-actions.js').tap(game,p)) return true;
   // 本局圣遗物详情弹层（最高优先级）：✕ 关闭 / ▲▼ 翻页
   if (game.relicDetail) {
@@ -123,6 +124,7 @@ function dispatchTouch(game, p, version) {
     }
   }
   if (game.state === 'fighting') {
+    if(require('../flows/board-chests.js').tap(game,p))return true;
     // 宝箱开箱/飞行动画期间锁定战斗输入（防误触）
     if (game._chestBusy) return true;
     // 局内商店：入口移至底部功能条，此处仅处理面板内点击（关闭钮 / 商品格）

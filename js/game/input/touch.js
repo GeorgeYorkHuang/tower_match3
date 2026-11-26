@@ -1,4 +1,5 @@
 const PressUI = require('../ui.js');
+const CardDraft = require('../screens/card-draft.js');
 const ShopScroll = require('./shop-scroll.js');
 const TalentGestures = require('./talent-gestures.js');
 const RelicScroll = require('./relic-scroll.js');
@@ -12,7 +13,7 @@ function bindTouch(game, c) {
     const dispatch = game.dispatchTouch.bind(game);
     game.dispatchTouch = (point) => {
       if (!starting) return dispatch(point);
-      pendingButton = { point, state: game.state, panel: game.menuPanel, cancelled: false };
+      pendingButton = { point, state: game.state, tab: game.menuTab, panel: game.menuPanel, stage:game.menuStage, menuHit:game.state==='menu'?(game.menuHits||[]).find(h=>h.hit(point.x,point.y)):null, cancelled: false };
       return true;
     };
     let startCell = null, lastCell = null;
@@ -37,6 +38,7 @@ function bindTouch(game, c) {
           game._battleRelicDrag={p,start:p.y,scroll:game.relicDetailHits.scroll||0,moved:false};return;
         }
       }
+      if(game.state==='menu'&&!game.menuPanel&&(game.menuHits||[]).some(it=>it.key==='tab'&&it.hit(p.x,p.y))){game.dispatchTouch(p);return;}
       if(MailRail.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
       if(MailButtons.begin(game,p,e.touches?e.touches.length:1)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
       if(TalentGestures.begin(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;return;}
@@ -64,7 +66,7 @@ function bindTouch(game, c) {
         return;
       }
       // 状态/弹层/按钮命中分发（模块化 ：dispatchTouch 独立方法）
-      const boardCell = game.state === 'fighting' && !game.funcLayer && !game.towerInfo && !game.towerSkill && !game.shopOpen && game.cellAt(p);
+      const boardCell = game.state === 'testfield' && !game.funcLayer && !game.towerInfo && !game.towerSkill && !game.shopOpen && game.cellAt(p);
       if (!boardCell && game.dispatchTouch(p)) return;
       // 棋盘点击/滑动准备
       startCell = game.cellAt(p);
@@ -74,13 +76,24 @@ function bindTouch(game, c) {
       moved = false;
       game._touchStart = { x: p.x, y: p.y };
     };
+    const actionAt=(p)=>{
+      if(!p)return null;
+      const hits=game.state==='reviveOffer'?game._reviveAdHits:game.state==='gameover'&&game.gameoverSkip?game.restartBtn:null;
+      if(!hits)return null;
+      for(const key of Object.keys(hits))if(typeof hits[key]==='function'&&hits[key](p.x,p.y))return key;
+      return null;
+    };
     const onStart = (e) => {
       if (e.touches && e.touches.length > 1) { pendingButton = null; PressUI.setPressPoint(null); return; }
+      if (CardDraft.begin(game,touchPoint(e))) { PressUI.setPressPoint(touchPoint(e)); return; }
+      game._settlementPress=actionAt(touchPoint(e));
       PressUI.setPressPoint(touchPoint(e));
       starting = true;
       try { handleStart(e); } finally { starting = false; }
     };
     const onMove = (e) => {
+      if(game._cardFullPrompt){PressUI.setPressPoint(touchPoint(e));return;}
+      if (game._cardDrag) { game._cardDrag.p=touchPoint(e)||game._cardDrag.p; return; }
       const press = touchPoint(e);
       if (pendingButton && press && Math.hypot(press.x-pendingButton.point.x, press.y-pendingButton.point.y)>12) pendingButton.cancelled=true;
       PressUI.setPressPoint(pendingButton && pendingButton.cancelled ? null : press);
@@ -99,10 +112,11 @@ function bindTouch(game, c) {
         if (Math.abs(p.y - d.start) > 6) d.moved = true;
         game._lootScroll = Math.max(0, Math.min(max, d.scroll + d.start - p.y)); d.y = p.y; return;
       }
-      if (game._shopDrag && p) { ShopScroll.move(game, p); return; }
+      if (game._shopDrag && p) { ShopScroll.move(game, p); if(game._shopDrag&&game._shopDrag.moved)PressUI.setPressPoint(null); return; }
       // 圣遗物页拖动滚动
       if (game._relicDrag && p) {
         RelicScroll.move(game, p);
+        if(game._relicDrag&&game._relicDrag.moved)PressUI.setPressPoint(null);
         return;
       }
       // 全局技能面板拖动滚动
@@ -134,11 +148,15 @@ function bindTouch(game, c) {
       lastCell = cell;
     };
     const onEnd = (e) => {
+      if (CardDraft.end(game,touchPoint(e))) return;
       PressUI.setPressPoint(null);
       if (pendingButton) {
         const button = pendingButton; pendingButton = null;
         const end = touchPoint(e);
-        if (!button.cancelled && end && game.state === button.state && game.menuPanel === button.panel && Math.hypot(end.x-button.point.x,end.y-button.point.y)<=12) dispatch(button.point);
+        const action=game._settlementPress;game._settlementPress=null;
+        if(action&&actionAt(end)!==action)return;
+        if(button.menuHit&&(!end||!button.menuHit.hit(end.x,end.y)||game.menuStage!==button.stage))return;
+        if (!button.cancelled && end && game.state === button.state && game.menuTab === button.tab && game.menuPanel === button.panel && Math.hypot(end.x-button.point.x,end.y-button.point.y)<=12) dispatch(button.point);
         return;
       }
       if(game._battleRelicDrag){const d=game._battleRelicDrag;game._battleRelicDrag=null;if(!d.moved)game.dispatchTouch(d.p);return;}
@@ -146,14 +164,14 @@ function bindTouch(game, c) {
       if(MailButtons.end(game,touchPoint(e))){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if(TalentGestures.end(game,e)){startCell=null;lastCell=null;moved=false;gestureUsed=false;game._touchStart=null;game.selected=null;return;}
       if (game._lootDrag) { const d = game._lootDrag; game._lootDrag = null; game._touchStart = null; if (d.moved) return; game.dispatchTouch(touchPoint(e) || { x: 0, y: 0 }); return; }
-      if (game._shopDrag) { const d = ShopScroll.end(game); if (d && !d.moved && game.state === 'menu') game.dispatchTouch(d.p); return; }
+      if (game._shopDrag) { const d = ShopScroll.end(game); if (d && !d.moved && game.state === 'menu') {const end=touchPoint(e);if(end&&Math.hypot(end.x-d.p.x,end.y-d.p.y)<=12)game.dispatchTouch(end);} return; }
       // Always release on end: adapters may include the ending touch in touches.
       gestureUsed = false;
       // 圣遗物页：未拖动 → 补发点击；已拖动 → 吞掉
       if (game._relicDrag) {
         const d = RelicScroll.end(game);
         game._touchStart = null; moved = false; startCell = null; lastCell = null; game.selected = null;
-        if (!d.moved && game.state === 'menu') game.dispatchTouch(d.p);
+        if (!d.moved && game.state === 'menu' && touchPoint(e) && Math.hypot(touchPoint(e).x-d.p.x,touchPoint(e).y-d.p.y)<=12) game.dispatchTouch(d.p);
         return;
       }
       // 全局技能面板：未拖动 → 补发点击；已拖动 → 吞掉
@@ -188,6 +206,7 @@ function bindTouch(game, c) {
     };
     const onCancel = () => {
       pendingButton = null; PressUI.setPressPoint(null);
+      game._cardDrag=null;
       game._battleRelicDrag=null;
       MailRail.cancel(game);
       MailButtons.cancel(game);

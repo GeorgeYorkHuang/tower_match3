@@ -1,3 +1,4 @@
+const {cardDepth}=require('../ui.js');
 /** R09: relic pages and presentation helpers. No Meta/Run references or asset cache. */
 'use strict';
 const CONFIG = require('../../config.js');
@@ -21,6 +22,18 @@ function createRelicScreen(deps = {}) {
   const { drawImg, relicIconSrc, IMG_SRC, TIER_COLOR, fmtNum, panelShell, wrapText } = deps;
   for (const name of ['drawImg', 'relicIconSrc', 'fmtNum', 'panelShell', 'wrapText']) {
     if (typeof deps[name] !== 'function') throw new Error('relics screen missing dependency: ' + name);
+  }
+  function fieldLock(s,d){
+    if(CONFIG.relicRarity(d.id)!=='ur'||_relicUnlocked(s,d.id))return '';
+    return require('../../field-access.js').reason(d.field,{fieldClears:s.fieldClears,prologue:s.prologue},!!s.testProfile);
+  }
+  function lockedSeriesCard(ctx,s,d,x,y,w,h,push,message){
+    ctx.save();ctx.globalAlpha=.15;const src=relicIconSrc(d.id);if(src)drawImg(ctx,src,x+w/2-38,y+12,76,76);ctx.restore();
+    fillRoundRect(ctx,x+8,y+8,w-16,h-16,10,'rgba(10,17,23,.65)');
+    text(ctx,'未解锁战场',x+w/2,y+95,18,'#aab5bd','center');
+    const label=d.field==='lava'?'通关花园解锁':d.field==='frost'?'通关熔岩解锁':'完成教学解锁';
+    text(ctx,label,x+w/2,y+122,16,'#d7bc87','center');
+    push('relicFieldLocked',message,x,y,w,h);
   }
   function _relicRunList() {
     const RR = CONFIG.RELIC_RUN;
@@ -95,9 +108,12 @@ function createRelicScreen(deps = {}) {
       const owned = _relicUnlocked(s, d.id);
       const star = owned ? (s.relicStars[d.id] || 1) : 0;
       // 卡底：已解锁浅底 / 未解锁黑底 + 稀有度色边
+      cardDepth(ctx,rx,ry2,cw,ch);
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
       drawImg(ctx, 'assets/images/interface/cards/relic-card-v1.png', rx, ry2, cw, ch);
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
+      const lockMessage=fieldLock(s,d);
+      if(lockMessage){lockedSeriesCard(ctx,s,d,rx,ry2,cw,ch,push,lockMessage);return;}
       // 图标（左上 44px；未解锁用问号）
       const icx = rx + cw / 2, icy = ry2 + 40;
       if (owned) {
@@ -202,9 +218,12 @@ function createRelicScreen(deps = {}) {
       const rc = _relicRarColor(rar);
       const owned = _relicUnlocked(s, d.id);
       const icx = rx + cw / 2, icy = ry2 + 70;   // 图标区占上 2/3（高 140），圆心居中
+      cardDepth(ctx,rx,ry2,cw,ch);
       fillRoundRect(ctx, rx, ry2, cw, ch, 12, owned ? '#141d2a' : '#0b0e14');
       drawImg(ctx, 'assets/images/interface/cards/relic-card-v1.png', rx, ry2, cw, ch);
       strokeRoundRect(ctx, rx, ry2, cw, ch, 12, rc, owned ? 1.5 : 1);
+      const lockMessage=fieldLock(s,d);
+      if(lockMessage){lockedSeriesCard(ctx,s,d,rx,ry2,cw,ch,(key,data,x,y,w,h)=>{const top=Math.max(vy0,y),bottom=Math.min(vy1,y+h);if(bottom>top)push(key,data,x,top,w,bottom-top);},lockMessage);return;}
       if (owned) {
         const star=s.relicStars[d.id]||1;RelicCard.content(ctx,d,{x:rx,y:ry2,w:cw,h:ch},{star,rarity:rar,shards:s.shards[d.id]||0,nextCost:CONFIG.STAR_UP.cost[star+1]},drawImg,relicIconSrc);
       } else if (rar === 'ur') {
@@ -242,6 +261,7 @@ function createRelicScreen(deps = {}) {
         }
       }
       // 命中区裁剪到滚动视口内（防止末行卡片压住底部分页标签，）
+      cardDepth(ctx,rx,ry2,cw,ch,true);
       const hy = Math.max(ry2, vy0), hy2 = Math.min(ry2 + ch, vy1);
       const clickable = owned;
       if (hy2 > hy) push(clickable ? 'relicInfo' : 'relicLock', d.id, rx, hy, cw, hy2 - hy);
@@ -268,8 +288,9 @@ function createRelicScreen(deps = {}) {
     const id = s.panel.id;
     const d = CONFIG.relicRunDef(id);
     if (!d) return;
-    const oy = panelShell(ctx, s, push, '', 840, true, 560);
-    drawImg(ctx, 'assets/images/interface/cards/relic-detail-v1.png', 95, oy, 560, 840);
+    const isRed=CONFIG.relicRarity(id)==='ur',detailHeight=isRed?1000:840,lowerShift=isRed?140:0;
+    const oy = panelShell(ctx, s, push, '', detailHeight, true, 560);
+    drawImg(ctx, 'assets/images/interface/cards/relic-detail-v1.png', 95, oy, 560, detailHeight);
     // Redraw the close control above the background; hit bounds stay owned by panelShell.
     text(ctx, '×', 605, oy + 46, 28, '#e9ddbd', 'center');   // 窄面板 560 与卡片同宽
     const rar = CONFIG.relicRarity(id);
@@ -313,8 +334,8 @@ function createRelicScreen(deps = {}) {
     if (dustCost && star < 3) {
       const capacity = (star ? 0 : unlockNeed) + (star < 2 ? CONFIG.STAR_UP.cost[2].shards : 0) + CONFIG.STAR_UP.cost[3].shards;
       const full = shards >= capacity;
-      fillRoundRect(ctx, cardX + 36, oy + 786, 488, 48, 12, '#342641');
-      text(ctx, full ? '碎片已满' : '合成1片 · '+dustCost+'粉尘（持有 '+(s.relicDust || 0)+'）', 375, oy + 810, 20, '#dfbdff', 'center');
+      fillRoundRect(ctx, cardX + 36, oy + 786 + lowerShift, 488, 48, 12, '#342641');
+      text(ctx, full ? '碎片已满' : '合成1片 · '+dustCost+'粉尘（持有 '+(s.relicDust || 0)+'）', 375, oy + 810 + lowerShift, 20, '#dfbdff', 'center');
       if (!full) push('craftShard', id, cardX + 36, oy + 786, 488, 48);
     }
     // ---- 名称 ----
@@ -326,15 +347,15 @@ function createRelicScreen(deps = {}) {
       { star: '★★', txt: d.star2 || '（暂无）', lv: 2 },
       { star: '★', txt: d.desc || '（暂无）', lv: 1 },
     ];
-    const rh = 80, rgap = 16;
+    const heights=rar==='ur'?[170,140,75]:[80,80,80],rgap=rar==='ur'?10:16;
     cols.forEach((c, ci) => {
-      const cy0 = ry0 + ci * (rh + rgap);
+      const rh=heights[ci],cy0=ry0+heights.slice(0,ci).reduce((a,b)=>a+b,0)+ci*rgap;
       const active = owned && star === c.lv;
       fillRoundRect(ctx, rx, cy0, rw, rh, 14, active ? 'rgba(247,201,72,0.12)' : 'rgba(255,255,255,0.045)');
       strokeRoundRect(ctx, rx, cy0, rw, rh, 14, active ? '#f7c948' : 'rgba(255,255,255,0.14)', active ? 2.5 : 1);
       // 星标圆
-      const bx = rx + 22, by = cy0 + rh / 2;
-      ctx.beginPath(); ctx.arc(bx + 35, by, 35, 0, Math.PI * 2);
+      const bx = rx + (rar==='ur'?4:22), by = cy0 + rh / 2,starRadius=rar==='ur'?23:35;
+      ctx.beginPath(); ctx.arc(bx + 35, by, starRadius, 0, Math.PI * 2);
       if (active) {
         const sg = ctx.createLinearGradient(0, by - 35, 0, by + 35);
         sg.addColorStop(0, '#ffe9a8'); sg.addColorStop(1, '#f7c948');
@@ -343,14 +364,14 @@ function createRelicScreen(deps = {}) {
       ctx.fill();
       ctx.strokeStyle = active ? '#ffe9a8' : 'rgba(255,255,255,0.22)';
       ctx.lineWidth = 2; ctx.stroke();
-      text(ctx, c.star, bx + 35, by + 2, c.lv === 3 ? 19 : 24, active ? '#1a1405' : '#9fb2c3', 'center');
+      text(ctx, c.star, bx + 35, by + 2, rar==='ur'?15:c.lv === 3 ? 19 : 24, active ? '#1a1405' : '#9fb2c3', 'center');
       // 效果文字（换行，最多 2 行）
-      const lines = wrapText(ctx, c.txt, rw - 108 - 20, 21).slice(0, 2);
-      lines.forEach((ln, li) => text(ctx, ln, rx + 108, cy0 + 34 + li * 26, 21, active ? '#ffe9a8' : '#b9c4cf', 'left'));
+      const red=rar==='ur',size=red?19:21,lines=wrapText(ctx,c.txt,red?rw-96:rw-128,size).slice(0,red?Math.ceil((rh-14)/23):2);
+      lines.forEach((ln, li) => text(ctx, ln, rx + (red?78:108), cy0 + (red?16:34) + li * (red?23:26), size, active ? '#ffe9a8' : '#b9c4cf', 'left'));
     });
     // ---- 升级按钮（小号 420×62：升到 N★ + 金币）----
-    if(rar==='ur')text(ctx,'来源：猩红宝箱·'+require('../../config/talents.js').seriesNames[require('../../config/talents.js').cards.find(c=>c.id===d.id).series]+' / '+urFieldName(d)+' Boss',375,oy+678,17,'#ffb3a3','center');
-    const btnY = oy + 710;
+    if(rar==='ur')text(ctx,'来源：猩红宝箱·'+require('../../config/talents.js').seriesNames[require('../../config/talents.js').cards.find(c=>c.id===d.id).series]+' / '+urFieldName(d)+' Boss',375,oy+678+lowerShift,17,'#ffb3a3','center');
+    const btnY = oy + 710 + lowerShift;
     if (!owned) {
       // 未解锁：碎片够 → 手动解锁按钮（消耗阈值碎片）；不够 → 进度提示
       if (_relicUnlockable(s, id)) {

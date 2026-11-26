@@ -31,7 +31,7 @@ const descriptions = {
  tide:()=>`全场敌人减速${Math.round(BALANCE.tide.slowRatio*100)}%，持续${BALANCE.tide.duration}秒。`,
  pull:()=>`将场上敌人推回出生方向${BALANCE.pull.distance}像素。`,
  chainstorm:()=>`下次有效交换，第${BALANCE.chainstorm.startGroup}组消除即可触发连消技。`,
- charge:()=>`下次有效消除优先对应颜色，为${BALANCE.charge.towerCount}座已激活塔各补${BALANCE.charge.energy}能量。`,
+ charge:()=>`下次使用塔卡时，为${BALANCE.charge.towerCount}座已激活塔各补${BALANCE.charge.energy}能量。`,
  gold:()=>`${BALANCE.gold.duration}秒内击杀局内金币变为${BALANCE.gold.multiplier}倍。`,
  refill:()=>`全场已激活塔补充${require('../config.js').GLOBAL_SKILL.refillEnergy}点能量。`,
 };

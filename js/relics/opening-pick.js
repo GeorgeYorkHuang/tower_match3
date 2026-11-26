@@ -24,10 +24,7 @@ function queue(game) {
 
 function finish(game) {
   // 开局选到城墙属性时，在第一只怪推进前更新生命上限与满血值。
-  const bonus = game.meta.relicBonus();
-  const wall = game.run.relicNum('s_sr_cm_wall');
-  game.run.lineHp = Math.round(CONFIG.LINE.hp * (1 + 0.10 * bonus.wall) * (1 + wall / 100));
-  game.run.lineMaxHp = game.run.lineHp;
+  require('./wall-health.js').sync(game);
   // 新手引导在开局选择完成后开始，避免引导遮罩吞掉三选一的点击。
   require('../game/tutorial.js').begin(game);
 }

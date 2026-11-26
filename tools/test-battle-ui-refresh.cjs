@@ -38,7 +38,7 @@ for(const mode of ['empty','dead','move','hit']){
  assert.equal(s.visual.t,s.visual.dur,'实体结束时必须同步移除贴图，不能留下静止子弹');
  if(mode==='hit')assert.equal(hits,1);else{assert.equal(hits,0);assert(afterY<launchY,mode+' 没目标也必须继续飞行');}
 }
-const fixture=require('./moving-battle-fixture.cjs');
+const fixture=require('./balance/fixtures/moving-battle-fixture.cjs');
 try{
  const Main=require('../js/game/main.js'),Chests=require('../js/game/flows/board-chests.js');
  for(const [id,won] of [['ancient',true],['lava',true],['frost',true],['lava',false]]){

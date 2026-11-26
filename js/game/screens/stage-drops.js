@@ -65,12 +65,6 @@ function createStageDropsScreen({ drawImg, relicIconSrc, wrapText }) {
     }
     text(ctx, F.name, 375, y0 + 76, 38, '#ffe4a1', 'center');
     text(ctx, F.chapterTitle || (id === 'abyss' ? '深渊挑战' : '测试战场'), 375, y0 + 119, 21, '#b9cba9', 'center');
-    const closeX = px + pw - 61, closeY = y0 + 38;
-    push('panelClose', null, closeX - 24, closeY - 24, 48, 48);
-    fillRoundRect(ctx, closeX - 21, closeY - 21, 42, 42, 21, '#263b2a');
-    strokeRoundRect(ctx, closeX - 21, closeY - 21, 42, 42, 21, '#ad985b', 1.3);
-    text(ctx, '×', closeX, closeY - 1, 30, '#eddaa5', 'center');
-
     // 说明区使用深绿底与金色标题，避免文字和纹理混在一起。
     const descY = y0 + 160;
     fillRoundRect(ctx, 62, descY, 626, descH, 16, 'rgba(6,26,18,0.70)');

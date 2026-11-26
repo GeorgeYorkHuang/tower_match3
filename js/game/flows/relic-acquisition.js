@@ -22,7 +22,7 @@ module.exports = {
       if (Math.random() < chance) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: 'elite' });
         this.run._waveChestDropped = true;
-        this.toast('精英宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+        this.toast('精英宝箱 · 点击打开', '#f7c948');
       }
     }
     // 同一波Boss只发一份宝箱和碎片；银币、经验仍逐个敌人结算。
@@ -39,17 +39,26 @@ module.exports = {
       else if (fieldChestDropped) {
         this.fieldChests.push({ x: e.x, y: e.y, t: 0, kind: majorBoss ? 'majorBoss' : 'miniBoss' });
         this.run._waveChestDropped = true;
-        this.toast(majorBoss ? '大Boss宝箱 · 消除棋盘相邻方块领取' : '小Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+        this.toast(majorBoss ? '大Boss宝箱 · 点击打开' : '小Boss宝箱 · 点击打开', '#f7c948');
       }
       if(!prologue)this.meta.chests += 1; // Boss 进度奖励计入主界面宝箱，与战斗宝箱概率独立
       if (e.isFinalBoss) this.toast('终极Boss宝箱已存入主界面', '#f7c948');
       this.save.save();
     }
-    /* 碎片独立掉落表：精英10%×1；小Boss25%×2~4；大Boss保底2，另55%×3~6。 */
-    if(prologue)return;
     const field = this.field || CONFIG.FIELDS.ancient;
+    const KD = CONFIG.KILL_DROP;
+    // 击杀银币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场银币倍率
+    // 替代旧 1.06^w 波次通胀：收益成长改由怪物代际等级驱动（与血量曲线同源）
+    const rawKg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0]))
+      * KD.goldLevelMult(e.genLv)
+      * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
+      * (field.goldMult || 1));
+    const kg = require('../../economy/kill-silver.js').scale(this.run,e,rawKg);
+    const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? GS_BALANCE.gold.multiplier : 1);
+    this.run.gold += earned;
+    if (earned > kg) this.fx.push({type:'floatText',text:'+'+earned,x:e.x,y:e.y,t:0,dur:0.8,size:20,color:'#ffe17c'});
+    if(prologue)return;
     if (field.dropAttr && field.dropAttr !== 'none') {
-      const KD = CONFIG.KILL_DROP;
       let n = 0;
       const waveNo = e.waveNo || this.run.wave || 0;
       const majorBoss = !!e.isBoss && waveNo > 0 && waveNo % 20 === 0;
@@ -63,22 +72,11 @@ module.exports = {
       if (n > 0) {
         const id = CONFIG.randomShardId(field.dropAttr);
         if (id) {
-          // 碎片改「局内记账 → 局末入账」：此处不再直接 meta.addShard，
-          //   否则失守时无法按 30% 折算收回（详见 settleRunShards）
           this.runShardGained += n;
-          this.runShardDetail[id] = (this.runShardDetail[id] || 0) + n;   // 碎片明细（击杀掉落）
-          this.toast(`🧩 圣遗物碎片 +${n}（局末结算）`, '#a86bff');
+          this.runShardDetail[id] = (this.runShardDetail[id] || 0) + n;
+          this.toast('🧩 圣遗物碎片 +'+n+'（局末结算）', '#a86bff');
         }
       }
-      // 击杀银币：单怪 (5~10 浮动) × 代际等级系数（Lv1=1，50波平均≈2倍）× 类型倍率（精英×3/Boss×8）× 战场银币倍率
-      // 替代旧 1.06^w 波次通胀：收益成长改由怪物代际等级驱动（与血量曲线同源）
-      const kg = Math.round((KD.killGold[0] + Math.random() * (KD.killGold[1] - KD.killGold[0]))
-        * KD.goldLevelMult(e.genLv)
-        * (e.isBoss ? KD.bossGoldMult : (e.type === 'elite' ? KD.eliteGoldMult : 1))
-        * (field.goldMult || 1));
-      const earned = kg * (this.run.gsState && this.run.gsState.gold > 0 ? GS_BALANCE.gold.multiplier : 1);
-      this.run.gold += earned;
-      if (earned > kg) this.fx.push({type:'floatText',text:'+'+earned,x:e.x,y:e.y,t:0,dur:0.8,size:20,color:'#ffe17c'});
     }
   },
 
@@ -87,7 +85,7 @@ module.exports = {
     Object.values(CONFIG.RELIC_RUN.tower).forEach((l) => { n += l.length; });
     return n + CONFIG.RELIC_RUN.common.length + (CONFIG.RELIC_RUN.ur || []).length;
   },
-
+  
   spawnRelicPick(mode, options = {}) {
     const chapter = this.run.chapter;
     if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) { this._chestBusy = false; return; }
@@ -105,7 +103,7 @@ module.exports = {
     this.pendingRelicPicks.push({ candidates: cands, ...(star3Mode ? { star3: true } : {}), ...(rarity ? { rarity } : {}) });
     this._chestBusy = false; // 动画完成解锁战斗输入
   },
-
+  
   _rollRelicCandidates(star3Mode, options = {}) {
     const chapter = this.run.chapter;
     if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) return [];
@@ -165,7 +163,7 @@ module.exports = {
     }
     return cands;
   },
-
+  
   rerollRelicPick() {
     if (!this.relicPick) return false;
     const res = PickReroll.reroll(this.run, () => this._rollRelicCandidates(!!this.relicPick.star3, this.relicPick), 'relic');
@@ -178,7 +176,7 @@ module.exports = {
     this.toast(`已重掷 · 消耗 ${cost} 🪙`, '#f7c948');
     return true;
   },
-
+  
   relicPickChoice(i) {
     const chapter = this.run.chapter;
     if (chapter && chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) {
@@ -218,6 +216,7 @@ module.exports = {
       this.toast('获得圣物 ' + c.icon + c.name, '#f7c948');
       this.run.relicFx(c.id, '已生效'); // 圣遗物生效提示（★星级 + 名称 + 圣遗物色）
     }
+    require('../fx/relic-acquire.js').emit(this,c,i);
     require('../prologue-tutorial.js').action(this, 'relic');
     this.relicPick = null;
     // 测试战场 3★ 模式：选中圣遗物按 3★ 质变注入（无需真实 3★ 解锁）
@@ -226,6 +225,7 @@ module.exports = {
       this.run._testStar3 = this.run._testStar3 || {};
       this.run._testStar3[c.id] = true;
     }
+    require('../../relics/wall-health.js').sync(this);
     this._lastPickStar3 = false;
     // 返回来源状态（测试战场添加圣遗物 → 回到 testfield；战场宝箱 → fighting）
     this.state = this._relicReturnState || 'fighting';

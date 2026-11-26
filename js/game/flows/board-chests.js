@@ -20,7 +20,7 @@ function grantFirstReward(g) {
   // 标记留在当前Run，新对局自动重置；重复检查或进入下一波不会重复发放。
   g.run._firstWaveChestGranted = true;
   g.run._waveChestDropped = true;
-  g.toast('首次圣物宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+  g.toast('获得圣物宝箱', '#f7c948');
   return true;
 }
 function land(g,c){
@@ -47,6 +47,10 @@ function schedule(g,steps){
 }
 function reveal(g,entries){for(const p of entries||[]){const c=g.fieldChests.find(c=>c.id===p.id);if(c)c.hidden=false;}}
 function tick(g,dt){
+  if (g.state !== 'testfield') {
+    for(const chest of g.fieldChests){chest.stage='ground';chest.t=(chest.t||0)+dt;}
+    g._chestBusy=false;return;
+  }
   const chapter=g.run.chapter;
   if(chapter&&chapter.isPrologue&&(!chapter.features.relics||g.run.wave<chapter.features.relicStartWave)){
     const ids=new Set(g.fieldChests.map(c=>c.id).filter(id=>id!=null));
@@ -78,4 +82,11 @@ function tick(g,dt){
   }
   g._chestBusy=active()||(g.pendingRelicPicks||[]).length>0;
 }
-module.exports={tick,schedule,reveal,cellCenter,grantFirstReward};
+function tap(g,p){
+ if(g.state!=='fighting'||g.anim||g.shopOpen||g.funcLayer||g.towerInfo||g.towerSkill)return false;
+ const index=g.fieldChests.findIndex(c=>!c.hidden&&Math.abs(p.x-c.x)<=48&&Math.abs(p.y-c.y)<=48);
+ if(index<0)return false;
+ const chest=g.fieldChests[index];if((chest.t||0)<.2)return true;
+ g.fieldChests.splice(index,1);g.spawnRelicPick(undefined,{rarity:chest.rarity});return true;
+}
+module.exports={tap,tick,schedule,reveal,cellCenter,grantFirstReward};

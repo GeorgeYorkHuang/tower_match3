@@ -106,7 +106,7 @@ module.exports = {
       allTowers,
       enemyCount: this.enemies.length,
       talentGold: (run.talentState&&run.talentState.gold||[]).length,
-      talentReady: Object.values(run.talentState&&run.talentState.ready||{}).filter(Boolean).length,
+      talentReady: Object.values(run.talentState&&run.talentState.cooldowns||{}).filter(cd=>cd.remaining<=0).length,
       speed: this.testSpeed,
       panel: this.testPanel,
       synergies: run.effects.synergyStatus(),

@@ -1,5 +1,4 @@
 'use strict';
-const root = 'assets/images/monsters/bosses/normalized256/expansion-';
 const carlos = { src: 'assets/images/monsters/bosses/expansion/carlos-hover-user-v1.png', frames: 6, frameMs: 125 };
 const velde = { src: 'assets/images/monsters/bosses/expansion/velde-ray-user-v1.png', frames: 5, frameMs: 160 };
 module.exports = {

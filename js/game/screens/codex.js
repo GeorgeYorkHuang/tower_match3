@@ -1,3 +1,4 @@
+const {cardDepth}=require('../ui.js');
 /** 塔图鉴：六塔总览、左侧技能、右侧可滚动分支。只读配置，不影响战斗与存档。 */
 'use strict';
 const CONFIG=require('../../config.js');
@@ -29,7 +30,7 @@ function createCodexScreen({drawImg,skillIconSrc,drawTowerGlyph,IMG_SRC,TOWER_HE
     text(ctx,'选择防御塔，查看技能与 A / B / C 分支',375,356,23,'#2f4932','center');
     keys.forEach((k,i)=>{
       const x=32+(i%2)*355,y=397+Math.floor(i/2)*352,w=331,h=330,T=CONFIG.TOWERS[k],open=unlocked(s,k),color=tint(k);
-      push('codexSel',k,x,y,w,h);frame(ctx,x,y,w,h,'garden:towerDetail');
+      push('codexSel',k,x,y,w,h);cardDepth(ctx,x,y,w,h);frame(ctx,x,y,w,h,'garden:towerDetail');
       ctx.save();if(!open)ctx.globalAlpha=.3;icon(ctx,k,x+12,y+12,106);ctx.restore();
       text(ctx,name(k),x+126,y+43,30,open?INK:MUTED,'left');
       text(ctx,open?`${CONFIG.EFFECT_POOLS[k].length} 项技能`:'首次建塔后解锁',x+126,y+81,20,open?color:MUTED,'left');
@@ -40,6 +41,7 @@ function createCodexScreen({drawImg,skillIconSrc,drawTowerGlyph,IMG_SRC,TOWER_HE
       });
       fill(ctx,x+18,y+270,w-36,1,0,GOLD);text(ctx,`DPS ${fmt(T.baseDps)}`,x+20,y+299,20,GOLD,'left');
       text(ctx,`基础耗能 ${fmt(T.attackCost||CONFIG.GLOBAL_SKILL.perAttack)}`,x+w-18,y+299,20,MUTED,'right');
+      cardDepth(ctx,x,y,w,h,true);
     });
   }
   /** 右栏按完整文字计算高度，左栏八个技能始终可见，不截断升级说明。 */

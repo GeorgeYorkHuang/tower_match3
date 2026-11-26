@@ -1,7 +1,7 @@
 /** P2回归：真实三选一队列、跨塔选择容量、功能关闭边界与分章教学进度。 */
 'use strict';
 const assert = require('assert');
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main = require('../js/game/main.js');
 const { Meta } = require('../js/meta.js');
 const PLAN = require('../js/config/prologue.js');

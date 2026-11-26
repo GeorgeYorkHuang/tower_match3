@@ -1,7 +1,7 @@
 /** Boss告警位置、一次性震动、18px生命条与章节Boss隔离回归。 */
 'use strict';
 const assert=require('assert');
-const fixture=require('./moving-battle-fixture.cjs');
+const fixture=require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main=require('../js/game/main.js');
 const PLAN=require('../js/config/prologue.js');
 const Bosses=require('../js/config/bosses.js');

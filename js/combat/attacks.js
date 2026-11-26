@@ -50,7 +50,7 @@ function attackOnce(combat, key) {
     if (ammoT._rapidN >= 10) { ammoT._rapidN = 0; freeShot = true; }
   }
   const energyCost = ammoT ? g.run.attackCost(ammoT) * attackEnergyMultiplier(combat, key) : 0;
-  if(key==='cannon'&&require('../talents/runtime.js').consume(g.run,key)){freeShot=true;if(g.toast)g.toast('圣庭·永动装填：本次普攻免能耗','#f0ca66');}
+  if(require('../talents/runtime.js').attack(combat,key))freeShot=true;
   const energyAtLaunch = ammoT.energy;
   const energyBefore = freeShot ? energyAtLaunch : g.run.spendAttackEnergy(ammoT, energyCost);
   const paid = Math.max(0, energyBefore - ammoT.energy);

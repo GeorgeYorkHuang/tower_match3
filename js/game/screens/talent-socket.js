@@ -35,7 +35,8 @@ function polygon(ctx, p, fill, edge, width = 1) {
   }
 }
 
-function draw(ctx, x, y, r, kind, active, src, drawImg) {
+function draw(ctx, x, y, r, kind, active, src, drawImg, pressed=false) {
+  if(pressed&&kind==='red'){r*=.95;y+=r*.06;}
   const p = palettes[kind] || palettes.center,
     red = kind === 'red',
     outer = points(x, y, r),
@@ -92,6 +93,7 @@ function draw(ctx, x, y, r, kind, active, src, drawImg) {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
+  if(pressed&&red)polygon(ctx,floor,'rgba(0,0,0,.2)');
   if (red) {
     for (let i = 0; i < 6; i += 2) {
       const [px, py] = outer[i];

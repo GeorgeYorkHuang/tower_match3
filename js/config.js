@@ -11,13 +11,13 @@ module.exports = {
 
   LAYOUT: {
     statusBar:      { h: 72   },          // 状态条：金币/离线/设置
-    actionArea:     { w: 700, h: 970, x: 25 },  // 怪物行动区（两侧留白 25）= 入口68 + 移动822 + 城墙75
+    actionArea:     { w: 700, h: 1150, x: 25 },  // 怪物行动区（两侧留白 25）= 入口68 + 移动822 + 城墙75
     entryBand:      { w: 700, h: 68   },  // 入口/波次带
     wall:           { w: 700, h: 75, crenel: 12 }, // 城墙=防线（75 = 主体60 + 血条区10居中砖面 + 底空隙5）
     towerRow:       { h: 122  },          // 塔位区（紧贴城墙下方）
     towerSlot:      { size: 100, gap: 28, count: 4 }, // 槽 100×100，间距 28，整体 484 居中
     towerIcon:      { size: 98, badge: 16, expBar: { w: 98, h: 6 } }, // 图标近占满槽位
-    boardArea:      { w: 750, h: 420 },   // 棋盘区（7 格 ×60 = 420，塔位区即城墙后棋盘上移扩展）
+    boardArea:      { w: 750, h: 240 },   // 棋盘区（7 格 ×60 = 420，塔位区即城墙后棋盘上移扩展）
     boardCell:      { size: 60, cols: 11, rows: 7, marginX: 15, marginBottom: 6 }, // 77 格（6×12 → 7×11）
     funcBar:        { h: 102, keySize: 88 }, // 底部功能键区（三消棋盘下方）
     enemy:          { normal: 72, runner: 60, tank: 96, boss: 128, elite: 92 }, // 怪物显示尺寸（按类型，放大一倍）
@@ -231,6 +231,8 @@ module.exports = {
       subtitle: '城墙防守 · 怪物攻城 · 圣坛裂痕', goldMult: 1.0, ammoCapMult: 1.0, dropAttr: 'mix', unlockWave: 0,
       // 首关后半段逐步缓和血量成长；普通、精英、小Boss及其召唤统一在出生时应用一次。
       lateEnemyHp: { startWave: 41, endWave: 59, startMultiplier: 1, endMultiplier: 0.7 },
+      // 保留W1–20，后续平滑压低击杀收益；W60基准回放总收入约1000银币。
+      killSilverCurve: { startWave: 20, endWave: 60, endMultiplier: 0.3384 },
       desc: ['城墙防守：怪物沿唯一路径推进，攻破城墙即失守',
              '无地形障碍，弹药上限与金币收益均为标准值',
              '20 / 40 / 60 波各有一场锁关 Boss 战'] },
@@ -262,9 +264,9 @@ module.exports = {
   },
 
   ECONOMY: {
-    goldPerWaveBase: 60,
-    goldPerWaveEarlyStep: 6,
-    goldPerWaveLateStep: 2,
+    goldPerWaveBase: 100,
+    goldPerWaveEarlyStep: 8,
+    goldPerWaveLateStep: 3,
     goldPerWaveKnee: 20,
     waveSilver(wave) {
       const w = Math.max(1, Math.floor(Number(wave) || 1));

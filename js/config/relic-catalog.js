@@ -30,7 +30,7 @@ for (const [t, label, icon] of [
   set(t);
   const towerName = {fire:'火塔',ice:'冰塔',poison:'毒塔',electric:'电塔',boomerang:'回旋镖塔',cannon:'炮塔'}[t];
   R(t, `r_${t}_atk`, `${label}·强攻`, icon, 'attack', `${towerName}攻击 +12%`, [12, 18, 24]);
-  R(t, `r_${t}_energy`, `${label}·充能`, icon, 'energy', `${towerName}三消充能 +1`, [1, 2, 3]);
+  R(t, `r_${t}_energy`, `${label}·充能`, icon, 'energy', `使用${towerName}卡额外充能 +1`, [1, 2, 3]);
   R(t, `r_${t}_cd`, `${label}·迅技`, icon, 'cooldown', `${towerName}周期技冷却 -8%`, [8, 12, 16]);
   R(t, `r_${t}_spd`, `${label}·速射`, icon, 'speed', `${towerName}攻击间隔 -8%`, [8, 12, 16]);
   R(t, `r_${t}_cap`, `${label}·蓄能`, icon, 'capacity', `${towerName}能量上限 +5`, [5, 8, 12]);
@@ -60,7 +60,7 @@ SR('cannon','s_sr_can_knock','击退·震退','🌪️','击退距离 +20%','击
 const C = (id,name,icon,desc,star2,star3,nums,extra={},tier='sr') => add(common,'common',tier,id,name,icon,desc,star2,star3,nums,{kind:'common',values:extra});
 C('s_sr_cm_wall','城墙·磐石','🏯','城墙血量 +20%','城墙血量 +30%','城墙血量 +40%；城墙 <30% 时每波回复 5%', [20,30,40],{lowHpRegen:[0,0,0,5]});
 C('s_sr_cm_exp','击杀·历练','✨','击杀经验 +15%','击杀经验 +25%','击杀经验 +35%；开局额外获得1次圣遗物三选一',[15,25,35],{openingPick:[0,0,0,1]},'ssr');
-C('s_sr_cm_triple','三消·领悟','🧩','三消经验 +20%','三消经验 +30%','三消经验 +40%；四消额外 +50% 经验',[20,30,40],{fourMatchExp:[0,0,0,50]});
+C('s_sr_cm_triple','战阵·研习','🧩','波末经验 +20%','波末经验 +30%','波末经验 +40%；每波开始为已建造塔各补充2点能量',[20,30,40],{waveEnergy:[0,0,0,2]});
 C('s_sr_cm_bounty','宝箱·寻踪','🧭','圣遗物重掷费用 -15%','圣遗物重掷费用 -25%','圣遗物重掷费用 -35%；候选品质提升1档',[15,25,35],{tierUp:[0,0,0,1]});
 C('s_sr_cm_regen','城墙·自愈','💚','城墙每波回复 2%','城墙每波回复 3%','城墙每波回复 4%；城墙回复量翻倍',[2,3,4],{regenMult:[0,0,0,2]});
 

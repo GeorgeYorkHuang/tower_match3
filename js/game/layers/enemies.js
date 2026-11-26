@@ -8,8 +8,61 @@ const ENEMY_VISUAL = require('../../config/enemy-visuals.js');
 const EliteFx = require('../fx/elite.js');
 const { fillRoundRect, text } = require('../ui.js');
 const L = CONFIG.LAYOUT;
+const FROST_STORM_OFFSETS = [[0, 0], [-1, -4], [1, 10], [2, 8], [1, 4], [0, 1]];
+const FROST_WOLF_OFFSETS = [0, -1, 0, 1];
+function drawFrostTrail(ctx, x, y, size, phase, hunter) {
+  ctx.save();
+  try {
+    const alpha = ctx.globalAlpha;
+    ctx.translate(x, y);
+    ctx.scale(size / 256, size / 256);
+    const count = hunter ? 4 : 2;
+    ctx.strokeStyle = '#dff6ff';
+    ctx.lineWidth = hunter ? 2 : 1.5;
+    for (let i = 0; i < count; i++) {
+      const age = (phase * 3 + i / count) % 1;
+      const py = 58 - age * 37;
+      const px = 128 + (i % 2 === 0 ? -1 : 1) * (hunter ? 15 + age * 12 : 7);
+      ctx.globalAlpha = alpha * .52 * Math.sin(age * Math.PI);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.quadraticCurveTo(px + (hunter ? 5 : 0), py - 5, px + (hunter ? 2 : 0), py - 11);
+      ctx.stroke();
+    }
+  } finally { ctx.restore(); }
+}
 // 怪物表现读取原Renderer的animNow；状态/血量/时钟仍由原战斗实例持有。
+function surge(phase, start, peak, end) {
+  if (phase <= start || phase >= end) return 0;
+  const progress = phase < peak ? (phase - start) / (peak - start) : (end - phase) / (end - peak);
+  return progress * progress * (3 - 2 * progress);
+}
 function createEnemyLayer({ loadImg, drawImg, IMG_SRC }) {
+  const ancientArt = {
+    4: {
+      src: IMG_SRC.ancient_lv4, frames: 6, durations: [200, 160, 150, 150, 180, 200],
+      motion: t => [0, 8 * surge(t, 200, 640, 1040)],
+    },
+    5: { src: IMG_SRC.ancient_lv5, frames: 12, frameMs: 80 },
+    6: { src: IMG_SRC.ancient_lv6, frames: 4, durations: [220, 190, 220, 190], strideLift: 0.045 },
+    7: { src: IMG_SRC.ancient_lv7, frames: 4, durations: [240, 240, 240, 240], strideLift: 0.025 },
+    8: { src: IMG_SRC.ancient_lv8, frames: 4, durations: [190, 250, 160, 300], flightLift: 0.065 },
+    9: { src: IMG_SRC.ancient_lv9 },
+    10: { src: IMG_SRC.ancient_lv10, frames: 8, durations: [140, 140, 130, 130, 140, 140, 130, 130] },
+    11: { src: IMG_SRC.ancient_lv11, frames: 7, durations: [150, 70, 100, 60, 140, 80, 300] },
+    12: { src: IMG_SRC.ancient_lv12, frames: 6, durations: [240, 200, 220, 240, 200, 220] },
+    13: {
+      src: IMG_SRC.ancient_lv13, frames: 8, durations: [110, 110, 140, 140, 110, 110, 140, 140],
+      motion(t) {
+        const sway = Math.sin(t * Math.PI / 500);
+        return [5 * sway, -3 * sway ** 2];
+      },
+    },
+    14: {
+      src: IMG_SRC.ancient_lv14, frames: 4, durations: [240, 130, 170, 180],
+      motion: t => [0, 23 * surge(t, 310, 430, 720)],
+    },
+  };
 /* 专属 Boss 帧动画表：id → 资源与帧参数（默认横向，迦尔文4列×2行） */
 const BOSS_ART = {
   ...require('../boss-idle-art.js'),
@@ -112,10 +165,24 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
   }
 
   function drawEnemyBody(ctx, e, x, y, size, isElite, overlays = true) {
+    if(require('../miniboss-field-art.js').draw(ctx,loadImg,e,x,y,size,this.animNow))return;
     // 敌人本体：优先按代际等级播放帧循环动画（lv1-14 sprite sheet；Lv12-14 为 8 帧，其余 5 帧），
     // 超界等级（genLv>14，61+ 波递推怪）按类型映射到最近一代已有形象（normal→lv13 / runner→lv14 / tank→lv12）；
     // 动画表未加载时回退旧类型图（runner/tank/normal/boss），再回退几何+字符
     const genLv = e.genLv || 1;
+    if(this.enemyStage === 'lava' && require('../lava-late-motion.js').draw(ctx,loadImg,e,x,y,size,this.animNow))return;
+    if (!e.isBoss && !e.isSummon && [2,3,4,5,7,8,9,10,11,13].includes(genLv) && this.enemyStage === 'lava') {
+      const image=loadImg('assets/images/monsters/enemies/lava-lv'+genLv+'.png');
+      if(image&&image.width>0){
+        const now=Number(this.animNow)||0,frame=Math.floor(now/(genLv===2?180:260))%4;
+        ctx.save();try{
+          const bob=Math.sin(now/180*Math.PI)*size*.015;
+          ctx.translate(x,y+bob);
+          ctx.drawImage(image,frame*256,0,256,256,0,0,size,size);
+          if(overlays)ApprovedDebuffs.draw(ctx,image,{x:frame*256,y:0,w:256,h:256},e,0,0,size,now);
+        }finally{ctx.restore();}return;
+      }
+    }
     if (!e.isBoss && e.isSummon && e.bossSummonId === 'lava_ignis') {
       require('../fx/boss-skill-atlas.js').draw(ctx,null,'ignis-core',0,x+size/2,y+size/2,size,1);
       return;
@@ -129,7 +196,15 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
       ? { src: 'assets/images/monsters/bosses/normalized256/expansion-ignis-core-v1.png', frames: 5 }
       : { src: IMG_SRC.boss_altar_rosea_summon, frames: 5 }) : null;
     const art = bossArt || summonArt;
-    const animSrc = e.bossPlaceholder ? null : (art ? art.src : IMG_SRC['lv' + imgLv]);
+    const frostSrc = !e.isBoss && !e.isSummon && this.enemyStage === 'frost' && IMG_SRC['frost_lv' + genLv];
+    const frostImage = frostSrc && loadImg(frostSrc);
+    const lavaSlime = !e.isBoss && !e.isSummon && genLv === 1 && this.enemyStage === 'lava';
+    const lavaImage = lavaSlime && loadImg(IMG_SRC.lava_lv1);
+    const ancientSrc = !e.isBoss && !e.isSummon && this.enemyStage === 'ancient' && ancientArt[genLv] && ancientArt[genLv].src;
+    const ancientImage = ancientSrc && loadImg(ancientSrc);
+    const levelSrc = ancientImage && ancientImage.width > 0 ? ancientSrc
+      : lavaImage && lavaImage.width > 0 ? IMG_SRC.lava_lv1 : frostImage && frostImage.width > 0 ? frostSrc : IMG_SRC['lv' + imgLv];
+    const animSrc = e.bossPlaceholder ? null : (art ? art.src : levelSrc);
     const animFrames = art ? art.frames : 0;
     const visualType = isElite ? CONFIG.ENEMY.levelOf(imgLv).type : e.type;
     const src = e.isBoss ? IMG_SRC.boss
@@ -178,24 +253,110 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     // 敌人帧动画时钟：用 main.js 注入的 animNow（战斗推进才走，暂停/弹层/结算时冻结），替代绝对 Date.now()
     const now = (typeof this.animNow === 'number' && isFinite(this.animNow)) ? this.animNow : Date.now();
     try {
+      if (!castArt && imgLv >= 2 && src && src === IMG_SRC['frost_lv' + imgLv]) {
+        const cycleTime = (now + ((e.id || 0) * 53) % 1000) % 1200;
+        const phase = cycleTime / 1200;
+        const hare = imgLv === 2;
+        const bear = imgLv === 6;
+        const cell = img.height;
+        // The hare keeps its extended pose through the apex and tucks on descent.
+        const frame = hare
+          ? (phase < .13 ? 4 : phase < .29 ? 0 : phase < .60 ? 1 : phase < .73 ? 2 : phase < .86 ? 3 : 4)
+          : bear ? Math.floor(cycleTime / 600) * 2 + (cycleTime % 600 >= 240 ? 1 : 0)
+          : Math.floor(phase * (img.width / cell));
+        const jump = Math.min(1, Math.max(0, (phase - .275) / (.73 - .275)));
+        const step = phase * 2 % 1;
+        const bearWeight = step < .4 ? -Math.sin(step / .4 * Math.PI) : 2 * Math.sin((step - .4) / .6 * Math.PI) ** 2;
+        let lift = 0;
+        if (hare) lift = -136 * jump * (1 - jump);
+        if (bear) lift = bearWeight;
+        if (imgLv === 8) lift = -2.5 * Math.sin(phase * 4 * Math.PI);
+        if (imgLv === 9) lift = 7 * Math.cos(phase * 2 * Math.PI);
+        if (imgLv === 12) lift = -1.5 * (Math.sin(phase * 2 * Math.PI) ** 2);
+        if (imgLv === 13) lift = -4.5 * Math.cos(phase * 2 * Math.PI);
+        let dx = x;
+        let trailX = x;
+        let trailY = y;
+        if (imgLv === 7) {
+          dx += 4 * Math.sin(phase * 2 * Math.PI) * size / 256;
+          lift = -6 * Math.cos(phase * 2 * Math.PI);
+        }
+        if (imgLv === 10) lift = -5 * Math.cos(phase * 2 * Math.PI);
+        if (imgLv === 11) {
+          const pose = Math.floor(cycleTime / 300);
+          const from = FROST_WOLF_OFFSETS[pose];
+          const to = FROST_WOLF_OFFSETS[(pose + 1) % FROST_WOLF_OFFSETS.length];
+          const progress = (cycleTime % 300) / 300;
+          const eased = progress * progress * (3 - 2 * progress);
+          dx += (from + (to - from) * eased) * size / 256;
+        }
+        if (imgLv === 14) {
+          const pose = Math.floor(cycleTime / 200);
+          const [fromX, fromY] = FROST_STORM_OFFSETS[pose];
+          const [toX, toY] = FROST_STORM_OFFSETS[(pose + 1) % FROST_STORM_OFFSETS.length];
+          const progress = (cycleTime % 200) / 200;
+          const eased = progress * progress * (3 - 2 * progress);
+          const slideX = fromX + (toX - fromX) * eased;
+          lift = fromY + (toY - fromY) * eased;
+          dx += slideX * size / 256;
+          trailX += slideX * .45 * size / 256;
+          trailY += (lift * .45 - 12) * size / 256;
+        }
+        const dy = y + lift * size / 256;
+        if (overlays && (imgLv === 4 || imgLv === 5 || imgLv === 11 || imgLv === 14)) {
+          drawFrostTrail(ctx, trailX, trailY, size, phase, imgLv === 4 || imgLv === 14);
+        }
+        ctx.drawImage(img, frame * cell, 0, cell, cell, dx, dy, size, size);
+        if (overlays) ApprovedDebuffs.draw(ctx, img, { x: frame * cell, y: 0, w: cell, h: cell }, e, dx, dy, size, now);
+        return true;
+      }
       // frames：专属 Boss 表传入的帧数（6或8）；未传时按等级表规则（lv1 六帧非等时长，lv12-14 八帧，其余五帧等时长）
       // Lv9 uses one floating body; same battle clock/transform for normal, elite, hit and debuff passes.
       if (!frames && !e.isBoss && !e.isSummon && imgLv === 9) {
-        const t=now/1000 + ((e.id||0)*0.173), h=size*img.height/img.width;
-        const cx=x+size/2, cy=y+size*.75+Math.sin(t*2)*size*.025;
-        ctx.save();ctx.translate(cx,cy);ctx.rotate(Math.sin(t*1.4)*.018);
+        const elapsed = now + (e.id || 0) * 173;
+        const t = elapsed / 1000;
+        const isRelic = src === IMG_SRC.ancient_lv9;
+        const blinkTime = isRelic ? elapsed % 3600 : 0;
+        const frame = blinkTime < 3300 ? 0 : blinkTime < 3370 ? 1 : blinkTime < 3450 ? 2 : blinkTime < 3520 ? 3 : 4;
+        const cellWidth = isRelic ? img.width / 5 : img.width;
+        const sx = frame * cellWidth;
+        const h = size * img.height / cellWidth;
+        const phase = t * Math.PI * 2 / 1.8;
+        const lift = isRelic ? -(0.065 + 0.04 * Math.sin(phase)) : Math.sin(t * 2) * 0.025;
+        const tilt = isRelic ? Math.sin(phase + 0.7) * 0.025 : Math.sin(t * 1.4) * 0.018;
+        const cx=x+size/2, cy=y+size*.75+size*lift;
+        ctx.save();ctx.translate(cx,cy);ctx.rotate(tilt);
         ctx.translate(-size/2,-size*.75);ctx.scale(1,h/size);
-        ctx.drawImage(img,0,0,img.width,img.height,0,0,size,size);
-        if(overlays)ApprovedDebuffs.draw(ctx,img,{x:0,y:0,w:img.width,h:img.height},e,0,0,size,now);
+        ctx.drawImage(img,sx,0,cellWidth,img.height,0,0,size,size);
+        if(overlays)ApprovedDebuffs.draw(ctx,img,{x:sx,y:0,w:cellWidth,h:img.height},e,0,0,size,now);
         ctx.restore();return true;
       }
-      const frameCount = frames || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
-      const atlas = castArt || (e.isBoss && BOSS_ART[e.bossArtKey || e.bossId]);
+      const ancient = ancientArt[imgLv];
+      const levelAtlas = ancient && src === ancient.src ? ancient : null;
+      const atlas = castArt || levelAtlas || (e.isBoss && BOSS_ART[e.bossArtKey || e.bossId]);
+      const frameCount = frames || (levelAtlas && levelAtlas.frames) || ENEMY_ART_FRAMES[imgLv] || (imgLv === 1 ? 6 : 5);
       let f;
       if (atlas && typeof atlas.frameFor === 'function') {
         f = atlas.frameFor(e, now);
       } else if (atlas && atlas.durations) {
-        let t = (now + ((e.id || 0) * 53) % 1000) % atlas.durations.reduce((a,b)=>a+b,0);
+        const cycle = atlas.durations.reduce((sum, duration) => sum + duration, 0);
+        let t = (now + ((e.id || 0) * 53) % 1000) % cycle;
+        // 在两次蹬出间平滑抬落，保持受击与状态特效贴合本帧。
+        if (atlas.strideLift) y -= size * atlas.strideLift * Math.sin(t / cycle * Math.PI * 2) ** 2;
+        if (atlas.flightLift) y -= size * atlas.flightLift * (1 + 0.45 * Math.cos(t / cycle * Math.PI * 2));
+        if (levelAtlas === atlas && atlas.motion) {
+          // The preview draws the sprite at 180 px. Scale its offsets to battle size.
+          const [dx, dy] = atlas.motion(t);
+          x += dx * size / 180;
+          y += dy * size / 180;
+        }
+        if (src === IMG_SRC.ancient_lv12) {
+          // Shift the whole stump as the planted root takes its weight.
+          x -= size * (3.5 / 180) * Math.sin(t / cycle * Math.PI * 2);
+          const rootStep = t % (cycle / 2);
+          const press = Math.max(0, Math.min(1, (rootStep - 180) / 340));
+          y += size * (6 / 180) * Math.sin(press * Math.PI) ** 2;
+        }
         f = 0;
         while (f < atlas.durations.length - 1 && t >= atlas.durations[f]) { t -= atlas.durations[f]; f++; }
       } else if (!frames && imgLv === 1) {

@@ -84,11 +84,8 @@ function initializeBattle(run, meta) {
 function prime(run) {
   const state = run.talentState;
   if (!state) return 0;
-  state.gold.forEach((key) => {
-    state.ready[key] = true;
-    state.charge[key] = 0;
-  });
-  return state.gold.length;
+  for(const cd of Object.values(state.cooldowns||{})){cd.remaining=0;cd.initial=false;}
+  return Object.keys(state.goldActive||{}).length;
 }
 
 module.exports = { snapshot, applyPreset, setStar, initializeBattle, prime };

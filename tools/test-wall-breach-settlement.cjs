@@ -1,7 +1,7 @@
 /** 城墙归零不能被波末回血复活；真实战斗停在当前波，广告复活保留原 Boss。 */
 'use strict';
 const assert = require('assert');
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main = require('../js/game/main.js');
 const { Meta } = require('../js/meta.js');
 const WaveRelics = require('../js/relics/wave-hooks.js');

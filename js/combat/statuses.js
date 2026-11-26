@@ -30,7 +30,7 @@ function applyBurn(combat, e, dmg, src) {
   const hasBurn = combat.lv('fire', '灼烧');
   const run = combat.game.run;
   const burnStackAdd = run.relic3('s_sr_fire_burn') ? run.relicValue('s_sr_fire_burn', 'stackAdd') : 0;
-  const maxStack = hasBurn > 0 ? SKILL_NUM.fire['灼烧'].baseStackCap + stackCap + burnStackAdd : 1;
+  const maxStack = (hasBurn > 0 ? SKILL_NUM.fire['灼烧'].baseStackCap + stackCap + burnStackAdd : 1)+(TalentRuntime.purple(run,'forge_fire_0')?1:0);
   let dot = e.dots.find((d) => d.type === 'burn');
   const tickI = SKILL_NUM.fire['点燃'].tickInterval;
   const cBoost = cLv > 0 ? SKILL_NUM.fire['点燃'].emberDmg[cLv] : 0;
@@ -54,6 +54,7 @@ function applyBurn(combat, e, dmg, src) {
     dot.tickI = tickI;
     dot.skill = '灼烧';
   }
+  if(TalentRuntime.purple(run,'forge_fire_0'))dot.sourceSeries='forge';
   // 灼烧 B 燃尽：满层 → 小爆炸（60% 攻击伤害，范围 30/60/90px）
   const burnLv = combat.branchLv('fire', '灼烧', 'B');
   // 赤印3★：灼烧叠满层时触发爆发（80% 攻击伤害，半径 60码）——与 B 燃尽可并存
@@ -73,10 +74,12 @@ function applyPoison(combat, e, dmg, src, layers) {
   const perStackDps = dmg * boost.dmg * (1 + poisonRelicBonus / 100);
   let ttl = (SKILL_NUM.poison['剧毒'].baseDuration + SKILL_NUM.poison['剧毒'].durationPerBranch * combat.branchLv('poison', '剧毒', 'B')) + boost.ttlAdd;
   ttl=TalentRuntime.statusDuration(combat.game.run,'poison',ttl);
-  const cap = SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * combat.branchLv('poison', '毒性强化', 'C');
+
+  const cap = (TalentRuntime.purple(combat.game.run,'sanctum_poison_0')?2:0) + SKILL_NUM.poison['毒性强化'].stackCap + SKILL_NUM.poison['毒性强化'].stacksPerBranch * combat.branchLv('poison', '毒性强化', 'C');
   const add = Math.max(1, layers || 1);
   const freq = 1 / (1 - SKILL_NUM.poison['剧毒'].freq[combat.branchLv('poison', '剧毒', 'C')]);
   let dot = e.dots.find((d) => d.type === 'poison');
+  if(dot&&dot.ttl<=0){e.dots.splice(e.dots.indexOf(dot),1);dot=null;}
   if (!dot) {
     e.dots.push({ type: 'poison', stackDps: perStackDps, stack: Math.min(add, cap), maxStack: cap, ttl, tickT: 0, freq, src, skill: '毒性强化' });
   } else {
@@ -123,6 +126,7 @@ function applyBleed(combat, e, dmg) {
 }
 
 function applySlow(combat, e, mult, ttl, source) {
+  if(source==='electric'&&e.paralyzed>0)TalentRuntime.onParalyze(combat,e);
   const run = combat.game.run;
   const talent=TalentRuntime;ttl=talent.statusDuration(run,source,ttl);mult=talent.slowStrength(run,source,mult);
   // 风压只压基础+天赋减速时长；圣遗物延长在后，冻结/麻痹不经过此乘区。
@@ -151,6 +155,7 @@ function applySlow(combat, e, mult, ttl, source) {
     state.stacks = layers;
     state.ttl = Math.max(state.ttl, appliedTtl);
   }
+  if(source==='electric'&&e.paralyzed>0&&TalentRuntime.purple(run,'forge_electric_1')){e[key].sourceSeries='forge';e[key].seriesSpeed=.92;}
   e[visualKey] = e[key].ttl;
   refreshSlow(e);
 }
@@ -160,7 +165,7 @@ function refreshSlow(e) {
   const parts = [e._genericSlow, e._iceSlow].filter((s) => s && s.ttl > 0);
   if (!parts.length) { e.slow = null; return; }
   e.slow = {
-    mult: parts.reduce((value, s) => value * s.mult, 1),
+    mult: parts.reduce((value, s) => value * s.mult * (e.paralyzed>0?s.seriesSpeed||1:1), 1),
     ttl: Math.max(...parts.map((s) => s.ttl)),
   };
 }
@@ -171,6 +176,7 @@ function freezeE(combat, e, dur) {
   const d = ((e.controlResist ? dur : e.isBoss ? dur * SKILL_NUM.ice['冰冻'].bossDurationRatio : dur) + combat.game.run.relicValue('s_sr_ice_freeze', 'primary'));
   const prev = e.frozen || 0;
   e.frozen = Math.max(prev, d);
+  TalentRuntime.freeze(combat,e,prev);
   // 寒髓3★：冰塔每冻结一个敌人，自身充能 +2 点能量（新的更强冻结才算一次）
   if (d > prev && combat.game.run.relic3('ice_marrow')) {
     const it = combat.tower('ice');
@@ -180,7 +186,7 @@ function freezeE(combat, e, dur) {
   combat.fxRing(e.x, e.y, '#7fd4ff', 46, 0.4, 4);
 }
 
-function hasDot(e, type) { return !!e.dots.find((d) => d.type === type); }
+function hasDot(e, type) { return !!e.dots.find((d) => d.type === type && d.ttl>0); }
 
 function tickBaseStatus(combat, e, dt) {
   require('./boss-control.js').tick(e,dt);
@@ -246,6 +252,7 @@ function tickBaseStatus(combat, e, dt) {
   if (e.dots.length) {
     for (let i = e.dots.length - 1; i >= 0; i--) {
       const d = e.dots[i];
+      if(d.type==='armorBreak'||d.type==='paralysis')continue;
       const burning = d.type === 'burn';
       const activeDt = burning ? Math.min(dt, Math.max(0, d.ttl)) : dt;
       d.ttl -= dt;
@@ -254,7 +261,7 @@ function tickBaseStatus(combat, e, dt) {
       // 灼烧每0.5秒结算10%，首跳不提前；补齐到期边界与倍速跨过的有效跳数。
       while (d.tickT <= (burning ? 1e-8 : 0) && (!burning || (activeDt > 0 && e.hp > 0))) {
         // 毒塔：中毒跳频 = 剧毒 C 每跳间隔 -0.1/-0.2/-0.3s（freq=1/间隔，基础 1Hz/1s）；burn 等旧 DoT 保持 2Hz
-        const tickI = d.freq ? 1 / d.freq : 0.5;
+        const tickI = (d.freq ? 1 / d.freq : 0.5)/(d.type==='poison'&&TalentRuntime.purple(combat.game.run,'sanctum_ice_0')&&(e.frozen>0||e._iceSlow&&e._iceSlow.ttl>0)?1.12:1);
         d.tickT += tickI;
         // 新中毒创建时已计算毒性强化；灼烧直接按自身DPS结算，不能再乘毒系倍率。
         const poisonLayers = d.stack == null ? 1 : d.stack;

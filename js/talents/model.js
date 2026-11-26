@@ -91,13 +91,16 @@ function analyze(meta) {
     const b = bonuses[n.tower] || (bonuses[n.tower] = {attack:0,speed:0,charge:0,damage:0,skill:0,dot:0,duration:0});
     b.attack += C.whiteAttack;
   }
+  const purpleList=cards.filter(c=>purple.includes(c.id)).flatMap(c=>c.def.purpleList.map(p=>({...p,cardId:c.id})));
+  const goldActive={},goldPassive={};
+  cards.filter(c=>gold.includes(c.id)).forEach(c=>{if(c.def.goldActive)goldActive[c.def.tower]={...c.def.goldActive,cardId:c.id};if(c.def.goldPassive)goldPassive[c.def.tower]={...c.def.goldPassive,cardId:c.id};});
   const series = {};
   cards.forEach((c) => (series[c.def.series] = (series[c.def.series] || 0) + 1));
   // 并列固定按系列顺序，不依赖存档中的装配时间。
   const seriesTrack = ['sanctum','forge','gale'].reduce((best, key) => (series[key] || 0) > (series[best] || 0) ? key : best, 'sanctum');
   const n = series[seriesTrack] || 0,
     rank = n >= 6 ? 'ssr' : n >= 4 ? 'sr' : n >= 2 ? 'r' : null;
-  return { state, cards, sources, purple, gold, bonuses, count: cards.length, series, rank, seriesTrack, whiteActive, whiteSources };
+  return { purpleList,goldActive,goldPassive, state, cards, sources, purple, gold, bonuses, count: cards.length, series, rank, seriesTrack, whiteActive, whiteSources };
 }
 
 function candidates(meta, slot) {

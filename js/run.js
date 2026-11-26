@@ -58,12 +58,12 @@ class Run {
     this.difficulty = opts.difficulty || CONFIG.DIFFICULTY.default;
     this.chapter = Prologue.context(opts.field || 'ancient', this.difficulty);
     this.towerSlots = this.chapter.towerSlots;
-    this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default, opts.matchSkills || {});  // 三消技能配置槽
+    this.matchSkills = {match4:null,match5:null,chain:null};  // 三消技能配置槽
     this.board = new Board({ difficulty: this.difficulty, colors: this.chapter.colors, theme: opts.field || 'ancient', obstacles: ((CONFIG.FIELDS[opts.field] || {}).boardObstacles || []).map(p => p.slice()) });
     // 特殊方块挂钩：四连技 id / 高连技面板操作（board.resolve 播种段调用）
     this.board.hooks = {
-      onMatch4: () => this.chapter.features.match4 ? this.matchSkills.match4 : null,
-      onMatch5: () => this.chapter.features.match5 ? this.matchSkills.match5 : null,
+      onMatch4: () => null,
+      onMatch5: () => null,
       extraMatch4: () => { if (this.gsState.twins) { this.gsState.twins=false; return true; } return false; },
     };
     this.board.init();
@@ -318,7 +318,7 @@ class Run {
   applyMatch(color, shape, size, energyCells = size) {
     // 外部模拟、道具回调同样遵守章颜色，不能绕过棋盘生成规则建出未开放塔。
     if (!this._colors.includes(color)) return { tower: null, gotTower: false, penalized: false, exp: 0, shape, ammoGain: 0, shuffleGain: 0, refillGain: 0 };
-    TalentRuntime.gain(this,color,energyCells);
+
     const energyBonus = this.relicNum('cm_ammobox');
     const exp = energyCells===0 ? 0 : expOfShape(shape, size);
     const GS = CONFIG.GLOBAL_SKILL;
@@ -539,17 +539,7 @@ class Run {
       if (blastGain > 0) stepSettled.push({ tower: null, gotTower: false, penalized: false, shape: null, exp: 0, ammoGain: blastGain, shuffleGain: 0, refillGain: 0 });
       // 连消全格弹道：仅生成该步计划，真实发射由消除动画阶段驱动。
       chainShotsByStep[si] = [];
-      if (isChain && this.chapter.features.chain && this.combatRef) {
-        // Keep the previous inactive-tower charge fallback once per three-match group.
-        this._chainBonus(st, si + 1);
-        const L = CONFIG.LAYOUT.boardCell;
-        const plan = ChainAttacks.plan({ steps: [st], startGroup: 1,
-          activeTowers: this.slotOrder.slice(),
-          layout: { cols: L.cols, cell: this.boardCell || L.size,
-            originX: this.boardX, originY: this.boardY || 1089 } });
-        chainShotsByStep[si] = plan.shots.filter(shot => shot.kind === 'tower' || shot.kind === 'charge')
-          .map(shot => ({ ...shot, stepIndex: si, group: si + 1 }));
-      }
+
       // 连消飘字随 Match3 实际消除阶段播放，避免所有连消一次性提前弹出。
       settled.push(...stepSettled);
       settledByStep.push(stepSettled);
@@ -679,6 +669,7 @@ class Run {
 
   /** run 间重置：特效构筑/待选/整体经验清空（金币由 session 保留——见 simulateSession） */
   resetRunBuild() {
+    delete this._killSilverCarry;
     delete this._tutorialChoiceType;
     this.eliteBursts = [];
     this.store = {}; this.storeTimers = {}; this.storeCooldowns = {}; this.pickRerolls = 0;

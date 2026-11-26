@@ -1,7 +1,7 @@
 /** 技能独立能耗系数：真实扣款、不同技能相乘、首次激活一次、分支不重复折算。 */
 'use strict';
 const assert = require('assert');
-const fixture = require('./tower-balance-fixture.cjs');
+const fixture = require('./balance/fixtures/tower-balance-fixture.cjs');
 const CONFIG = require('../js/config.js');
 const SKILLS = require('../js/config/tower-skills.js');
 const { attackEnergyMultiplier } = require('../js/combat/attack-energy.js');

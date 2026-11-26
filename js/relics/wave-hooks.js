@@ -3,6 +3,9 @@
 const CONFIG = require('../config.js');
 
 function startWave(run) {
+  const waveEnergy=run.relic3('s_sr_cm_triple')?run.relicValue('s_sr_cm_triple','waveEnergy'):0;
+  if(waveEnergy>0)for(const key of run.slotOrder){const tower=run.effects.tower(key);if(tower&&tower.level>0)tower.energy=Math.min(run.armoryEnergyMax(key),tower.energy+waveEnergy);}
+
   // 战术转移：每波免费洗牌 +N 次（按星级）；3★ 额外 +1 次
   const shN = run.relicNum('cm_shuffle');
   if (shN > 0) {

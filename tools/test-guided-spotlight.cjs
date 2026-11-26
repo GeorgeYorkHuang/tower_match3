@@ -1,7 +1,7 @@
 /** 指引回归：真实经验升级触发、遮罩镂空/暗区拦截、分支互斥、主页解锁点击与重载。 */
 'use strict';
 const assert=require('assert');
-const fixture=require('./moving-battle-fixture.cjs');
+const fixture=require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main=require('../js/game/main.js');
 const {Meta}=require('../js/meta.js');
 const PLAN=require('../js/config/prologue.js');

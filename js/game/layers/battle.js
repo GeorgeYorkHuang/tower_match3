@@ -15,7 +15,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     if (!drawImg(ctx, aaSrc, 0, AREA_Y + ENTRY_H, 750, WALL_Y - (AREA_Y + ENTRY_H))) {
       fillRoundRect(ctx, AREA_X, AREA_Y + ENTRY_H, AREA_W, WALL_Y - AREA_Y - ENTRY_H, 8, '#151a21');
     }
-    this.entryStatus(ctx,s);
+
     if(s.stage==='lava'||s.stage==='frost'){
       const heat=s.stage==='lava',n=heat?s.heatStacks:s.windStacks;
       fillRoundRect(ctx,530,AREA_Y+ENTRY_H+44,196,34,10,heat?'#542f25':'#234657');
@@ -25,9 +25,9 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     // 塔位区（即城墙，先画背景）
     this.towerRow(ctx, s);
     // 防线血条（移至塔位区底部，覆盖在塔位区背景之上）
-    this.wall(ctx, s.lineHp, s.lineMaxHp, undefined, s.globalShield);
+    // Main draws the wall capsule below the tower row after the card surface.
     // 棋盘（传入 _shake 支持消除抖动）
-    this.board(ctx, s.grid, s.selected, s.anim, s._shake, s.stage, s.boardHint, s.boardChestHoles);
+    // Card draft is rendered by Main in place of the match-three board.
     // 底部功能键区（棋盘下方）
     this.funcBar(ctx, s);
     // 局内商店面板已移至 main.js render 流程的敌人/特效层之后绘制（否则怪物贴图浮在面板上方），不再在此处调用
@@ -64,7 +64,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     // 塔位区即城墙：防线血条画在塔位区底部（塔位区整体上移，独立城墙区移除）
     // barY 可选：默认塔位区底部；测试战场传入其塔位行上方 y（保持旧防线位置）
     const barH = 18;
-    const by = barY !== undefined ? barY - 10 : (TOWER_ROW_Y + L.towerRow.h - 24);
+    const by = barY !== undefined ? barY - 10 : (TOWER_ROW_Y + L.towerRow.h + 4);
     const ratio = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
     // 槽（深棕阴影底 + 淡描边）
     fillRoundRect(ctx, AREA_X, by, AREA_W, barH, barH / 2, '#17251f');
@@ -129,7 +129,6 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
     if (!drawImg(ctx, IMG_SRC.towerRow, 0, TOWER_ROW_Y, 750, L.towerRow.h)) {
       fillRoundRect(ctx, AREA_X, TOWER_ROW_Y, AREA_W, L.towerRow.h, 8, 'rgba(255,255,255,0.05)');
     }
-    text(ctx, '塔位', AREA_X + 14, TOWER_ROW_Y + 24, 18, 'rgba(255,255,255,0.4)');
     // .10e：2 个全局技能 + N 个塔槽按当前顺序（左洗牌 → 塔槽×N → 右补给）x 轴等间距（slotGap）居中排列
     const showG = showGlobal !== false && s.showGlobal !== false;
     const itemN = showG ? slotCount + 2 : slotCount;
@@ -145,6 +144,7 @@ function createBattleScene({ drawImg, IMG_SRC, drawTowerGlyph, AREA_X, AREA_Y, A
       if (!tw) {
         // Empty tower slots are transparent.
       } else {
+        if(tw.cardDouble>0)require('../fx/tower-card-boost.js').draw(ctx,x,slotY,slotSize,tw.cardDouble);
         // 塔图标（32×32 居中，图片优先，回退自绘几何图形——emoji 在部分 canvas 环境不渲染）
         const ix = x + (slotSize - L.towerIcon.size) / 2;
         const iy = slotY + (slotSize - L.towerIcon.size) / 2 - 2;

@@ -2,8 +2,11 @@
 'use strict';
 const Notices=require('../prologue/unlock-notices.js');
 const Spotlight=require('./spotlight.js');
+const RedGuide=require('./red-card-guide.js');
 function target(game){
-  if(game.state!=='menu'||game.menuPanel||game.testProfile)return null;
+  if(game.state!=='menu'||game.testProfile)return null;
+  const red=RedGuide.target(game);if(red)return red;
+  if(game.menuPanel)return null;
   const seen=game.meta.unlockGuideSeen||{};
   const item=Notices.available(game.meta).find(entry=>!seen[entry.id]);
   if(!item)return null;
@@ -22,11 +25,14 @@ function target(game){
 }
 function draw(ctx,game){
   const active=target(game);game._unlockGuide=active;
+  if(active&&active.red){RedGuide.draw(ctx,game,active);return;}
+  game._redCardGuide=null;
   if(active)Spotlight.draw(ctx,[active.hit.rect],active.item.name+'已解锁','点击高亮入口查看新内容。','');
 }
 function tap(game,point){
   const active=target(game);
   if(!active)return false;
+  if(active.red)return RedGuide.tap(game,point,active);
   if(!Spotlight.inside(point,active.hit.rect))return true;
   if(active.viewing){
     const seen=game.meta.unlockGuideSeen||(game.meta.unlockGuideSeen={});seen[active.item.id]=true;game.save.save();

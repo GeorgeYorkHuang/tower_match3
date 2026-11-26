@@ -1,7 +1,7 @@
 /** 主页战场选择：章节标题、图标、切换箭头与战斗入口共用逻辑坐标。 */
 'use strict';
 const CONFIG = require('../../config.js');
-const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
+const { fillRoundRect, strokeRoundRect, text, getPressPoint, button } = require('../ui.js');
 
 // Presentation only: dependencies are shared helpers, never a player save.
 function createHomeScreen({ drawImg, skillRow }) {
@@ -50,6 +50,10 @@ function createHomeScreen({ drawImg, skillRow }) {
     const requirement = s.stageRequirement || '';
     const locked = !!requirement;
 
+    const press=getPressPoint(),stagePressed=press&&press.x>=ix&&press.x<=ix+iw&&press.y>=iy&&press.y<=iy+iw+62;
+    ctx.save();
+    if(stagePressed){ctx.translate(375,iy+iw/2+5);ctx.scale(.97,.97);ctx.translate(-375,-iy-iw/2);}
+    ctx.shadowColor='rgba(10,35,20,.35)';ctx.shadowBlur=stagePressed?3:6;ctx.shadowOffsetY=stagePressed?1:4;
     // 战场图标：无背景直出（放大 30% → 338px；锁定态整体压暗）
     ctx.globalAlpha = locked ? 0.4 : 1;
     const badge = drawImg(ctx, F.icon || (isTest ? 'assets/images/interface/home/icon_stage_test.png' : `assets/images/interface/home/icon_stage_${stage}.png`), ix, iy, iw, iw);
@@ -77,43 +81,15 @@ function createHomeScreen({ drawImg, skillRow }) {
       fillRoundRect(ctx,lx-3,ly+1,6,18,3,'#4b3e29');ctx.restore();
     }
 
+    ctx.restore();
     // ◀ ▶ 战场切换箭头（移到战场图标两侧、保持 36px 间距；垂直对齐图标中心）
-    const arrow = (ax, dir) => {
-      const isPrev = dir === '‹';   // 修正：左侧朝左=上一个，右侧朝右=下一个
-      const glow = 0.10 + 0.06 * Math.sin(Date.now() / 420 + (isPrev ? 0 : 2.1));
-      // 呼吸光晕
-      ctx.globalAlpha = glow;
-      ctx.fillStyle = tint;
-      ctx.beginPath(); ctx.arc(ax, ay, arR + 7, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 底部投影
-      ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(ax + 2, ay + 4, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      // 渐变圆底
-      const abg = ctx.createRadialGradient(ax - arR * 0.35, ay - arR * 0.42, arR * 0.12, ax, ay, arR);
-      abg.addColorStop(0, isTest ? '#8f83f5' : '#45d48a');
-      abg.addColorStop(0.55, isTest ? '#5a4bc8' : '#23a06a');
-      abg.addColorStop(1, isTest ? '#3c2f8f' : '#14694a');
-      ctx.fillStyle = abg;
-      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(ax, ay, arR, 0, Math.PI * 2); ctx.stroke();
-      // 150° 钝角三角楔形箭头（顶角 150°，两底角各 15°：宽扁利落的指向楔形）
-      const h = 19;                       // 底边半高
-      const d = Math.round(h / Math.tan(Math.PI * 150 / 360));   // 顶点深度 = h / tan75° ≈ 5
-      ctx.save();
-      ctx.translate(ax, ay);
-      // 顶点在 -x 侧，默认朝左；右箭头（›）才镜像
-      if (!isPrev) ctx.scale(-1, 1);
-      const tg = ctx.createLinearGradient(-d, 0, 6, 0);
-      tg.addColorStop(0, '#ffffff'); tg.addColorStop(1, '#dfe9e2');
-      ctx.fillStyle = tg;
-      ctx.beginPath();
-      ctx.moveTo(-d, 0); ctx.lineTo(6, -h); ctx.lineTo(6, h); ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
-      ctx.stroke();
+    const arrow=(ax,dir)=>{
+      const prev=dir==='‹',enabled=prev?canPrev:canNext,p=getPressPoint();
+      const pressed=enabled&&p&&Math.abs(p.x-ax)<=arR+7&&Math.abs(p.y-ay)<=arR+7;
+      ctx.save();ctx.globalAlpha=enabled?1:.28;
+      ctx.shadowColor='rgba(10,55,30,.3)';ctx.shadowBlur=pressed?2:4;ctx.shadowOffsetX=pressed?1:2;ctx.shadowOffsetY=pressed?1:3;
+      const offset=pressed?3:0,src='assets/images/interface/home/stage-arrow-'+(prev?'west':'east')+'.png';
+      if(!drawImg(ctx,src,ax-32,ay-32+offset,64,64)){text(ctx,prev?'‹':'›',ax,ay+offset,52,'#64d899','center');}
       ctx.restore();
     };
     arrow(aLx, '‹');
@@ -121,17 +97,13 @@ function createHomeScreen({ drawImg, skillRow }) {
     // Capsule entry button and skill rows share their left/right edges.
     // 按钮 440→374（再缩短 15%）；配色固定金色，不随战场切换变色
     const ey = 1020, eh = 80, entryW = 374, entryX = (750 - entryW) / 2;
+    if(!isTest&&s.firstGoldBonus&&s.firstGoldBonus.remaining>0)push('dailyBattleBonus',s.firstGoldBonus,entryX+entryW-27,ey-19,38,38);
     push('enter', null, entryX, ey, entryW, eh);
-    const bgrad = ctx.createLinearGradient(0, ey, 0, ey + eh);
-    bgrad.addColorStop(0, '#f7c948'); bgrad.addColorStop(1, '#d99e16');
-    fillRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, bgrad);
-    strokeRoundRect(ctx, entryX, ey, entryW, eh, eh / 2, 'rgba(255,255,255,0.4)', 2);
-    fillRoundRect(ctx, entryX + 16, ey + 7, entryW - 32, 16, 8, 'rgba(255,255,255,0.22)');
-    text(ctx, '⚔ 进入战斗', 375, ey + 46, 36, '#ffffff', 'center');
-    if (!isTest && s.firstGoldBonus) {
-      const bonus=s.firstGoldBonus;
-      fillRoundRect(ctx,130,ey+98,490,44,22,'rgba(18,48,30,0.85)');
-      text(ctx,bonus.remaining>0?`本战场每日前2局：深度金币×1.5 · 剩${bonus.remaining}次`:'今日加成已用完 · 深度金币正常×1',375,ey+120,21,'#ffe4a1','center');
+    button(ctx,entryX,ey,entryW,eh,'进入战斗',{bg:'#dfae2e',fontSize:36,capsule:true,raised:true,depth:5});
+    if(!isTest&&s.firstGoldBonus&&s.firstGoldBonus.remaining>0){
+      const bx=entryX+entryW-8,by=ey;ctx.save();ctx.shadowColor='rgba(64,37,9,.3)';ctx.shadowBlur=3;ctx.shadowOffsetY=2;
+      ctx.beginPath();ctx.arc(bx,by,17,0,Math.PI*2);ctx.fillStyle='#b25232';ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+      ctx.strokeStyle='#ffe1a0';ctx.lineWidth=1.5;ctx.stroke();text(ctx,'!',bx,by,23,'#ffffff','center');ctx.restore();
     }
     // 技能配置行：单行双分区，随版面整体下移 150（1130→1280）
     skillRow(ctx, s, push, 55, 1280, 640, 170);

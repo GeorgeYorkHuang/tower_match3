@@ -139,6 +139,7 @@ module.exports = {
 
   SKILL_UNLOCK: {
     defaults: { match4: ['row'], match5: ['rainbow'], global: ['refill', 'forge'] },   // 下架：随机抽取(match4)、连消技配置(chain)
+    globalPrices: { refill: 1000, forge: 1800, haste: 2200, heal: 2600, tide: 3000, charge: 3600, resonance: 4500, volley: 6000 },
     price: { match4: 800, match5: 1200, chain: 1000, global: 2000 },
   },
 

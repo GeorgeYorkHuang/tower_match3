@@ -108,6 +108,7 @@ function createTowerDetails({ drawImg, skillIconSrc, TOWER_TINT, lighten, txtW }
       if (trend) text(ctx, trend > 0 ? '↑' : '↓', sx + statW - 25, sy + statH / 2 - 1, 24, trend > 0 ? '#53e278' : '#ff6262', 'center');
       ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
     });
+    text(ctx,'高星强化 · 攻击力 +'+(info.cardGrowth||0)+'% / 30%'+(info.cardDouble>0?' · 双倍 '+Math.ceil(info.cardDouble)+'秒':''),x+w-40,y+340,16,'#e5cc92','right');
     // 分隔线
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
     ctx.fillRect(x + 40, y + 310, w - 80, 2);

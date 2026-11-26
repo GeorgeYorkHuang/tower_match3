@@ -16,7 +16,7 @@ function chapter(index, name, maxWave, colors, towerSlots, features, enemyMultip
     // ID 保持不变；显示名称与图标调整不重置已有通关记录。
     chapterTitle: ['第一章', '第二章', '第三章'][index],
     icon: `assets/images/interface/home/icon_chapter_${index + 1}_v1.png`,
-    features: { match4: true, match5: false, chain: true, talents: false, ...features },
+    features: { match4: false, match5: false, chain: false, talents: false, ...features },
     enemyMultipliers, bossProfile, expNeedMultiplier, enemyCurve,
     rewards: {
       formalMilestones: false, deepChests: false, redFragments: false,
@@ -34,14 +34,14 @@ module.exports = freeze({
   order,
   chapters: {
     [order[0]]: chapter(0, '圣庭初醒', 10, ['red', 'blue', 'green'], 2,
-      { skills: false, branches: false, globalSkills: false, battleShop: false, relics: false },
+      { skills: true, branches: false, globalSkills: false, battleShop: false, relics: false },
       { count: 0.55, hp: 0.45, attack: 0.40, speed: 0.80, bossHp: 0.35, bossAttack: 0.35, wallHp: 1.50, eliteMax: 0 },
       { final: 'miniboss_bell', noSummons: true }, 0.65,
       { plateauWave: 10, runnerEvery: 4, tankEvery: 10, tankStartWave: 4,
         hp: {normal:[110,150],runner:[70,100],tank:[220,280],elite:[300,360],boss:[700,1100]},
         armor:[0,0.04] }),
     [order[1]]: chapter(1, '圣庭之门', 20, ['red', 'blue', 'green', 'orange'], 3,
-      { skills: true, branches: false, globalSkills: true, battleShop: true, relics: false },
+      { skills: true, branches: true, globalSkills: true, battleShop: true, relics: false },
       { count: 0.65, hp: 0.55, attack: 0.50, speed: 0.85, bossHp: 0.45, bossAttack: 0.45, wallHp: 1.40, eliteMax: 1 },
       { 20: 'altar_rosea', summonCount: 0.5, scaleShield: true,
         overrides: {hp:9000,armor:0.08,shieldPerLayer:400,shieldPeriod:18} }, 0.75,

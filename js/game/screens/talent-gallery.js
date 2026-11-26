@@ -24,35 +24,33 @@ function drawCard(ctx, s, def, x, y, push, drawImg, vp) {
   fillRoundRect(ctx, x, y, w, h, 14, '#ecdfb6');
   drawImg(ctx, 'assets/images/interface/cards/relic-detail-v1.png', x, y, w, h);
   strokeRoundRect(ctx, x, y, w, h, 14, current ? '#ffe6a1' : '#ba725a', current ? 3 : 1.5);
-  fillRoundRect(ctx, x + 10, y + 12, w - 20, 180, 10, 'rgba(20,45,32,.92)');
-  drawImg(ctx, def.icon, x + 18, y + 20, 116, 116);
-  mini(ctx, def, x + 114, y + 68, 90);
-  text(ctx, def.name, x + w / 2, y + 157, 19, '#ffe6b1', 'center');
-  text(ctx, '白点固定加成所属塔', x + w / 2, y + 180, 16, '#c8d8bd', 'center');
-  text(ctx, '★'.repeat(star), x + w - 15, y + 29, 17, '#f0cb6e', 'right');
-  if (s.testProfile)
-    [2, 3].forEach((level, i) =>
-      button(
-        ctx,
-        (key, data, bx, by, bw, bh) => clipHit(push, vp, key, data, bx, by, bw, bh),
-        'talentTestStar',
-        { id: def.id, star: level },
-        level + '星',
-        x + w - 78,
-        y + 64 + i * 42,
-        61,
-        34,
-        star !== level
-      )
-    );
-  const shade = 'rgba(245,235,202,.96)';
-  fillRoundRect(ctx, x + 10, y + 199, w - 20, h - 209, 9, shade);
-  if (def.purple.icon) drawImg(ctx, def.purple.icon, x + 17, y + 209, 28, 28);
-  text(ctx, def.purple.name, x + 53, y + 224, 20, '#694091', 'left');
-  wrap(ctx, def.purple.desc, x + 19, y + 254, w - 38, 17, '#293e32');
-  if (def.gold.icon) drawImg(ctx, def.gold.icon, x + 17, y + 315, 28, 28);
-  text(ctx, def.gold.name, x + 53, y + 330, 20, '#846019', 'left');
-  wrap(ctx, def.gold.desc, x + 19, y + 361, w - 38, 17, '#293e32');
+  const titleSize=Math.min(19,250/Math.max(1,def.name.length));
+  text(ctx,def.name,x+w/2,y+28,titleSize,'#263f2e','center');
+  fillRoundRect(ctx,x+10,y+49,w-20,145,10,'#183b2a');
+  drawImg(ctx,def.icon,x+18,y+66,110,110);
+  mini(ctx,def,x+164,y+73,96);
+  text(ctx,'圣遗物',x+73,y+183,13,'#d4dfbe','center');
+  text(ctx,'覆盖范围',x+212,y+183,13,'#d4dfbe','center');
+  text(ctx,'持有 '+ '★'.repeat(star),x+17,y+211,15,'#76613a','left');
+  if(s.testProfile)[2,3].forEach((level,i)=>button(ctx,(key,data,bx,by,bw,bh)=>clipHit(push,vp,key,data,bx,by,bw,bh),'talentTestStar',{id:def.id,star:level},'★'.repeat(level),x+139+i*65,y+199,60,25,star!==level));
+  const tier=(s.panel.cardTiers||{})[def.id]||star||1;
+  for(let level=1;level<=3;level++){
+    const tx=x+14+(level-1)*88,selected=level===tier;
+    fillRoundRect(ctx,tx,y+232,84,47,9,selected?'#385c43':'#d6c99f');
+    strokeRoundRect(ctx,tx,y+232,84,47,9,selected?'#e4c97e':'#b1a479',1);
+    text(ctx,'★'.repeat(level),tx+42,y+246,17,selected?'#ffe9a3':'#6b5c3b','center');
+    text(ctx,'覆盖'+[0,4,8,12][level]+'格',tx+42,y+267,14,selected?'#e8efd0':'#40553b','center');
+    clipHit(push,vp,'talentCardTier',{id:def.id,tier:level},tx,y+232,84,47);
+  }
+  fillRoundRect(ctx,x+12,y+288,w-24,195,10,'rgba(248,239,211,.97)');
+  const body=tier===1?'覆盖天赋4格，激活固定塔攻击点与绿色属性点。':tier===2?(def.purpleList.map(p=>p.name+'：'+p.desc).join('\n')||'仅提供覆盖属性，无紫天赋。'):def.gold.name+'（'+def.gold.mode+'）：'+def.gold.desc;
+  const locked=tier>star;
+  const wrapLines=(value,size)=>{ctx.font='bold '+size+'px sans-serif';const rows=[];let line='';for(const token of (value.match(/[+−-]?\d+(?:\.\d+)?[%％]?|[^\n]|\n/gu)||[])){if(token==='\n'){rows.push(line);line='';}else if(ctx.measureText(line+token).width>w-44&&line){rows.push(line);line=token;}else line+=token;}if(line)rows.push(line);return rows;};
+  let font=17;while(font>14&&wrapLines(body,font).length*(font+4)>(locked?156:176))font--;
+  const rows=wrapLines(body,font);
+  rows.forEach((line,i)=>text(ctx,line,x+22,y+305+i*(font+4),font,tier===3?'#72551f':tier===2?'#674183':'#2d4935','left'));
+  if(locked)text(ctx,'升至'+'★'.repeat(tier)+'后生效',x+w/2,y+471,13,'#8a7c59','center');
+
   button(
     ctx,
     (key, data, bx, by, bw, bh) => clipHit(push, vp, key, data, bx, by, bw, bh),
@@ -110,7 +108,7 @@ function gallery(ctx, s, push, drawImg, frame) {
 const statLabels = [
   ['attack', '攻击力', false],
   ['speed', '攻速', true],
-  ['charge', '三消充能', true],
+  ['charge', '塔卡充能', true],
   ['damage', '伤害', true],
   ['skill', '技能伤害', true],
   ['dot', '负面效果', true],
@@ -156,7 +154,7 @@ function summary(ctx, s, push, drawImg, frame) {
           vp.x + 18,
           py,
           20,
-          line.kind === 'gold' ? '#f2cc72' : '#d8b0fc',
+          line.kind === 'gold' ? '#f2cc72' : line.kind === 'exclusive' ? '#7fc9a6' : '#d8b0fc',
           'left'
         );
         py = wrap(ctx, line.desc, vp.x + 18, py + 31, vp.w - 36, 18, '#e1e8d0') + 12;

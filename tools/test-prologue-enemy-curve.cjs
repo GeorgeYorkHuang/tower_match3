@@ -1,7 +1,7 @@
 /** 前两章独立曲线：全波次出生预算、平台、技能上限、Boss与第三章/正式关卡隔离。 */
 'use strict';
 const assert=require('assert');
-const fixture=require('./moving-battle-fixture.cjs');
+const fixture=require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main=require('../js/game/main.js');
 const CONFIG=require('../js/config.js');
 const PLAN=require('../js/config/prologue.js');
@@ -47,13 +47,13 @@ try{
  while(g.wave.plan.length)g.wave.spawnOne();
  for(const enemy of g.enemies.filter(e=>!e.bossId))assert.equal(enemy.maxHp,Curve.stats(g.run.chapter,20,enemy.type).hp);
  const first=world(PLAN.order[0],1);first.run.applyMatch('red','3',3);first.run.gainExp(1e6);
- assert.equal(first.run.expLevel,0);assert.equal(first.run.effects.tower('fire').level,1);
+ assert(first.run.expLevel>0);assert.equal(first.run.effects.settleAuto().activated,3);assert.equal(first.run.effects.tower('fire').level,4);
  const second=world(PLAN.order[1],1);
  for(const color of ['red','blue','green'])second.run.applyMatch(color,'3',3);
- second.run.gainExp(1e6);assert.equal(second.run.effects.settleAuto().activated,9);
- assert(second.run.slotOrder.every(k=>second.run.effects.tower(k).level===4));
+ second.run.gainExp(1e6);const settled=second.run.effects.settleAuto();assert(settled.leveled>0);
+ assert(second.run.slotOrder.some(k=>second.run.effects.tower(k).level>4));assert(PLAN.chapters[PLAN.order[1]].features.branches);
  assert.equal(Curve.stats(PLAN.chapters[PLAN.order[2]],10,'normal'),null);
  const normal=world('ancient',20);assert.equal(Balance.profile(normal,Bosses.altar_rosea),Bosses.altar_rosea);
  assert.equal(JSON.stringify({towers:CONFIG.TOWERS,bosses:Bosses,third:PLAN.chapters[PLAN.order[2]]}),snapshot);
- console.log(`PASS ${waves} chapter waves/${spawned} spawned enemies, exact HP budgets, W15 plateau, 1/4 level caps, Rosea shield/adds, no repeated scaling or global config changes.`);
+ console.log(`PASS ${waves} chapter waves/${spawned} spawned enemies, exact HP budgets, W15 plateau, chapter1 skills and chapter2 branches, Rosea shield/adds, no repeated scaling or global config changes.`);
 }finally{fixture.restore();}

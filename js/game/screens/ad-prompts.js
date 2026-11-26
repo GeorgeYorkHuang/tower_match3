@@ -44,8 +44,8 @@ function draw(ctx,game) {
    text(ctx,String(income.keptShards),565,774,28,'#e3b79c','center');
    text(ctx,'金币已按结算规则折算',375,818,17,'#91a39c','center');
    game._reviveAdHits={
-     decline:button(ctx,95,880,265,76,'放弃并结算',{bg:'#554845',fontSize:25}).hit,
-     watch:button(ctx,380,880,275,76,game._adBusy?'广告加载中…':'观看广告复活',{bg:'#537943',fontSize:25}).hit
+     decline:button(ctx,95,880,265,76,'放弃并结算',{bg:'#554845',fontSize:25,capsule:true,raised:true}).hit,
+     watch:button(ctx,380,880,275,76,game._adBusy?'广告加载中…':'观看广告复活',{bg:'#537943',fontSize:25,capsule:true,raised:true}).hit
    };
  }
  if(game.state==='gameover'&&game.runSummary&&game.runSummary.evacuated){

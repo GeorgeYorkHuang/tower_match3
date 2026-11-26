@@ -9,8 +9,8 @@ module.exports = {
     ...require('./experience.js'), // 三段整体经验曲线 + 逐波击杀经验增长
     towerMaxLevel: 13,                     // Lv1 建塔 + 3 个技能槽 ×（激活 1 次 + 分支升级 3 次）
     // 击杀经验（打怪为主渠道；精英/Boss 更多；三消经验=每块 2×块数×形状倍率，明显低于击杀）
-    kill: { normal: 15, runner: 10, tank: 22, elite: 30, boss: 90 },
-    waveBonus: 5,                            // 波末全塔额外经验（少量）
+    kill: { normal: 20, runner: 14, tank: 30, elite: 42, boss: 130 },
+    waveBonus: 12,                            // 波末全塔额外经验（少量）
   },
 
   TOWERS: {

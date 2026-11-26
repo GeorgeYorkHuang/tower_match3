@@ -14,7 +14,7 @@ const towerNames = {
 };
 const gallery = { x: 50, y: 270, w: 650, h: 1040 },
   galleryViewport = { x: 74, y: 360, w: 602, h: 834 };
-const card = { w: 290, h: 544, gap: 22, rowGap: 20 };
+const card = { w: 290, h: 548, gap: 22, rowGap: 20 };
 const summary = { x: 50, y: 270, w: 650, h: 1040 },
   summaryViewport = { x: 78, y: 370, w: 594, h: 850 };
 
@@ -32,10 +32,11 @@ function summaryItems(meta) {
       equipped = a.cards.filter((c) => c.def.tower === key),
       lines = [];
     equipped.forEach((c) => {
+      
       if (a.purple.includes(c.id))
-        lines.push({ kind: 'purple', name: c.def.purple.name, desc: c.def.purple.desc });
+        c.def.purpleList.forEach(p=>lines.push({kind:'purple',name:p.name,desc:p.desc}));
       if (a.gold.includes(c.id))
-        lines.push({ kind: 'gold', name: c.def.gold.name, desc: c.def.gold.desc });
+        lines.push({ kind: 'gold', name: c.def.gold.mode+' · '+c.def.gold.name, desc: c.def.gold.desc });
     });
     const h = 215 + lines.reduce((sum, l) => sum + 33 + Math.ceil(l.desc.length / 28) * 27 + 12, 0);
     return { key, name: towerNames[key], bonus: b, cards: equipped, lines, h };

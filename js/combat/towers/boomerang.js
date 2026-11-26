@@ -56,7 +56,7 @@ function sweepDamage(combat, s) {
   };
   for (const e of ordered) {
     const distToPath = nearSegment(e);
-    if(e.hp>0&&p>=0.5&&distToPath<=Collision.reach(e,r)&&g.run.talentState&&g.run.talentState.ready.boomerang)require('../../talents/runtime.js').returnHit(combat,s);
+    if(e.hp>0&&p>=.5&&s.hitIds[e.id]&&!s.hitIds[e.id+'_gold']&&!s.goldReturnUsed&&distToPath<=Collision.reach(e,r)&&require('../../talents/runtime.js').passive(g.run,'boomerang','sanctum_returnHit')){s.hitIds[e.id+'_gold']=true;s.goldReturnUsed=true;combat.damage(e,nextPierceDamage(),'boomerang');}
     if (e.hp <= 0 || s.hitIds[e.id]) {
       // 强返3★：折返镖命中同一目标第二次时伤害 ×1.5（仅折返增伤激活）
       // 镖群3★：多镖呈环状回收时命中路径上的所有敌人（每敌额外一次回程命中）

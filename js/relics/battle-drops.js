@@ -26,7 +26,7 @@ function grantBossChest(game, enemy) {
     kind: rarity === 'ssr' ? 'majorBoss' : 'miniBoss', waveNo: wave,
     ...(rarity === 'ssr' ? { rarity: 'ssr' } : {}) });
   game.run._waveChestDropped = true;
-  game.toast(rarity === 'ssr' ? '金色圣物宝箱 · 消除棋盘相邻方块领取' : 'Boss宝箱 · 消除棋盘相邻方块领取', '#f7c948');
+  game.toast(rarity === 'ssr' ? '金色圣物宝箱 · 点击打开' : 'Boss宝箱 · 点击打开', '#f7c948');
   return true;
 }
 function emptyGold(game, rarity) {

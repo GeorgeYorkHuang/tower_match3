@@ -33,8 +33,8 @@ module.exports = {
     this.run.gold = 0;
     if(this.menuStage==='ancient') this.meta.ancientBestWave=Math.max(this.meta.ancientBestWave||0,this.run.wave);
     const miles = prologue ? [] : this.meta.checkMilestone(this.run.wave);   // 首达里程碑 + 更新最深波次
-    // 前三波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
-    const noChest = !evacuated && this.run.wave <= 3;
+    // 前两波阵亡取消深度宝箱低保（木箱不再发放；撤离最早 10 波不受影响）
+    const noChest = !evacuated && this.run.wave <= 2;
     const cleared = this.run.clearedWaves || 0;
     const tier = prologue || noChest || cleared < 1 ? null : this.meta.tierByWave(cleared);
     let chestExtra = null, chestExtraFull = false;
@@ -56,7 +56,7 @@ module.exports = {
       evacuated, wave: this.run.wave, stage: this.menuStage, payout, miles,
       cleared: this.run.clearedWaves || 0,   // 全歼波数（通关数口径：一波怪全部死亡才算，非「到达第几波」）
       chestName: tier ? tier.name : null, chestKey: tier ? tier.key : null, chestGranted: ok1, chestExtra, chestExtraFull,   // chestKey：结算页宝箱档位图标
-      chestSkipped: noChest,   // 前三波阵亡无宝箱（结算页区分提示）
+      chestSkipped: noChest,   // 前两波阵亡无宝箱（结算页区分提示）
       // 碎片三件套：raw=掉落总张数 / kept=折算后保留 / lost=损失（失败态展示"损失 N"）
       bonusShardDetail: ss.awardedDetail,
       relicDust: ss.dust,

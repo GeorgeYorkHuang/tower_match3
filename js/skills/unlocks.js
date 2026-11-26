@@ -8,7 +8,7 @@ const CONFIG = require('../config.js');
   }
 
   function unlockSkill(meta, slot, id) {
-    const price = CONFIG.SKILL_UNLOCK.price[slot];
+    const price = slot === 'global' ? (CONFIG.SKILL_UNLOCK.globalPrices[id] || CONFIG.SKILL_UNLOCK.price.global) : CONFIG.SKILL_UNLOCK.price[slot];
     if (meta.skillUnlocked(slot, id)) return { ok: false, reason: 'owned' };
     if (meta.gold < price) return { ok: false, reason: 'gold' };
     meta.gold -= price;

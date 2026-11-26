@@ -1,7 +1,7 @@
 /** 验证历练升金、开局三选一、重复发放保护，以及新手引导与原有宝箱的兼容。 */
 const assert = require('assert');
 // 复用离线画布和内存存储，测试不接触真实账号存档。
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main = require('../js/game/main.js');
 const CONFIG = require('../js/config.js');
 const { Meta } = require('../js/meta.js');

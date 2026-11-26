@@ -2,7 +2,7 @@
 const CONFIG = require('../../config.js');
 const Shop = require('../../economy/battle-shop.js');
 const { shopItemIcon } = require('../icons/shop-items.js');
-const { roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
+const { getPressPoint, roundRect, fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
   function battleShop(ctx, s) {
@@ -22,9 +22,14 @@ function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
       const offer = Shop.offer({ store: s.store, storeCooldowns: s.storeCooldowns }, item), afford = s.testShopFree || s.gold >= offer.cost, cooling = offer.cooldown > 0;
       const timer = s.storeTimers && s.storeTimers[item.id] || 0;
       const inactive = cooling || (offer.sold && timer <= 0);
-      shopItemRects.push({ x: cx, y: cy, w: cw, h: ch });
+      const rect={x:cx+cw*.05,y:cy+ch*.05,w:cw*.9,h:ch*.9};shopItemRects.push(rect);
+      const p=getPressPoint(),pressed=!inactive&&p&&p.x>=rect.x&&p.x<=rect.x+rect.w&&p.y>=rect.y&&p.y<=rect.y+rect.h;
+      ctx.save();ctx.translate(cx+cw/2,cy+ch/2);ctx.scale(.9,.9);ctx.translate(-cx-cw/2,-cy-ch/2);
+      ctx.shadowColor='rgba(0,0,0,.4)';ctx.shadowBlur=pressed?3:8;ctx.shadowOffsetY=pressed?2:5;
+      fillRoundRect(ctx,cx,cy+5,cw,ch,18,'#4e5143');ctx.shadowBlur=0;ctx.shadowOffsetY=0;if(pressed)ctx.translate(0,4);
       fillRoundRect(ctx, cx, cy, cw, ch, 18, inactive ? '#222b31' : '#233641');
-      drawImg(ctx, 'assets/images/interface/cards/battle-shop-card-v1.png', cx, cy, cw, ch);
+      ctx.save();roundRect(ctx,cx,cy,cw,ch,18);ctx.clip();
+      drawImg(ctx, 'assets/images/interface/cards/battle-shop-card-v1.png', cx, cy, cw, ch);ctx.restore();
       strokeRoundRect(ctx, cx, cy, cw, ch, 18, inactive ? '#52616b' : item.color, 1.5);
       ctx.save(); ctx.globalAlpha = inactive ? 0.42 : 1;
       shopItemIcon(ctx, item.id, cx + (cw - 116) / 2, cy + 5, 116, item.color, drawImg); ctx.restore();
@@ -38,6 +43,7 @@ function createBattleShop({ drawImg, IMG_SRC, fmtNum }) {
         : timer === Infinity ? '本局持续' : timer > 0 ? '剩余' + Math.ceil(timer) + '秒' : offer.sold ? '已售罄' : '';
       if (state) text(ctx, state, cx + cw - 12, cy + 24, 19, '#d4e3e9', 'right');
       text(ctx, offer.sold ? '已购买' : s.testShopFree ? '测试免费' : offer.cost + ' 银币', cx + cw / 2, cy + 231, 25, offer.sold || cooling ? '#81929e' : afford ? '#ffe2a0' : '#ffad9a', 'center');
+      ctx.restore();
     });
     const shopCloseRect = { x: 280, y: y + h - 66, w: 190, h: 48 };
     fillRoundRect(ctx, shopCloseRect.x, shopCloseRect.y, 190, 48, 24, '#bca66d');

@@ -30,7 +30,7 @@ function shake(game){
 }
 function draw(ctx,hint,rowY,now=Date.now()){
  if(!hint||now>=hint.until)return;
- const major=hint.major,w=major?500:360,h=major?88:62,x=(CONFIG.DESIGN.W-w)/2,y=rowY+6;
+ const major=hint.major,w=major?500:360,h=major?88:62,x=(CONFIG.DESIGN.W-w)/2,y=rowY-h/2;
  ctx.save();
  fillRoundRect(ctx,x,y,w,h,12,major?'rgba(58,15,19,0.95)':'rgba(43,20,20,0.92)');
  strokeRoundRect(ctx,x,y,w,h,12,major?'#ffd681':'#e9aa7b',major?3:2);

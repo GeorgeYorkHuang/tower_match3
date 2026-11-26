@@ -158,6 +158,7 @@ class Match3Controller {
     if (!cs.fired) cs.fired = new Set();
     if (cs.fired.has(cs.index)) return;
     cs.fired.add(cs.index);
+    require('./game/fx/energy-charge.js').emit(g,cs.steps[cs.index]);
     BoardChests.reveal(g, cs.steps[cs.index].chestsCollected);
     ComboFeedback.show(g, cs.steps[cs.index], cs.index + 1);
     for (const shot of (cs.chainShotsByStep || [])[cs.index] || []) {

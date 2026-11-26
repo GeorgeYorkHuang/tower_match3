@@ -11,7 +11,7 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
   function relicPickLayer(ctx, pick, onPick, elapsed, gold) {
     if (!pick || !pick.candidates) return;
     const baseBox = PickLayout.geometry('relic', pick);
-    const box = {...baseBox,y:baseBox.y-150,h:baseBox.h+150}, {x,y,w,h}=box;
+    const box = baseBox, {x,y,w,h}=box;
     // 弹出动画：从宝箱中心(375,560) 0.5s 从小到大（easeOutBack 轻微回弹）
     const pe = Math.min(1, (elapsed || 0) / 500);
     const es = 1 + 2.70158 * Math.pow(pe - 1, 3) + 1.70158 * Math.pow(pe - 1, 2);
@@ -57,9 +57,9 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
     text(ctx, pick.opening ? '历练启程' : pick.rarity === 'ssr' ? '金色圣物显现' : '圣物显现', 375, y + 76, 38, '#ffd34d', 'center');
     text(ctx, pick.opening ? '开局额外选择1件圣遗物 · 本局生效' : pick.rarity === 'ssr' ? '金色SSR专属候选 · 重掷仍为金色' : '获得圣遗物本局生效 · 塔圣遗物仅对应塔在场时出现', 375, y + 112, 18, '#c9b27a', 'center');
     // 3 个候选卡片（纵向扩容：bh 240→300）
-    const bw = 188, bh = 450, gap = 16;
+    const bw = 204, bh = 490, gap = 14;
     const startX = (750 - (bw * 3 + gap * 2)) / 2;
-    const cy = y + 138;
+    const cy = y + 144;
     pick.candidates.forEach((c, i) => {
       const age = (elapsed || 0) - 220 - i * 200;
       onPick[i] = {hit:()=>false};
@@ -96,30 +96,22 @@ function createBattleRelics({ drawImg, IMG_SRC, TOWER_TINT, relicIconSrc }) {
         text(ctx, c.icon, icx, icy + 4, 48, '#ffffff', 'center');
       }
       text(ctx, quality.label, cx + bw - 13, cy + 20, 15, quality.light, 'right');
-      text(ctx, c.name, cx + bw / 2, cy + 158, 25, quality.light, 'center');
-      // 效果描述（按宽度换行，最多 3 行，防出框）
-      const d = c.desc || '';
-      const maxW = bw - 20;
-      const lines = [];
-      let cur = '';
-      for (const ch of d) {
-        const test = cur + ch;
-        const testW = test.length * 16 + (test.match(/[A-Za-z0-9.%+\-×]/g) || []).length * 4;
-        if (testW > maxW && cur) { lines.push(cur); cur = ch; if (lines.length >= 3) break; }
-        else cur = test;
-      }
-      if (lines.length < 3 && cur) lines.push(cur);
-      lines.forEach((ln, li) => {
-        text(ctx, ln, cx + bw / 2, cy + 190 + li * 22, 16, '#c9b27a', 'center');
-      });
-      // 选择按钮与卡框保持同一品质配色。
-      const btnX = cx + 24, btnY = cy + bh - 62, btnW = bw - 48, btnH = 46;
+      const wrap=(value,size,width)=>{ctx.font=size+'px sans-serif';const lines=[];let line='';for(const ch of (String(value||'').match(/[+−-]?\d+(?:\.\d+)?[%％]?|./gu)||[])){if(ctx.measureText(line+ch).width>width&&line){lines.push(line);line=ch;}else line+=ch;}if(line)lines.push(line);return lines;};
+      const names=wrap(c.name,25,bw-24);
+      names.slice(0,2).forEach((line,j)=>text(ctx,line,cx+bw/2,cy+171+j*30,25,quality.light,'center'));
+      const desc=wrap(c.desc,21,bw-32);
+      // 独立说明区，最多七行；溢出时缩小至20号而非静默截断。
+      const size=desc.length>7?20:21,lines=wrap(c.desc,size,bw-32);
+      lines.slice(0,7).forEach((line,j)=>text(ctx,j===6&&lines.length>7?line.slice(0,-1)+'…':line,cx+16,cy+244+j*26,size,'#eadfc4','left'));
+      const btnX=cx+18,btnY=cy+bh-72,btnW=bw-36,btnH=52;
       const btnG = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
       btnG.addColorStop(0, quality.buttonTop); btnG.addColorStop(1, quality.buttonBottom);
-      fillRoundRect(ctx, btnX, btnY, btnW, btnH, 12, btnG);
-      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 12, quality.edge, 1.5);
+      fillRoundRect(ctx,btnX,btnY+5,btnW,btnH,26,quality.buttonBottom);
+      fillRoundRect(ctx, btnX, btnY, btnW, btnH, 26, btnG);
+      fillRoundRect(ctx,btnX+14,btnY+5,btnW-28,3,2,'rgba(255,255,255,.28)');
+      strokeRoundRect(ctx, btnX, btnY, btnW, btnH, 26, quality.edge, 1.5);
       text(ctx, '选 择', btnX + btnW / 2, btnY + btnH / 2, 24, quality.light, 'center');
-      onPick[i] = { hit: (px, py) => (elapsed||0)>=1000 && px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
+      onPick[i] = { iconCenter:{x:icx,y:icy}, hit: (px, py) => (elapsed||0)>=1000 && px >= btnX && px <= btnX + btnW && py >= btnY && py <= btnY + btnH };
       ctx.restore();
     });
     // 本局共享重掷计数，500银币起、每次+500，无窗口次数上限。

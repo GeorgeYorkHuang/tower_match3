@@ -8,6 +8,18 @@ const RAR_NAME = { r: '蓝', sr: '紫', ssr: '金', ur: '红' };
 
 // Menu hit priority, purchase/equip actions and modal routing. No renderer dependency.
 function onMenuTap(game, p) {
+    if(require('../unlock-guide.js').tap(game,p))return;
+    // Navigation owns its rectangle, even where the raised Home tab overlaps content.
+    if (!game.menuPanel) {
+      const nav=game.menuHits.find(it=>it.key==='tab'&&it.hit(p.x,p.y));
+      if(nav){
+        if(['shop','relic'].includes(nav.data)){const E=require('../../prologue/encounters.js');if(!E.unlocked(game.meta,nav.data,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[nav.data]};return;}}
+        if(nav.data==='talent'&&!require('../../talents/access.js').unlocked(game.meta)){game.menuPanel={type:'talentLocked'};return;}
+        game.menuTab=nav.data;game.menuPanel=null;return;
+      }
+    }
+    if(game.menuPanel&&game.menuPanel.type==='matchCfg'){game.menuPanel=null;return;}
+
     const modalStart=game.menuPanel?game.menuHits.map(it=>it.key).lastIndexOf('panelBounds'):-1;
     const locked=game.menuHits.slice(modalStart+1).find(it=>['relicInfo','relicLock'].includes(it.key)&&it.hit(p.x,p.y));
     if(locked && (!game.menuPanel || ['relicDex','starUp'].includes(game.menuPanel.type)) && game.meta.starOf(locked.data)<1){
@@ -17,7 +29,8 @@ function onMenuTap(game, p) {
       }else game.toast('尚未解锁，集齐碎片后可解锁','#c6cbb3');
       return;
     }
-    if(require('../unlock-guide.js').tap(game,p))return;
+    const fieldLocked=game.menuHits.slice(modalStart+1).find(it=>it.key==='relicFieldLocked'&&it.hit(p.x,p.y));
+    if(fieldLocked){game.toast(fieldLocked.data,'#e0bc83');return;}
     if (require('./talent-actions.js').handle(game,p)) return;
     if (!game.menuPanel || game.menuPanel.type==='relicDex') {
       const tab=game.menuHits.slice(modalStart+1).find(it=>it.key==='relicSeries'&&it.hit(p.x,p.y));
@@ -96,7 +109,7 @@ function onMenuTap(game, p) {
           return;
         }
         // 技能配置面板：已解锁 → 点选配置；未解锁 → 金币购买后自动配置（全局技能固定 2 款不写槽）
-        if ((ptype === 'matchCfg' || ptype === 'globalCfg') && it.key === 'mSkill' && it.hit(p.x, p.y)) {
+        if ((ptype === 'matchCfg' || ptype === 'globalCfg') && ['mSkill','mSkillConfirm'].includes(it.key) && it.hit(p.x, p.y)) {
           const slot = it.data.slot;
           const id = it.data.id;
           if (!id) return;
@@ -104,6 +117,10 @@ function onMenuTap(game, p) {
             ? (GlobalSkills.get(id) || {})
             : (CONFIG.MATCH_SKILL[slot].find((d) => d.id === id) || {});
           const nm = def.name || id;
+          if(slot==='global'&&!game.meta.skillUnlocked(slot,id)) {
+            if(it.key!=='mSkillConfirm'){game.menuPanel.purchaseId=id;return;}
+            if(game.menuPanel.purchaseId!==id)return;
+          }
           let purchased = false;
           if (!game.meta.skillUnlocked(slot, id)) {
             const res = game.meta.unlockSkill(slot, id);
@@ -152,7 +169,8 @@ function onMenuTap(game, p) {
           // 圣物图鉴：点圣遗物卡 → 详情面板（1/2/3★ 效果 + 升星）
           game.menuPanel = { type: 'relicInfo', id: it.data };
           return;
-        case 'matchCfg': {const E=require('../../prologue/encounters.js'),id='match';if(!E.unlocked(game.meta,id,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[id]};return;}}
+        case 'matchCfg': return;
+        case '__removedMatchCfg': {const E=require('../../prologue/encounters.js'),id='match';if(!E.unlocked(game.meta,id,game.testProfile)){game.menuPanel={type:'featureLocked',message:E.messages[id]};return;}}
 
           // 主页三消技能配置行 → 三消技能配置面板
           game.menuPanel = { type: 'matchCfg', slot: it.data && it.data.slot || 'match4' };
@@ -210,6 +228,8 @@ function onMenuTap(game, p) {
 
           return;
         }
+        case 'dailyBattleBonus':
+          game.toast('正式战场每日共享前2局：深度金币×1.5（教学关卡不参与）· 剩'+it.data.remaining+'次','#ffe4a1');return;
         case 'enter': {
           // 按所选战场进入：测试战场 → 免三消直测；正式战斗需校验解锁（）
           game.menuPanel = null;
@@ -227,6 +247,14 @@ function onMenuTap(game, p) {
           // 圣遗物升星面板（碎片/金币/钻石 → 2★ 效果升级 / 3★ 质变）
           game.menuPanel = { type: 'starUp' };
           return;
+        case 'shopQuickBuy': {
+          const request=it.data;if(!request||!['shopShard','shopChest','diamondOffer','adOffer'].includes(request.key))return;
+          const oldHits=game.menuHits;game.menuHits=[{key:request.key,data:request.data,hit:()=>true}];
+          try{onMenuTap(game,p);}finally{game.menuHits=oldHits;}
+          const detail=game.menuPanel;
+          if(detail&&detail.type==='shopDetail'){confirmShopBuy(game);if(game.menuPanel===detail)game.menuPanel=null;game.menuHits=[];}
+          return;
+        }
         case 'shopShard': {
           // 每日碎片精选：点击图标 → 详情弹窗 + 确认购买（0 点刷新）
           const d = it.data;
@@ -251,7 +279,7 @@ function onMenuTap(game, p) {
         }
         case 'shopSection':
           game._shopScrollVelocity = 0;
-          game.shopScroll = Math.max(0, Math.min(game.renderer._shopMaxScroll || 0, [0, 648, 1296][it.data] || 0));
+          game.shopScroll = Math.max(0, Math.min(game.renderer._shopMaxScroll || 0, [0, 684, 1368][it.data] || 0));
           return;
         case 'diamondOffer': {
           const offer=require('../../economy/diamond-shop.js').OFFERS[it.data];if(!offer)return;

@@ -2,7 +2,7 @@
 
 三消 × 塔防 × Roguelike 竖屏小游戏。通过三消激活六系防御塔、补充能量，搭配技能分支与圣遗物抵御敌人。
 
-当前游戏版本：**V1.19.5**。版本唯一入口为 [`js/config/version.js`](js/config/version.js)。
+当前游戏版本：**V1.20.4**。版本唯一入口为 [`js/config/version.js`](js/config/version.js)。
 
 ## 本地运行
 
@@ -99,6 +99,8 @@ js/
   save.js / save/                存档读写、快照与迁移
 docs/                           设计、分析与部分历史发布记录
 tools/                          离线回归、采集与资源处理脚本
+  balance/                      平衡模拟专目录：夹具、采集、观察器、曲线、报告、平衡回归
+                                （目录索引与运行方式见 tools/balance/README.md）
 ```
 
 常用配置入口：
@@ -134,6 +136,25 @@ node tools/test-targeting-and-landings.cjs
 ```
 
 V1.19.5 发布时，上述9项回归与253个运行脚本的语法检查通过。离线模拟用于验证逻辑和数值边界，不代表真实玩家通关率，也不能替代真机画面、温度与帧率测试。
+
+### 平衡测试与数值模拟
+
+所有平衡相关脚本已统一收进 `tools/balance/`，`tools/` 根目录不再存放平衡脚本：
+
+```text
+tools/balance/fixtures/     共享回放夹具（moving-battle / tower-balance / freeze-runtime / 圣遗物策略）
+tools/balance/scenarios/    情景定义（六塔统一路线、能量候选）
+tools/balance/collectors/   18 个采集脚本（跑真实战斗，产出 raw JSON/CSV）
+tools/balance/observers/    5 个只读观察器（能量、火冰、弹道浪费、周期技能、W15–20）
+tools/balance/curves/       曲线、预算与只读测算（含绘图）
+tools/balance/retests/      复测、重跑与报告写出
+tools/balance/reports/      16 个 report-*.py（读 raw 数据出 md/csv/png）
+tools/balance/tests/        13 项平衡回归
+```
+
+常用入口：`node tools/balance/tests/test-entry-balance.cjs` 跑平衡回归；`node tools/balance/collectors/collect-garden-entry-native.cjs` 做一次完整回放；`python tools/balance/reports/report-garden-entry.py` 出报告。口径、参数与失败留档规则见 [tools/balance/README.md](tools/balance/README.md)。
+
+平衡脚本只读 `js/` 逻辑、只写 `docs/`，不修改游戏配置或存档；其中若干非平衡测试会借用 `tools/balance/fixtures/` 的夹具，移动夹具前需先改这些引用。
 
 已知待核定项：第一章关闭全局技能，第三种颜色的充能收益口径尚待统一。
 

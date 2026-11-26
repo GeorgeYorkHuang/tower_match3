@@ -1,5 +1,5 @@
 'use strict';
-const { fillRoundRect, text, progressBar } = require('../ui.js');
+const { fillRoundRect, strokeRoundRect, text } = require('../ui.js');
 const Prologue = require('../../prologue.js');
 // 只绘制HUD；点击区域仍写入调用方Renderer，不持有Run/Meta。
 function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_Y, AREA_W, ENTRY_H }) {
@@ -15,48 +15,53 @@ function createBattleHud({ drawImg, IMG_SRC, fmtNum, relicIconSrc, AREA_X, AREA_
   }
 
   function entryStatus(ctx,s) {
-    // 等级圆与经验外环：12点起顺时针；进度条下沿高于圆心。
-    const cx=AREA_X+30,cy=AREA_Y+32,radius=22,outer=28;
+    ctx.save();
+    const cx=AREA_X+34,cy=AREA_Y+35,radius=25,outer=30;
     const xp=Math.max(0,Math.min(1,Number(s.expRatio)||0));
-    ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fillStyle='#f7cf45';ctx.fill();
-    text(ctx,String(s.expLevel||0),cx,cy,25,'#111111','center');
-    ctx.beginPath();ctx.arc(cx,cy,outer,0,Math.PI*2);ctx.strokeStyle='rgba(247,207,69,0.22)';ctx.lineWidth=4;ctx.stroke();
-    if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp,false);ctx.strokeStyle='#f7cf45';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();}
-    const wx=AREA_X+74,wy=AREA_Y+20,ww=AREA_W-74,wh=10;
+    // 下沿厚度、内凹底盘与高光金属圈构成等级徽章。
+    ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=6;ctx.shadowOffsetY=3;
+    ctx.beginPath();ctx.arc(cx,cy+3,outer+2,0,Math.PI*2);ctx.fillStyle='#4a381e';ctx.fill();
+    ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+    const metal=ctx.createLinearGradient(cx,cy-radius,cx,cy+radius);
+    metal.addColorStop(0,'#f5df9a');metal.addColorStop(.46,'#a88643');metal.addColorStop(1,'#654b27');
+    ctx.beginPath();ctx.arc(cx,cy,radius+2,0,Math.PI*2);ctx.fillStyle=metal;ctx.fill();
+    const inset=ctx.createLinearGradient(cx,cy-radius,cx,cy+radius);inset.addColorStop(0,'#344f42');inset.addColorStop(1,'#10271e');
+    ctx.beginPath();ctx.arc(cx,cy,radius-2,0,Math.PI*2);ctx.fillStyle=inset;ctx.fill();
+    ctx.strokeStyle='#e2c87d';ctx.lineWidth=.8;ctx.stroke();
+    text(ctx,'Lv.',cx,cy-10,11,'#c8bd94','center');
+    text(ctx,String(s.expLevel||0),cx,cy+8,26,'#fff0ba','center');
+    ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,Math.PI*1.5);ctx.strokeStyle='#1a3028';ctx.lineWidth=4;ctx.stroke();
+    if(xp>0){ctx.beginPath();ctx.arc(cx,cy,outer,-Math.PI/2,-Math.PI/2+Math.PI*2*xp);ctx.strokeStyle='#a4e7b1';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();}
+    const wx=AREA_X+82,wy=AREA_Y+40,ww=AREA_W-92,wh=16;
     const chapter=Prologue.chapter(s.stage),maxWave=chapter?chapter.maxWave:60;
-    const wave=Math.max(1,Math.min(maxWave,Number(s.wave)||1));
-    progressBar(ctx,wx,wy,ww,wh,(wave-1)/(maxWave-1),'#e8c76b','rgba(255,255,255,0.12)');
-    for(let n=5;n<=maxWave;n+=5){
-      const mx=wx+(n-1)/(maxWave-1)*ww;
-      const major=n===maxWave||n===20||n===40;
-      ctx.beginPath();ctx.arc(mx,wy+wh/2,major?5:2.5,0,Math.PI*2);ctx.fillStyle=n<=wave?(n===60?'#ff826f':'#f8dd8a'):'#66717e';ctx.fill();
-      if(major)text(ctx,n===maxWave?'终点'+maxWave:n+'波Boss',mx,AREA_Y+7,13,n===maxWave?'#ffab95':'#e5d7aa',n===maxWave?'right':'center');
+    const wave=Math.max(1,Math.min(maxWave,Number(s.wave)||1)),ratio=(wave-1)/Math.max(1,maxWave-1);
+    // 胶囊轨道下沿厚度、暗槽、渐变填充和顶部反光。
+    fillRoundRect(ctx,wx-3,wy-3,ww+6,wh+9,12,'#594b31');
+    fillRoundRect(ctx,wx-3,wy-5,ww+6,wh+8,12,'#c4ad72');
+    fillRoundRect(ctx,wx-1,wy-3,ww+2,wh+5,10,'#0c1c18');
+    const track=ctx.createLinearGradient(0,wy,0,wy+wh);track.addColorStop(0,'#091410');track.addColorStop(1,'#314538');
+    fillRoundRect(ctx,wx,wy,ww,wh,8,track);
+    if(ratio>0){const width=Math.max(8,ww*ratio),gold=ctx.createLinearGradient(0,wy,0,wy+wh);gold.addColorStop(0,'#fff2b7');gold.addColorStop(.38,'#e8c76b');gold.addColorStop(1,'#a67b31');fillRoundRect(ctx,wx,wy,width,wh,8,gold);fillRoundRect(ctx,wx+3,wy+2,Math.max(1,width-6),3,2,'rgba(255,255,255,.45)');}
+    text(ctx,'第 '+wave+' / '+maxWave+' 波',wx,AREA_Y+17,16,'#f3e8c9','left');
+    for(let n=5;n<=maxWave;n+=5){const mx=wx+(n-1)/Math.max(1,maxWave-1)*ww,major=n===maxWave||n===20||n===40;
+      ctx.beginPath();ctx.arc(mx,wy+wh/2,major?4:2,0,Math.PI*2);ctx.fillStyle=n<=wave?'#fff1bd':'#657264';ctx.fill();
+      if(major)text(ctx,n===maxWave?'终点 '+maxWave:n+'波Boss',mx,AREA_Y+17,12,n<=wave?'#f6df9b':'#c5c3a9',n===maxWave?'right':'center');
     }
-    text(ctx,'第 '+(s.wave||1)+' / '+maxWave+' 波',wx,AREA_Y+7,14,'#e9dfc4','left');
-    // 本局圣遗物行：前 10 个图标 + 总数（图标 22px、间距 28，整行更紧凑；点击区域 relicBarHit 供 main.js 弹详情）
-    const rels = s.battleRelics || [];
-    if (rels.length) {
-      const rx = wx, ry = AREA_Y + 42, rIcon = 22, rGap = 28, rMax = 10;
-      const shown = rels.slice(0, rMax);
-      shown.forEach((rc, i) => {
-        const icx = rx + i * rGap + rIcon / 2;
-        ctx.beginPath(); ctx.arc(icx, ry + rIcon / 2, 12, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(247,201,72,0.18)'; ctx.fill();
-        ctx.strokeStyle = 'rgba(247,201,72,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
-        const rSrc = relicIconSrc(rc.id);
-        if (!(rSrc && drawImg(ctx, rSrc, rx + i * rGap + 1, ry + 1, rIcon - 2, rIcon - 2))) {
-          text(ctx, rc.icon, icx, ry + rIcon / 2 + 2, 13, '#ffffff', 'center');
-        }
-        if (rc.star3) {   // 3★ 质变角标
-          fillRoundRect(ctx, icx + 8, ry - 3, 17, 12, 6, '#ffb347');
-          text(ctx, '★3', icx + 16, ry + 9, 9, '#5c3800', 'center');
-        }
+    // 左侧窄竖列按种类合并重复圣遗物；整列可点击打开完整列表。
+    const rels=s.battleRelics||[],groups=Object.values(rels.reduce((m,r)=>{if(!m[r.id])m[r.id]={...r,count:0};m[r.id].count++;return m;},{}));
+    if(groups.length){const rx=AREA_X+6,ry=AREA_Y+ENTRY_H+14,size=36,gap=44,shown=groups.slice(0,8),height=shown.length*gap+25;
+      fillRoundRect(ctx,rx-4,ry-7,size+12,height,12,'rgba(7,22,16,.75)');
+      strokeRoundRect(ctx,rx-4,ry-7,size+12,height,12,'rgba(201,177,113,.38)',1);
+      shown.forEach((rc,i)=>{const yy=ry+i*gap,color={ur:'#ef8778',ssr:'#e9c86b',sr:'#bd9beb',r:'#86bddd'}[require('../../config.js').relicRarity(rc.id)]||'#d2bf8b';
+        fillRoundRect(ctx,rx,yy+2,size,size,9,'#060f0b');fillRoundRect(ctx,rx,yy,size,size,9,'#294032');strokeRoundRect(ctx,rx,yy,size,size,9,color,1.3);
+        const src=relicIconSrc(rc.id);if(!(src&&drawImg(ctx,src,rx+3,yy+3,size-6,size-6)))text(ctx,rc.icon||'◆',rx+size/2,yy+size/2,19,color,'center');
+        if(rc.count>1){fillRoundRect(ctx,rx+22,yy+25,19,14,6,'#10271e');text(ctx,'×'+rc.count,rx+31,yy+32,10,'#fff0bf','center');}
+        if(rc.star3)text(ctx,'★',rx+31,yy+6,10,'#ffd784','center');
       });
-      text(ctx, `圣物 ×${rels.length}`, rx + shown.length * rGap + 4, ry + rIcon / 2 + 3, 15, 'rgba(255,255,255,0.55)', 'left');
-      this.relicBarHit = { x: rx, y: ry - 8, w: shown.length * rGap + 96, h: Math.min(rIcon + 16, AREA_Y + ENTRY_H - (ry - 8)) }; // 圣遗物行点击区
-    } else {
-      this.relicBarHit = null;
-    }
+      text(ctx,groups.length>shown.length?'+'+(groups.length-shown.length):'×'+rels.length,rx+size/2,ry+shown.length*gap+5,13,'#e7d9b1','center');
+      this.relicBarHit={x:rx-4,y:ry-7,w:size+12,h:height};
+    }else this.relicBarHit=null;
+    ctx.restore();
   }
 
   return { status, entryStatus };

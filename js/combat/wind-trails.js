@@ -47,7 +47,7 @@ function stage(combat, shot, progress) {
   if (!nextSample || nextSample.p > progress + EPSILON) return;
   const frameStart = combat.windClock || 0;
   const pending = combat.pendingWindTrails || (combat.pendingWindTrails = []);
-  const duration = BALANCE.duration + BALANCE.durationPerBranch * combat.branchLv('boomerang', '风痕', 'A');
+  const duration = (require('../talents/runtime.js').purple(combat.game.run,'gale_boomerang_0')?1:0) + BALANCE.duration + BALANCE.durationPerBranch * combat.branchLv('boomerang', '风痕', 'A');
   const dps = combat.shotDmg('boomerang', true) * BALANCE.damage
     * (1 + BALANCE.damagePerBranch * combat.branchLv('boomerang', '风痕', 'B'));
   const slow = BALANCE.slow[combat.branchLv('boomerang', '风痕', 'C')];

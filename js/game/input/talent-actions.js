@@ -68,7 +68,7 @@ function handle(g, p) {
   const allowed = isPanel
     ? {
         talentSlot: ['talentUnequip', 'talentDetails'],
-        talentPicker: ['talentClose', 'talentEquip', 'talentUnequip', 'talentUndo', 'talentPage', 'talentTestStar'],
+        talentPicker: ['talentClose', 'talentEquip', 'talentUnequip', 'talentUndo', 'talentPage', 'talentTestStar', 'talentCardTier'],
         talentDetails: ['talentClose', 'talentReplace'],
         talentPreview: ['talentPreviewBack', 'talentConfirm', 'talentPreviewPage', 'talentPreviewDetails'],
         talentNode: ['talentClose'],
@@ -93,6 +93,7 @@ function handle(g, p) {
     if (g.testProfile) g.menuPanel = { type: 'talentTest' };
     return true;
   }
+  if(key==='talentCardTier'){panel.cardTiers=panel.cardTiers||{};panel.cardTiers[data.id]=data.tier;return true;}
   if (key === 'talentTestStar') {
     require('../../talents/testing.js').setStar(g, data.id, data.star);
     return true;
@@ -203,12 +204,12 @@ function handle(g, p) {
       if (!n) return true;
       kind = n.type;
       if (n.type === 'green') description = n.desc;
-      else if (n.type === 'white') description = ({fire:'火塔',ice:'冰塔',poison:'毒塔',electric:'电塔',cannon:'炮塔',boomerang:'飞镖塔'}[n.tower] || '防御塔') + '攻击力 +' + T.C.whiteAttack + '（任意红卡覆盖激活，同点不叠加）';
+      else if (n.type === 'white') description = ({fire:'火塔',ice:'冰塔',poison:'毒塔',electric:'电塔',cannon:'炮塔',boomerang:'飞镖塔'}[n.tower] || '防御塔') + '攻击力 +' + T.C.whiteAttack;
       else {
         const cards = a.cards.filter((c) => c.def.purpleNode === data);
         if (cards.length) {
           cardName = '紫色天赋';
-          description = cards.map(c => c.def.name + '：' + (c.def.purple.enabled === false ? '设计中，暂不生效' : c.star < 2 ? '需要2星' : !a.purple.includes(c.id) ? '节点未覆盖' : c.def.purple.desc)).join('\n');
+          description = cards.map(c => c.def.name + '：' + (c.def.purple.enabled === false ? '仅提供覆盖属性，无紫天赋' : c.star < 2 ? '需要2星' : !a.purple.includes(c.id) ? '节点未覆盖' : c.def.purple.desc)).join('\n');
         } else description = '未镶嵌圣遗物';
       }
     }

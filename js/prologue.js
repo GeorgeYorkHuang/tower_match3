@@ -19,6 +19,7 @@ function normalizeProgress(value, save = {}) {
       const tutorial = value.tutorials && value.tutorials[id];
       if (!tutorial) return;
       progress.tutorials[id] = {
+        version: tutorial.version === 2 ? 2 : 1,
         done: Array.isArray(tutorial.done) ? [...new Set(tutorial.done.filter(item => typeof item === 'string'))].slice(0, 32) : [],
         skipped: tutorial.skipped === true,
       };

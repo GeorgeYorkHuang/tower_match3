@@ -50,7 +50,8 @@ function begin(g, e) {
   if (!p.length) return false;
   if (!g._talentGesture) {
     if (!p.every(V.contains)) return false;
-    g._talentGesture = { down: p[0], moved: false };
+    const hit=(g.menuHits||[]).find(h=>h.key==='talentSlot'&&h.hit(p[0].x,p[0].y));
+    g._talentGesture = { down: p[0], moved: false,slot:hit?hit.data:null };
   }
   seed(g, p);
   return true;
@@ -111,7 +112,10 @@ function end(g, e) {
   const last = ended[0];
   if (last && Math.hypot(last.x - d.down.x, last.y - d.down.y) > 7) d.moved = true;
   // 等抬手且确认没有拖动后才派发轻点，避免移动天赋盘时弹出详情。
-  if (!d.moved && active(g)) g.dispatchTouch(d.down);
+  if(!d.moved&&active(g)){
+    const hit=last&&(g.menuHits||[]).find(h=>h.key==='talentSlot'&&h.hit(last.x,last.y));
+    if(d.slot==null||hit&&hit.data===d.slot)g.dispatchTouch(d.down);
+  }
   return true;
 }
 

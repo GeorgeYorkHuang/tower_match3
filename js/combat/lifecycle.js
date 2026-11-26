@@ -41,6 +41,7 @@ function reset(combat) {
 }
 
 function update(combat, dt, initEnemyState) {
+  require('../tower-cards.js').tick(combat.game.run,dt);
   const g = combat.game;
   if (!g.run.slotOrder.length) return; // 无塔不战斗
   HitFeedback.step(g.enemies, dt);
@@ -112,6 +113,7 @@ function update(combat, dt, initEnemyState) {
       if (!tower._activationManaged) tower._activationDelay = Math.max(0, tower._activationDelay - dt);
     }
   });
+  require('./awakening.js').tick(combat,dt);
   // 4. 塔攻击调度（每塔独立节奏）
   g.run.slotOrder.slice().forEach((key) => { if (!activating.has(key)) combat.tickTower(key, dt); });
   // 5. 周期技

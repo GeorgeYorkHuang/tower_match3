@@ -1,179 +1,62 @@
-/**
- * runtime.js —— 天赋战斗效果：把装配结果应用到对局，处理属性加成及紫、金天赋触发。
- * 局内充能、待触发标记和持续伤害均保存在当前对局或怪物对象上。
- */
 'use strict';
-const T = require('./model.js');
-const COLOR = {
-  red: 'fire',
-  orange: 'cannon',
-  purple: 'boomerang',
-  yellow: 'electric',
-  blue: 'ice',
-  green: 'poison',
-};
-const EMPTY = { attack: 0, speed: 0, charge: 0, damage: 0, skill: 0, dot: 0, duration: 0 };
-
-// 开局时生成战斗快照，局内触发进度不写回天赋装配档案。
-function initialize(run, meta) {
-  if (run.chapter && !run.chapter.features.talents) {
-    run.talentState = { bonuses: {}, purple: [], gold: [], charge: {}, ready: {} };
-    return;
-  }
-  const a = T.analyze(meta);
-  run.talentState = {
-    bonuses: a.bonuses,
-    purple: a.purple.map((id) => T.get(id).purple.key),
-    gold: a.gold.map((id) => T.get(id).gold.key),
-    charge: {},
-    ready: {},
-  };
+const T=require('./model.js');
+const EMPTY={attack:0,speed:0,charge:0,damage:0,skill:0,dot:0,duration:0};
+function initialize(run,meta){
+ const disabled=run.chapter&&!run.chapter.features.talents,a=disabled?null:T.analyze(meta);
+ run.talentState={bonuses:a?a.bonuses:{},purple:a?a.purpleList.map(p=>p.key):[],gold:a?a.gold.map(id=>T.get(id).gold.key):[],
+  goldActive:a?a.goldActive:{},goldPassive:a?a.goldPassive:{},cooldowns:{},counters:{},targets:new WeakMap(),time:0};
+ for(const [key,def]of Object.entries(run.talentState.goldActive))run.talentState.cooldowns[key]={remaining:def.first,initial:true};
 }
-
-function bonus(run, key) {
-  return (run && run.talentState && run.talentState.bonuses[key]) || EMPTY;
+function bonus(run,key){return run&&run.talentState&&run.talentState.bonuses[key]||EMPTY;}
+function built(run,key){return !!run&&(run.slotOrder||[]).includes(key);}
+function purple(run,key){const state=run&&run.talentState;const tower=key.split('_')[1];return !!state&&built(run,tower)&&state.purple.includes(key);}
+function goldPassive(run,key){return built(run,key)&&run.talentState&&run.talentState.goldPassive[key]||null;}
+function goldActive(run,key){return built(run,key)&&run.talentState&&run.talentState.goldActive[key]||null;}
+function passive(run,key,name){const p=goldPassive(run,key);return !!p&&p.key===name;}
+function statusDuration(run,key,seconds){
+ let extra=bonus(run,key).duration||0;
+ if(key==='poison'){if(purple(run,'sanctum_poison_0'))extra+=.6;if(purple(run,'gale_poison_0'))extra+=.8;}
+ if(key==='fire'&&purple(run,'forge_fire_0'))extra+=.5;
+ if(key==='electric'&&(purple(run,'sanctum_electric_0')||purple(run,'forge_electric_0')))extra+=.4;
+ if(key==='ice'&&purple(run,'gale_ice_0'))extra+=.6;
+ return Math.max(0,seconds+extra);
 }
-
-// 时长加成以秒直接相加；负面强度加成则在各自的效果入口处理。
-function statusDuration(run, key, seconds) {
-  return Math.max(0, seconds + (bonus(run, key).duration || 0));
+function slowStrength(run,key,value){const b=bonus(run,key).dot||0;let result=b>0?Math.min(.9,value*(1+b)):value;if(key==='ice'&&purple(run,'gale_ice_0'))result=Math.min(.9,result+.08);return result;}
+function dots(e,type){return(e.dots||[]).filter(d=>d.type===type&&d.ttl>0&&(d.stack==null||d.stack>0));}
+function targetState(run,e){const s=run.talentState;if(!s.targets)s.targets=new WeakMap();let t=s.targets.get(e);if(!t){t={};s.targets.set(e,t);}return t;}
+function derived(combat,e,damage,key,name){if(e.hp>0)combat.damage(e,damage,key,'derived',name);}
+function beforeDamage(combat,e,damage,key,kind,skill){
+ const run=combat.game.run,s=run.talentState;if(!s||kind==='derived')return damage;
+ let value=kind==='dot'?damage*(1+bonus(run,key).dot):damage;
+ if(kind!=='hit'||skill||!built(run,key))return value;
+ const pd=dots(e,'poison'),target=targetState(run,e);
+ if(key==='fire'&&purple(run,'sanctum_fire_0'))pd.forEach(d=>d.ttl+=.5);
+ if(key==='cannon'&&purple(run,'sanctum_cannon_0'))pd.forEach(d=>d.stack=Math.min(d.maxStack||d.stack,d.stack+1));
+ if(key==='boomerang'&&purple(run,'sanctum_boomerang_0')&&!target.poisonExtended&&pd.length){pd.forEach(d=>d.ttl+=.5);target.poisonExtended=true;}
+ if(key==='fire'&&purple(run,'forge_fire_1')){
+  const d=dots(e,'burn')[0],ttl=statusDuration(run,'fire',2);
+  if(d){const per=(d.dps||0)/Math.max(1,d.stack||1);d.stack=Math.min(d.maxStack||2,(d.stack||1)+1);d.dps=Math.max(per,damage*.08)*d.stack;d.ttl=Math.max(d.ttl,ttl);d.sourceSeries='forge';}
+  else{e.dots=e.dots||[];e.dots.push({type:'burn',dps:damage*.08,ttl,stack:1,maxStack:2,tickT:.5,tickI:.5,src:'fire',skill:'火种',sourceSeries:'forge'});}
+ }
+ if(key==='cannon'&&purple(run,'forge_cannon_0')){
+  let d=dots(e,'armorBreak')[0];if(d)d.ttl=3;else{e.dots=e.dots||[];e.dots.push({type:'armorBreak',ttl:3,stack:1,reduction:.1,sourceSeries:'forge'});}
+ }
+ if(passive(run,key,'sanctum_splash')){const o=combat.enemies().find(o=>o!==e&&o.hp>0&&Math.hypot(o.x-e.x,o.y-e.y)<=60);if(o)derived(combat,o,damage*.3,key,'烬火溅射');}
+ if(passive(run,key,'sanctum_poisonTransfer')&&pd.length&&(target.poisonTransferAt==null||s.time-target.poisonTransferAt>=3)){
+  const o=combat.enemies().find(o=>o!==e&&o.hp>0&&Math.hypot(o.x-e.x,o.y-e.y)<=60);if(o){const d=pd[0],own=dots(o,'poison')[0];if(own){own.stack=Math.min(own.maxStack,own.stack+1);own.ttl=Math.max(own.ttl,d.ttl);}else{o.dots=o.dots||[];o.dots.push({...d,stack:1,tickT:1/(d.freq||1),_curseDealt:0});}d.stack--;if(d.stack<=0)d.ttl=0;target.poisonTransferAt=s.time;}
+ }
+ return value;
 }
-
-function slowStrength(run, key, strength) {
-  const extra = bonus(run, key).dot || 0;
-  return extra > 0 ? Math.max(strength, Math.min(0.9, strength * (1 + extra))) : strength;
+function damageBonus(combat,e,key,kind){return key==='cannon'&&kind!=='derived'&&purple(combat.game.run,'forge_cannon_1')&&dots(e,'armorBreak').length?8:0;}
+function armor(e){return Math.max(0,(e.armor||0)-dots(e,'armorBreak').reduce((n,d)=>n+(d.reduction||0),0));}
+function onParalyze(combat,e){const run=combat.game.run;if(!purple(run,'forge_electric_0')&&!purple(run,'forge_electric_1'))return;let d=dots(e,'paralysis')[0];if(d)d.ttl=Math.max(d.ttl,e.paralyzed);else{e.dots=e.dots||[];e.dots.push({type:'paralysis',ttl:e.paralyzed,stack:1,sourceSeries:'forge'});}}
+function freeze(combat,e,previous){if(e.frozen<=previous||!passive(combat.game.run,'ice','sanctum_freezeSplash'))return;for(const o of combat.enemies())if(o.hp>0&&Math.hypot(o.x-e.x,o.y-e.y)<=100)combat.applySlow(o,.3,3,'ice');}
+function attack(combat,key){const run=combat.game.run;if(!passive(run,key,'sanctum_freeShot'))return false;const c=run.talentState.counters,n=c[key]||0;c[key]=(n+1)%4;return n===3;}
+function tick(combat,e,dt){for(const d of(e.dots||[]))if(d.type==='armorBreak'||d.type==='paralysis')d.ttl=Math.max(0,d.ttl-dt);e.dots=(e.dots||[]).filter(d=>!['armorBreak','paralysis'].includes(d.type)||d.ttl>0);}
+function onDeath(combat,e){
+ const run=combat.game.run,s=run.talentState;if(!s||combat._talentDerived)return;
+ const burn=dots(e,'burn')[0];if(burn&&passive(run,'fire','forge_burnTransfer')){const o=combat.enemies().find(o=>o!==e&&o.hp>0&&Math.hypot(o.x-e.x,o.y-e.y)<=60);if(o){let d=dots(o,'burn')[0];const per=(burn.dps||0)/Math.max(1,burn.stack||1);if(d){const own=(d.dps||0)/Math.max(1,d.stack||1);d.stack=Math.min(d.maxStack||1,(d.stack||1)+1);d.dps=Math.max(own,per)*d.stack;d.ttl=Math.max(d.ttl,burn.ttl);d.sourceSeries='forge';}else{o.dots=o.dots||[];o.dots.push({...burn,stack:1,dps:per,sourceSeries:'forge'});}}}
+ if(e.paralyzed>0&&passive(run,'electric','forge_paralysisTransfer'))for(const o of combat.enemies())if(o!==e&&o.hp>0&&Math.hypot(o.x-e.x,o.y-e.y)<=80){o.paralyzed=Math.max(o.paralyzed||0,.5);onParalyze(combat,o);combat.applySlow(o,.5,.5,'electric');}
+ if(!e.isSummon){const cd=s.cooldowns[e.lastDmgKey];if(cd&&!cd.initial&&cd.remaining>0)cd.remaining=Math.min(cd.remaining,Math.max(8,cd.remaining*.5));}
 }
-
-function gain(run, color, cells) {
-  const state = run.talentState,
-    key = COLOR[color];
-  if (!state || !state.gold.includes(key)) return;
-  state.charge[key] = (state.charge[key] || 0) + Math.max(0, cells || 0);
-  // 满 12 格保留一次待触发机会，余数继续累计；ready 不叠加成多次储备。
-  if (state.charge[key] >= 12) {
-    state.ready[key] = true;
-    state.charge[key] %= 12;
-  }
-}
-
-function consume(run, key) {
-  const state = run.talentState;
-  if (!state || !state.gold.includes(key) || !state.ready[key]) return false;
-  state.ready[key] = false;
-  return true;
-}
-
-function beforeDamage(combat, e, dmg, key, kind, skill) {
-  const run = combat.game.run,
-    state = run.talentState;
-  if (!state) return dmg;
-  const b = bonus(run, key);
-  let value = dmg;
-  if (kind === 'dot') value *= 1 + b.dot;
-  // 紫天赋按目标身上的负面状态或联动标记判断额外伤害。
-  const p = state.purple,
-    hasDot = (type) =>
-      (e.dots || []).some((d) => d.type === type && d.ttl > 0) ||
-      (e._talentDots || []).some(
-        (d) => d.key === (type === 'burn' ? 'fire' : 'poison') && d.ttl > 0
-      );
-  if (p.includes('fire') && key === 'fire' && kind !== 'dot' && hasDot('poison')) value *= 1.15;
-  if (p.includes('cannon') && key === 'cannon' && hasDot('burn')) value *= 1.15;
-  if (p.includes('boomerang') && key === 'boomerang' && (e._talentCannon || 0) > 0) value *= 1.15;
-  if (p.includes('electric') && key === 'electric' && (e._talentBoomerang || 0) > 0) value *= 1.15;
-  if (p.includes('ice') && key === 'ice' && e.paralyzed > 0) value *= 1.15;
-  if (
-    p.includes('poison') &&
-    key === 'poison' &&
-    kind === 'dot' &&
-    (e.frozen > 0 || (e._iceSlow && e._iceSlow.ttl > 0))
-  )
-    value *= 1.15;
-  // 金天赋仅由普通命中消费，持续伤害和技能命中不会重复消费充能。
-  if (kind === 'hit' && !skill) {
-    if (key === 'cannon' && p.includes('boomerang')) e._talentCannon = 3;
-    if (key === 'boomerang' && p.includes('electric')) e._talentBoomerang = 3;
-    if (key !== 'cannon' && key !== 'boomerang' && consume(run, key)) {
-      if (key === 'fire' || key === 'poison') {
-        e._talentDots = e._talentDots || [];
-        e._talentDots.push({
-          key,
-          ttl: statusDuration(run, key, key === 'fire' ? 3 : 4),
-          dps: dmg * 0.1,
-          tick: 0,
-          transfer: true,
-        });
-      }
-      if (key === 'electric') {
-        const targets = [e].concat(
-          combat
-            .enemies()
-            .filter((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100)
-            .slice(0, 1)
-        );
-        targets.forEach((o) => {
-          o.paralyzed = Math.max(o.paralyzed || 0, statusDuration(run, 'electric', 0.5));
-          combat.applySlow(o, 0.5, 0.5, 'electric');
-        });
-      }
-      if (key === 'ice')
-        combat
-          .enemies()
-          .filter((o) => o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100)
-          .forEach((o) => combat.applySlow(o, 0.3, 3, 'ice'));
-      if (combat.fxRing) combat.fxRing(e.x, e.y, '#eccc75', 45, 0.35, 3);
-    }
-  }
-  return value;
-}
-
-function tick(combat, e, dt) {
-  for (const key of ['_talentCannon', '_talentBoomerang'])
-    if (e[key] > 0) e[key] = Math.max(0, e[key] - dt);
-  const dots = e._talentDots || [];
-  for (let i = dots.length - 1; i >= 0; i--) {
-    const d = dots[i],
-      live = Math.min(Math.max(0, d.ttl), dt);
-    d.ttl -= dt;
-    if (live > 0 && e.hp > 0)
-      combat.damage(e, d.dps * live, d.key, 'dot', d.key === 'fire' ? '圣印灼烧' : '圣种毒素');
-    if (d.ttl <= 0) dots.splice(i, 1);
-  }
-}
-
-// 只转移剩余有效时间，并关闭转移标记，防止死亡后无限连锁传播。
-function onDeath(combat, e) {
-  for (const d of e._talentDots || []) {
-    if (!d.transfer || d.ttl <= 0) continue;
-    const target = combat
-      .enemies()
-      .find((o) => o !== e && o.hp > 0 && Math.hypot(o.x - e.x, o.y - e.y) <= 100);
-    if (!target) continue;
-    target._talentDots = target._talentDots || [];
-    target._talentDots.push({ ...d, transfer: false });
-  }
-  e._talentDots = [];
-}
-
-// 同一枚回旋镖只处理一次返程奖励，避免多次命中重复返还能量。
-function returnHit(combat, shot) {
-  if (shot._talentReturned) return;
-  shot._talentReturned = true;
-  const run = combat.game.run;
-  if (!consume(run, 'boomerang')) return;
-  const tw = combat.tower('boomerang');
-  if (tw) tw.energy = Math.min(run.armoryEnergyMax('boomerang'), tw.energy + 4);
-}
-
-module.exports = {
-  initialize,
-  bonus,
-  statusDuration,
-  slowStrength,
-  gain,
-  consume,
-  beforeDamage,
-  tick,
-  onDeath,
-  returnHit,
-};
+module.exports={initialize,bonus,built,purple,goldPassive,goldActive,passive,statusDuration,slowStrength,beforeDamage,damageBonus,armor,onParalyze,freeze,attack,tick,onDeath,dots};

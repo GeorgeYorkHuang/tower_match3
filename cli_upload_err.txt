@@ -1,0 +1,20 @@
+[1102/142426.297:ERROR:third_party\crashpad\crashpad\util\win\registration_protocol_win.cc:136] TransactNamedPipe: 有更多数据可用。 (0xEA)
+- initialize
+
+(node:33352) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `微信开发者工具 --trace-deprecation ...` to show where the warning was created)
+√ IDE server has started, listening on http://127.0.0.1:58122
+- preparing
+- Fetching AppID () permissions
+√ Using AppID: wx959dd98b81ba1a25
+- Upload
+
+┌──────────┬────────────┬─────────────┐
+│ (index)  │ size       │ size (Byte) │
+├──────────┼────────────┼─────────────┤
+│ TOTAL    │ '24.5 MB'  │ 25731197    │
+│ main     │ '635.5 KB' │ 650714      │
+│ /assets/ │ '23.9 MB'  │ 25080483    │
+└──────────┴────────────┴─────────────┘
+
+√ upload

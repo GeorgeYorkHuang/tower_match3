@@ -4,7 +4,7 @@ const CONFIG=require('../config.js');
 const PLAN=require('../config/prologue.js');
 function available(meta){
   const result=[];
-  for(const [key,name,hit,data] of [['match','三消技能','matchCfg'],['global','全局技能','globalCfg'],['shop','商店','tab','shop'],['relic','圣遗物','tab','relic']]){
+  for(const [key,name,hit,data] of [['global','全局技能','globalCfg'],['shop','商店','tab','shop'],['relic','圣遗物','tab','relic']]){
     if((meta.encounters||{})[key])result.push({id:'feature:'+key,name,hit,data});
   }
   if(require('../talents/access.js').unlocked(meta))result.push({id:'feature:talent',name:'天赋',hit:'tab',data:'talent'});

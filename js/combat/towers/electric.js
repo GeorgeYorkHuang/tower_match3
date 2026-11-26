@@ -102,9 +102,10 @@ function hitElectric(combat, e, dmg, projectile = null) {
   const chainA = combat.branchLv('electric', '连锁', 'A');
   const chainB = combat.branchLv('electric', '连锁', 'B');
   const chainC = combat.branchLv('electric', '连锁', 'C');
-  if (chainLv > 0) {
+  const talentChain=require('../../talents/runtime.js').passive(combat.game.run,'electric','sanctum_chain');
+  if (chainLv > 0 || talentChain) {
     const super3 = combat.game.run.relic3('elec_super');   // 超导3★：全部连锁类衰减归零 + 目标数 +1
-    const extra = SKILL_NUM.electric['连锁'].extraTargets + SKILL_NUM.electric['连锁'].targetsPerBranch * chainA
+    const extra = (chainLv>0?SKILL_NUM.electric['连锁'].extraTargets:0) + (talentChain?1:0) + SKILL_NUM.electric['连锁'].targetsPerBranch * chainA
       + (super3 ? 1 : 0) + combat.relicVal('elec_arc')
       + combat.game.run.relicValue('s_sr_elec_chain', 'hopAdd');
     let decay = SKILL_NUM.electric['连锁'].decay * (1 - SKILL_NUM.electric['连锁'].decayReductionPerBranch * chainB);   // 基础衰减 30% - B 稳流每级 20%

@@ -117,7 +117,7 @@ function draw(ctx, s, push, drawImg, relicIconSrc) {
     if (n.type === 'slot') {
       const id = a.state.slots[slotIndex];
       sockets.push(() =>
-        Socket.draw(ctx, x, y, size * 1.02 * 0.9, 'red', !!id, id && T.get(id).icon, drawImg)
+        Socket.draw(ctx, x, y, size * 1.02 * 0.9, 'red', !!id, id && T.get(id).icon, drawImg,s.talentPressSlot===slotIndex)
       );
       boardHit(
         'talentSlot',

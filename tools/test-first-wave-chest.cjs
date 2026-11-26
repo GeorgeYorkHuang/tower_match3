@@ -1,6 +1,6 @@
-/** W2首次构筑宝箱回归：原生波次入口、入盘、相邻三消、开箱三选一与每局去重。 */
+/** W2首次构筑宝箱回归：原生波次入口、落地点击、开箱三选一与每局去重。 */
 const assert = require('assert');
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main = require('../js/game/main.js');
 const { Meta } = require('../js/meta.js');
 const CONFIG = require('../js/config.js');
@@ -33,31 +33,10 @@ try {
     assert.equal(g.fieldChests.length, 1);
     const chest = g.fieldChests[0];
     Chests.tick(g, Timing.ground);
-    assert.equal(chest.stage, 'toBoard');
-    Chests.tick(g, Timing.flight);
-    assert.equal(chest.stage, 'board');
-    assert.equal(g.run.board.grid[chest.r][chest.c].id, chest.id);
-    assert.equal(g._chestBusy, false, 'Input unlocks after chest lands');
-
-    // 在宝箱邻格放入同色三连，使用原生resolve验证宝箱确实会被收集。
-    const board = g.run.board;
-    // 构造无已有匹配的普通底盘，避免随机原盘把测试三连延伸成四连并保留邻格特殊块。
-    const colors = board.activeColors;
-    board.grid = board.grid.map((line, r) => line.map((v, c) =>
-      typeof v === 'string' ? colors[(r * 2 + c) % colors.length] : v));
-    const row = chest.r > 0 ? chest.r - 1 : chest.r + 1;
-    const col = Math.max(0, Math.min(board.cols - 3, chest.c - 1));
-    for (let c = col; c < col + 3; c++) board.grid[row][c] = 'red';
-    for (const c of [col - 1, col + 3]) if (c >= 0 && c < board.cols && typeof board.grid[row][c] === 'string') board.grid[row][c] = 'green';
-    const result = board.resolve();
-    const collected = result.stepList.flatMap(s => s.chestsCollected || []);
-    assert(collected.some(c => c.id === chest.id), 'Adjacent match must collect W2 chest');
-    Chests.schedule(g, result.stepList);
-    Chests.reveal(g, collected);
-    Chests.tick(g, 0);
-    assert.equal(chest.stage, 'open');
-    Chests.tick(g, Timing.open);
-    Chests.tick(g, Timing.rewardFly);
+    assert.equal(chest.stage, 'ground');
+    assert.equal(g._chestBusy, false, '掉落宝箱不应锁定抽卡');
+    assert.equal(g.pendingRelicPicks.length, 0, '等待玩家点击开启');
+    assert(Chests.tap(g,{x:chest.x,y:chest.y}));
     assert.equal(g.fieldChests.length, 0);
     assert.equal(g.pendingRelicPicks.length, 1);
     assert(g.pendingRelicPicks[0].candidates.length > 0);
@@ -85,7 +64,7 @@ try {
   testing.menuStage = 'test';
   testing.startNextWave();
   assert.equal(testing.fieldChests.length, 0);
-  console.log('PASS: W2 grant, all fields, board landing, adjacent match collection, actual selection, deduplication, restart, opening reward independence and test exclusion.');
+  console.log('PASS: W2 grant, all fields, ground drop, click-to-open collection, actual selection, deduplication, restart, opening reward independence and test exclusion.');
 } finally {
   fixture.restore();
 }

@@ -34,7 +34,7 @@ function buy(run, id, options = {}) {
   }
   if (item.heal) run.lineHp = Math.min(maxHp, run.lineHp + Math.round(maxHp * item.heal));
   if (item.energy) towers.forEach(t => { t.energy = Math.min(run.armoryEnergyMax(t.key), t.energy + item.energy); });
-  if (item.resetBoard) run.board.regen();
+  if (item.resetBoard) require('../tower-cards.js').merge(require('../tower-cards.js').state(run).cards);
   return { ok: true, item, cost };
 }
 function tick(run, dt, speed = 1) {

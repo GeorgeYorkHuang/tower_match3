@@ -1,6 +1,6 @@
 /** 验证方案B的12个节点、Boss去重、金色全流程、寻踪优惠及原奖励兼容。 */
 const assert = require('assert');
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main = require('../js/game/main.js');
 const { Meta } = require('../js/meta.js');
 const CONFIG = require('../js/config.js');

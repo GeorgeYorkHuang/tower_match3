@@ -1,7 +1,7 @@
 /** 六塔真实扣费回归：临界能量、空场、同帧多技能、延迟伤害和免耗返能。 */
 'use strict';
 const assert = require('assert');
-const fixture = require('./tower-balance-fixture.cjs');
+const fixture = require('./balance/fixtures/tower-balance-fixture.cjs');
 const CONFIG = require('../js/config.js');
 const Energy = require('../js/config/energy-state.js');
 const modules = Object.fromEntries(Object.keys(CONFIG.TOWERS).map(key =>

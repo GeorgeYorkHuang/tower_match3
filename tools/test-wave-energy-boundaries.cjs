@@ -1,7 +1,7 @@
 /** 采集切波边界回归：波次时间/能量曝光同帧封账，整局与分波计数守恒。 */
 'use strict';
 const assert = require('assert');
-const api = require('./moving-battle-fixture.cjs');
+const api = require('./balance/fixtures/moving-battle-fixture.cjs');
 try {
   const result = api.collect({ field: 'ancient', profile: 'elements', seed: 41, maxWave: 4, maxSeconds: 130,
     configureGame(g) {

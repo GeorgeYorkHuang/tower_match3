@@ -25,7 +25,7 @@ function tick(g, dt) {
     g.wave.plan.push({ lv, type: 'normal', hp, offset: 0.5 + Math.random() * 0.3, isBoss: false, isSummon: true });
   }
   g.wave.planDoneAt = null;   // 有新投放，重置投放完成时间戳
-  g.fx.push({ type: 'ring', x: boss.x, y: boss.y, t: 0, dur: 0.5, color: '#e8c878', rMax: 110 });
+  g.fx.push({ type: 'ring', x: boss.x, y: boss.y, t: 0, dur: 0.5, color: boss.minibossField === 'lava' ? '#ef9c52' : boss.minibossField === 'frost' ? '#bfe6ff' : '#e8c878', rMax: 110 });
 }
 
 module.exports = { tick };

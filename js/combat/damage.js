@@ -44,7 +44,7 @@ function shotDmg(combat, key, isSkill, isTowerSkill, energyBefore) {
   // 3★：力量符3★ 4连叠层 / 城墙加固3★ 背水（普攻技能同吃）；全局充能3★ 技能伤（仅技能）
   const run = combat.game.run;
   const talentBonus=TalentRuntime.bonus(run,key);
-  dmg=(dmg+talentBonus.attack)*(1+talentBonus.damage)*((isTowerSkill===undefined?isSkill:isTowerSkill)?1+talentBonus.skill:1);
+  dmg=(dmg+talentBonus.attack)*(1+require('../tower-cards.js').growth(run,key)/100)*(1+talentBonus.damage)*((isTowerSkill===undefined?isSkill:isTowerSkill)?1+talentBonus.skill:1);
   const rl = combat.relicVal('cm_power') + combat.relicTowerDmg(key)
     + (run.cmPower3 || 0) + (run.wallAtkBonus ? run.wallAtkBonus() : 0);
   if (rl > 0) dmg *= (1 + rl / 100);
@@ -71,26 +71,43 @@ function shotDmg(combat, key, isSkill, isTowerSkill, energyBefore) {
   // 炮·军火库 C 过剩：能量 ≥ 上限 80% 时普攻伤害 +10%/+20%/+30%（仅普攻，与能量状态乘区叠加）
   if (!(isTowerSkill === undefined ? isSkill : isTowerSkill) && key === 'cannon') {
     const armC = combat.branchLv('cannon', '军火库', 'C');
+    const pressure=TalentRuntime.passive(run,'cannon','forge_pressure')&&t&&energy>=run.armoryEnergyMax(key)*.7?.08:0;
+    let excess=pressure;
     if (armC > 0 && t && energy >= run.armoryEnergyMax(key) * (SKILL_NUM.cannon['军火库'].overThreshold || 0.8)) {
-      dmg *= (1 + SKILL_NUM.cannon['军火库'].overPerBranch * armC);
+      excess+=SKILL_NUM.cannon['军火库'].overPerBranch * armC;
     }
+    if(excess>0)dmg*=1+excess;
   }
+  if(require('../tower-cards.js').doubleRemaining(run,key)>0)dmg*=2;
   return dmg;
 }
 
-function damage(combat, e, dmg, srcKey, kind = 'hit', skill) {
+function damage(combat,e,dmg,srcKey,kind='hit',skill){
+ const previous=combat._talentDerived;
+ combat._talentDerived=(typeof kind==='object'?kind.kind:kind)==='derived';
+ try{return damageImpl(combat,e,dmg,srcKey,kind,skill);}finally{combat._talentDerived=previous;}
+}
+function damageImpl(combat, e, dmg, srcKey, kind = 'hit', skill) {
   if (e.hp <= 0) return;
   let v = dmg;
+  const options=kind&&typeof kind==='object'?kind:{};
   // kind 归一化：statuses 传 {kind:'dot',sourceKey} 或字符串 'dot'，此处统一为字符串
   if (kind && typeof kind === 'object') {
     srcKey = kind.sourceKey || srcKey;
     kind = kind.kind || 'hit';
   }
+  const exclusive=TalentRuntime.damageBonus(combat,e,srcKey,kind,skill)+(options.bonus||0);
+  if(exclusive>0){
+    const run=combat.game.run;
+    const rl=combat.relicVal('cm_power')+combat.relicTowerDmg(srcKey)+(run.cmPower3||0)+(run.wallAtkBonus?run.wallAtkBonus():0);
+    v*=(100+rl+exclusive)/(100+rl);
+  }
   // 怪物减伤（armor）：Tier 越高减伤越多，精英/Boss 额外叠加（上限 85%）
   v=TalentRuntime.beforeDamage(combat,e,v,srcKey,kind,skill);
-  let armorIgnore = 0;
+  let armorIgnore = options.armorIgnore||0;
   if (srcKey === 'boomerang' && kind !== 'dot' && combat.game.run.relic3('boo_tip')) armorIgnore = Math.max(armorIgnore, combat.game.run.relicValue('boo_tip', 'armorIgnore') / 100);
-  if (e.armor > 0) v *= (1 - Math.min(0.85, e.armor * (1 - Math.min(1, armorIgnore))));
+  const effectiveArmor=TalentRuntime.armor(e);
+  if (effectiveArmor > 0) v *= (1 - Math.min(0.85, effectiveArmor * (1 - Math.min(1, armorIgnore))));
   // 腐蚀增伤
   if (e.corrode) v *= e.corrode.mult;
   // （寒霜 C 原「易伤」已改「深寒：减速幅度」，移除易伤乘区）

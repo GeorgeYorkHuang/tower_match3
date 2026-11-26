@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('assert/strict'),f=require('./balance/fixtures/moving-battle-fixture.cjs'),Main=require('../js/game/main'),{Meta}=require('../js/meta'),C=require('../js/config'),Wall=require('../js/relics/wall-health');const ID='s_sr_cm_wall';
+function create(star,hp=2000){const g=new Main();g.meta=new Meta();g.meta.relicStars[ID]=star;g.menuStage='ancient';g.save.apply=()=>{};g.save.save=()=>{};g.toast=()=>{};g.sfx.startBgm=()=>{};g.newRun(false);g.enterBattle();g.run.lineHp=hp;g.run._waveStartHp=2000;return g;}
+function choose(g,opening=false){const def=C.relicRunDef(ID);g._relicReturnState='fighting';g.state='relicpick';g.relicPick={opening,candidates:[{id:ID,name:def.name,desc:def.desc,icon:def.icon,run:true}]};g.relicPickChoice(0);}
+try{for(const[star,max]of[[1,2400],[2,2600],[3,2800]]){const g=create(star);choose(g);assert.equal(g.run.lineMaxHp,max);assert.equal(g.run.lineHp,max);const texts=[],ctx=wx.createCanvas().getContext('2d');ctx.fillText=s=>texts.push(String(s));g.renderer.wall(ctx,g.run.lineHp,g.run.lineMaxHp);assert(texts.includes(max+' / '+max),'血条数字应立即更新');Wall.sync(g);assert.equal(g.run.lineHp,max,'重复同步不得重复回血');}
+ const hurt=create(1,1500);choose(hurt);assert.equal(hurt.run.lineHp,1900);assert.equal(hurt.run.lineMaxHp,2400);assert.equal(hurt.run._waveStartHp,2400,'保留无伤判定基准');assert(hurt.run.lineHp<hurt.run._waveStartHp);const hp=hurt.run.lineHp;require('../js/relics/opening-pick').finish(hurt);assert.equal(hurt.run.lineHp,hp,'开局收尾不能再次满血');
+ const dead=create(1,0);choose(dead);assert.equal(dead.run.lineHp,0,'不能复活失守防线');
+ const test=create(0);test._relicReturnState='testfield';test._lastPickStar3=true;test.state='relicpick';const def=C.relicRunDef(ID);test.relicPick={candidates:[{...def,run:true}]};test.relicPickChoice(0);assert.equal(test.run.lineMaxHp,2800);assert.equal(test.run.lineHp,2800);
+ console.log('PASS real relic selection 1/2/3-star health and visible labels, damaged-wall delta, no duplicate heal, wave damage baseline, no resurrection, testfield 3-star injection');
+}finally{f.restore();}

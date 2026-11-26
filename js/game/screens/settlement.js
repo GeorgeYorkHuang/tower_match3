@@ -238,8 +238,8 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     const TL = CONFIG.GO.TL;
     const bA = this._goPh(T, TL.btn, 240);
     ctx.globalAlpha = bA > 0 ? bA : 0;
-    restart.hit = button(ctx, 40, 1172, 320, 96, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 34 }).hit;
-    restart.toMenu = button(ctx, 390, 1172, 320, 96, '领取奖励', { bg: '#2b6d4f', fontSize: 30 }).hit;
+    restart.hit = button(ctx, 40, 1172, 320, 96, '再来一局', { bg: win ? '#2b6d4f' : '#3a6ea5', fontSize: 34, capsule:true,raised:true }).hit;
+    restart.toMenu = button(ctx, 390, 1172, 320, 96, '领取奖励', { bg: '#2b6d4f', fontSize: 30, capsule:true,raised:true }).hit;
     ctx.globalAlpha = 1;
   }
 
@@ -268,8 +268,8 @@ function createSettlementScreen({ drawImg, IMG_SRC, relicIconSrc, fmtNum }) {
     // 修复：button() 返回 {hit:fn} 对象，需取 .hit 赋给 restart.hit，
     // 否则 main.js onTouch 按 this.restartBtn.hit(p.x,p.y) 调用对象 → TypeError → 结算界面点击失灵无法退出
     // 与汇总分支统一：hit/toMenu 都注册为命中函数（main.js 兼容两种形态）
-    restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32 }).hit;
-    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '领取奖励', { bg: '#2b6d4f', fontSize: 28 }).hit;
+    restart.hit = button(ctx, x + 120, y + 240, 320, 80, '重新开局', { bg: '#3a6ea5', fontSize: 32, capsule:true,raised:true }).hit;
+    restart.toMenu = button(ctx, x + 120, y + 350, 320, 72, '领取奖励', { bg: '#2b6d4f', fontSize: 28, capsule:true,raised:true }).hit;
   }
 
   }

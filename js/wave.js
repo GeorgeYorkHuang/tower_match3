@@ -137,7 +137,7 @@ class WaveDirector {
     const born=this.game.enemies[this.game.enemies.length-1];
     if(it.bossId)Bosses.spawn(this.game,born,it.bossId);
     // 每 5 波小 Boss（无 bossId 脚本）：标记圣坛蔓钟专属贴图 + 敲钟召唤 tick
-    if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born._ringClock=0;born._ringCount=0;}
+    if(it.isBoss && !it.bossId){born.bossArtKey='miniboss_bell';born.minibossField=this.game.run.chapter&&this.game.run.chapter.isPrologue?'ancient':this.game.menuStage;born._ringClock=0;born._ringCount=0;}
     if(it.isBoss)require('./game/fx/boss-announcement.js').enter(this.game,born);
     if(it.isSummon)born.isSummon=true;
     Bosses.spawnSummon(this.game, born);

@@ -1,7 +1,7 @@
 const { copySaveData } = require('./save/snapshot.js');
 const ShopService = require('./economy/shop.js');
 const SkillUnlocks = require('./skills/unlocks.js');
-const { todayStr } = require('./economy/calendar.js');
+const DailyFirst = require('./economy/daily-first.js');
 const DeepChests = require('./relics/deep-chests.js');
 const RelicProgression = require('./relics/progression.js');
 /**
@@ -61,7 +61,7 @@ class Meta {
     this.normalFieldCleared = false;
     this.fieldClears = {};
     this.bestWave = 0;             // 历史最深波次
-    this.dailyFirst = null;        // 每日首战加成 { date, counts: { field: n } }
+    this.dailyFirst = null;        // 正式战场共享每日前2局加成 { date, used }
     this.totalDiamondSpent = 0;    // 累计钻石消耗（速开等）
     this.matchSkills = Object.assign({}, CONFIG.MATCH_SKILL.default);   // 三消技能局外三槽配置
     this.globalSkills = { slots: ['shuffle', 'refill'] };   // 全局技能槽（预留；技能池 拍板后开放）
@@ -103,18 +103,8 @@ class Meta {
   /** 钻石速开：成功返回 true */
   speedOpen(idx) { return DeepChests.speedOpen(this, idx); }
   /* ---------- 每日首战加成（） ---------- */
-  dailyFirstStatus(field, now) {
-    const counts = this.dailyFirst && this.dailyFirst.date === todayStr(now) ? this.dailyFirst.counts : {};
-    const remaining = Math.max(0, 2 - ((counts || {})[field] || 0));
-    return {remaining, multiplier:remaining > 0 ? 1.5 : 1};
-  }
-  dailyFirstBonus(field, now) {
-    const d = todayStr(now);
-    if (!this.dailyFirst || this.dailyFirst.date !== d) this.dailyFirst = { date: d, counts: {} };
-    const n = this.dailyFirst.counts[field] || 0;
-    this.dailyFirst.counts[field] = n + 1;
-    return n < 2 ? 1.5 : 1;   // 同战场前2局深度金币×1.5，之后恢复正常收益。
-  }
+  dailyFirstStatus(field, now) { return DailyFirst.status(this,field,now); }
+  dailyFirstBonus(field, now) { return DailyFirst.consume(this,field,now); }
 
   /* ---------- 局内圣遗物图鉴 ---------- */
   codexOwned(id) { return RelicProgression.codexOwned(this, id); }

@@ -18,6 +18,7 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         ctx.restore();return;
       }
       const s = 84;
+      if(!c.animT)text(ctx,'点击打开',c.x,c.y+58,18,'#ffe3a0','center');
       const opening = c.animT != null;   // ：animT 非空 = 开箱/飞行动画播放中（main.js 推进）
       // 飞行阶段：全开帧从原位飞向屏幕中心并逐渐放大（ease-in-out 缓动）
       let fx = c.x, fy = c.y, scale = 1;
@@ -100,7 +101,6 @@ function createChestLayer({ drawImg, IMG_SRC }) {
         }
       }
       // 点击提示（未开启时显示）
-      if (!opening && c.stage!=='ready') text(ctx, '飞入棋盘', c.x, c.y - s / 2 - 12, 15, '#ffd34d', 'center');
     });
   }
   return { fieldChests };

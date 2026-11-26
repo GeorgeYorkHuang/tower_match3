@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>W20 Boss 动画预览</title>
+<style>
+:root{color-scheme:dark;font:15px/1.45 system-ui,"Microsoft YaHei",sans-serif;background:#111820;color:#e8edf2}*{box-sizing:border-box}body{margin:0;padding:24px;max-width:1080px;margin-inline:auto}h1{font-size:22px;margin:0 0 6px}.sub{color:#9eabb8;margin-bottom:18px}.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.bar button,.bar select{border:1px solid #53616e;background:#202b35;color:#e8edf2;border-radius:8px;padding:8px 12px;cursor:pointer}.bar button.active{border-color:#e3b55a;background:#473c26}.stage{display:grid;grid-template-columns:minmax(280px,560px) 1fr;gap:20px;align-items:start}.view{border:1px solid #52616e;border-radius:12px;padding:14px;background:#17212b}.checker{background-color:#e6e8e9;background-image:linear-gradient(45deg,#c6cbd0 25%,transparent 25%),linear-gradient(-45deg,#c6cbd0 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#c6cbd0 75%),linear-gradient(-45deg,transparent 75%,#c6cbd0 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0}canvas{width:100%;height:auto;display:block;border-radius:8px;image-rendering:auto}.meta{display:grid;gap:10px}.card{border:1px solid #374653;border-radius:10px;padding:12px;background:#17212b}.card strong{display:block;margin-bottom:5px}.muted{color:#a8b4bf}.warn{color:#ffd786}.stat{font-variant-numeric:tabular-nums}.range{width:180px;vertical-align:middle}@media(max-width:760px){body{padding:14px}.stage{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>W20 Boss 动画预览</h1>
+<div class="sub">使用运行时透明图集 · 帧序按游戏里的技能状态切换规则</div>
+<div class="bar"><label>Boss <select id="boss"><option value="lava">熔壳巨蜥·赤脊</option><option value="frost">裂风狼王·霜牙</option></select></label><button id="play" class="active">暂停</button><label>帧率 <input id="fps" class="range" type="range" min="2" max="16" value="8"> <span id="fpsv">8</span> fps</label><button id="checker" class="active">棋盘底：开</button><button id="fit">重置画面</button></div>
+<div class="bar" id="modes"></div>
+<div class="stage"><div class="view"><canvas id="cv" width="560" height="560" class="checker"></canvas></div><div class="meta"><div class="card"><strong id="title">赤脊 · 闭壳</strong><span id="frame" class="stat">帧 1 / 8</span><div class="muted" id="desc"></div></div><div class="card"><strong>状态对应</strong><div id="mapping" class="muted"></div></div><div class="card warn">此页为动画预览，不模拟 Boss 战斗逻辑。透明棋盘底仅用于检查素材边缘。</div></div></div>
+<script>
+const data={
+ lava:{name:'熔壳巨蜥·赤脊',src:'../assets/images/monsters/bosses/lava-ridge/shell-cycle-v1.png',modes:[
+  {id:'closed',label:'熔壳闭合',title:'赤脊 · 闭壳循环',frames:[0,1,2,3],desc:'闭壳帧段循环；对应熔壳闭合的高减伤阶段。'},
+  {id:'open',label:'破绽 / 暴怒',title:'赤脊 · 熔壳破绽',frames:[4,5,6,7],desc:'开壳帧段循环；对应甲壳破绽、半血暴怒与召唤表现。'}],mapping:'闭壳：0–3 帧；破绽 / 暴怒 / 召唤：4–7 帧。'},
+ frost:{name:'裂风狼王·霜牙',src:'../assets/images/monsters/bosses/frost-alpha/charge-cycle-v2.png',modes:[
+  {id:'idle',label:'悬浮',title:'霜牙 · 悬浮',frames:[0],desc:'悬浮基准姿态。'},
+  {id:'windup',label:'蓄势',title:'霜牙 · 蓄势',frames:[1,2,3],desc:'收拢风带并低头蓄力。'},
+  {id:'dash',label:'冲锋',title:'霜牙 · 高速突袭',frames:[4,5,6],desc:'身体拉长，沿突袭方向高速掠过。'},
+  {id:'fatigue',label:'疲惫',title:'霜牙 · 突袭疲惫',frames:[7],desc:'冲锋后风带散开，回到悬浮状态。'}],mapping:'悬浮：0 帧；蓄势：1–3 帧；冲锋：4–6 帧；疲惫：7 帧。'}};
+const cv=document.querySelector('#cv'),ctx=cv.getContext('2d'),img=new Image();let boss=new URLSearchParams(location.search).get('boss')==='frost'?'frost':'lava',mode=0,playing=true,checker=true,frameStep=0,last=0,acc=0;document.querySelector('#boss').value=boss;
+function load(){const d=data[boss];img.onload=()=>{frameStep=0;draw()};img.src=d.src;document.querySelector('#modes').replaceChildren(...d.modes.map((m,i)=>{const b=document.createElement('button');b.textContent=m.label;b.onclick=()=>{mode=i;frameStep=0;update();draw()};return b}));update()}
+function update(){const d=data[boss],m=d.modes[mode];document.querySelector('#title').textContent=m.title;document.querySelector('#desc').textContent=m.desc;document.querySelector('#mapping').textContent=d.mapping;document.querySelector('#frame').textContent=`帧 ${m.frames[frameStep%m.frames.length]+1} / 8`;document.querySelectorAll('#modes button').forEach((b,i)=>b.classList.toggle('active',i===mode));cv.classList.toggle('checker',checker)}
+function draw(){ctx.clearRect(0,0,cv.width,cv.height);if(!img.complete||!img.naturalWidth)return;const idx=data[boss].modes[mode].frames[frameStep%data[boss].modes[mode].frames.length],fw=img.naturalWidth/8,fh=img.naturalHeight;const scale=Math.min(480/fw,480/fh),w=fw*scale,h=fh*scale;ctx.imageSmoothingEnabled=true;ctx.drawImage(img,idx*fw,0,fw,fh,(cv.width-w)/2,(cv.height-h)/2,w,h);document.querySelector('#frame').textContent=`帧 ${idx+1} / 8`}
+function loop(t){if(playing){const step=1000/Number(document.querySelector('#fps').value);if(t-last>=step){frameStep++;last=t;draw()}}requestAnimationFrame(loop)}
+document.querySelector('#boss').onchange=e=>{boss=e.target.value;mode=0;load()};document.querySelector('#play').onclick=e=>{playing=!playing;e.target.textContent=playing?'暂停':'播放';e.target.classList.toggle('active',playing)};document.querySelector('#fps').oninput=e=>document.querySelector('#fpsv').textContent=e.target.value;document.querySelector('#checker').onclick=e=>{checker=!checker;e.target.textContent=`棋盘底：${checker?'开':'关'}`;e.target.classList.toggle('active',checker);update()};document.querySelector('#fit').onclick=draw;load();requestAnimationFrame(loop);
+</script>
+</body></html>
+
+
+

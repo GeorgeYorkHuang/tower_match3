@@ -113,7 +113,7 @@ try {
     }
   }
 
-  const fixture = require('./moving-battle-fixture.cjs');
+  const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
   const Main = require('../js/game/main.js');
   try {
     for (const id of PLAN.order) for (let seed = 1; seed <= 10; seed++) {

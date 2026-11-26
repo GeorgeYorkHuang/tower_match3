@@ -1,0 +1,4368 @@
+{
+  "date": "2026-11-27",
+  "field": "ancient",
+  "name": "圣庭战场·圣坛花园",
+  "method": "Native W1-60 from empty roster, 60Hz, current draw/merge/energy/skills/chests/globals, no match3; no shop/ads/revive; no meta except arm gift one equipped 1-star sanctum card balanced across six towers; 0.6s immediate, 2s immediate, 2s merge; real upgrade/relic candidates ranked by existing policy; no prescribed build; continue evacuation; stop first wall breach; 3600s cap; reward settlement stubbed to retain silver; sample rates are not player win rates",
+  "seeds": [
+    7301
+  ],
+  "sourceHashes": {
+    "js/ads/rewarded-video.js": "1d6217b006750383a594e1f2376e56f4e7727f696a98a365c75e7188109b4faf",
+    "js/board-chests.js": "8172365d45374784d071b0c86374d464dd5591a5dc5e6540b4670125fac6fb01",
+    "js/board.js": "6439288691f06141ef9d22119502cac377faa86b565b11b0a1ab405b36eefaf6",
+    "js/bosses/frost-alpha.js": "0b131258227970d1ab2e3b6d430a540215c4c084f8654a51f923267d8c296b66",
+    "js/bosses/frost-skall.js": "5d158bef297a7fc396628d9cc383ad5533181f56370739c0f612b1e7f7a8dd25",
+    "js/bosses/frost-twins.js": "4ec3d9ed7763bda80d66ddfe1ffbbd374e4005866644ff3a7db98cdce992cec4",
+    "js/bosses/galvin.js": "a8597d66cbec6b419200fed0d81b381b91e2d2afa34be2228f3547bd7d1e6420",
+    "js/bosses/index.js": "fe01a5fb9d1f5ab842f1ca8babbe8fd9741469709cbe16a9e25cd7bc5bd037dc",
+    "js/bosses/lava-ignis.js": "d4d3eba5f6147c5f2cf8c9aacb0067bc6e508a9a6e28ad66e1c037c324a55e6f",
+    "js/bosses/lava-ridge.js": "e705678170f9c7ab1fe1de928c9910e3b82ec9acc457477e2e833e65659735b9",
+    "js/bosses/lava-twins.js": "8226259af7e8a6ec5e352de83bca6f6da09321cfb0cb6ec49ae0a9e2e30eb130",
+    "js/bosses/minibell.js": "c7184202c7afd44f070d53bbaca66e77411dbd459a6b8552641a412bf0b1bf17",
+    "js/bosses/rosea.js": "27cb3791a8d73d46df805eef3506a3a19bff2fe41151edea79433684590de451",
+    "js/bosses/twin-encounter.js": "865591fd665028824855cf8c74c41e0bedd22feacfc533da0488f570478c399a",
+    "js/bosses/vera.js": "0c8f8ea11d54af9eda146327f4e4de5de17ca426296017beedc05cd6668892fd",
+    "js/branch-description.js": "51c64e2731bdf0ccff302143bb17449ab5ee115616183d15fcb3e3d00ef26d35",
+    "js/chain-flight.js": "8cfd783ac08700d8131edd96112c0eb254f22a6879d6b1d27a53b55194f14999",
+    "js/combat/areas.js": "d859e271b87d1a70b9d7f536b1a8a73482ef5002d089a6f33efd9593c922f172",
+    "js/combat/attack-energy.js": "b544594c9231acee0f871f88b582d6ad9a9695d68ad86cd1c33c2264def9fefb",
+    "js/combat/attacks.js": "c932564e3f6958e1d1af6ce475441ecb86a6db4475f2579c7427a3202646c3a6",
+    "js/combat/awakening.js": "a0dd0c1b53e6644710a2aefc6369330a07f7591000d3a06cc1a96e30fd59e4c4",
+    "js/combat/boomerang-trajectory.js": "2f992778ab25bbbf1878d7c1611c9b760ecb9f12e55d0bebfb3ee421ad3d618f",
+    "js/combat/boss-control.js": "b05adaf42400b1a4e178bcd721fafeb5093730b5227b017a3774b9afec718541",
+    "js/combat/cannon-flight.js": "6dc2721f2bddfa2d226453d1dbe757754eb96c506eec85a13fb9249cad500f1d",
+    "js/combat/collision.js": "8f30645abb460543e0e7c3ab5890bb924ca9e97dc84ab0da217cf80054be7c75",
+    "js/combat/damage.js": "f6b876878cf4b39892e038edee1fbd60f7537fe90dce23fb51834e6516864a7b",
+    "js/combat/death.js": "00e41d46b025b7691848a10e218071a628e1dfeac665db2859bdc7bd79130b75",
+    "js/combat/global-cast.js": "96f62eaa7aadf21920f0bfb51484a5e663222a84c06afa81ef92eef43f4ae666",
+    "js/combat/impacts.js": "f64e4c8f2613803d097ab5754e5738b47573013e866e5b92ccc98a2d00c9b494",
+    "js/combat/incoming-damage.js": "c5960acdf3ded614ae66abb9915a65c323844575dac2311d1f6d5012b34900ea",
+    "js/combat/lifecycle.js": "eae0e83a9ca0944b34905f7648a4213ccd9792664ce8c2ffa53ef32b3c91bbb9",
+    "js/combat/linkage.js": "694f614fca79877597911ade7839b41f9eef84e609392a46ea370aebcff2a80b",
+    "js/combat/poison-stick-visual.js": "f3e60c9a83c21f32d6cd2344e18ff0152b2b09be052b45a6b6e76e718759de1a",
+    "js/combat/projectiles.js": "3db0ce71aad899a71fbd63a74f4d43e74667f0e6d212026b14e3ca040ff6ed1b",
+    "js/combat/statuses.js": "6ddb7b2e01a723107b6bfccf4419ab42fff75d5a01b65d3e84e60ab5beefc1fd",
+    "js/combat/targeting.js": "07f879ddc2d98a99d9cdba168e3ea15e4e5d7e9740b085453f595ef07e08f039",
+    "js/combat/towers/boomerang.js": "6c88b00a9ab255c4343987d0d274e597e786f6fd25c3100029db5ae443d339af",
+    "js/combat/towers/cannon.js": "1011e17b66901265faf7e01404f91e0e8fad898a5ac8104e32cf3678f2be3801",
+    "js/combat/towers/electric.js": "12d16e059d409d9b1f8b37275d91c48ac91ecadc34def6ff0171271891b504e3",
+    "js/combat/towers/fire.js": "7dd66f0eaf8ba5b3a2bab40f6b6594a308c453340e811eebccae279add64e7d2",
+    "js/combat/towers/ice.js": "5aca7bca7ae4ab81c6ac319e4db28bcf8c7f8249b856a18a6e61fbabbb19596d",
+    "js/combat/towers/poison.js": "8d57cf92d34a437c7c3e6f0237126609c4c1b1d62548122b3eb24d6435617ab3",
+    "js/combat/trajectory-aim.js": "f88896ca020bdcebc8f0bd6e5e2742aba9a6e10f2bd98ea308a1307304e77e0c",
+    "js/combat/turret-visual.js": "771edf75d873b7ecec1c774ac3e868d7edfad39169097eb0b2f1e8f395e84318",
+    "js/combat/wind-trails.js": "2f140783a1ab3145dd23b995650807bb1d598cd8dc94bc7d4163f524ceba003d",
+    "js/combat.js": "2637b980d28ea7bf6e600758d3511fd1038e0223fafa464138fd6fe214af1c17",
+    "js/config/battle-relic-drops.js": "c4ca5b3637acadda3fce2ac60c385f2a97bdfb24d6f0bd2c6bf5ff6e6ef158c1",
+    "js/config/board-chests.js": "ba689c6f28fb7dfb88e4c77e7a75dfa9a551a6c7746786dd734eb8a80eebeba2",
+    "js/config/boss-effects.js": "f8a0e728c527b12891debd5071e484b384d6910db8f3fa833496a38d41b60ae0",
+    "js/config/boss-expansion.js": "cdb3d2f6ff3f2530ef9dddd29b1c5e0a83dfa646c12ddc916b72dfc4a10736a7",
+    "js/config/bosses.js": "3bd0a123172f408f9dd9b77a2a60925a2f9b7ca7ed10ce844d943af46d1fe25c",
+    "js/config/chain-flight.js": "5212214a3c223daa9a2eec80fcb5d6fd3c0232f11969a5a61a06022f798413f2",
+    "js/config/chest-rewards.js": "560f668ed0484f19277994475a4a45792800489c56e2f8bce210ee3380ff63e2",
+    "js/config/combat-common.js": "cd95a65b8b06b201114432d49fc7c4c9a3e31c8706589378fd470a0c320cfa6a",
+    "js/config/combat-presentation.js": "60db263873e1919852a0e636f34f255f40ad7ed64643c2347067c1246b0b3d52",
+    "js/config/elite-effects.js": "35cebfe6537956a125b97d1d71e4514ee4ce92d9d42de65394f8e54ebe9475fa",
+    "js/config/enemy-balance.js": "e9ef5f2de2275569a1e7780ce12427adeadee3cefc10601aace99780ff1e124b",
+    "js/config/enemy-visuals.js": "7482d4e6498620f16a239ddf9bcd4d912048ce598aff92caef24d5232e076ea2",
+    "js/config/energy-state.js": "2e6c8e1843c818ac6ef2b5d20c511be58187a456903eae9c54a2027c1e90e959",
+    "js/config/experience.js": "793ea416f36e9533c66ed1f17882a2ef05371b4e6efd83812b6067b56a6f5ed3",
+    "js/config/field-balance.js": "e27615c0d937f8df89f6a683cc755578369ce6ed2dc205ae1f6448c7de4ab8f2",
+    "js/config/field-enemies.js": "63781f1580ffed09ba4457c5349bfce146ca80eab8627af3effc3fcff3f9b607",
+    "js/config/fire-ground-art.js": "1fe7ba5b6e1e40ccf31f68e1a47a87d16f7164f4c265046e4b95f35588c3e5c7",
+    "js/config/global-balance.js": "af11a41ee224b5ae9c79d4504726e303de4a1b414f248f1c717147ba464aff9c",
+    "js/config/mail-ui.js": "5288e8ba66d5904a9d329d429a4371d6cca3d53cbf79088b5887818334ad9665",
+    "js/config/match-feedback.js": "3e232233576cf2edac526295d5bd02dbc09057cc851e13301f1b7a9bb82aff2e",
+    "js/config/match-glow.js": "c991eb80b1d4620dacb326b74e307fc337b2017aabe0ef28e9336b20e281df3d",
+    "js/config/monsters.js": "c28e64e47e33bb57720b5a6e3834871622884cedf8533b3af4e71c3b288654b7",
+    "js/config/performance.js": "0aa1866250f6bc1dc69e73b7bc8741b8cad42de51b51b29c1d516c0a32049138",
+    "js/config/pick-ui.js": "92f65713070160c7af04f7f5280a33493514fcfcf79b1d5cc8490905f5e95ea3",
+    "js/config/prologue.js": "997b0f6bcd938922d797a3d7e07774edc61837e89a93c1c4ae707aa3cae8ce96",
+    "js/config/red-hybrid.js": "dd9177bd82622b77ec9ec783b8784eba28662fa667211d09ba54bc5f9ea0675e",
+    "js/config/red-relics.js": "95240259901adf86994b36793466315c050f1075102203845beb9bc3d1e683af",
+    "js/config/red-series.js": "eef6859cd82293af1a47f161ad92dfffca5846d6afba454e9740b554b518643c",
+    "js/config/redeem-codes.js": "2638c50f80c83443045cb6639923ff02d0a5a96173942b65d4e65d91c4bb1673",
+    "js/config/relic-art.js": "d03126ae834a4dc9ca9d177ebf6ef711b041126be6cd4ad747a531c6fb849ef8",
+    "js/config/relic-catalog.js": "f5f3ec1e016ddd37171afe6b0777a7310905e8bfd97411f538c383b0c326905e",
+    "js/config/relic-dust.js": "db1d88a39a535b4e8fa28cb4efba2cf9e5f0a6ed68c73b5f1eaf76f394beb686",
+    "js/config/relic-pick-ui.js": "f5369e6a8a8a5e979394de82d559b872195ab82e69a5be6b4758041cccddea8f",
+    "js/config/relic-scroll.js": "50a24976cda4d98ea2c757c57e3432aad9318af95d6968029d1ca2f30f1d034c",
+    "js/config/relics.js": "27ad6616ed98e9abaf12b9301147842239f030ad02dfcdc2556aa55d2d9d0c0f",
+    "js/config/retired-relics.js": "8f5569b236e358a4689126aa7c8cb0310431d0cef87196942bd552ce2a8a873e",
+    "js/config/rewarded-ads.js": "784c6a08c3008ee5b6d10a2859dbaff95bcb1fb8755efb057808f37fc09c627b",
+    "js/config/shop.js": "07f109604e1bad3024bac9b2f1fc4ed792c077a3e288ea6b4a08255aea842770",
+    "js/config/skills.js": "79628ea2ee0432b301636cd626558819358b34226d4c4be068eb849bf5bd7fe1",
+    "js/config/talents.js": "f62973a5433e395d414e9ab11460a8ba30f6493bfc836156b1052367fa7bc96e",
+    "js/config/targeting.js": "233cf91eb30e17e8d3f1a08731482aad6cdbc843de6792c031384da2d0ad840d",
+    "js/config/test-access.js": "35cb13bad78c53007d397c63e238d9546856425f0c720cef9367901b38ccd0f5",
+    "js/config/tinted-atlases.js": "88287aac68ee87dbeab73babd22b2173d1e58f3ac85d7e05ee6490c5782b88e8",
+    "js/config/tower-skills.js": "fdf96b56eb38dadc55c17eea4d65a4acc372901ae3c25e8b3abee3ac42d38f45",
+    "js/config/towers.js": "a7c5981824d8b3fd237de63dd0b3b75599065f4e42d676fe7730d42c69df340b",
+    "js/config/toxic-pool-vfx.js": "d06e742d028405a30bf91974f892978516a67b7fa127426cee574d567b18c73e",
+    "js/config/turret-vfx.js": "b66c1a3934a4da6b37eb8f48a495041711d0e7f16a067b723039d1f4c3c5f23b",
+    "js/config/ui-skins.js": "f7b04704c8833022bcc2ab3f184dee975e1a64d027785deceed558f95b9cd1ed",
+    "js/config/version.js": "a7f9f16999a971fb75fdcce06dc1fec1f2646adaad984f4b2b22750b4b0e39d7",
+    "js/config/vine-whip.js": "61001ee974c25368e1a2aa17b1efd603c714f9e2ad21b7915ff79880fec093bb",
+    "js/config.js": "4a929929fb34660fa3bf17cfdd012dd731b5b9860d86ba7dd34386f7fd90cd3c",
+    "js/early-enemy-size.js": "46e2793e49728b1c26e46f234bf637d0b360fddf81d7bc41f4e6271913ac1c99",
+    "js/economy/ad-rewards.js": "bbc68156be4f620a856794d6bcbdcfcc667d12b565a8ef8e0d164c711506f582",
+    "js/economy/battle-shop.js": "bfa407f4891e9a34c3fa440c277efdeb66ff598d034296015cc77fc0e5ce4cfa",
+    "js/economy/calendar.js": "6fcd968b0df7861fe9bfe9f65ecf765017b51770641fea2ac3578c22983250b1",
+    "js/economy/daily-first.js": "b37d8b7ad0fa868cfc2718f067c0ed9695ce6eaa7b48bdfdb3ad3a9a9af33759",
+    "js/economy/diamond-shop.js": "ed11e7dd28eea32edcb9cc7f7529cb968010df73410cca21642391052b7aed51",
+    "js/economy/mail-rewards.js": "c495136fd5d29cd0c9c774784f371c02a404aa4ffe11ae1753d6431e54faaac7",
+    "js/economy/mail.js": "08e7998e586d16899280c9c068a5d97c31027644003f4be8f102de630e0e6e0a",
+    "js/economy/pick-reroll.js": "00c5944d55a1ea53cb82292aa2bff22ea7a1871310747e37cb03684258d9c178",
+    "js/economy/shop.js": "3795b320e252bef660daac7cfec164a3dff443da008e113ca26c7bf3c13483fa",
+    "js/effects.js": "7b84b487708120a087e6e39e356753025ab56a83e5211b143e2c1339ccb51ade",
+    "js/enemy-size.js": "b4cf16e166f7a63da3ee68c1094ba924628ef40d4bf0abfb5333afed5d08aa37",
+    "js/field-access.js": "ec462edf195524ecf44610e0bab894ea2db3d07cb37476340c90800fc27385c0",
+    "js/field-enemies.js": "d86cb71a7e20cb207c5b6213bfbaf99b0b6727979f6d89d9c1a795d02c2f0766",
+    "js/field-pressure.js": "5517a1f8468a227270fe530f88a3458fa622f402bf1eca4226b870938223e1aa",
+    "js/game/account.js": "8a53f9297642d28270ce9bbc54d9fc8d0f7252944414d0abc4e07d9d1279a4a9",
+    "js/game/atlas-frame.js": "aa2703495f1c2a0c8a65709a3f064a1b0dde8e4263144f37dbb6debac6b16a3e",
+    "js/game/audio.js": "29e89de10e66f05a39aa436ed8052433ab4f7c918af200245576d83f4153c717",
+    "js/game/auto-battle.js": "0f7604ae1b8f045a4fde97070050ff2528c7fc3a931797239f1db3c5620eead1",
+    "js/game/boot.js": "55c3a39e1d1eb201abc5e81d85d05a16540198cfae298b10a7447e6d8870cb50",
+    "js/game/boss-cast-art.js": "14de8120df9fe9d03228026dd885608bca4d4377942274705d7bc6eb3a5280f3",
+    "js/game/boss-idle-art.js": "9104d3eaa4bf1ce4eae14828d5e793e298409410a4301d3ff280282688f8d177",
+    "js/game/canvas.js": "dc378eb2e189e2bf0336b4a93664077dc954fe2dd9d55df6ed378a55ebcdacc7",
+    "js/game/codex-energy.js": "1aa522a9373a4b47ac1a5e0e4defe1c0f91f3a54d759dac3592f5dbc7428a590",
+    "js/game/combo-feedback.js": "91bca5bcd60ccc4855d285a26ca84ceaa21deb0fb240b76679099c0b97335f7a",
+    "js/game/energy-capsule.js": "7e22ccdd5c1f5746ba6567579a3bedff57f268fa1094c173b6b06263a54ad795",
+    "js/game/flows/ad-actions.js": "f0e21d4d8d425c19aee80c99a74283f78bdeb6631d0ddbfc29b6d1b826ede54f",
+    "js/game/flows/board-chests.js": "480cf40bf51cfbad7a7807a8815d1015350c059a42ff19a53c26bba45797ab3d",
+    "js/game/flows/relic-acquisition.js": "781be7557f1ecf1702eee76ea926404eb307827a891d2f57e19bcc41cfa7e4b1",
+    "js/game/flows/run-settlement.js": "9e425cfa6d88f84aff6954914989cce8044be36116de9bc9621fd5d1735fe500",
+    "js/game/flows/test-boss.js": "679133ae46f03ddb62142f89baa4697db66ffbae0abafb5f46aed41e9c83d427",
+    "js/game/flows/test-operations.js": "e1b21e139cbf56bd7fe98116fffb5efe015ae5918822b283dd1fb5d4d3b45aec",
+    "js/game/fx/approved-debuffs.js": "ede0e64ba4aa50f7fe94990477d7b2d056bd8f24d3374edd3292f3449bd395ed",
+    "js/game/fx/approved-electric-frames.js": "63bbdbcc5660cae7ff86034419c373973b188490c3637fed4a4d486411d9278b",
+    "js/game/fx/approved-electric.js": "947ed57d0969a74dc1887cd917c3f2b8e3509a59dc60bb9e119b0a75ff4a4e0e",
+    "js/game/fx/approved-fire-frames.js": "81238a29068c56a282360390d9704d1c81dc312fb1fa2bc7639d384c4512d57e",
+    "js/game/fx/approved-fire.js": "4f62a6e75fc3513e073f9bec3d7fc018f046358b69d8f7e4175ff745e546120b",
+    "js/game/fx/approved-ice.js": "56c03fcad403bc88703f78e10032e7af0602c7e49c8a9373f525beda74219ddc",
+    "js/game/fx/boomerang.js": "9832aafba8e524acde97b783a3531667803f7ee8654210cd7e4be34327da26b9",
+    "js/game/fx/boss-announcement.js": "7eb28a900a949eefbd884dd6a10029e951935765f74088f9202e2ff9cb42f30f",
+    "js/game/fx/boss-death.js": "ce05b538c8d1190d7d3a19a10456a2b8dde4fa8019b31940be91425afd2b2e26",
+    "js/game/fx/boss-expansion-twins.js": "21edaa6d6ed3d5074194cad3de7b24d0df411069aa8a1764849cd5b942d0fa05",
+    "js/game/fx/boss-galvin.js": "c5e3519eaa1d57a617e73f1f487ead361ee55aa1bd955b852f8d6e1358bf1054",
+    "js/game/fx/boss-ignis.js": "9eb6dc1b1d7f18f78cb0586bba6fb9f7f4b25893312668e0dc3435a345fdd1d8",
+    "js/game/fx/boss-rosea.js": "f6ea420e91fa308a114d558de75774c16d4a3b24ca5e28eb869996dfee2c2398",
+    "js/game/fx/boss-skall.js": "7f37d4ad6902ad70dcad9d12cfe36c275c7d9751cf3558f8ade25b342e25d186",
+    "js/game/fx/boss-skill-atlas.js": "e3686503d8b10a11b92585f0b75a8cd13a917f8bb9153b4ee5da9bc686a52380",
+    "js/game/fx/boss-vera.js": "1a547a8425d9ac2916e260869a1bf2562ea11d17942d4600cdee78c2bc85d0be",
+    "js/game/fx/cannon.js": "c7b7bad00326ed8b09cdb13398ca57ed5d1d0817c12dada66e296b5eb28c9d95",
+    "js/game/fx/card-rarity.js": "f7e678788bc708cabf2e2583502a4d1f6ffb74719f2356202356cdfb74145004",
+    "js/game/fx/combat-feedback.js": "3d2d626b30bae47c178febae16bb653b18b1e9120edbb00524a79ee1677483c1",
+    "js/game/fx/common.js": "ac21537743a499608da85240e7768ca275faefc111893a83baf1f53011e41a6e",
+    "js/game/fx/damage-numbers.js": "53e4fd6d85946473ee8d0fb085aa11ad4759b318e7ee7eda3340cb1c059cb991",
+    "js/game/fx/electric-blessing.js": "3033ddbac9db7f56f02a14e5fec8c41745a4cb7cb765e9fe6e4898180812fc7d",
+    "js/game/fx/elite.js": "623789f16f20dbf2529841711b6dfa25d95f3c8338618d5688a57aba7ed28bd5",
+    "js/game/fx/energy-charge.js": "6f7dd8cec68a17e8a00dae6a0590af06b55355109bb33c8bfe6a60ed5a125b13",
+    "js/game/fx/fire-ground-packed.js": "34118ff63ad34db5d50d96d2f733483ce391736820dd47d30f0bc807396b2316",
+    "js/game/fx/fire.js": "7bb6ccc292cb2fe8e80be3ecbb24bafddd75bf1b74b0add10b5433c1a9f4485e",
+    "js/game/fx/flame-pillar-packed.js": "2cc4d519c7ff94124bd534e764365e2f6992cc43a45d79999cd2471595451fb9",
+    "js/game/fx/global-feedback.js": "0c21ae4cf1886d7f2bdc1f7c88841343ecd9d088331b5ccd3a7a30194c68b260",
+    "js/game/fx/hit-feedback.js": "2784c887f58c1a344244750989ac350a0623bda448ca1a11eda6eb241d2b2fef",
+    "js/game/fx/leaf-storm-frames.js": "08d54aa1ba75cc8c95118f050bc792237c1e81e4d6c52b93ff6eb7ba22a6a2d4",
+    "js/game/fx/leaf-storm.js": "847c22311fd029542c01ae8305eb9dd9118649c083d92855bff7f96cb52b712a",
+    "js/game/fx/match.js": "1945f7e3e2932e29555dfa06f55916524c62bb395af6b4139d01c95a45ffceca",
+    "js/game/fx/particle-budget.js": "bf2f2c176cf7901ef2c15c730ee27c43ab03dd2f51750d21784f774d26f36a3a",
+    "js/game/fx/pixelfx-debuff-runtime.js": "c0c44883ccae7c89e797b8ec3fcb4b82c2d740e0b9597f8eb139b3ebf09c48cb",
+    "js/game/fx/poison-stick.js": "ad12a6319f7d49f6db83aa39a2f6af233574eba60b52e11da7e74d6f05a0f148",
+    "js/game/fx/poison.js": "0af033e60b19cfb6c24ff92a5a28ec7c1897b57a3328ec7fd4d7a957266089e3",
+    "js/game/fx/projectiles.js": "4b86c2b4fb3812c42b5362d3379d8321ac4f3ad69c3c0daab464642863e6d895",
+    "js/game/fx/relic-acquire.js": "e0972843a70382fd3d065d3353cd3a61083447afc603d66b196f7ad8a4663917",
+    "js/game/fx/relic-pick.js": "3d2023a59a65dfc1b5ad561585a9eaa27a92738477726faa328735d56d4e312d",
+    "js/game/fx/rosea-frames.js": "844ac048607fe34d67c0fb7eb50b788f3d42c8f0e35dda90c74fae3d0535eb83",
+    "js/game/fx/tinted-atlas.js": "938dec74f1aabbcca12c6ab7c93c898b6e175e28197acf5bee768713d7e416d0",
+    "js/game/fx/tower-buff-frames.js": "c4ef84840b67816856e341150b8a890f470f85c6cfbad860d74f6961ab309433",
+    "js/game/fx/tower-buff-sprites.js": "938241a3b06aa35b9635e602c25d7b7d761f96fb798dee6bf6eb8c2e8db8ebca",
+    "js/game/fx/tower-card-boost.js": "fd4db9b018fa20cdfeec5f302ac5c3fdbeb9380ae8b095c26ff32232edb71efe",
+    "js/game/fx/toxic-pool-frames.js": "649ceea52a44703ebcb98c9de3218630a38e92b2ca77379f861767675d870506",
+    "js/game/fx/toxic-pool.js": "53bb3ad929dfc2b0ce627054b2ba47a76f22a89bf069e493d24defa729842f35",
+    "js/game/fx/turret-frames.js": "fc60e24a2879c2a747af7239c106bf38132772981da27e3ada12e6e8be206923",
+    "js/game/fx/turret.js": "cb0f8080082b1ec06238200ed1d2ed075b7e2e230248083caf67c56fcfb981fc",
+    "js/game/fx/vine-whip-frames.js": "7341867a8ed87b368068e5b2900475bb97d3930787ecdabf2c08e06c2d02ad5d",
+    "js/game/fx/vine-whip.js": "ad3d61a565c6d51dea6fd9a30c5e09ea83a5846a6d0631838a895d7d1ffa32fb",
+    "js/game/icons/chip-skin.js": "2b94312dc5bb85b28dd0955aa19cd1ae81455851de3de7ced4a25df2b5350b2f",
+    "js/game/icons/shop-items.js": "e14a02e077df43631d771e28ad49f92a8e91cf59fa48f39b12402bdc623ca48d",
+    "js/game/icons/skills.js": "540660fb1ad7fc15f4302da5e17f916f34bad86aef08189f7b83d76e96f654a6",
+    "js/game/icons/special-blocks.js": "e074253a2d06a132639f40b0bd6208042728922783329d6eaeebb1cd6845c076",
+    "js/game/image-cache.js": "628a65f5bf925c257dc29f9d6caad9c4af955c740b63e0f974a7ddf17054633c",
+    "js/game/input/battle-actions.js": "81fa9e004607a7f91bac344cfcaf2b3379e83dcdb4e2252af3b9032cec6351dc",
+    "js/game/input/coordinates.js": "d3f8210c12179336972d03b936694f27663ecf156dce9939170454d8a22710d5",
+    "js/game/input/mail-buttons.js": "f161391d9cad1e9b7be9e02ba017548d7ba82c1dd2a15f267d53a5aaebd6c416",
+    "js/game/input/mail-rail.js": "af106d2af333e179cf88e23779a749f641d94bd9d6fddfd94b3131f8e13df735",
+    "js/game/input/menu-actions.js": "516a199fd9763a58ebecc5e546661aa905ff0082358f3cb148c9169da5f23b7c",
+    "js/game/input/panel-scroll.js": "413cdc88397f2c81cae40f75c29ae38cefeb0f50804bead65a9d2bf7a47ec900",
+    "js/game/input/relic-scroll.js": "4d3c6c26e2e74d23d8f9416251b1627e450b04d65b4c4f98a2f0a05f3da5f245",
+    "js/game/input/shop-scroll.js": "4fecff9bcf6ded31f73fce1a0ea4f5e60cc01353d119ecf6a8d6fd8eb642b90e",
+    "js/game/input/talent-actions.js": "54db3364de728c173264430348465b1e09f616c0179135871b0b355d043973d3",
+    "js/game/input/talent-gestures.js": "6d2f5ca3a4fda762ddb46a7648c735fe6a4cca2b490e2f92bd6b25366f5c4a74",
+    "js/game/input/touch.js": "31f27892e75c39ddb4a2f32e231d42d9e673e193bbc4cdea96c8f0908f39dbd9",
+    "js/game/lava-late-motion.js": "c9ef320ccef025132b339a48454883d5b43e6ed3790db73689dadf9290e528fc",
+    "js/game/layers/battle.js": "eaaeaf296099ce9dcbb18b13318925f21af44b84e2df9f4c044279726e5265a5",
+    "js/game/layers/board.js": "1e724efeb39bc8ecfacba726c9e69965ec91da5205a5aa04dd2a5a83bdbfd6bb",
+    "js/game/layers/chests.js": "5f44ffb9faae2bb5ad26ffe19bec22a1050f542f462af51f5e1c4d4e9bf8443a",
+    "js/game/layers/enemies.js": "b4c8a0809fd9168854bc7619ef6e5d6928d749e1d678315fb0228c662ffc3104",
+    "js/game/layers/ground.js": "cde4857cc6fe404733520e80f92633b0e5c9b06d8eb3c85edf32d6e08160e489",
+    "js/game/loading-flow.js": "92d476c7b5e3db2b88793d0b9357a4c493b1211f035c9566f192c54b2a871fad",
+    "js/game/main.js": "674ead298c3a462d7719fbdc9e4b2af1fe3cc74477c01d9a1ba3dab397967031",
+    "js/game/miniboss-field-art.js": "b7384a95b8689c45c3e891dd17942408f184b35315e527fffdc742b9ae4f79f7",
+    "js/game/prologue-tutorial.js": "7da8ceb064b176acaca16ff46a3f0e213c9a5e795c4e141ddb9371074e3dd709",
+    "js/game/red-card-guide.js": "ba2522ace4694854d6267668b7c2fc5ab458040f2fd96e72f0419ac517342b35",
+    "js/game/relic-art.js": "9e2ef8cf56f00321de66a69843ed5f98fad7bd25de551db7f22a5a863549434b",
+    "js/game/render.js": "a3debc6f4a662cbaa601cc9c36c8dbfd5ebb2a552de05a9fc390f41865a864fe",
+    "js/game/screens/account-menu.js": "9a8d829122fa8d943d1fe4e344dcfbbb9fc1097d8b1818cc48fcaee3fe8d199a",
+    "js/game/screens/ad-prompts.js": "6c402c522a30d15d18fd94bb5254e580db22eca3d4874c7dcdc1b8994ddd37ff",
+    "js/game/screens/battle-hud.js": "3c7663df7936ab8e1306f28849be47cebb1542fb79e9c5ad61a170747b7c88e2",
+    "js/game/screens/battle-overlays.js": "675ba0927abb383140c1ff40c6f5e69d03c7c33380d46fd73e26ca8ab1525690",
+    "js/game/screens/battle-relics.js": "f7e821686e81c12a842ad594d5e18e967a87d539d56eb8e274693ab49fb0b04c",
+    "js/game/screens/battle-shop.js": "481aff733d0136472bc06e298cdaa1dd8ae082a207611cf447f9bdb9a20044fa",
+    "js/game/screens/boss-health.js": "c0551fe9a226d3dfb39149793afa3104a61251ef80fc1da266f7e29e6a2b74bf",
+    "js/game/screens/card-draft.js": "86532c6df3f0b8bdb8197115de6085630bdc07594cd5dc142174a6485af77c49",
+    "js/game/screens/chest-rewards.js": "1820afe069b3c302df76d0b3d571cdcf28f21c405238bf61662b89fc26caf128",
+    "js/game/screens/codex.js": "a0221bb6198a27cd9d0dc4b3c98565f756a21cf0f2e5a508f4e330d3f6a926c2",
+    "js/game/screens/home.js": "6e5f3f6115a31586ea1a16c24cbacc20975c6fb7eb41141982e7e324d4480ada",
+    "js/game/screens/mail-footer.js": "a172139098ae0619867b7988a67bdd69098cff2926ce10eb3de3aa0e52c599e1",
+    "js/game/screens/mail-list.js": "e705165d414b8f9d0e2c805b8031081d4ab7095f59f47e8cdd6eea35cdc357ca",
+    "js/game/screens/mail.js": "7df06c39a5fd0d8c8f01e04b240d0e504298b6c6c846b21cf69dfad1dc2195a3",
+    "js/game/screens/menu-header.js": "d9895126442970f12948be16898b54eac4f4ad7e069cfa7799d81d6e5a778f32",
+    "js/game/screens/menu-shop.js": "0286ba20b0325910bf2da3901c17d8d5a22627a6602a60c9d5b89f4064f57ccf",
+    "js/game/screens/pick-layout.js": "775fe146a2bd28363c53395a957760ce5bfc0ebdacafa92cee2d12e58deac68c",
+    "js/game/screens/relic-card.js": "365caa184406b6fa627fdef34f397fb9306aa9c332db5483348dbcdb89db7542",
+    "js/game/screens/relics.js": "f7dd0f72de515c2b8a294da35fb55cc5d118eb194d27b70375f0ef4ebc4b96c2",
+    "js/game/screens/settlement.js": "4696a28cb1875db97ca2abbdc10200bebfaf8d36283960697920a4e13e812aa7",
+    "js/game/screens/shop-product.js": "fb3cff331f7f672cb06d330e7fd47a5f6b140d67bafe5c51ea3ba4979fd5d2df",
+    "js/game/screens/skill-description-layout.js": "588d269655ae92b4162b244271bd8fe201d1a9dd34bef04e0f4bffa40cbdd5c0",
+    "js/game/screens/skill-loadout.js": "7e360e2c053aba8c7d130fa664767bedb8f9a5be2450063acfa5b7104a7ed5d7",
+    "js/game/screens/stage-drops.js": "ad3dca8bb9a7827e0f908bb2af2e035c0b783b0cf02be1081613221f5e019377",
+    "js/game/screens/talent-art.js": "131c705a32458a62e20911daaa41ec320dace014192c3b128d40f9ccebd6c837",
+    "js/game/screens/talent-board.js": "d11b48a0db5aefeb810341d2ab9a7296d2fe8807f5fc8003fe902b38383803b8",
+    "js/game/screens/talent-gallery.js": "288bf73baa5d5f0a53ec4e06681aedf6d65a2e6247fa7e4fe50c871dccc167ee",
+    "js/game/screens/talent-header.js": "86e658f40e67d64134d102ef4216f1d553c327cada79934ed425c64bcdedfc33",
+    "js/game/screens/talent-layout.js": "03ad65b69310f3213cce0c356ae2c7c872bedadb36d31a39c9e2369e1bc835f2",
+    "js/game/screens/talent-node-icons.js": "a063c690ba80ec4a5b6fdad0ed9748a5470cd91d25c4429c6936ede4871ef5c9",
+    "js/game/screens/talent-panels.js": "47dee48c2d9c53086916f8a6ed50bdc992cc4bd35f6e8221cd288973f0ee0501",
+    "js/game/screens/talent-socket.js": "011e76306c15694672b22d15312c8e66a80968b1a68f67b04ede10740ab492fe",
+    "js/game/screens/talent.js": "96b3cbe4a45d9cc867572046c6877d84a00371f412300fa4e44818cd100d101b",
+    "js/game/screens/test-field.js": "a9d4468de3807ed94dc6544d3ab4cadbc64d9585dbbf3cf1242380800d41d1a1",
+    "js/game/screens/tower-details.js": "263f0280cd99ab3c6d9b0dae6ef156c921974a52f802c1237e58944eb9883829",
+    "js/game/screens/upgrade-pick.js": "1cde6bedb1bc9381f10b6dbe7b0cfde800393c9738a9bd041a6a0685939b1ade",
+    "js/game/spotlight.js": "2ea0aafad56ce3741ec038dd1578abf630cdf6de759fff6b973ac6e9806ceb5b",
+    "js/game/tutorial.js": "f058128304ae25730a2213fa197ef02f46f390c67871350f3dbc1f543f42ab15",
+    "js/game/ui.js": "150602ef290c0d8bba6fa8733d3b87f2ecff9588c09825a7924710afb3709aba",
+    "js/game/unlock-guide.js": "8509b976a88162e5ff2922120cf7e370e5e6c8be7f91e6a003c588d964915eae",
+    "js/global-skills.js": "d5299599743a2388aa310dd6024717add379852960d9809b3ad5b4e7db095f9f",
+    "js/loading.js": "d309d959a55a41c00b7e889fbdd81196512249af74686583e495410f72fefe3f",
+    "js/match3.js": "c1b7be552dd8d8eb9ba27b8044dbad3e94a154a0d4d62d5c37b417f9d174e86f",
+    "js/meta.js": "29a874bdea4abe4adfb4b0b753cf784a0dd9179e7d7d873a3dbe9d3c6e218833",
+    "js/prologue/balance.js": "937ef3b7ebdd55698e713e981f82287d010761075ee1bafedc256ec07d4cbd94",
+    "js/prologue/completion.js": "84fcc7cbf40773c67635d5074ee39924e627d51c327ac27aa893f0d0727c1bd7",
+    "js/prologue/encounters.js": "3e30510ae147b1d7feadf91a18d41b31a19bbce935ef931f1f9bd9858284bcd2",
+    "js/prologue/enemy-curve.js": "bebca331403025890026bf2467bd6cbcda8093d75c16b44721bd5bdb3d9350da",
+    "js/prologue/unlock-notices.js": "adca7817dc74d48ce3f1a6684bbbbcf348036c51efe0848290337e88ac047f41",
+    "js/prologue.js": "7a48fa3f16bdf14a45f068e2b350a81b8ab9e779ba717d88f8e4d3bc392b1829",
+    "js/relics/battle-drops.js": "392f8e06cf62047bdb9277badb9c3b7935e106bf3fb231f639e95438f6ea6943",
+    "js/relics/deep-chests.js": "2660cf19c9771c8ddbb9657cb7e657334e4851ef597fd7acae1f352e2fce1775",
+    "js/relics/kill-hooks.js": "b2aa4e7797c7cb3935be3d1e6469f0a91ae2c39eff5d5f8d875ac9a8b531e1fa",
+    "js/relics/match-hooks.js": "b95b89b1d1887b15a12b2fc4e9c6dafc0a6ad47e489b77ae28bc586e7bcb8eb3",
+    "js/relics/opening-pick.js": "b8d3c74efc55c7fcaf4ae4da98bcceb3a532141e2dec6a5aad5b27de20f96512",
+    "js/relics/progression.js": "de52d2d8de0a9b5af7cd44da557e772af4413791b623df7591bc6a5ab7922007",
+    "js/relics/queries.js": "0750fad4ceb01e869b18f6edc59d0136681e5f92cf2d8c760842ee9810c04443",
+    "js/relics/red-boss-drop.js": "8cab6363ad473f12b9ee29295ba25d65d893ab2164d6195baa7fd943885a1099",
+    "js/relics/red-migration.js": "0170e2a16b9a66252cb7537e548d8c55949e608add8672829eb4bc59fb0d6ddf",
+    "js/relics/wave-hooks.js": "b8104c498ab2d728bb61a899ef4d5fc0dd74103f504ddb5631251b9e8e2e45c3",
+    "js/run.js": "afc12530918a3f4dc49558d791800e0e3f1540c1995b026b2b31c8670b3c569d",
+    "js/save/migrations.js": "0e03d9376631eb15db02beffebb8eb1c0dedc2342f42fe947f578d16b93d1c69",
+    "js/save/snapshot.js": "2e6875108db862aafd429b8d994bf76a7fa7985448f73ebdbdc407146c7e20a0",
+    "js/save.js": "5e3261c097d7f7266a5910fde8856f1ef0944d67612bbe2ee746c5fef8bdf6ca",
+    "js/skills/chain-attacks.js": "69cbac3d72e7d17a80945c15ee46bc189b14d5de0dc2842637d9d5b310e580ae",
+    "js/skills/global-catalog.js": "0744803a0b370e6685cfff2fa849581ef44e03172339f95ac1d36663333b3793",
+    "js/skills/global-loadout.js": "6e1a0a47802da5b30a313d672802957f6cb32526a51bd337fc9d19892ea1b66f",
+    "js/skills/global-runtime.js": "68d93108679f99c0214962a7f1d4ea60746fc3f55d699d721645b42823ff7209",
+    "js/skills/unlocks.js": "f84ac7552fc3e318504f16c1e02be75fb866b4dd0411deaf27f7067f43fcdae9",
+    "js/talents/access.js": "89c9695d47f1faae536f24ea4193e72a26d6695ef50769f867aa1fddeeaa84ab",
+    "js/talents/model.js": "8ac5fc7d313cb28429ad224d7045278ae9de36bfa9ac329cb4155ba197312355",
+    "js/talents/outline.js": "29e9a5d5770de6c8f1e075396244944995e34263744bfdfe3f0abff85371ed58",
+    "js/talents/preview.js": "8e785d1f71f64035cc6b037d777ed964a06bc2363fe0904848a47881067ae0a5",
+    "js/talents/runtime.js": "5f01f84fe338a39ea5a77b134c1d7d4f78ebfdcaaffad37f7e1ef4d979b0e5ba",
+    "js/talents/testing.js": "3392e6dff69b5888b17330e9abd4737e4084a3f1afc50caf67cd43cb81fccd9e",
+    "js/talents/view.js": "cc408f68659ed27720bc28de49d6f89123212dc55a799820c50b23aeccec92f5",
+    "js/tower-activation.js": "a5e1b2951ca86fb049c493e4d9d6110ec063adaffaf32d00de00ce25e086ebd4",
+    "js/tower-cards.js": "8f2e9d5da34a3fccdcddf9a88edb98813414715f2dc33685040a4d74cb26f76c",
+    "js/wave.js": "1cbe3c34c8ac39cf61d949002127ed511a0cafe107e650c88be716d9ac7518bf"
+  },
+  "runs": [
+    {
+      "income": [
+        {
+          "wave": 1,
+          "kill": 120,
+          "waveEnd": 47,
+          "kills": 15
+        },
+        {
+          "wave": 2,
+          "kill": 116,
+          "waveEnd": 58,
+          "kills": 15
+        },
+        {
+          "wave": 3,
+          "kill": 126,
+          "waveEnd": 65,
+          "kills": 16
+        },
+        {
+          "wave": 4,
+          "kill": 127,
+          "waveEnd": 62,
+          "kills": 16
+        },
+        {
+          "wave": 5,
+          "kill": 217,
+          "waveEnd": 66,
+          "kills": 18
+        },
+        {
+          "wave": 6,
+          "kill": 220,
+          "waveEnd": 43,
+          "kills": 23
+        },
+        {
+          "wave": 7,
+          "kill": 206,
+          "waveEnd": 42,
+          "kills": 21
+        },
+        {
+          "wave": 8,
+          "kill": 211,
+          "waveEnd": 43,
+          "kills": 22
+        },
+        {
+          "wave": 9,
+          "kill": 239,
+          "waveEnd": 62,
+          "kills": 24
+        },
+        {
+          "wave": 10,
+          "kill": 327,
+          "waveEnd": 83,
+          "kills": 25
+        },
+        {
+          "wave": 11,
+          "kill": 335,
+          "waveEnd": 90,
+          "kills": 32
+        },
+        {
+          "wave": 12,
+          "kill": 315,
+          "waveEnd": 87,
+          "kills": 28
+        },
+        {
+          "wave": 13,
+          "kill": 306,
+          "waveEnd": 101,
+          "kills": 29
+        },
+        {
+          "wave": 14,
+          "kill": 356,
+          "waveEnd": 99,
+          "kills": 31
+        },
+        {
+          "wave": 15,
+          "kill": 450,
+          "waveEnd": 166,
+          "kills": 32
+        },
+        {
+          "wave": 16,
+          "kill": 426,
+          "waveEnd": 167,
+          "kills": 37
+        },
+        {
+          "wave": 17,
+          "kill": 428,
+          "waveEnd": 150,
+          "kills": 35
+        },
+        {
+          "wave": 18,
+          "kill": 427,
+          "waveEnd": 197,
+          "kills": 36
+        },
+        {
+          "wave": 19,
+          "kill": 463,
+          "waveEnd": 141,
+          "kills": 38
+        },
+        {
+          "wave": 20,
+          "kill": 215,
+          "waveEnd": 252,
+          "kills": 10
+        },
+        {
+          "wave": 21,
+          "kill": 520,
+          "waveEnd": 89,
+          "kills": 40
+        },
+        {
+          "wave": 22,
+          "kill": 559,
+          "waveEnd": 55,
+          "kills": 42
+        },
+        {
+          "wave": 23,
+          "kill": 560,
+          "waveEnd": 73,
+          "kills": 43
+        },
+        {
+          "wave": 24,
+          "kill": 575,
+          "waveEnd": 47,
+          "kills": 45
+        },
+        {
+          "wave": 25,
+          "kill": 702,
+          "waveEnd": 93,
+          "kills": 46
+        },
+        {
+          "wave": 26,
+          "kill": 757,
+          "waveEnd": 117,
+          "kills": 53
+        },
+        {
+          "wave": 27,
+          "kill": 673,
+          "waveEnd": 106,
+          "kills": 49
+        },
+        {
+          "wave": 28,
+          "kill": 689,
+          "waveEnd": 138,
+          "kills": 50
+        },
+        {
+          "wave": 29,
+          "kill": 731,
+          "waveEnd": 193,
+          "kills": 52
+        },
+        {
+          "wave": 30,
+          "kill": 890,
+          "waveEnd": 213,
+          "kills": 53
+        },
+        {
+          "wave": 31,
+          "kill": 864,
+          "waveEnd": 199,
+          "kills": 56
+        },
+        {
+          "wave": 32,
+          "kill": 861,
+          "waveEnd": 237,
+          "kills": 56
+        },
+        {
+          "wave": 33,
+          "kill": 824,
+          "waveEnd": 235,
+          "kills": 57
+        },
+        {
+          "wave": 34,
+          "kill": 845,
+          "waveEnd": 244,
+          "kills": 59
+        },
+        {
+          "wave": 35,
+          "kill": 1042,
+          "waveEnd": 228,
+          "kills": 60
+        },
+        {
+          "wave": 36,
+          "kill": 1005,
+          "waveEnd": 138,
+          "kills": 63
+        },
+        {
+          "wave": 37,
+          "kill": 1074,
+          "waveEnd": 91,
+          "kills": 63
+        },
+        {
+          "wave": 38,
+          "kill": 1016,
+          "waveEnd": 234,
+          "kills": 64
+        },
+        {
+          "wave": 39,
+          "kill": 1120,
+          "waveEnd": 248,
+          "kills": 66
+        },
+        {
+          "wave": 40,
+          "kill": 385,
+          "waveEnd": 312,
+          "kills": 17
+        },
+        {
+          "wave": 41,
+          "kill": 1144,
+          "waveEnd": 148,
+          "kills": 68
+        },
+        {
+          "wave": 42,
+          "kill": 1201,
+          "waveEnd": 218,
+          "kills": 70
+        },
+        {
+          "wave": 43,
+          "kill": 1188,
+          "waveEnd": 271,
+          "kills": 71
+        },
+        {
+          "wave": 44,
+          "kill": 1239,
+          "waveEnd": 240,
+          "kills": 73
+        },
+        {
+          "wave": 45,
+          "kill": 1472,
+          "waveEnd": 309,
+          "kills": 74
+        },
+        {
+          "wave": 46,
+          "kill": 1391,
+          "waveEnd": 234,
+          "kills": 79
+        },
+        {
+          "wave": 47,
+          "kill": 1381,
+          "waveEnd": 255,
+          "kills": 77
+        },
+        {
+          "wave": 48,
+          "kill": 1445,
+          "waveEnd": 271,
+          "kills": 78
+        },
+        {
+          "wave": 49,
+          "kill": 1479,
+          "waveEnd": 301,
+          "kills": 80
+        },
+        {
+          "wave": 50,
+          "kill": 1582,
+          "waveEnd": 283,
+          "kills": 81
+        },
+        {
+          "wave": 51,
+          "kill": 1566,
+          "waveEnd": 316,
+          "kills": 84
+        },
+        {
+          "wave": 52,
+          "kill": 1632,
+          "waveEnd": 278,
+          "kills": 84
+        },
+        {
+          "wave": 53,
+          "kill": 1630,
+          "waveEnd": 285,
+          "kills": 85
+        },
+        {
+          "wave": 54,
+          "kill": 1716,
+          "waveEnd": 273,
+          "kills": 87
+        },
+        {
+          "wave": 55,
+          "kill": 1877,
+          "waveEnd": 268,
+          "kills": 88
+        },
+        {
+          "wave": 56,
+          "kill": 1974,
+          "waveEnd": 254,
+          "kills": 95
+        },
+        {
+          "wave": 57,
+          "kill": 1845,
+          "waveEnd": 215,
+          "kills": 91
+        },
+        {
+          "wave": 58,
+          "kill": 1786,
+          "waveEnd": 243,
+          "kills": 92
+        },
+        {
+          "wave": 59,
+          "kill": 1921,
+          "waveEnd": 310,
+          "kills": 94
+        },
+        {
+          "wave": 60,
+          "kill": 1856,
+          "waveEnd": 372,
+          "kills": 87
+        }
+      ],
+      "field": "ancient",
+      "arm": "none",
+      "redCard": null,
+      "wallByWave": {},
+      "bossSpawns": [
+        {
+          "wave": 5,
+          "id": "miniboss_bell",
+          "hp": 1200,
+          "at": 134.83333333333334
+        },
+        {
+          "wave": 10,
+          "id": "miniboss_bell",
+          "hp": 4000,
+          "at": 269.56666666666666
+        },
+        {
+          "wave": 15,
+          "id": "miniboss_bell",
+          "hp": 4000,
+          "at": 409.65
+        },
+        {
+          "wave": 20,
+          "id": "altar_rosea",
+          "hp": 52000,
+          "at": 529.5333333333333
+        },
+        {
+          "wave": 25,
+          "id": "miniboss_bell",
+          "hp": 11200,
+          "at": 694.5333333333333
+        },
+        {
+          "wave": 30,
+          "id": "miniboss_bell",
+          "hp": 4800,
+          "at": 818.95
+        },
+        {
+          "wave": 35,
+          "id": "miniboss_bell",
+          "hp": 4800,
+          "at": 946.9
+        },
+        {
+          "wave": 40,
+          "id": "altar_galvin",
+          "hp": 108000,
+          "at": 1053.4166666666667
+        },
+        {
+          "wave": 40,
+          "id": "altar_galvin",
+          "hp": 34560,
+          "at": 1081.55
+        },
+        {
+          "wave": 40,
+          "id": "altar_galvin",
+          "hp": 34560,
+          "at": 1081.55
+        },
+        {
+          "wave": 45,
+          "id": "miniboss_bell",
+          "hp": 12693.333333333334,
+          "at": 1220.6833333333334
+        },
+        {
+          "wave": 50,
+          "id": "miniboss_bell",
+          "hp": 6936,
+          "at": 1341.7666666666667
+        },
+        {
+          "wave": 55,
+          "id": "miniboss_bell",
+          "hp": 22693.333333333332,
+          "at": 1473.9333333333334
+        },
+        {
+          "wave": 60,
+          "id": "altar_vera",
+          "hp": 240000,
+          "at": 1569.8333333333333
+        }
+      ],
+      "seed": 7301,
+      "cadence": 0.6,
+      "strategy": "immediate",
+      "minWall": 1760,
+      "wallDamage": 0,
+      "lowEnergyRatio": 0.05794817388808594,
+      "remaining": [],
+      "terminal": "victory",
+      "wave": 60,
+      "cleared": 60,
+      "seconds": 1628.1833333333334,
+      "battleSeconds": 1628.199999998848,
+      "wallHp": 1760,
+      "wallMax": 2000,
+      "roster": [
+        "ice",
+        "boomerang",
+        "cannon",
+        "poison"
+      ],
+      "levels": {
+        "ice": 12,
+        "boomerang": 12,
+        "cannon": 11,
+        "poison": 7
+      },
+      "energy": {
+        "ice": 89.04896000000019,
+        "boomerang": 75.49034666666597,
+        "cannon": 13.880000000000127,
+        "poison": 37.426666666666215
+      },
+      "gold": 48652,
+      "earned": 63302,
+      "spentOnDraws": 14650,
+      "minGold": 0,
+      "draws": 296,
+      "used": 756,
+      "actions": 1052,
+      "relics": 12,
+      "globals": 33,
+      "peakEnemies": 68,
+      "cardGrowth": {
+        "poison": 3,
+        "ice": 15,
+        "boomerang": 9,
+        "cannon": 9
+      },
+      "heldCards": [
+        {
+          "key": "electric",
+          "star": 3
+        },
+        {
+          "key": "electric",
+          "star": 2
+        },
+        {
+          "key": "electric",
+          "star": 3
+        },
+        {
+          "key": "electric",
+          "star": 1
+        },
+        {
+          "key": "electric",
+          "star": 2
+        },
+        {
+          "key": "electric",
+          "star": 1
+        }
+      ],
+      "damage": {
+        "cannon": {
+          "total": 975178.0325813413,
+          "normal": 797245.9965708774,
+          "dot": 48012.546965062866,
+          "skill": {
+            "碎裂弹": 177932.03601041454
+          }
+        },
+        "boomerang": {
+          "total": 3306288.181135504,
+          "normal": 2028887.7399047066,
+          "dot": 1277400.4412266845,
+          "skill": {
+            "放血": 10085.85706953345,
+            "风痕": 1267314.5841571314
+          }
+        },
+        "poison": {
+          "total": 641557.434411031,
+          "normal": 66277.0333144362,
+          "dot": 575280.4010965931,
+          "skill": {
+            "毒性强化": 521351.97860423947,
+            "毒池": 53928.42249234952
+          }
+        },
+        "ice": {
+          "total": 555435.1368980173,
+          "normal": 555435.1368980173,
+          "dot": 0,
+          "skill": {}
+        }
+      },
+      "waves": [
+        {
+          "wave": 1,
+          "seconds": 0,
+          "hp": 2000,
+          "gold": 0,
+          "roster": [],
+          "levels": {},
+          "energy": {},
+          "damage": {},
+          "spawnHp": 3750
+        },
+        {
+          "wave": 2,
+          "seconds": 26.966666666666665,
+          "hp": 2000,
+          "gold": 58,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 1,
+            "boomerang": 1,
+            "cannon": 1,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 56.40000000000001,
+            "boomerang": 56.96666666666669,
+            "cannon": 44,
+            "poison": 74.40000000000002
+          },
+          "damage": {
+            "cannon": {
+              "total": 1004.2879999999999,
+              "normal": 1004.2879999999999,
+              "dot": 0,
+              "skill": {}
+            },
+            "boomerang": {
+              "total": 519.15328,
+              "normal": 519.15328,
+              "dot": 0,
+              "skill": {}
+            },
+            "poison": {
+              "total": 413.72339999999997,
+              "normal": 394.77139999999997,
+              "dot": 18.951999999999998,
+              "skill": {
+                "毒性强化": 18.951999999999998
+              }
+            },
+            "ice": {
+              "total": 173.12,
+              "normal": 173.12,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 3750
+        },
+        {
+          "wave": 3,
+          "seconds": 52.766666666666666,
+          "hp": 2000,
+          "gold": 84,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 2,
+            "boomerang": 1,
+            "cannon": 2,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 53.00000000000004,
+            "boomerang": 63.06666666666671,
+            "cannon": 37,
+            "poison": 69.53333333333339
+          },
+          "damage": {
+            "cannon": {
+              "total": 2083.328,
+              "normal": 2083.328,
+              "dot": 0,
+              "skill": {}
+            },
+            "boomerang": {
+              "total": 907.0725000000001,
+              "normal": 907.0725000000001,
+              "dot": 0,
+              "skill": {}
+            },
+            "poison": {
+              "total": 1670.818551818183,
+              "normal": 1550.710251818182,
+              "dot": 120.10830000000006,
+              "skill": {
+                "毒性强化": 120.10830000000006
+              }
+            },
+            "ice": {
+              "total": 1479.102113636363,
+              "normal": 1479.102113636363,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 3700
+        },
+        {
+          "wave": 4,
+          "seconds": 78.26666666666667,
+          "hp": 2000,
+          "gold": 77,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 2,
+            "boomerang": 1,
+            "cannon": 3,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 64.00000000000006,
+            "boomerang": 64.16666666666669,
+            "cannon": 27.64000000000001,
+            "poison": 71.80000000000008
+          },
+          "damage": {
+            "cannon": {
+              "total": 3641.4247345454546,
+              "normal": 3641.4247345454546,
+              "dot": 0,
+              "skill": {}
+            },
+            "boomerang": {
+              "total": 1565.7767123636365,
+              "normal": 1565.7767123636365,
+              "dot": 0,
+              "skill": {}
+            },
+            "poison": {
+              "total": 2281.889741272728,
+              "normal": 2091.151645818182,
+              "dot": 190.73809545454557,
+              "skill": {
+                "毒性强化": 190.73809545454557
+              }
+            },
+            "ice": {
+              "total": 2259.926640909089,
+              "normal": 2259.926640909089,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 4750
+        },
+        {
+          "wave": 5,
+          "seconds": 105.15,
+          "hp": 2000,
+          "gold": 100,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 3,
+            "boomerang": 1,
+            "cannon": 3,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 61.20000000000007,
+            "boomerang": 70.26666666666667,
+            "cannon": 23.560000000000006,
+            "poison": 71.2000000000001
+          },
+          "damage": {
+            "cannon": {
+              "total": 4902.894003181818,
+              "normal": 4902.894003181818,
+              "dot": 0,
+              "skill": {}
+            },
+            "boomerang": {
+              "total": 2424.347272363637,
+              "normal": 2411.8954323636367,
+              "dot": 12.451840000000004,
+              "skill": {
+                "放血": 12.451840000000004
+              }
+            },
+            "poison": {
+              "total": 2656.291457181819,
+              "normal": 2451.145270818182,
+              "dot": 205.14618636363647,
+              "skill": {
+                "毒性强化": 205.14618636363647
+              }
+            },
+            "ice": {
+              "total": 3308.2090109090896,
+              "normal": 3308.2090109090896,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 7050
+        },
+        {
+          "wave": 6,
+          "seconds": 137.85,
+          "hp": 2000,
+          "gold": 113,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 3,
+            "boomerang": 1,
+            "cannon": 4,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 71.99999999999994,
+            "boomerang": 70.49999999999996,
+            "cannon": 20.95999999999999,
+            "poison": 68.66666666666681
+          },
+          "damage": {
+            "cannon": {
+              "total": 5714.07785350909,
+              "normal": 5714.07785350909,
+              "dot": 0,
+              "skill": {}
+            },
+            "boomerang": {
+              "total": 3204.6496083636366,
+              "normal": 3182.469768363636,
+              "dot": 22.17984,
+              "skill": {
+                "放血": 22.17984
+              }
+            },
+            "poison": {
+              "total": 4123.919459581815,
+              "normal": 3849.907390818179,
+              "dot": 274.0120687636364,
+              "skill": {
+                "毒性强化": 274.0120687636364
+              }
+            },
+            "ice": {
+              "total": 5603.25943490909,
+              "normal": 5603.25943490909,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 8900
+        },
+        {
+          "wave": 7,
+          "seconds": 166.88333333333333,
+          "hp": 2000,
+          "gold": 60,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 3,
+            "boomerang": 2,
+            "cannon": 4,
+            "poison": 2
+          },
+          "energy": {
+            "ice": 92.79999999999981,
+            "boomerang": 80.73333333333325,
+            "cannon": 11.15999999999999,
+            "poison": 73.00000000000018
+          },
+          "damage": {
+            "cannon": {
+              "total": 7081.247838327709,
+              "normal": 6376.769154327711,
+              "dot": 0,
+              "skill": {
+                "碎裂弹": 704.4786839999996
+              }
+            },
+            "boomerang": {
+              "total": 4389.774199200335,
+              "normal": 4345.414519200333,
+              "dot": 44.35968,
+              "skill": {
+                "放血": 44.35968
+              }
+            },
+            "poison": {
+              "total": 5498.002609081818,
+              "normal": 5048.190365018179,
+              "dot": 449.81224406363634,
+              "skill": {
+                "毒性强化": 449.81224406363634
+              }
+            },
+            "ice": {
+              "total": 9451.00238468056,
+              "normal": 9451.00238468056,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 11700
+        },
+        {
+          "wave": 8,
+          "seconds": 193.5,
+          "hp": 2000,
+          "gold": 49,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 3,
+            "boomerang": 2,
+            "cannon": 4,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 93.59999999999968,
+            "boomerang": 85.96666666666654,
+            "cannon": 21.599999999999984,
+            "poison": 77.86666666666689
+          },
+          "damage": {
+            "cannon": {
+              "total": 8447.767667847062,
+              "normal": 7559.382028405996,
+              "dot": 0,
+              "skill": {
+                "碎裂弹": 888.3856394410652
+              }
+            },
+            "boomerang": {
+              "total": 6222.807357190784,
+              "normal": 6168.380879476497,
+              "dot": 54.42647771428572,
+              "skill": {
+                "放血": 54.42647771428572
+              }
+            },
+            "poison": {
+              "total": 6987.783192940535,
+              "normal": 6262.013153276888,
+              "dot": 725.7700396636363,
+              "skill": {
+                "毒性强化": 725.7700396636363
+              }
+            },
+            "ice": {
+              "total": 13423.460889067861,
+              "normal": 13423.460889067861,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 11850
+        },
+        {
+          "wave": 9,
+          "seconds": 217.03333333333333,
+          "hp": 2000,
+          "gold": 73,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 3,
+            "boomerang": 2,
+            "cannon": 4,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 95.59999999999957,
+            "boomerang": 91.63333333333317,
+            "cannon": 23.51999999999997,
+            "poison": 78.80000000000025
+          },
+          "damage": {
+            "cannon": {
+              "total": 10067.89077735917,
+              "normal": 8742.202089918104,
+              "dot": 0,
+              "skill": {
+                "碎裂弹": 1325.6886874410652
+              }
+            },
+            "boomerang": {
+              "total": 7889.860820612752,
+              "normal": 7835.434342898465,
+              "dot": 54.42647771428572,
+              "skill": {
+                "放血": 54.42647771428572
+              }
+            },
+            "poison": {
+              "total": 11455.818903042857,
+              "normal": 7717.563331891188,
+              "dot": 3738.2555711517757,
+              "skill": {
+                "毒性强化": 3114.9057140250147,
+                "毒池": 623.349857126762
+              }
+            },
+            "ice": {
+              "total": 16623.99696358063,
+              "normal": 16623.99696358063,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 14650
+        },
+        {
+          "wave": 10,
+          "seconds": 245.51666666666668,
+          "hp": 2000,
+          "gold": 101,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 4,
+            "boomerang": 2,
+            "cannon": 4,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 96.416,
+            "boomerang": 98.26666666666665,
+            "cannon": 14.63999999999995,
+            "poison": 62.86666666666696
+          },
+          "damage": {
+            "cannon": {
+              "total": 14039.982235264575,
+              "normal": 11837.933407209584,
+              "dot": 0,
+              "skill": {
+                "碎裂弹": 2202.048828054989
+              }
+            },
+            "boomerang": {
+              "total": 10815.96373411023,
+              "normal": 10761.53725639594,
+              "dot": 54.42647771428572,
+              "skill": {
+                "放血": 54.42647771428572
+              }
+            },
+            "poison": {
+              "total": 17137.182663441887,
+              "normal": 9450.844536869547,
+              "dot": 7686.3381265724665,
+              "skill": {
+                "毒性强化": 6511.899940570774,
+                "毒池": 1174.438186001762
+              }
+            },
+            "ice": {
+              "total": 21364.96934107727,
+              "normal": 21364.96934107727,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 17250
+        },
+        {
+          "wave": 11,
+          "seconds": 272.5833333333333,
+          "hp": 2000,
+          "gold": 90,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 5,
+            "boomerang": 2,
+            "cannon": 4,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 98.976,
+            "boomerang": 98.69999999999999,
+            "cannon": 19.11999999999995,
+            "poison": 70.466666666667
+          },
+          "damage": {
+            "cannon": {
+              "total": 14836.736237097264,
+              "normal": 11961.805519209584,
+              "dot": 0,
+              "skill": {
+                "碎裂弹": 2874.9307178876784
+              }
+            },
+            "boomerang": {
+              "total": 13458.916078016106,
+              "normal": 13388.131054016103,
+              "dot": 70.785024,
+              "skill": {
+                "放血": 70.785024
+              }
+            },
+            "poison": {
+              "total": 22762.987929526113,
+              "normal": 11046.302366620766,
+              "dot": 11716.68556290531,
+              "skill": {
+                "毒性强化": 9921.345427966606,
+                "毒池": 1795.3401349388791
+              }
+            },
+            "ice": {
+              "total": 26279.677216094355,
+              "normal": 26279.677216094355,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 16000
+        },
+        {
+          "wave": 12,
+          "seconds": 300.96666666666664,
+          "hp": 2000,
+          "gold": 120,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 5,
+            "boomerang": 2,
+            "cannon": 5,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 99.488,
+            "boomerang": 100,
+            "cannon": 21.999999999999932,
+            "poison": 69.5333333333337
+          },
+          "damage": {
+            "cannon": {
+              "total": 21650.461297479298,
+              "normal": 15391.252095935206,
+              "dot": 1128.4305177730682,
+              "skill": {
+                "碎裂弹": 6259.209201544141
+              }
+            },
+            "boomerang": {
+              "total": 16139.532505080602,
+              "normal": 15996.459920923166,
+              "dot": 143.0725841574298,
+              "skill": {
+                "放血": 143.0725841574298
+              }
+            },
+            "poison": {
+              "total": 28485.23659456422,
+              "normal": 12630.97456540114,
+              "dot": 15854.262029162723,
+              "skill": {
+                "毒性强化": 13314.857864991836,
+                "毒池": 2539.404164171265
+              }
+            },
+            "ice": {
+              "total": 35269.37681997146,
+              "normal": 35269.37681997146,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 16200
+        },
+        {
+          "wave": 13,
+          "seconds": 330.65,
+          "hp": 2000,
+          "gold": 129,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 2,
+            "cannon": 5,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 96.62080000000003,
+            "boomerang": 98.69999999999999,
+            "cannon": 22.199999999999925,
+            "poison": 63.2000000000004
+          },
+          "damage": {
+            "cannon": {
+              "total": 25639.588851880406,
+              "normal": 17196.026984681026,
+              "dot": 1601.8665459671797,
+              "skill": {
+                "碎裂弹": 8443.561867199378
+              }
+            },
+            "boomerang": {
+              "total": 18950.675687440333,
+              "normal": 18747.13448615918,
+              "dot": 203.54120128115278,
+              "skill": {
+                "放血": 203.54120128115278
+              }
+            },
+            "poison": {
+              "total": 31466.60633598515,
+              "normal": 13564.233758342976,
+              "dot": 17902.37257764184,
+              "skill": {
+                "毒性强化": 14902.38507539659,
+                "毒池": 2999.9875022456586
+              }
+            },
+            "ice": {
+              "total": 39241.87951107095,
+              "normal": 39241.87951107095,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 16700
+        },
+        {
+          "wave": 14,
+          "seconds": 355.15,
+          "hp": 2000,
+          "gold": 169,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 3,
+            "cannon": 5,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 88.77984000000015,
+            "boomerang": 99.38986666666666,
+            "cannon": 19.639999999999915,
+            "poison": 64.93333333333376
+          },
+          "damage": {
+            "cannon": {
+              "total": 26330.927494894007,
+              "normal": 17539.841326331498,
+              "dot": 1820.807643490377,
+              "skill": {
+                "碎裂弹": 8791.086168562673
+              }
+            },
+            "boomerang": {
+              "total": 21810.30394578781,
+              "normal": 21578.245205374336,
+              "dot": 232.05874041347636,
+              "skill": {
+                "放血": 232.05874041347636
+              }
+            },
+            "poison": {
+              "total": 36341.08332119095,
+              "normal": 14671.71821109948,
+              "dot": 21669.3651100909,
+              "skill": {
+                "毒性强化": 17830.32548397066,
+                "毒池": 3839.039626120656
+              }
+            },
+            "ice": {
+              "total": 48771.24491956856,
+              "normal": 48771.24491956856,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 16500
+        },
+        {
+          "wave": 15,
+          "seconds": 379.55,
+          "hp": 2000,
+          "gold": 123,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 3,
+            "cannon": 5,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 88.64224000000024,
+            "boomerang": 99.38986666666666,
+            "cannon": 26.319999999999908,
+            "poison": 65.86666666666713
+          },
+          "damage": {
+            "cannon": {
+              "total": 28316.5022769028,
+              "normal": 18737.072367311946,
+              "dot": 2061.8676787120444,
+              "skill": {
+                "碎裂弹": 9579.429909591234
+              }
+            },
+            "boomerang": {
+              "total": 27907.685253557105,
+              "normal": 27631.601466047898,
+              "dot": 276.0837875092042,
+              "skill": {
+                "放血": 276.0837875092042
+              }
+            },
+            "poison": {
+              "total": 40609.73647775856,
+              "normal": 15867.111285078225,
+              "dot": 24742.62519267961,
+              "skill": {
+                "毒性强化": 20339.839226496886,
+                "毒池": 4402.785966183145
+              }
+            },
+            "ice": {
+              "total": 52923.02604187985,
+              "normal": 52923.02604187985,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 18100
+        },
+        {
+          "wave": 16,
+          "seconds": 412.6666666666667,
+          "hp": 2000,
+          "gold": 199,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 3,
+            "cannon": 6,
+            "poison": 3
+          },
+          "energy": {
+            "ice": 92.5596800000003,
+            "boomerang": 95.1189333333333,
+            "cannon": 33.91999999999992,
+            "poison": 81.86666666666714
+          },
+          "damage": {
+            "cannon": {
+              "total": 37593.0963916422,
+              "normal": 26025.840590707252,
+              "dot": 2474.936579608104,
+              "skill": {
+                "碎裂弹": 11567.25580093563
+              }
+            },
+            "boomerang": {
+              "total": 33527.24361324021,
+              "normal": 33132.71686573485,
+              "dot": 394.52674750534345,
+              "skill": {
+                "放血": 394.52674750534345
+              }
+            },
+            "poison": {
+              "total": 41981.33319103191,
+              "normal": 16071.851981779233,
+              "dot": 25909.481209251928,
+              "skill": {
+                "毒性强化": 21323.32292193438,
+                "毒池": 4586.158287317944
+              }
+            },
+            "ice": {
+              "total": 54236.74682565792,
+              "normal": 54236.74682565792,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 13300
+        },
+        {
+          "wave": 17,
+          "seconds": 437.9,
+          "hp": 2000,
+          "gold": 494,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 3,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 97.97248000000002,
+            "boomerang": 93.4074666666666,
+            "cannon": 30.319999999999926,
+            "poison": 80.42133333333379
+          },
+          "damage": {
+            "cannon": {
+              "total": 47768.750933016876,
+              "normal": 33576.00659063771,
+              "dot": 3069.1336274943947,
+              "skill": {
+                "碎裂弹": 14192.744342379932
+              }
+            },
+            "boomerang": {
+              "total": 37261.32696079343,
+              "normal": 36807.56715998551,
+              "dot": 453.75980080790225,
+              "skill": {
+                "放血": 453.75980080790225
+              }
+            },
+            "poison": {
+              "total": 43888.71893991722,
+              "normal": 16452.847330133925,
+              "dot": 27435.87160978246,
+              "skill": {
+                "毒性强化": 22419.208793406626,
+                "毒池": 5016.662816376203
+              }
+            },
+            "ice": {
+              "total": 56752.27420193132,
+              "normal": 56752.27420193132,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 12500
+        },
+        {
+          "wave": 18,
+          "seconds": 463.8333333333333,
+          "hp": 2000,
+          "gold": 1042,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 6,
+            "boomerang": 3,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 87.83488000000011,
+            "boomerang": 87.30613333333322,
+            "cannon": 19.27999999999992,
+            "poison": 62.320000000000285
+          },
+          "damage": {
+            "cannon": {
+              "total": 48861.59909232556,
+              "normal": 34614.5239100343,
+              "dot": 3069.1336274943947,
+              "skill": {
+                "碎裂弹": 14247.075182292025
+              }
+            },
+            "boomerang": {
+              "total": 40562.41429300524,
+              "normal": 40061.49373799701,
+              "dot": 500.92055500823324,
+              "skill": {
+                "放血": 500.92055500823324
+              }
+            },
+            "poison": {
+              "total": 46755.91626066127,
+              "normal": 17450.235734827562,
+              "dot": 29305.680525832886,
+              "skill": {
+                "毒性强化": 23705.56316540545,
+                "毒池": 5600.117360427617
+              }
+            },
+            "ice": {
+              "total": 60928.861656793735,
+              "normal": 60928.861656793735,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 12800
+        },
+        {
+          "wave": 19,
+          "seconds": 498,
+          "hp": 2000,
+          "gold": 1742,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 3,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 84.99392000000023,
+            "boomerang": 88.7642666666665,
+            "cannon": 17.999999999999922,
+            "poison": 47.866666666666966
+          },
+          "damage": {
+            "cannon": {
+              "total": 49218.84127632574,
+              "normal": 34798.1530700343,
+              "dot": 3125.891731494386,
+              "skill": {
+                "碎裂弹": 14420.688206291989
+              }
+            },
+            "boomerang": {
+              "total": 45202.20760209078,
+              "normal": 44531.18356589981,
+              "dot": 671.0240361909678,
+              "skill": {
+                "放血": 671.0240361909678
+              }
+            },
+            "poison": {
+              "total": 51821.66999998416,
+              "normal": 19140.483916571062,
+              "dot": 32681.18608341229,
+              "skill": {
+                "毒性强化": 26033.517510025813,
+                "毒池": 6647.668573386263
+              }
+            },
+            "ice": {
+              "total": 65668.28696457305,
+              "normal": 65668.28696457305,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 21300
+        },
+        {
+          "wave": 20,
+          "seconds": 529.2666666666667,
+          "hp": 2000,
+          "gold": 2070,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 3,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 77.15296000000035,
+            "boomerang": 90.83253333333312,
+            "cannon": 16.959999999999916,
+            "poison": 30.413333333333647
+          },
+          "damage": {
+            "cannon": {
+              "total": 49680.348837484424,
+              "normal": 34847.72570824938,
+              "dot": 3188.2647347583875,
+              "skill": {
+                "碎裂弹": 14832.623129235804
+              }
+            },
+            "boomerang": {
+              "total": 50228.619852251104,
+              "normal": 49446.531501535435,
+              "dot": 782.0883507156553,
+              "skill": {
+                "放血": 782.0883507156553
+              }
+            },
+            "poison": {
+              "total": 56264.778835941,
+              "normal": 20930.384818448907,
+              "dot": 35334.39401749133,
+              "skill": {
+                "毒性强化": 28147.33364008445,
+                "毒池": 7187.060377406521
+              }
+            },
+            "ice": {
+              "total": 70271.87492312388,
+              "normal": 70271.87492312388,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 63200
+        },
+        {
+          "wave": 21,
+          "seconds": 575.2666666666667,
+          "hp": 2000,
+          "gold": 2101,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 4,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 98.24160000000006,
+            "boomerang": 100,
+            "cannon": 30.79999999999991,
+            "poison": 46.698666666666995
+          },
+          "damage": {
+            "cannon": {
+              "total": 55065.09412533317,
+              "normal": 38706.930712310284,
+              "dot": 3642.481844598313,
+              "skill": {
+                "碎裂弹": 16358.163413023058
+              }
+            },
+            "boomerang": {
+              "total": 58236.75533519174,
+              "normal": 56231.83987792389,
+              "dot": 2004.9154572675243,
+              "skill": {
+                "放血": 812.8021054984214,
+                "风痕": 1192.1133517691028
+              }
+            },
+            "poison": {
+              "total": 92006.120332437,
+              "normal": 22883.315092204542,
+              "dot": 69122.80524023165,
+              "skill": {
+                "毒性强化": 61265.42094126413,
+                "毒池": 7857.384298966834
+              }
+            },
+            "ice": {
+              "total": 91761.07044950915,
+              "normal": 91761.07044950915,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 44000
+        },
+        {
+          "wave": 22,
+          "seconds": 598.6333333333333,
+          "hp": 2000,
+          "gold": 1997,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 4,
+            "cannon": 6,
+            "poison": 4
+          },
+          "energy": {
+            "ice": 100,
+            "boomerang": 100,
+            "cannon": 24.759999999999902,
+            "poison": 62.562666666666985
+          },
+          "damage": {
+            "cannon": {
+              "total": 59288.530746859265,
+              "normal": 41073.398683260326,
+              "dot": 4186.548417414324,
+              "skill": {
+                "碎裂弹": 18215.132063599118
+              }
+            },
+            "boomerang": {
+              "total": 67534.86127802923,
+              "normal": 62653.002094482574,
+              "dot": 4881.859183546173,
+              "skill": {
+                "放血": 835.7520664265707,
+                "风痕": 4046.1071171196363
+              }
+            },
+            "poison": {
+              "total": 94551.19819271016,
+              "normal": 23369.587157028545,
+              "dot": 71181.6110356808,
+              "skill": {
+                "毒性强化": 62854.45163895763,
+                "毒池": 8327.159396722811
+              }
+            },
+            "ice": {
+              "total": 92276.83278791669,
+              "normal": 92276.83278791669,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 55600
+        },
+        {
+          "wave": 23,
+          "seconds": 622.4666666666667,
+          "hp": 2000,
+          "gold": 1950,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 4,
+            "cannon": 6,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 95.94496000000004,
+            "boomerang": 98.77973333333333,
+            "cannon": 15.479999999999897,
+            "poison": 73.93866666666682
+          },
+          "damage": {
+            "cannon": {
+              "total": 62102.806660863374,
+              "normal": 42584.7585256647,
+              "dot": 4537.168144014377,
+              "skill": {
+                "碎裂弹": 19518.04813519917
+              }
+            },
+            "boomerang": {
+              "total": 80047.8964975634,
+              "normal": 70999.9281524985,
+              "dot": 9047.968345065785,
+              "skill": {
+                "放血": 835.7520664265707,
+                "风痕": 8212.21627863925
+              }
+            },
+            "poison": {
+              "total": 106986.9666521998,
+              "normal": 25391.378927934227,
+              "dot": 81595.58772426487,
+              "skill": {
+                "毒性强化": 71616.7090835314,
+                "毒池": 9978.878640733392
+              }
+            },
+            "ice": {
+              "total": 104065.16799305449,
+              "normal": 104065.16799305449,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 55900
+        },
+        {
+          "wave": 24,
+          "seconds": 650.45,
+          "hp": 2000,
+          "gold": 2604,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 4,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 79.72480000000019,
+            "boomerang": 91.45813333333328,
+            "cannon": 0,
+            "poison": 53.485333333333344
+          },
+          "damage": {
+            "cannon": {
+              "total": 68324.42839117942,
+              "normal": 47798.858324893896,
+              "dot": 4835.010195100508,
+              "skill": {
+                "碎裂弹": 20525.570066285043
+              }
+            },
+            "boomerang": {
+              "total": 93515.31240546511,
+              "normal": 80031.91811471045,
+              "dot": 13483.394290754906,
+              "skill": {
+                "放血": 859.672351702762,
+                "风痕": 12623.721939052179
+              }
+            },
+            "poison": {
+              "total": 131337.930121808,
+              "normal": 28445.46072235366,
+              "dot": 102892.46939945372,
+              "skill": {
+                "毒性强化": 89586.33464686085,
+                "毒池": 13306.134752589724
+              }
+            },
+            "ice": {
+              "total": 119392.38451998004,
+              "normal": 119392.38451998004,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 55500
+        },
+        {
+          "wave": 25,
+          "seconds": 671.9666666666667,
+          "hp": 2000,
+          "gold": 2999,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 7,
+            "boomerang": 4,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 81.8838400000003,
+            "boomerang": 95.96693333333324,
+            "cannon": 9.48,
+            "poison": 57.38400000000002
+          },
+          "damage": {
+            "cannon": {
+              "total": 70620.74926490145,
+              "normal": 48858.73068661686,
+              "dot": 5204.84750710047,
+              "skill": {
+                "碎裂弹": 21762.018578285257
+              }
+            },
+            "boomerang": {
+              "total": 103121.22909672926,
+              "normal": 86474.06365505871,
+              "dot": 16647.16544167254,
+              "skill": {
+                "放血": 910.2737838226979,
+                "风痕": 15736.891657849783
+              }
+            },
+            "poison": {
+              "total": 151891.90310484864,
+              "normal": 30526.969586391613,
+              "dot": 121364.93351845651,
+              "skill": {
+                "毒性强化": 105922.85801761772,
+                "毒池": 15442.075500833706
+              }
+            },
+            "ice": {
+              "total": 131335.61382051752,
+              "normal": 131335.61382051752,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 73400
+        },
+        {
+          "wave": 26,
+          "seconds": 697.55,
+          "hp": 2000,
+          "gold": 3211,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 4,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 99.32416,
+            "boomerang": 99.38986666666666,
+            "cannon": 26.119999999999987,
+            "poison": 72.71466666666663
+          },
+          "damage": {
+            "cannon": {
+              "total": 90397.00627281668,
+              "normal": 66995.12791710152,
+              "dot": 5744.390612530832,
+              "skill": {
+                "碎裂弹": 23401.87835571629
+              }
+            },
+            "boomerang": {
+              "total": 116598.81002993845,
+              "normal": 96145.83760754543,
+              "dot": 20452.972422394636,
+              "skill": {
+                "放血": 934.1587826312102,
+                "风痕": 19518.813639763244
+              }
+            },
+            "poison": {
+              "total": 170461.94214065184,
+              "normal": 33210.06039775166,
+              "dot": 137251.88174290152,
+              "skill": {
+                "毒性强化": 118965.15614808344,
+                "毒池": 18286.72559481181
+              }
+            },
+            "ice": {
+              "total": 153074.26792057828,
+              "normal": 153074.26792057828,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 58200
+        },
+        {
+          "wave": 27,
+          "seconds": 722.8333333333334,
+          "hp": 2000,
+          "gold": 3733,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 5,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 93.91744000000006,
+            "boomerang": 96.94933333333331,
+            "cannon": 16.559999999999977,
+            "poison": 71.30666666666639
+          },
+          "damage": {
+            "cannon": {
+              "total": 101924.87032395402,
+              "normal": 78328.26842906007,
+              "dot": 5755.728039709608,
+              "skill": {
+                "碎裂弹": 23596.601894895066
+              }
+            },
+            "boomerang": {
+              "total": 134078.3089502501,
+              "normal": 107485.50741806936,
+              "dot": 26592.801532181467,
+              "skill": {
+                "放血": 973.7258011321895,
+                "风痕": 25619.075731049088
+              }
+            },
+            "poison": {
+              "total": 191364.5902781417,
+              "normal": 36026.0773150476,
+              "dot": 155338.51296309542,
+              "skill": {
+                "毒性强化": 134153.11979810908,
+                "毒池": 21185.393164978144
+              }
+            },
+            "ice": {
+              "total": 183301.95844302245,
+              "normal": 183301.95844302245,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 57000
+        },
+        {
+          "wave": 28,
+          "seconds": 746.5333333333333,
+          "hp": 2000,
+          "gold": 4644,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 6,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 79.72480000000019,
+            "boomerang": 90.2378666666666,
+            "cannon": 1.9999999999999782,
+            "poison": 54.42133333333296
+          },
+          "damage": {
+            "cannon": {
+              "total": 105242.73515639997,
+              "normal": 81170.38775535247,
+              "dot": 5898.299559709591,
+              "skill": {
+                "碎裂弹": 24072.34740104905
+              }
+            },
+            "boomerang": {
+              "total": 153737.71510575907,
+              "normal": 120579.02301074096,
+              "dot": 33158.692095018276,
+              "skill": {
+                "放血": 1131.1660259817886,
+                "风痕": 32027.52606903632
+              }
+            },
+            "poison": {
+              "total": 208295.87476583428,
+              "normal": 38339.707360319626,
+              "dot": 169956.1674055158,
+              "skill": {
+                "毒性强化": 146841.526088996,
+                "毒池": 23114.641316510228
+              }
+            },
+            "ice": {
+              "total": 202939.1810839218,
+              "normal": 202939.1810839218,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 58000
+        },
+        {
+          "wave": 29,
+          "seconds": 770.85,
+          "hp": 2000,
+          "gold": 5337,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 6,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 86.20800000000031,
+            "boomerang": 100,
+            "cannon": 12.72,
+            "poison": 45.274666666666306
+          },
+          "damage": {
+            "cannon": {
+              "total": 108293.71056440783,
+              "normal": 83073.38107929671,
+              "dot": 6090.657959709573,
+              "skill": {
+                "碎裂弹": 25220.329485113296
+              }
+            },
+            "boomerang": {
+              "total": 183650.35030631645,
+              "normal": 139444.45696738258,
+              "dot": 44205.893338917886,
+              "skill": {
+                "放血": 1257.6980830265118,
+                "风痕": 42948.19525589122
+              }
+            },
+            "poison": {
+              "total": 223155.1380949357,
+              "normal": 40510.18717994279,
+              "dot": 182644.9509149939,
+              "skill": {
+                "毒性强化": 156743.01576479094,
+                "毒池": 25901.935150191282
+              }
+            },
+            "ice": {
+              "total": 221292.1520022653,
+              "normal": 221292.1520022653,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 56000
+        },
+        {
+          "wave": 30,
+          "seconds": 796.4,
+          "hp": 2000,
+          "gold": 5835,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 5
+          },
+          "energy": {
+            "ice": 99.32416,
+            "boomerang": 97.55946666666665,
+            "cannon": 28.439999999999998,
+            "poison": 46.65066666666632
+          },
+          "damage": {
+            "cannon": {
+              "total": 111879.0416034291,
+              "normal": 84730.36491780322,
+              "dot": 6626.965154162844,
+              "skill": {
+                "碎裂弹": 27148.676685628274
+              }
+            },
+            "boomerang": {
+              "total": 229583.87698565537,
+              "normal": 170518.4542327335,
+              "dot": 59065.42275291021,
+              "skill": {
+                "放血": 1460.4836556950827,
+                "风痕": 57604.939097214985
+              }
+            },
+            "poison": {
+              "total": 235317.97931233575,
+              "normal": 42370.64244060585,
+              "dot": 192947.3368717309,
+              "skill": {
+                "毒性强化": 165053.70944584248,
+                "毒池": 27893.627425875216
+              }
+            },
+            "ice": {
+              "total": 224113.38727055074,
+              "normal": 224113.38727055074,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 54400
+        },
+        {
+          "wave": 31,
+          "seconds": 821.9666666666667,
+          "hp": 2000,
+          "gold": 6561,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 97.97248000000002,
+            "boomerang": 94.50879999999997,
+            "cannon": 28.360000000000003,
+            "poison": 40.90133333333299
+          },
+          "damage": {
+            "cannon": {
+              "total": 128085.93529441969,
+              "normal": 97000.26108453923,
+              "dot": 7591.667680300404,
+              "skill": {
+                "碎裂弹": 31085.67420988454
+              }
+            },
+            "boomerang": {
+              "total": 259601.1384867227,
+              "normal": 191269.12307010972,
+              "dot": 68332.01541660336,
+              "skill": {
+                "放血": 1627.3054623491926,
+                "风痕": 66704.70995425372
+              }
+            },
+            "poison": {
+              "total": 239385.93161520842,
+              "normal": 43590.80949272309,
+              "dot": 195795.12212248638,
+              "skill": {
+                "毒性强化": 167217.1452404252,
+                "毒池": 28577.97688204736
+              }
+            },
+            "ice": {
+              "total": 226827.43201961843,
+              "normal": 226827.43201961843,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 43600
+        },
+        {
+          "wave": 32,
+          "seconds": 848.8333333333334,
+          "hp": 2000,
+          "gold": 7686,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 8,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 85.80736000000013,
+            "boomerang": 86.57706666666658,
+            "cannon": 15.559999999999995,
+            "poison": 27.413333333333
+          },
+          "damage": {
+            "cannon": {
+              "total": 132784.62122306568,
+              "normal": 98851.65480426974,
+              "dot": 8189.421577547876,
+              "skill": {
+                "碎裂弹": 33932.96641879936
+              }
+            },
+            "boomerang": {
+              "total": 291329.26758010755,
+              "normal": 213017.85638622975,
+              "dot": 78311.41119388024,
+              "skill": {
+                "放血": 2042.252936595461,
+                "风痕": 76269.15825728436
+              }
+            },
+            "poison": {
+              "total": 245169.63092701696,
+              "normal": 44466.122962057685,
+              "dot": 200703.5079649603,
+              "skill": {
+                "毒性强化": 171223.22387021713,
+                "毒池": 29480.284094728922
+              }
+            },
+            "ice": {
+              "total": 234030.6248603516,
+              "normal": 234030.6248603516,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 40400
+        },
+        {
+          "wave": 33,
+          "seconds": 870.5333333333333,
+          "hp": 2000,
+          "gold": 8597,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 99.31808000000024,
+            "boomerang": 98.77973333333333,
+            "cannon": 30.999999999999993,
+            "poison": 29.709333333333007
+          },
+          "damage": {
+            "cannon": {
+              "total": 134009.4680112487,
+              "normal": 99741.73367949389,
+              "dot": 8351.566130507865,
+              "skill": {
+                "碎裂弹": 34267.73433175922
+              }
+            },
+            "boomerang": {
+              "total": 323150.98566219676,
+              "normal": 234021.75445792277,
+              "dot": 89129.23120427875,
+              "skill": {
+                "放血": 2387.676477329338,
+                "风痕": 86741.55472694899
+              }
+            },
+            "poison": {
+              "total": 248631.94397339673,
+              "normal": 45289.148327015995,
+              "dot": 203342.7956463817,
+              "skill": {
+                "毒性强化": 173382.42583243377,
+                "毒池": 29960.369813934183
+              }
+            },
+            "ice": {
+              "total": 242494.70547980454,
+              "normal": 242494.70547980454,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 41000
+        },
+        {
+          "wave": 34,
+          "seconds": 897.15,
+          "hp": 2000,
+          "gold": 9189,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 99.38986666666666,
+            "cannon": 33.199999999999996,
+            "poison": 39.35733333333301
+          },
+          "damage": {
+            "cannon": {
+              "total": 140466.2250547183,
+              "normal": 103459.40260892943,
+              "dot": 8827.634067688956,
+              "skill": {
+                "碎裂弹": 37006.82244579384
+              }
+            },
+            "boomerang": {
+              "total": 349088.13473378407,
+              "normal": 254208.5301432206,
+              "dot": 94879.60459058052,
+              "skill": {
+                "放血": 2537.013164649076,
+                "风痕": 92342.59142593102
+              }
+            },
+            "poison": {
+              "total": 251727.69299924685,
+              "normal": 45438.112878178246,
+              "dot": 206289.5801210696,
+              "skill": {
+                "毒性强化": 175519.25260601856,
+                "毒池": 30770.327515037006
+              }
+            },
+            "ice": {
+              "total": 245097.02942592138,
+              "normal": 245097.02942592138,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 62180
+        },
+        {
+          "wave": 35,
+          "seconds": 918.7,
+          "hp": 2000,
+          "gold": 10066,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 7,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 95.72906666666664,
+            "cannon": 39.879999999999995,
+            "poison": 45.31199999999968
+          },
+          "damage": {
+            "cannon": {
+              "total": 158683.61624924553,
+              "normal": 121631.26807014388,
+              "dot": 8846.621878504953,
+              "skill": {
+                "碎裂弹": 37052.34817910629
+              }
+            },
+            "boomerang": {
+              "total": 380131.7142673258,
+              "normal": 275577.96979746624,
+              "dot": 104553.7444698898,
+              "skill": {
+                "放血": 2626.7589422838155,
+                "风痕": 101926.98552760559
+              }
+            },
+            "poison": {
+              "total": 256913.94770731093,
+              "normal": 45438.112878178246,
+              "dot": 211475.83482913367,
+              "skill": {
+                "毒性强化": 179776.45815699,
+                "毒池": 31699.376672130307
+              }
+            },
+            "ice": {
+              "total": 249314.23175695384,
+              "normal": 249314.23175695384,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 82960
+        },
+        {
+          "wave": 36,
+          "seconds": 949.9166666666666,
+          "hp": 2000,
+          "gold": 11021,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 8,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 103.64832000000001,
+            "boomerang": 90.35679999999991,
+            "cannon": 28.560000000000006,
+            "poison": 37.69866666666635
+          },
+          "damage": {
+            "cannon": {
+              "total": 175165.69822135608,
+              "normal": 134113.68491822286,
+              "dot": 9908.774120339815,
+              "skill": {
+                "碎裂弹": 41052.013303136475
+              }
+            },
+            "boomerang": {
+              "total": 432546.94664646644,
+              "normal": 310495.4267236442,
+              "dot": 122051.51992284747,
+              "skill": {
+                "放血": 2754.3217171288984,
+                "风痕": 119297.19820571817
+              }
+            },
+            "poison": {
+              "total": 263369.09947262023,
+              "normal": 45639.64512137551,
+              "dot": 217729.4543512455,
+              "skill": {
+                "毒性强化": 184921.31438277056,
+                "毒池": 32808.13996846147
+              }
+            },
+            "ice": {
+              "total": 249618.83511359556,
+              "normal": 249618.83511359556,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 116740
+        },
+        {
+          "wave": 37,
+          "seconds": 977.85,
+          "hp": 2000,
+          "gold": 11945,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 8,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 97.56576000000007,
+            "boomerang": 80.59466666666651,
+            "cannon": 21.040000000000003,
+            "poison": 27.869333333333017
+          },
+          "damage": {
+            "cannon": {
+              "total": 179922.8799600785,
+              "normal": 134766.97535216456,
+              "dot": 11010.165665342478,
+              "skill": {
+                "碎裂弹": 45155.904607921715
+              }
+            },
+            "boomerang": {
+              "total": 486426.68067693315,
+              "normal": 343506.0156755366,
+              "dot": 142920.66500143916,
+              "skill": {
+                "放血": 2896.8014838563554,
+                "风痕": 140023.86351758777
+              }
+            },
+            "poison": {
+              "total": 270509.4632576328,
+              "normal": 45845.65626500375,
+              "dot": 224663.8069926281,
+              "skill": {
+                "毒性强化": 191216.67247496604,
+                "毒池": 33447.13451764804
+              }
+            },
+            "ice": {
+              "total": 261665.76391520054,
+              "normal": 261665.76391520054,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 142860
+        },
+        {
+          "wave": 38,
+          "seconds": 1001,
+          "hp": 2000,
+          "gold": 12750,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 9,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 93.3731200000002,
+            "boomerang": 82.05279999999979,
+            "cannon": 33.76,
+            "poison": 29.255999999999688
+          },
+          "damage": {
+            "cannon": {
+              "total": 187621.04113555886,
+              "normal": 137788.99716737663,
+              "dot": 12299.252993599093,
+              "skill": {
+                "碎裂弹": 49832.043968176644
+              }
+            },
+            "boomerang": {
+              "total": 551304.5177145533,
+              "normal": 380414.1217372077,
+              "dot": 170890.39597738787,
+              "skill": {
+                "放血": 2896.8014838563554,
+                "风痕": 167993.59449353648
+              }
+            },
+            "poison": {
+              "total": 277674.78757022665,
+              "normal": 46276.509929910426,
+              "dot": 231398.27764031422,
+              "skill": {
+                "毒性强化": 197249.2869330251,
+                "毒池": 34148.99070727471
+              }
+            },
+            "ice": {
+              "total": 288165.20272917143,
+              "normal": 288165.20272917143,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 143460
+        },
+        {
+          "wave": 39,
+          "seconds": 1023.9166666666666,
+          "hp": 2000,
+          "gold": 14071,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 103.23552000000029,
+            "boomerang": 100,
+            "cannon": 46.16000000000002,
+            "poison": 29.07466666666636
+          },
+          "damage": {
+            "cannon": {
+              "total": 262277.0235510896,
+              "normal": 204675.9069130942,
+              "dot": 13634.227766698968,
+              "skill": {
+                "碎裂弹": 57601.11663798558
+              }
+            },
+            "boomerang": {
+              "total": 650893.9827981415,
+              "normal": 435935.43478350184,
+              "dot": 214958.54801471817,
+              "skill": {
+                "放血": 2896.8014838563554,
+                "风痕": 212061.74653086677
+              }
+            },
+            "poison": {
+              "total": 288625.5372502314,
+              "normal": 47352.31133635992,
+              "dot": 241273.22591387207,
+              "skill": {
+                "毒性强化": 206584.08238353845,
+                "毒池": 34689.14353031823
+              }
+            },
+            "ice": {
+              "total": 308590.3453741436,
+              "normal": 308590.3453741436,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 140060
+        },
+        {
+          "wave": 40,
+          "seconds": 1053.15,
+          "hp": 2000,
+          "gold": 14980,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 9,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 97.55946666666665,
+            "cannon": 35.280000000000044,
+            "poison": 53.50666666666636
+          },
+          "damage": {
+            "cannon": {
+              "total": 318973.30522606446,
+              "normal": 255069.43898163427,
+              "dot": 15250.2504866995,
+              "skill": {
+                "碎裂弹": 63903.8662444131
+              }
+            },
+            "boomerang": {
+              "total": 725983.3575419454,
+              "normal": 491097.40023620805,
+              "dot": 234885.95730582273,
+              "skill": {
+                "放血": 2896.8014838563554,
+                "风痕": 231989.15582197133
+              }
+            },
+            "poison": {
+              "total": 299210.7041738241,
+              "normal": 47901.88688105991,
+              "dot": 251308.81729276324,
+              "skill": {
+                "毒性强化": 216297.48545286318,
+                "毒池": 35011.33183988476
+              }
+            },
+            "ice": {
+              "total": 309559.23906739405,
+              "normal": 309559.23906739405,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 162640
+        },
+        {
+          "wave": 41,
+          "seconds": 1096.1333333333334,
+          "hp": 2000,
+          "gold": 15933,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 10,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 96.88992000000007,
+            "boomerang": 83.5263999999999,
+            "cannon": 21.200000000000035,
+            "poison": 35.62133333333304
+          },
+          "damage": {
+            "cannon": {
+              "total": 331939.38167585427,
+              "normal": 264956.2629626904,
+              "dot": 15932.889268726007,
+              "skill": {
+                "碎裂弹": 66983.11871315024
+              }
+            },
+            "boomerang": {
+              "total": 813686.229148294,
+              "normal": 552694.0643069405,
+              "dot": 260992.1648414283,
+              "skill": {
+                "放血": 2969.934189047446,
+                "风痕": 258022.23065238583
+              }
+            },
+            "poison": {
+              "total": 350896.74644621246,
+              "normal": 50588.48468721012,
+              "dot": 300308.26175900176,
+              "skill": {
+                "毒性强化": 264526.7679595838,
+                "毒池": 35781.4937994019
+              }
+            },
+            "ice": {
+              "total": 344839.5972782878,
+              "normal": 344839.5972782878,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 149600
+        },
+        {
+          "wave": 42,
+          "seconds": 1118.2833333333333,
+          "hp": 2000,
+          "gold": 16600,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 10,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 92.83488000000011,
+            "boomerang": 77.42506666666652,
+            "cannon": 19.200000000000035,
+            "poison": 29.098666666666375
+          },
+          "damage": {
+            "cannon": {
+              "total": 331939.38167585427,
+              "normal": 264956.2629626904,
+              "dot": 15932.889268726007,
+              "skill": {
+                "碎裂弹": 66983.11871315024
+              }
+            },
+            "boomerang": {
+              "total": 891906.5817593348,
+              "normal": 595098.9373136631,
+              "dot": 296807.6444457119,
+              "skill": {
+                "放血": 3069.8956918897084,
+                "风痕": 293737.7487538244
+              }
+            },
+            "poison": {
+              "total": 353155.5263368799,
+              "normal": 50588.48468721012,
+              "dot": 302567.0416496692,
+              "skill": {
+                "毒性强化": 266249.7019424222,
+                "毒池": 36317.339707232306
+              }
+            },
+            "ice": {
+              "total": 350527.97711056337,
+              "normal": 350527.97711056337,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 137076.66666666666
+        },
+        {
+          "wave": 43,
+          "seconds": 1144.2833333333333,
+          "hp": 2000,
+          "gold": 17941,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 11,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 97.6972800000002,
+            "boomerang": 93.27306666666647,
+            "cannon": 55.400000000000034,
+            "poison": 41.655999999999715
+          },
+          "damage": {
+            "cannon": {
+              "total": 344720.20435003185,
+              "normal": 275480.14637015626,
+              "dot": 16447.794988192734,
+              "skill": {
+                "碎裂弹": 69240.05797986347
+              }
+            },
+            "boomerang": {
+              "total": 1005618.1476439601,
+              "normal": 656428.7737305146,
+              "dot": 349189.3739134588,
+              "skill": {
+                "放血": 3368.196043771828,
+                "风痕": 345821.17786968907
+              }
+            },
+            "poison": {
+              "total": 360216.320611354,
+              "normal": 51361.343748899206,
+              "dot": 308854.97686245426,
+              "skill": {
+                "毒性强化": 271953.5802875741,
+                "毒池": 36901.39657486611
+              }
+            },
+            "ice": {
+              "total": 379622.19417625776,
+              "normal": 379622.19417625776,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 127194
+        },
+        {
+          "wave": 44,
+          "seconds": 1168.25,
+          "hp": 2000,
+          "gold": 19181,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 11,
+            "boomerang": 10,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 95.72906666666664,
+            "cannon": 46.28000000000006,
+            "poison": 49.042666666666385
+          },
+          "damage": {
+            "cannon": {
+              "total": 405883.43777333794,
+              "normal": 327457.7308675226,
+              "dot": 18298.020623624263,
+              "skill": {
+                "碎裂弹": 78425.7069058067
+              }
+            },
+            "boomerang": {
+              "total": 1082860.2627176142,
+              "normal": 708340.4577414425,
+              "dot": 374519.80497617583,
+              "skill": {
+                "放血": 3476.710643831068,
+                "风痕": 371043.09433234687
+              }
+            },
+            "poison": {
+              "total": 363643.45937973,
+              "normal": 51444.5227502592,
+              "dot": 312198.9366294702,
+              "skill": {
+                "毒性强化": 274873.6836290873,
+                "毒池": 37325.25300036755
+              }
+            },
+            "ice": {
+              "total": 382830.05667831714,
+              "normal": 382830.05667831714,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 112727
+        },
+        {
+          "wave": 45,
+          "seconds": 1195.3166666666666,
+          "hp": 2000,
+          "gold": 20453,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 11,
+            "boomerang": 11,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 104.32416,
+            "boomerang": 86.57706666666658,
+            "cannon": 27.960000000000065,
+            "poison": 42.645333333333056
+          },
+          "damage": {
+            "cannon": {
+              "total": 434476.2881274005,
+              "normal": 351663.4324575747,
+              "dot": 19184.492143067142,
+              "skill": {
+                "碎裂弹": 82812.85566981624
+              }
+            },
+            "boomerang": {
+              "total": 1159436.4312030205,
+              "normal": 759802.114748167,
+              "dot": 399634.31645483477,
+              "skill": {
+                "放血": 3835.18291893457,
+                "风痕": 395799.13353590237
+              }
+            },
+            "poison": {
+              "total": 368997.8918152251,
+              "normal": 51823.4850009401,
+              "dot": 317174.4068142844,
+              "skill": {
+                "毒性强化": 279003.8797975544,
+                "毒池": 38170.52701671281
+              }
+            },
+            "ice": {
+              "total": 383433.2446915712,
+              "normal": 383433.2446915712,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 120269.33333333333
+        },
+        {
+          "wave": 46,
+          "seconds": 1223.7,
+          "hp": 2000,
+          "gold": 22249,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 11,
+            "boomerang": 11,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 101.62080000000003,
+            "boomerang": 85.59466666666651,
+            "cannon": 26.440000000000065,
+            "poison": 33.33866666666639
+          },
+          "damage": {
+            "cannon": {
+              "total": 440149.8692602644,
+              "normal": 355061.1157210776,
+              "dot": 19738.805299216256,
+              "skill": {
+                "碎裂弹": 85088.75353918066
+              }
+            },
+            "boomerang": {
+              "total": 1264540.075436621,
+              "normal": 829485.2294224649,
+              "dot": 435054.8460142467,
+              "skill": {
+                "放血": 4494.322252720849,
+                "风痕": 430560.523761528
+              }
+            },
+            "poison": {
+              "total": 373048.66073651664,
+              "normal": 52017.365794309466,
+              "dot": 321031.2949422065,
+              "skill": {
+                "毒性强化": 282098.1130657069,
+                "毒池": 38933.181876480856
+              }
+            },
+            "ice": {
+              "total": 387999.3716404368,
+              "normal": 387999.3716404368,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 94435
+        },
+        {
+          "wave": 47,
+          "seconds": 1248.4333333333334,
+          "hp": 2000,
+          "gold": 23739,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 11,
+            "boomerang": 11,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 98.91744000000006,
+            "boomerang": 75.83253333333312,
+            "cannon": 18.920000000000062,
+            "poison": 27.770666666666393
+          },
+          "damage": {
+            "cannon": {
+              "total": 440877.4068485239,
+              "normal": 355426.7249229412,
+              "dot": 19855.59660699222,
+              "skill": {
+                "碎裂弹": 85450.68192557526
+              }
+            },
+            "boomerang": {
+              "total": 1351920.6154441005,
+              "normal": 885605.3452121363,
+              "dot": 466315.27023235516,
+              "skill": {
+                "放血": 4999.7462129189325,
+                "风痕": 461315.5240194384
+              }
+            },
+            "poison": {
+              "total": 376730.9394777984,
+              "normal": 52226.10872261568,
+              "dot": 324504.830755182,
+              "skill": {
+                "毒性强化": 285292.7352947779,
+                "毒池": 39212.09546038473
+              }
+            },
+            "ice": {
+              "total": 394357.27107538737,
+              "normal": 394357.27107538737,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 128322
+        },
+        {
+          "wave": 48,
+          "seconds": 1270.5833333333333,
+          "hp": 2000,
+          "gold": 25341,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 11,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 82.2906666666664,
+            "cannon": 25.640000000000057,
+            "poison": 32.94133333333306
+          },
+          "damage": {
+            "cannon": {
+              "total": 452000.14987478143,
+              "normal": 360463.13447726757,
+              "dot": 21178.427334886714,
+              "skill": {
+                "碎裂弹": 91537.01539750959
+              }
+            },
+            "boomerang": {
+              "total": 1454142.5244849117,
+              "normal": 947987.4982270101,
+              "dot": 506155.0262587173,
+              "skill": {
+                "放血": 5328.35412696311,
+                "风痕": 500826.6721317564
+              }
+            },
+            "poison": {
+              "total": 377800.3464881912,
+              "normal": 52393.19984128824,
+              "dot": 325407.1466469023,
+              "skill": {
+                "毒性强化": 286076.65555851324,
+                "毒池": 39330.491088369345
+              }
+            },
+            "ice": {
+              "total": 402437.82954520953,
+              "normal": 402437.82954520953,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 120204
+        },
+        {
+          "wave": 49,
+          "seconds": 1292.1666666666667,
+          "hp": 2000,
+          "gold": 26550,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 11,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 93.74879999999968,
+            "cannon": 48.800000000000075,
+            "poison": 62.6346666666664
+          },
+          "damage": {
+            "cannon": {
+              "total": 496754.235998615,
+              "normal": 401920.8666182119,
+              "dot": 21679.192104726928,
+              "skill": {
+                "碎裂弹": 94833.3693803965
+              }
+            },
+            "boomerang": {
+              "total": 1530043.5814310499,
+              "normal": 1000973.2279251494,
+              "dot": 529070.3535068623,
+              "skill": {
+                "放血": 5678.765344703001,
+                "风痕": 523391.58816214086
+              }
+            },
+            "poison": {
+              "total": 379000.1908525041,
+              "normal": 52460.55410893579,
+              "dot": 326539.63674356765,
+              "skill": {
+                "毒性强化": 286964.3331423255,
+                "毒池": 39575.30360122153
+              }
+            },
+            "ice": {
+              "total": 410504.6243541925,
+              "normal": 410504.6243541925,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 184773.33333333334
+        },
+        {
+          "wave": 50,
+          "seconds": 1317.65,
+          "hp": 2000,
+          "gold": 28307,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 85.20693333333296,
+            "cannon": 47.4400000000001,
+            "poison": 61.373333333333065
+          },
+          "damage": {
+            "cannon": {
+              "total": 563926.0147588967,
+              "normal": 459015.37632159493,
+              "dot": 23809.05697086091,
+              "skill": {
+                "碎裂弹": 104910.63843732572
+              }
+            },
+            "boomerang": {
+              "total": 1627203.1680438512,
+              "normal": 1065751.0559048613,
+              "dot": 561452.1121400156,
+              "skill": {
+                "放血": 5848.137968695044,
+                "风痕": 555603.974171303
+              }
+            },
+            "poison": {
+              "total": 380050.2660108913,
+              "normal": 52460.55410893579,
+              "dot": 327589.71190195484,
+              "skill": {
+                "毒性强化": 287791.69652457157,
+                "毒池": 39798.01537736304
+              }
+            },
+            "ice": {
+              "total": 410504.6243541925,
+              "normal": 410504.6243541925,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 151572
+        },
+        {
+          "wave": 51,
+          "seconds": 1344.7833333333333,
+          "hp": 2000,
+          "gold": 29920,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 7,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 74.83466666666622,
+            "cannon": 25.600000000000108,
+            "poison": 57.88533333333307
+          },
+          "damage": {
+            "cannon": {
+              "total": 591393.972946912,
+              "normal": 481794.2592644726,
+              "dot": 24474.215879338673,
+              "skill": {
+                "碎裂弹": 109599.71368246764
+              }
+            },
+            "boomerang": {
+              "total": 1751576.4623255183,
+              "normal": 1139665.2033876095,
+              "dot": 611911.2589386693,
+              "skill": {
+                "放血": 6181.540458497542,
+                "风痕": 605729.7184801542
+              }
+            },
+            "poison": {
+              "total": 385360.5624437221,
+              "normal": 53423.05398181576,
+              "dot": 331937.50846190547,
+              "skill": {
+                "毒性强化": 291705.4175245682,
+                "毒池": 40232.09093731769
+              }
+            },
+            "ice": {
+              "total": 411765.737291088,
+              "normal": 411765.737291088,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 206033.3333333333
+        },
+        {
+          "wave": 52,
+          "seconds": 1377.95,
+          "hp": 2000,
+          "gold": 31473,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 8,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 87.02186666666614,
+            "cannon": 39.76000000000012,
+            "poison": 93.96533333333304
+          },
+          "damage": {
+            "cannon": {
+              "total": 640310.0398801616,
+              "normal": 524241.3221884394,
+              "dot": 26318.310599339216,
+              "skill": {
+                "碎裂弹": 116068.71769174736
+              }
+            },
+            "boomerang": {
+              "total": 1904011.3365108462,
+              "normal": 1232482.5942269934,
+              "dot": 671528.7422841109,
+              "skill": {
+                "放血": 6384.9035114728,
+                "风痕": 665143.8387726205
+              }
+            },
+            "poison": {
+              "total": 392015.5114902103,
+              "normal": 53847.26688875177,
+              "dot": 338168.24460145767,
+              "skill": {
+                "毒性强化": 297157.78523635934,
+                "毒池": 41010.45936508041
+              }
+            },
+            "ice": {
+              "total": 413951.85761723324,
+              "normal": 413951.85761723324,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 194236
+        },
+        {
+          "wave": 53,
+          "seconds": 1402.9833333333333,
+          "hp": 2000,
+          "gold": 32824,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 8,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 97.25973333333275,
+            "cannon": 37.92000000000013,
+            "poison": 100
+          },
+          "damage": {
+            "cannon": {
+              "total": 685954.2905481228,
+              "normal": 563503.1946662415,
+              "dot": 29203.25386540315,
+              "skill": {
+                "碎裂弹": 122451.09588195084
+              }
+            },
+            "boomerang": {
+              "total": 2030666.2091670705,
+              "normal": 1307719.1250161172,
+              "dot": 722947.084151024,
+              "skill": {
+                "放血": 6698.713884837517,
+                "风痕": 716248.3702661688
+              }
+            },
+            "poison": {
+              "total": 396673.55973796494,
+              "normal": 54010.29240796128,
+              "dot": 342663.26733000274,
+              "skill": {
+                "毒性强化": 300890.14908165013,
+                "毒池": 41773.11824833556
+              }
+            },
+            "ice": {
+              "total": 414329.27074536,
+              "normal": 414329.27074536,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 225392
+        },
+        {
+          "wave": 54,
+          "seconds": 1425.1666666666667,
+          "hp": 2000,
+          "gold": 34606,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 8,
+            "poison": 6
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 93.89866666666663,
+            "cannon": 34.08000000000015,
+            "poison": 96.95466666666664
+          },
+          "damage": {
+            "cannon": {
+              "total": 785388.4738345664,
+              "normal": 644173.1629832058,
+              "dot": 35736.93435518902,
+              "skill": {
+                "碎裂弹": 141215.3108513779
+              }
+            },
+            "boomerang": {
+              "total": 2157559.4257592214,
+              "normal": 1388883.264224882,
+              "dot": 768676.1615344302,
+              "skill": {
+                "放血": 6742.444771665996,
+                "风痕": 761933.7167627465
+              }
+            },
+            "poison": {
+              "total": 402408.46936242154,
+              "normal": 54137.73452075928,
+              "dot": 348270.73484166135,
+              "skill": {
+                "毒性强化": 306058.0616252254,
+                "毒池": 42212.673216418545
+              }
+            },
+            "ice": {
+              "total": 414329.27074536,
+              "normal": 414329.27074536,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 203463
+        },
+        {
+          "wave": 55,
+          "seconds": 1452.1,
+          "hp": 2000,
+          "gold": 36381,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 8,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 87.91626666666656,
+            "cannon": 36.76000000000015,
+            "poison": 90.29599999999988
+          },
+          "damage": {
+            "cannon": {
+              "total": 829853.3195835948,
+              "normal": 683382.276380271,
+              "dot": 37864.39928500492,
+              "skill": {
+                "碎裂弹": 146471.04320335304
+              }
+            },
+            "boomerang": {
+              "total": 2307015.7227786584,
+              "normal": 1470396.4271898838,
+              "dot": 836619.2955884107,
+              "skill": {
+                "放血": 7075.643027393525,
+                "风痕": 829543.6525609993
+              }
+            },
+            "poison": {
+              "total": 414091.50591919397,
+              "normal": 54961.12883136172,
+              "dot": 359130.3770878314,
+              "skill": {
+                "毒性强化": 315617.9704548723,
+                "毒池": 43512.40663294112
+              }
+            },
+            "ice": {
+              "total": 414329.27074536,
+              "normal": 414329.27074536,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 266416.6666666666
+        },
+        {
+          "wave": 56,
+          "seconds": 1476.95,
+          "hp": 2000,
+          "gold": 38189,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 8,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 93.15413333333316,
+            "cannon": 30.440000000000154,
+            "poison": 90.11466666666644
+          },
+          "damage": {
+            "cannon": {
+              "total": 870963.5319324835,
+              "normal": 709568.7388771413,
+              "dot": 43038.933718682405,
+              "skill": {
+                "碎裂弹": 161394.79305527877
+              }
+            },
+            "boomerang": {
+              "total": 2474166.203334934,
+              "normal": 1560087.2023395167,
+              "dot": 914079.0009945626,
+              "skill": {
+                "放血": 7271.870305646902,
+                "风痕": 906807.1306888978
+              }
+            },
+            "poison": {
+              "total": 428974.94334412547,
+              "normal": 56106.896048355804,
+              "dot": 372868.0472957687,
+              "skill": {
+                "毒性强化": 328642.57356997597,
+                "毒池": 44225.47372577539
+              }
+            },
+            "ice": {
+              "total": 421675.2962661824,
+              "normal": 421675.2962661824,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 219562.5
+        },
+        {
+          "wave": 57,
+          "seconds": 1500.75,
+          "hp": 2000,
+          "gold": 40332,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 9,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 102.29664000000002,
+            "boomerang": 83.02591999999976,
+            "cannon": 24.92000000000015,
+            "poison": 73.3199999999996
+          },
+          "damage": {
+            "cannon": {
+              "total": 882057.7990821438,
+              "normal": 713937.1264013468,
+              "dot": 45178.83109610251,
+              "skill": {
+                "碎裂弹": 168120.67268072962
+              }
+            },
+            "boomerang": {
+              "total": 2669019.5023088423,
+              "normal": 1648106.9815995453,
+              "dot": 1020912.520707883,
+              "skill": {
+                "放血": 7339.534746224614,
+                "风痕": 1013572.9859616406
+              }
+            },
+            "poison": {
+              "total": 455053.0682105359,
+              "normal": 57600.023796467794,
+              "dot": 397453.0444140668,
+              "skill": {
+                "毒性强化": 350819.6241397377,
+                "毒池": 46633.42027431707
+              }
+            },
+            "ice": {
+              "total": 450298.54841556895,
+              "normal": 450298.54841556895,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 206521.3333333333
+        },
+        {
+          "wave": 58,
+          "seconds": 1523.5833333333333,
+          "hp": 2000,
+          "gold": 42300,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 9,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 96.21408000000008,
+            "boomerang": 72.50111999999966,
+            "cannon": 22.92000000000015,
+            "poison": 57.30933333333284
+          },
+          "damage": {
+            "cannon": {
+              "total": 882484.8713132842,
+              "normal": 713937.1264013468,
+              "dot": 45252.31026832284,
+              "skill": {
+                "碎裂弹": 168547.7449118678
+              }
+            },
+            "boomerang": {
+              "total": 2825262.1973408186,
+              "normal": 1734073.5229852304,
+              "dot": 1091188.674353466,
+              "skill": {
+                "放血": 7587.804719667369,
+                "风痕": 1083600.869633779
+              }
+            },
+            "poison": {
+              "total": 470589.3096770729,
+              "normal": 58365.48404458709,
+              "dot": 412223.8256324844,
+              "skill": {
+                "毒性强化": 363429.99967223307,
+                "毒池": 48793.825960243325
+              }
+            },
+            "ice": {
+              "total": 463052.880890263,
+              "normal": 463052.880890263,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 190181.8333333333
+        },
+        {
+          "wave": 59,
+          "seconds": 1547.4666666666667,
+          "hp": 2000,
+          "gold": 44459,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 10,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 89.45568000000014,
+            "boomerang": 61.97631999999958,
+            "cannon": 19.16000000000015,
+            "poison": 41.991999999999514
+          },
+          "damage": {
+            "cannon": {
+              "total": 884863.8884006088,
+              "normal": 714184.6125115807,
+              "dot": 46023.46058078366,
+              "skill": {
+                "碎裂弹": 170679.27588896555
+              }
+            },
+            "boomerang": {
+              "total": 2985004.5088868863,
+              "normal": 1827999.2430733924,
+              "dot": 1157005.2658104424,
+              "skill": {
+                "放血": 8304.025634059088,
+                "风痕": 1148701.2401763645
+              }
+            },
+            "poison": {
+              "total": 489504.5503650995,
+              "normal": 59714.02037045106,
+              "dot": 429790.5299946467,
+              "skill": {
+                "毒性强化": 378371.7031014797,
+                "毒池": 51418.826893163736
+              }
+            },
+            "ice": {
+              "total": 475406.45446437923,
+              "normal": 475406.45446437923,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 165816
+        },
+        {
+          "wave": 60,
+          "seconds": 1569.6666666666667,
+          "hp": 2000,
+          "gold": 46623,
+          "roster": [
+            "ice",
+            "boomerang",
+            "cannon",
+            "poison"
+          ],
+          "levels": {
+            "ice": 12,
+            "boomerang": 12,
+            "cannon": 10,
+            "poison": 7
+          },
+          "energy": {
+            "ice": 105,
+            "boomerang": 71.45151999999955,
+            "cannon": 34.36000000000015,
+            "poison": 41.24266666666619
+          },
+          "damage": {
+            "cannon": {
+              "total": 909131.5586149349,
+              "normal": 733062.908546332,
+              "dot": 46953.368241088974,
+              "skill": {
+                "碎裂弹": 176068.65006854417
+              }
+            },
+            "boomerang": {
+              "total": 3148980.166545961,
+              "normal": 1921610.4867228996,
+              "dot": 1227369.679819545,
+              "skill": {
+                "放血": 9033.954918064108,
+                "风痕": 1218335.7249014617
+              }
+            },
+            "poison": {
+              "total": 499897.1313059593,
+              "normal": 60998.69772746464,
+              "dot": 438898.4335784929,
+              "skill": {
+                "毒性强化": 386437.7782865623,
+                "毒池": 52460.65529192763
+              }
+            },
+            "ice": {
+              "total": 481444.2055824944,
+              "normal": 481444.2055824944,
+              "dot": 0,
+              "skill": {}
+            }
+          },
+          "spawnHp": 385020
+        }
+      ],
+      "bosses": [
+        {
+          "wave": 5,
+          "seconds": 20.71666666666667
+        },
+        {
+          "wave": 10,
+          "seconds": 24.866666666666674
+        },
+        {
+          "wave": 15,
+          "seconds": 15.75
+        },
+        {
+          "wave": 20,
+          "id": "altar_rosea",
+          "seconds": 45.7166666666667
+        },
+        {
+          "wave": 25,
+          "seconds": 37.85000000000002
+        },
+        {
+          "wave": 30,
+          "seconds": 12.349999999999909
+        },
+        {
+          "wave": 35,
+          "seconds": 11.616666666666674
+        },
+        {
+          "wave": 40,
+          "id": "altar_galvin",
+          "seconds": 14.566666666666606
+        },
+        {
+          "wave": 45,
+          "seconds": 16.633333333333212
+        },
+        {
+          "wave": 50,
+          "seconds": 10.216666666666697
+        },
+        {
+          "wave": 55,
+          "seconds": 21.34999999999991
+        },
+        {
+          "wave": 60,
+          "id": "altar_vera",
+          "seconds": 58.350000000000136
+        }
+      ]
+    }
+  ],
+  "error": null
+}

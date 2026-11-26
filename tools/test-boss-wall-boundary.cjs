@@ -3,7 +3,7 @@
 const assert = require('assert');
 const path = require('path');
 const root = process.env.TOWER_TEST_ROOT || path.resolve(__dirname, '..');
-const fixture = require(root + '/tools/moving-battle-fixture.cjs');
+const fixture = require(root + '/tools/balance/fixtures/moving-battle-fixture.cjs');
 const Main = require(root + '/js/game/main.js');
 const CONFIG = require(root + '/js/config.js');
 const sizeOf = require(root + '/js/enemy-size.js');

@@ -129,7 +129,7 @@ assert.equal(normal.slotOrder.length, 4);
 assert.equal(JSON.stringify(CONFIG), configBefore, '不改写正式全局配置');
 
 // 使用原生GameMain验证布局/sceneState，不进入尚未接好Boss和结算的前置战斗。
-const fixture = require('./moving-battle-fixture.cjs');
+const fixture = require('./balance/fixtures/moving-battle-fixture.cjs');
 try {
   const Main = require('../js/game/main.js');
   const game = new Main();

@@ -99,7 +99,33 @@ const IMG_SRC = {
   runner: 'assets/images/monsters/enemies/runner.png', tank: 'assets/images/monsters/enemies/tank.png',
   // v1.16.123 怪物按等级 5 帧循环动画 sprite sheet（透明底，每张 5 帧横向，帧宽 = 图宽/5；v1.16.124 改主包直连，量化 512×102）
   lv1: 'assets/images/monsters/enemies/lv1.png', lv2: 'assets/images/monsters/enemies/lv2.png',
+  lava_lv1: 'assets/images/monsters/enemies/lava-lv1.png',
+  frost_lv1: 'assets/images/monsters/enemies/frost-lv1.png',
+  frost_lv2: 'assets/images/monsters/enemies/frost-lv2.png',
+  frost_lv3: 'assets/images/monsters/enemies/frost-lv3.png',
+  frost_lv4: 'assets/images/monsters/enemies/frost-lv4.png',
+  frost_lv5: 'assets/images/monsters/enemies/frost-lv5.png',
+  frost_lv6: 'assets/images/monsters/enemies/frost-lv6.png',
+  frost_lv7: 'assets/images/monsters/enemies/frost-lv7.png',
+  frost_lv8: 'assets/images/monsters/enemies/frost-lv8.png',
+  frost_lv9: 'assets/images/monsters/enemies/frost-lv9.png',
+  frost_lv10: 'assets/images/monsters/enemies/frost-lv10.png',
+  frost_lv11: 'assets/images/monsters/enemies/frost-lv11.png',
+  frost_lv12: 'assets/images/monsters/enemies/frost-lv12.png',
+  frost_lv13: 'assets/images/monsters/enemies/frost-lv13.png',
+  frost_lv14: 'assets/images/monsters/enemies/frost-lv14.png',
   lv3: 'assets/images/monsters/enemies/lv3.png', lv4: 'assets/images/monsters/enemies/lv4.png',
+  ancient_lv4: 'assets/images/monsters/enemies/ancient-lv4-dewleaf-creep.png',
+  ancient_lv5: 'assets/images/monsters/enemies/ancient-lv5-shrub-walk.png',
+  ancient_lv6: 'assets/images/monsters/enemies/ancient-lv6-bud-horn-charge.png',
+  ancient_lv7: 'assets/images/monsters/enemies/ancient-lv7-fern-shell-walk.png',
+  ancient_lv8: 'assets/images/monsters/enemies/ancient-lv8-leaf-ray-flight.png',
+  ancient_lv9: 'assets/images/monsters/enemies/ancient-lv9-floating-relic-blink.png',
+  ancient_lv10: 'assets/images/monsters/enemies/ancient-lv10-crawling-shrub-8f.png',
+  ancient_lv11: 'assets/images/monsters/enemies/ancient-lv11-spring-pod-hop.png',
+  ancient_lv12: 'assets/images/monsters/enemies/ancient-lv12-moss-stump-root-crawl.png',
+  ancient_lv13: 'assets/images/monsters/enemies/ancient-lv13-bellflower-sway-8f.png',
+  ancient_lv14: 'assets/images/monsters/enemies/ancient-lv14-split-pod-dash.png',
   lv5: 'assets/images/monsters/enemies/lv5.png', lv6: 'assets/images/monsters/enemies/lv6.png',
   lv7: 'assets/images/monsters/enemies/lv7.png', lv8: 'assets/images/monsters/enemies/lv8.png',
   // v1.17.50 C 卡新增 Lv9-11 代（重碑禁卫/花冠近卫/裂蕊飞奔者），同为 640×128 五帧横向
@@ -522,12 +548,12 @@ class Renderer {
   /** 区B·敌人层：敌人本体绘制 + 受击状态特效（debuff）+ 血条（v1.16.43 重构拆分子方法） */
   enemies(ctx, enemies, splitVisual) { return this._getEnemyLayer().enemies.call(this, ctx, enemies, splitVisual); }
 
-  drawEnemyBody(ctx, e, x, y, size, isElite) { return this._getEnemyLayer().drawEnemyBody.call(this, ctx, e, x, y, size, isElite); }
+  drawEnemyBody(ctx, e, x, y, size, isElite, overlays) { return this._getEnemyLayer().drawEnemyBody.call(this, ctx, e, x, y, size, isElite, overlays); }
 
   /** 按动画表裁剪绘制当前帧（兼容横向与多行图集）；图未就绪/绘制异常返回 false
    *  v1.16.96 lv1 替换为史莱姆 6 帧（assets/images/monsters/enemies/lv1.png 576×96），按非等时长表 [140,160,200,310,200,220]ms 切帧；
    *  其余等级为等时长（v1.17.51 Lv12-14 八帧按等周期 190/150/100ms，其它 5 帧按类型表）；每怪用自身 id 派生相位偏移，避免全屏同步切帧 */
-  drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames) { return this._getEnemyLayer().drawEnemyAnim.call(this, ctx, src, e, x, y, size, isElite, imgLv, frames); }
+  drawEnemyAnim(ctx, src, e, x, y, size, isElite, imgLv, frames, overlays) { return this._getEnemyLayer().drawEnemyAnim.call(this, ctx, src, e, x, y, size, isElite, imgLv, frames, overlays); }
 
   drawEnemyDebuffs(ctx, e, x, y, size) { return this._getEnemyLayer().drawEnemyDebuffs.call(this, ctx, e, x, y, size); }
 
@@ -652,6 +678,16 @@ class Renderer {
     return this._fireFx;
   }
 
+  relicFlightIcon(ctx,id,x,y,size){return drawImg(ctx,relicIconSrc(id),x,y,size,size);}
+  cardChargeSprite(ctx,tier,variant,frame,x,y){
+    const size=128;
+    drawImg(ctx,'assets/images/towers/fx/card-charge/tier-'+tier+'-'+variant+'.png',x-size/2,y-size/2,size,size,
+      {x:frame*128,y:0,w:128,h:128});
+  }
+  cardTowerIcon(ctx, key, x, y, size) {
+    if(!this._chargeSpritesPrepared){this._chargeSpritesPrepared=true;for(let tier=1;tier<=3;tier++)for(let variant=0;variant<tier+1;variant++)loadImg("assets/images/towers/fx/card-charge/tier-"+tier+"-"+variant+".png");}
+    if (!drawImg(ctx, IMG_SRC[key], x, y, size, size)) drawTowerGlyph(ctx, key, x, y, size);
+  }
   bossHud(ctx, state) { return this._getBattleScene().bossHud.call(this, ctx, state); }
   fxPillar(ctx, f) { return this._getFireFx().fxPillar(ctx, f); }
   /** v1.17.36 火柱地面火环（下层）：由 fxGround 在敌人之前调用 */
@@ -818,12 +854,14 @@ class Renderer {
     // v1.17.10d 游戏名：单层金色渐变弧线标题，仅战斗页（战场卡正上方）显示；
     // 商店/图鉴/圣物三个分页背景不显示（各自页面顶部有页面标题）
     if (s.tab === 'battle') drawArchedTitle(ctx, '圣坛裂痕', 375, 352, 98, 1200, false);
+    ctx.save();ctx.beginPath();ctx.rect(0,186,750,1296);ctx.clip();
     // 内容区（battle / shop / relic / codex）
     if (s.tab === 'battle') this.menuBattle(ctx, s, push);
     else if (s.tab === 'shop') this.menuShop(ctx, s, push);
     else if (s.tab === 'codex') this.menuCodex(ctx, s, push);
     else if (s.tab === 'talent') require('./screens/talent.js').draw(ctx,s,push,drawImg,relicIconSrc);
     else this.menuRelic(ctx, s, push);
+    ctx.restore();
     // v1.17.10c 底部大分页标签（4 个全部显示，不隐藏）：激活页签与页面"融为一体"——
     // 同主题色、仅上圆角、向上光束与页面呼应；未激活灰底全圆角明显区分
     const tabY=1504, tabH=100, gap=8, widths=[132,132,166,132,132];
@@ -846,6 +884,7 @@ class Renderer {
       ctx.save();ctx.shadowColor='#152419';ctx.shadowBlur=3;ctx.shadowOffsetY=2;
       text(ctx,label,tx+w/2,y+h/2+(home?10:locked?12:0),home?30:24,locked?'#7e897e':active||home?'#fff2c5':'#e5dfc9','center');ctx.restore();
       if(locked){const lx=tx+w/2,ly=y+22;ctx.save();ctx.strokeStyle='#a0a797';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(lx,ly,7,Math.PI,0);ctx.stroke();fillRoundRect(ctx,lx-11,ly,22,18,4,'#9a9f8d');ctx.fillStyle='#344538';ctx.fillRect(lx-1.5,ly+5,3,7);ctx.restore();}
+      require('./ui.js').cardDepth(ctx,tx,y,w,h,true);
       tx+=w+gap;
     });
     // 子面板
@@ -1183,14 +1222,15 @@ class Renderer {
   battleHints(ctx, waveHint, bossHint) {
     const now = Date.now();
     // 进入下一波：战斗区正中透明文字（无面板背景）
-    if (waveHint && now < waveHint.until) {
+    const bossActive = bossHint && now < bossHint.until;
+    if (waveHint && now < waveHint.until && !bossActive) {
       const yc = (AREA_Y + WALL_Y) / 2 - 40;
       ctx.globalAlpha = 0.95;
       text(ctx, '进入', 375, yc, 30, 'rgba(255,255,255,0.72)', 'center');
       text(ctx, waveHint.text, 375, yc + 54, 52, '#7ef0a3', 'center');
       ctx.globalAlpha = 1;
     }
-    require('./fx/boss-announcement.js').draw(ctx,bossHint,TOWER_ROW_Y,now);
+    require('./fx/boss-announcement.js').draw(ctx,bossHint,(AREA_Y+ENTRY_H+WALL_Y)/2,now);
   }
 }
 

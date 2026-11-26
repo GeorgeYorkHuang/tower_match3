@@ -1,3 +1,4 @@
+const {cardDepth}=require('../ui.js');
 /**
  * skill-loadout.js —— 主页技能卡 + 技能配置面板（重构 R2：技能配置页面拆分，W工程师）
  *
@@ -83,6 +84,7 @@ function createSkillLoadout(deps = {}) {
 
   /** 单张技能卡（渐变底 + 描边 + 图标 + 技能名 + 命中区）——skillCards / skillRow 共用，卡片本身不带任何槽位文字 */
   function skillCard(ctx, push, bx, y, cw, ch, id, def, tint, hitKey, hitData) {
+    cardDepth(ctx,bx,y,cw,ch);
     const color = def.color || tint;
     const grad = ctx.createLinearGradient(bx, y, bx + cw, y + ch);
     grad.addColorStop(0, '#334864');
@@ -98,6 +100,7 @@ function createSkillLoadout(deps = {}) {
     fillRoundRect(ctx, bx + 7, y + ch - 48, cw - 14, 39, 13, '#ead5a2');
     strokeRoundRect(ctx, bx + 8, y + ch - 47, cw - 16, 37, 12, 'rgba(255,255,255,0.18)', 1);
     text(ctx, def.name, bx + cw / 2, y + ch - 28, 24, '#29422d', 'center');
+    cardDepth(ctx,bx,y,cw,ch,true);
     push(hitKey, hitData, bx, y, cw, ch);
   }
 
@@ -135,24 +138,25 @@ function createSkillLoadout(deps = {}) {
    */
   function skillRow(ctx, s, push, x, y, w, ch) {
     const ROW_GAP = 48;                    // 两分区之间的空隙（含各自 8px 内边距 → 观感约 32）
-    const rw = (w - ROW_GAP) / 2;          // 单分区宽（640 行宽 → 296）
+    const rw = w;          // 单分区宽（640 行宽 → 296）
     const cw = ch * 3 / 4;                 // 卡片 3:4（ch=170 → 127.5×170，尺寸与旧版一致）
     const spread = rw - cw * 2;            // 分区内两卡之间的均分缝（296-255 = 41）
     const regions = [
       { title: '全局技能', tint: '#f4cb79', line: 'rgba(244,203,121,0.30)', rx: x, keys: GlobalSkills.slots(s.globalSkills), isMatch: false },
-      { title: '三消技能', tint: '#b896ff', line: 'rgba(184,150,255,0.30)', rx: x + rw + ROW_GAP, keys: ['match4', 'match5'], isMatch: true },
+
     ];
     regions.forEach((r) => {
       // fillRoundRect(ctx, r.rx - 8, y - 76, rw + 16, ch + 94, 22, 'rgba(0,226,190,0.82)');
       // strokeRoundRect(ctx, r.rx - 8, y - 76, rw + 16, ch + 94, 22, '#89916b', 1.2);
       // fillRoundRect(ctx, r.rx + 18, y - 66, rw - 36, 48, 14, '#f1e4c3');
       // strokeRoundRect(ctx, r.rx + 18, y - 66, rw - 36, 48, 14, r.isMatch ? '#766348' : '#456644', 1.4);
-      text(ctx, r.title, r.rx + rw / 2, y - 41, 27, r.isMatch ? '#664721' : '#244c31', 'center');
+
       r.keys.forEach((key, i) => {
         const id = r.isMatch ? ((s.matchSkills && s.matchSkills[key]) || CONFIG.MATCH_SKILL.default[key]) : key;
         const def = r.isMatch
           ? (CONFIG.MATCH_SKILL[key].find((d) => d.id === id) || CONFIG.MATCH_SKILL[key][0])
           : GlobalSkills.get(id);
+        text(ctx,'全局技能'+(i+1),r.rx+i*(cw+spread)+cw/2,y-24,23,'#244c31','center');
         skillCard(ctx, push, r.rx + i * (cw + spread), y, cw, ch, id, def, r.tint,
           r.isMatch ? 'matchCfg' : 'globalCfg', r.isMatch ? { slot: key } : { index: i });
       });
@@ -174,7 +178,8 @@ function createSkillLoadout(deps = {}) {
   }
 
   /** 统一的高质感候选卡片：图标优先、可读说明、立体状态按钮。 */
-  function choiceCard(ctx, push, x, y, cw, ch, it, tint, selected, owned, slot, price) {
+  function choiceCard(ctx, push, x, y, cw, ch, it, tint, selected, owned, slot, price, confirming = false) {
+    cardDepth(ctx,x,y,cw,ch);
     const accent = it.color || tint;
     const bg = ctx.createLinearGradient(x, y, x + cw, y + ch);
     bg.addColorStop(0, selected ? '#3a4658' : '#29384c');
@@ -201,7 +206,7 @@ function createSkillLoadout(deps = {}) {
     const by = y + ch - 47, bh = 37;
     const status = selected
       ? (owned ? '✓ 已配置' : '当前槽位 · 待解锁')
-      : (owned ? '点击配置' : '解锁 · ' + price + ' 金币');
+      : (owned ? '点击配置' : (confirming ? '确认购买 · ' : '选择 · ') + price + ' 金币');
     const buttonGrad = ctx.createLinearGradient(x, by, x, by + bh);
     if (selected) { buttonGrad.addColorStop(0, '#f5d37b'); buttonGrad.addColorStop(1, '#9b6a27'); }
     else if (owned) { buttonGrad.addColorStop(0, '#4a6687'); buttonGrad.addColorStop(1, '#263b58'); }
@@ -213,6 +218,8 @@ function createSkillLoadout(deps = {}) {
     fillRoundRect(ctx, x + 20, by + 3, cw - 40, 4, 2, 'rgba(255,255,255,0.23)');
     ctx.restore();
     text(ctx, status, x + cw / 2, by + bh / 2 + 1, 18, selected ? '#fff9df' : '#ffffff', 'center');
+    cardDepth(ctx,x,y,cw,ch,true);
+    if(confirming&&!owned)push('mSkillConfirm',{slot,id:it.id},x+13,by,cw-26,bh);
     push('mSkill', { slot, id: it.id }, x, y, cw, ch);
   }
 
@@ -255,7 +262,8 @@ function createSkillLoadout(deps = {}) {
     const index = Number(s.panel.index || 0), slots = GlobalSkills.slots(s.globalSkills);
     const panelW = 560, gap = 14, cw = 233, ch = 284, rowH = ch + 16;
     const cardLeft = (750 - (cw * 2 + gap)) / 2;
-    const items = GlobalSkills.POOL;
+    const prices=CONFIG.SKILL_UNLOCK.globalPrices;
+    const items = GlobalSkills.POOL.slice().sort((a,b)=>(prices[a.id]||2000)-(prices[b.id]||2000));
     const rows = Math.ceil(items.length / 2);
     const contentH = rows * rowH - 16;
     const viewportH = 3 * rowH - 16;                       // 视口可见 3 行
@@ -273,7 +281,7 @@ function createSkillLoadout(deps = {}) {
       const x = cardLeft + (i % 2) * (cw + gap), y = vy0 + Math.floor(i / 2) * rowH - scroll;
       if (y + ch < vy0 - 4 || y > vy0 + viewportH + 4) return;   // 视口外跳过绘制
       const owned = skillOwned(s, 'global', it.id), selected = it.id === slots[index];
-      choiceCard(ctx, push, x, y, cw, ch, it, '#f4cb79', selected, owned, 'global', CONFIG.SKILL_UNLOCK.price.global);
+      choiceCard(ctx, push, x, y, cw, ch, it, '#f4cb79', selected, owned, 'global', prices[it.id] || 2000, s.panel.purchaseId === it.id);
     });
     ctx.restore();
     return { viewport: { x: 115, y: vy0, w: 520, h: viewportH }, maxScroll };

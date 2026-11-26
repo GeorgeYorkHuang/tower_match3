@@ -1,7 +1,7 @@
 /** 六塔分工、在途软避让、固定炮弹落点与火球落地回归；调用真实战斗逻辑。 */
 'use strict';
 const assert=require('assert');
-const api=require('./tower-balance-fixture.cjs');
+const api=require('./balance/fixtures/tower-balance-fixture.cjs');
 const {initEnemyState}=require('../js/combat.js');
 const Incoming=require('../js/combat/incoming-damage.js');
 const close=(a,b,label)=>assert(Math.abs(a-b)<1e-5,`${label}: ${a} != ${b}`);

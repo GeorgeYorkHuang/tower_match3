@@ -143,6 +143,7 @@ class GameMain {
     this.silverGained = 0;
     this.dmgNumbers = DamageNumbers.create();
     this.anim = null;
+    this._cardDrag = null;
     this.run = new Run({ field: this.menuStage, difficulty: CONFIG.DIFFICULTY.default, matchSkills: this.meta.matchSkills, globalSkills: this.meta.globalSkills });  // 三消技能局外三槽配置
     // 只更新当前布局实例，切章或回正式战场时不会改写全局四塔配置。
     this.ly.slotCount = this.run.towerSlots;
@@ -181,7 +182,7 @@ class GameMain {
     this.animClock = 0;          // 怪物帧动画时钟（毫秒，仅战斗推进时累加 → 暂停时帧动画冻结）
     this.runSummary = null;      // 局末结算摘要（gameover 层展示）
     // 每日首战加成（每战场前 2 局 ×1.5，之后 ×0.5；测试战场不计）
-    this.firstBonus = this.menuStage === 'test' ? 1 : Number.isFinite(inheritedBonus) ? inheritedBonus
+    this.firstBonus = this.menuStage === 'test' || this.run.chapter.isPrologue ? 1 : Number.isFinite(inheritedBonus) ? inheritedBonus
       : enterBattle ? this.meta.dailyFirstBonus(this.menuStage, Date.now())
       : this.meta.dailyFirstStatus(this.menuStage, Date.now()).multiplier;
     if (enterBattle) {
@@ -212,10 +213,11 @@ class GameMain {
     require('../talents/runtime.js').initialize(this.run,this.meta);
     this.wave.start();
     // 三星历练奖励优先于战斗推进与新手引导，仅在正式进入新对局时发放。
-    if (!require('../relics/opening-pick.js').queue(this)) require('./tutorial.js').begin(this);
+    require('../relics/opening-pick.js').queue(this);
     this.toast('进入战斗 · 消灭全部怪物', '#7ef0a3');
     // 战斗 BGM（真机需在用户手势后播放）
     this.sfx.startBgm();
+    require('./prologue-tutorial.js').begin(this);
   }
 
   /** 测试战场：单塔出战、弹药恒满、城墙无敌，专注技能效果验证（） */
@@ -308,7 +310,11 @@ class GameMain {
       return f.t < f.dur;
     });
     // 三消动画推进（交换 → 消除 → 逐级连锁，由 match3 控制器管理）
-    if (this.state === 'fighting' || this.state === 'testfield') this.match3.update(dt);
+    if (this.state === 'testfield') this.match3.update(dt);
+    if (this.state === 'fighting' && this.run.storeTimers.auto > 0) {
+      this.run._autoCardTime=(this.run._autoCardTime||0)+dt;
+      if(this.run._autoCardTime>=1){this.run._autoCardTime=0;require('../tower-cards.js').draw(this.run);}
+    }
     // 主界面：宝箱开箱倒计时完成 → 发卡；每日精选跨天自动刷新
     if (this.state === 'menu') {
       this.tickChest(Date.now());
@@ -319,11 +325,13 @@ class GameMain {
       this.meta.ensureDailyPicks(Date.now());
       return;
     }
+    if (this._cardFullPrompt) return;
     if (this.state === 'fighting') {
       // 战斗宝箱与开局奖励：有队列先弹层，暂停战斗推进。
-      if(this.run.chapter.isPrologue){const tutorial=require('./prologue-tutorial.js');if(!this._prologueTutorial||this._prologueTutorial.run!==this.run)tutorial.begin(this);tutorial.tick(this);const lesson=this._prologueTutorial&&this._prologueTutorial.current;if(this._prologueTutorial&&(this._prologueTutorial.move||lesson&&lesson.id==='tower'))return;}
-      else if (require('./tutorial.js').tick(this)) return;
+
+
       require('../prologue/encounters.js').visit(this);
+      if(this.run.chapter.isPrologue){const tutorial=require('./prologue-tutorial.js');tutorial.tick(this);if(tutorial.pausesBattle(this))return;}
       const chapter = this.run.chapter;
       if (chapter.isPrologue && (!chapter.features.relics || this.run.wave < chapter.features.relicStartWave)) this.pendingRelicPicks = [];
       if (this.pendingRelicPicks.length) {
@@ -645,7 +653,7 @@ class GameMain {
     const res = this.run.endWave(true);
     // 波末全塔少量经验（打怪为主渠道，波末是补充；统一入整体池）
     const owned = this.run.slotOrder.length;
-    if (owned > 0) this.run.gainExp(CONFIG.EXP.waveBonus * owned);
+    if (owned > 0) this.run.gainExp(Math.round(CONFIG.EXP.waveBonus * owned * (1+this.run.relicNum('s_sr_cm_triple')/100)));
     // 波末银币只入「局内银币」（run.endWave 已累加 _waveGold），不再发放局外金币；
     //   招财符加成移至战斗结束统一结算（finishRun）
     this.save.save();
@@ -890,7 +898,7 @@ class GameMain {
     const b = this.meta.relicBonus();
     let ammoSum = 0, shuSum = 0, refSum = 0, towerHit = '';
     // 三消飞光：消除色块汇聚成光点飞向对应塔位/全局技能按钮（3消白 / 4消蓝 / 5消+金）
-    this._matchBeams(ret);
+    // 充能光点改由每步消除动画触发，避免连消提前同时飞出。
     ret.settled.forEach((s) => {
       // 圣物·经验珠：三消经验补差（基础经验已由 applyMatch 进整体池；补差也入整体池 ）
       if (b.exp > 0 && s.tower) {
@@ -901,10 +909,7 @@ class GameMain {
       if (s.ammoGain > 0) { ammoSum += s.ammoGain; towerHit = s.tower || towerHit; }
       if (s.shuffleGain > 0) shuSum += s.shuffleGain;
       if (s.refillGain > 0) refSum += s.refillGain;
-      // 三消触发塔额外攻击一次；多消形状触发不同攻击特效（combat.bonusStrike）
-      if (s.tower && s.shape && !s.gotTower && !s.penalized && this.state === 'fighting') {
-        this.combat.bonusStrike(s.tower, s.shape);
-      }
+
     });
     if (ammoSum > 0) {
       const tn = CONFIG.COLORS[CONFIG.TOWERS[towerHit] ? CONFIG.TOWERS[towerHit].color : ''] || {};
@@ -964,6 +969,7 @@ class GameMain {
   /* ---------- 渲染 ---------- */
   render() {
     this.renderer.beginImages(this.state === 'menu' ? 'menu:' + this.menuTab : 'battle:' + this.menuStage);
+    this.renderer.enemyStage = this.menuStage;
     const s = (this.scale > 0 && isFinite(this.scale)) ? this.scale : 1;
     ctx.setTransform(s, 0, 0, s, 0, 0);
     ctx.fillStyle = '#0d1117';
@@ -1034,8 +1040,10 @@ class GameMain {
     }
     this.renderer.fx(ctx, this.fx);
     this.renderer.damageNumbers(ctx, this.dmgNumbers);
+    this.renderer.entryStatus(ctx, st);
     // 战场宝箱（怪物掉落，点击开启圣物三选一）
     this.renderer.fieldChests(ctx, this.fieldChests);
+
     // 20波Boss生命条位于敌人和弹道上层，避免出生贴图遮住血量。
     const boss20=st.miniBoss||(st.wave===20&&this.enemies.find(e=>e.hp>0&&e.isBoss&&e.waveNo===20));
     if(boss20&&st.wave===20)require('./screens/boss-health.js').draw(ctx,boss20,this.ly.areaY+this.ly.entryH);
@@ -1047,6 +1055,8 @@ class GameMain {
     // 在 toast 之前画（商店遮罩不盖 toast），仍先于三选一/塔详情/功能弹层，保持"弹层盖商店"的既有层级
     GlobalFeedback.draw(ctx, this);
     ctx.restore();
+    require('./screens/card-draft.js').render(ctx, this);
+    this.renderer.wall(ctx, this.run.lineHp, this.run.lineMaxHp, this.renderer.ly.boardY + 14, st.globalShield);
     this.renderer.battleShop(ctx, st);
     if (this.testProfile) this.renderer.toast(ctx, this.toasts);
     if (this.state === 'picking') {
@@ -1070,6 +1080,7 @@ class GameMain {
     }
     // 波间透明提示（不暂停进度）：进入下一波 2s / Boss 警告 4s 闪烁
     this.renderer.battleHints(ctx, this.waveHint, this.bossHint);
+    require('./fx/relic-acquire.js').draw(ctx,this);
     // 塔详情弹层（任意状态下可查看）；技能二级详情优先于塔详情绘制在其上
     if (this.towerSkill) this.renderer.towerSkillLayer(ctx, this.towerSkill, this.towerSkillHits);
     else if (this.towerInfo) this.renderer.towerInfoLayer(ctx, this.towerInfo, this.towerInfoHits);
@@ -1078,6 +1089,7 @@ class GameMain {
     // 伤害统计弹层
     if (this.dmgStat) this.renderer.dmgStatLayer(ctx, this, this.dmgStatHits);
     require('./screens/ad-prompts.js').draw(ctx, this);
+    require('./screens/card-draft.js').warning(ctx,this);
     require('./tutorial.js').draw(ctx,this);
     require('./auto-battle.js').draw(ctx,this);
   }
@@ -1134,6 +1146,8 @@ class GameMain {
         energyColor: EnergyState.evaluate(t.energy, this.run.armoryEnergyMax(key)).color,
         atk: t.level > 0 ? Math.round(this.combat.shotDmg(key)) : 0,   // 单次攻击伤害（塔详情）
         interval: t.level > 0 ? this.combat.interval(key) : 0,         // 实际攻击间隔（含技能修正）
+        cardGrowth: require('../tower-cards.js').growth(this.run,key),
+        cardDouble: require('../tower-cards.js').doubleRemaining(this.run,key),
         ammo: t.energy, ammoMax: this.run.armoryEnergyMax(key),          // 能量（塔位条显示；军火库 +50）
         skills,
       });
@@ -1250,6 +1264,7 @@ class GameMain {
         return { tier: ch.tier, name: tier.name, ready: this.meta.chestReady(ch), remainMin: Math.max(0, Math.ceil((ch.openAt - Date.now()) / 60000)) };
       }),
       talentView: require('../talents/view.js').ensure(this),
+      talentPressSlot: this._talentGesture&&!this._talentGesture.moved&&this._talentGesture.mode==='pan'?this._talentGesture.slot:null,
       talent: require('../talents/model.js').analyze(this.meta),
       talentMeta: {relicStars:this.meta.relicStars,runCodex:this.meta.runCodex,talents:this.meta.talents},
       talentCandidates: require('../talents/model.js').candidates(this.meta),

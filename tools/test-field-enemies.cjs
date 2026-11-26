@@ -1,7 +1,7 @@
 /** 后两地图逐波出生数值、生命预算、投放节奏和作用域隔离回归。 */
 'use strict';
 const assert=require('assert');
-const fixture=require('./moving-battle-fixture.cjs');
+const fixture=require('./balance/fixtures/moving-battle-fixture.cjs');
 const Main=require('../js/game/main.js');
 const CONFIG=require('../js/config.js');
 const Fields=require('../js/config/field-enemies.js');
