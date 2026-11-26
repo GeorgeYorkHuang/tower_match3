@@ -1,5 +1,6 @@
 'use strict';
 const {fillRoundRect,strokeRoundRect,text}=require('../ui.js');
+const TEXT_DURATION=1.5,TEXT_RISE=18;
 const THEMES={
  1:{top:'#427c60',mid:'#234937',bottom:'#142c26',edge:'#b7efd0',light:'#76d5a0',dark:'#315d46'},
  2:{top:'#68518e',mid:'#2f244e',bottom:'#181e31',edge:'#d8c5ff',light:'#bfa2ff',dark:'#52406d'},
@@ -87,7 +88,7 @@ function render(ctx,g,paint,dt){
  const list=g._cardUseFx;if(!list)return;
  for(let i=list.length-1;i>=0;i--){const f=list[i];f.t+=dt;
   const theme=THEMES[f.card.star];if(!theme){list.splice(i,1);continue;}
-  const duration=1.24;
+  const duration=.9+TEXT_DURATION;
   if(f.t>=duration){list.splice(i,1);continue;}
   ctx.save();
   // 松手立即收缩卡面，在释放点爆散，随后各光球错峰加速吸入目标槽。
@@ -106,7 +107,12 @@ function render(ctx,g,paint,dt){
    glowOrb(ctx,to.x,to.y,5+f.card.star*1.4,theme,(1-hit)*.8);
    ctx.globalAlpha=1-hit;
    for(let ring=0;ring<(f.card.star===3?2:1);ring++){ctx.strokeStyle=theme.light;ctx.lineWidth=1.8-ring*.5;ctx.beginPath();ctx.ellipse(to.x,to.y,14+hit*34+ring*8,7+hit*15+ring*4,0,0,Math.PI*2);ctx.stroke();}
-   text(ctx,to.doubleSeconds?'双倍攻击 60秒':to.boost?'攻击力 +'+to.boost+'%':'+'+Math.round(to.gain)+' 能量',to.x,to.y-26-hit*15,17,theme.edge,'center');
+   const textAge=f.t-.9;ctx.globalAlpha=1-Math.max(0,Math.min(1,(textAge-.8)/(TEXT_DURATION-.8)));
+   const textY=to.y-26-Math.min(1,textAge/TEXT_DURATION)*TEXT_RISE;
+   text(ctx,'+'+Math.round(to.gain)+' 能量',to.x,textY,17,theme.edge,'center');
+   let extraY=textY-22;
+   if(to.boost){text(ctx,'攻击力 +'+to.boost+'%',to.x,extraY,17,theme.edge,'center');extraY-=22;}
+   if(to.doubleSeconds)text(ctx,'双倍攻击 60秒',to.x,extraY,17,theme.edge,'center');
   }
   ctx.restore();
  }

@@ -2,6 +2,7 @@
 const ApprovedDebuffs = require('../fx/approved-debuffs.js');
 const HitFeedback = require('../fx/hit-feedback.js');
 const CONFIG = require('../../config.js');
+const PROLOGUE = require('../../config/prologue.js');
 const Presentation = require('../../config/combat-presentation.js');
 const enemySize = require('../../enemy-size.js');
 const ENEMY_VISUAL = require('../../config/enemy-visuals.js');
@@ -200,7 +201,8 @@ const ENEMY_ART_DUR = { 4: 220, 5: 160, 6: 300, 7: 200, 8: 160, 10: 200, 11: 120
     const frostImage = frostSrc && loadImg(frostSrc);
     const lavaSlime = !e.isBoss && !e.isSummon && genLv === 1 && this.enemyStage === 'lava';
     const lavaImage = lavaSlime && loadImg(IMG_SRC.lava_lv1);
-    const ancientSrc = !e.isBoss && !e.isSummon && this.enemyStage === 'ancient' && ancientArt[genLv] && ancientArt[genLv].src;
+    const usesAncientArt = this.enemyStage === 'ancient' || PROLOGUE.order.includes(this.enemyStage);
+    const ancientSrc = !e.isBoss && !e.isSummon && usesAncientArt && ancientArt[genLv] && ancientArt[genLv].src;
     const ancientImage = ancientSrc && loadImg(ancientSrc);
     const levelSrc = ancientImage && ancientImage.width > 0 ? ancientSrc
       : lavaImage && lavaImage.width > 0 ? IMG_SRC.lava_lv1 : frostImage && frostImage.width > 0 ? frostSrc : IMG_SRC['lv' + imgLv];

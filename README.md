@@ -2,7 +2,7 @@
 
 三消 × 塔防 × Roguelike 竖屏小游戏。通过三消激活六系防御塔、补充能量，搭配技能分支与圣遗物抵御敌人。
 
-当前游戏版本：**V1.20.5**。版本唯一入口为 [`js/config/version.js`](js/config/version.js)。
+当前游戏版本：**V1.20.6**。版本唯一入口为 [`js/config/version.js`](js/config/version.js)。
 
 ## 本地运行
 

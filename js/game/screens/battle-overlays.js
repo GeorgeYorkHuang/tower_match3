@@ -6,6 +6,7 @@ const LOGIC_H = CONFIG.DESIGN.H;
 function createBattleOverlays({ fmtNum, drawImg }) {
   function funcLayer(ctx, layer, s, hits) {
     const w = 640, x = (750 - w) / 2;
+    const capsule={capsule:true,raised:true,gloss:false,depth:5,baseColor:'#193e2b',shadowBlur:5,shadowOffsetY:3};
     const heights = { setting: 500, help: 1080 };   // 能量规则与宝箱交互说明扩充
     const hgt = heights[layer.type] || 560;
     const y = (LOGIC_H - hgt) / 2;
@@ -26,11 +27,11 @@ function createBattleOverlays({ fmtNum, drawImg }) {
       // 声音开关行
       const sndOn = layer.soundOn !== false;
       text(ctx, '🔊 音效与背景音乐', x + 96, y + 176, 24, '#dfe6ee', 'left');
-      hits.sound = button(ctx, x + 400, y + 148, 144, 56, sndOn ? '开' : '关', { bg: sndOn ? '#2b6d4f' : '#45505f', fontSize: 26 });
+      hits.sound = button(ctx, x + 400, y + 148, 144, 56, sndOn ? '开' : '关', { ...capsule,bg: sndOn ? '#2b6d4f' : '#45505f',baseColor:sndOn?'#193e2b':'#2a323b',fontSize:26 });
       // 重新开始（不清档）
       text(ctx, '重新开始将返回主界面重开一局：', 375, y + 240, 20, 'rgba(255,255,255,0.7)', 'center');
       text(ctx, '塔等级 · 金币 · 解锁进度全部保留', 375, y + 272, 20, 'rgba(255,255,255,0.55)', 'center');
-      hits.confirm = button(ctx, x + 120, y + 306, 400, 70, '重新开始', { bg: '#2b6d4f', fontSize: 28 });
+      hits.confirm = button(ctx, x + 120, y + 306, 400, 70, '重新开始', { ...capsule,bg:'#2b6d4f',fontSize:28 });
     } else if (layer.type === 'help') {
       // 帮助文档：字号加大（23px）、行距压缩、长句自动换行不出框
       const lines = [
@@ -54,7 +55,7 @@ function createBattleOverlays({ fmtNum, drawImg }) {
         hy += bh + 6;
       });
     }
-    hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { bg: '#365c40', fontSize: 26 });
+    hits.close = button(ctx, x + 150, y + hgt - 84, w - 300, 56, layer.type === 'setting' ? '返回主菜单' : '关闭', { ...capsule,bg:'#365c40',fontSize:26 });
   }
 
   function evacuationLayer(ctx, g, hits) {

@@ -13,7 +13,7 @@ function bindTouch(game, c) {
     const dispatch = game.dispatchTouch.bind(game);
     game.dispatchTouch = (point) => {
       if (!starting) return dispatch(point);
-      pendingButton = { point, state: game.state, tab: game.menuTab, panel: game.menuPanel, stage:game.menuStage, menuHit:game.state==='menu'?(game.menuHits||[]).find(h=>h.hit(point.x,point.y)):null, cancelled: false };
+      pendingButton = { point, state: game.state, tab: game.menuTab, panel: game.menuPanel, stage:game.menuStage, funcLayer:game.funcLayer,funcHit:game.funcLayer?Object.values(game.funcLayerHits||{}).find(h=>h&&typeof h.hit==='function'&&h.hit(point.x,point.y)):null, menuHit:game.state==='menu'?(game.menuHits||[]).find(h=>h.hit(point.x,point.y)):null, cancelled: false };
       return true;
     };
     let startCell = null, lastCell = null;
@@ -155,6 +155,7 @@ function bindTouch(game, c) {
         const end = touchPoint(e);
         const action=game._settlementPress;game._settlementPress=null;
         if(action&&actionAt(end)!==action)return;
+        if(game.funcLayer!==button.funcLayer||button.funcHit&&(!end||!button.funcHit.hit(end.x,end.y)))return;
         if(button.menuHit&&(!end||!button.menuHit.hit(end.x,end.y)||game.menuStage!==button.stage))return;
         if (!button.cancelled && end && game.state === button.state && game.menuTab === button.tab && game.menuPanel === button.panel && Math.hypot(end.x-button.point.x,end.y-button.point.y)<=12) dispatch(button.point);
         return;
