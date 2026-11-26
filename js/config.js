@@ -31,7 +31,7 @@ module.exports = {
     green:  { tower: 'poison',     name: '毒塔' },
     yellow: { tower: 'electric',   name: '电塔' },
     purple: { tower: 'boomerang',  name: '回旋镖塔' },
-    orange: { tower: 'cannon',     name: '炮塔（P1）' },
+    orange: { tower: 'cannon',     name: '炮塔' },
   },
 
   COLOR_WEIGHT: { red: 1/6, green: 1/6, blue: 1/6, yellow: 1/6, purple: 1/6, orange: 1/6 }, // 6 色均等出现
